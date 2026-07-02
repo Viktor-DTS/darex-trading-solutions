@@ -11,7 +11,7 @@ const OPEN_MARK_STATUSES = ['open', 'pending_sim', 'pending_ibkr'];
 /**
  * Оновлює lastMarkPrice для відкритих/очікуваних угод після скану.
  */
-async function refreshOpenTradeMarkPrices(models, scanId) {
+async function refreshOpenTradeMarkPrices(models, scanId, settings = {}) {
   if (!models?.TradingTrade) {
     return { updated: 0, symbols: 0 };
   }
@@ -30,7 +30,10 @@ async function refreshOpenTradeMarkPrices(models, scanId) {
 
   for (const symbol of symbols) {
     try {
-      const chart = await fetchChart(symbol);
+      const isActive = settings?.strategyProfile === 'active';
+      const chart = isActive
+        ? await fetchChart(symbol, '5d', '1d', { minBars: 1 })
+        : await fetchChart(symbol);
       priceBySymbol.set(symbol, {
         price: round2(chart.lastPrice),
         source: chart.source || 'yahoo',

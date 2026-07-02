@@ -127,7 +127,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       ibkrSync = await syncTradesFromIbkr(models, { triggeredBy });
     }
 
-    const markPrices = await refreshOpenTradeMarkPrices(models, scanId);
+    const markPrices = await refreshOpenTradeMarkPrices(models, scanId, settings);
 
     const openCountAfter = await models.TradingTrade.countDocuments({
       status: { $in: ACTIVE_TRADE_STATUSES },

@@ -133,15 +133,31 @@ function detectSimExit(trade, price, barLow, barHigh) {
 
 async function getSymbolMarket(symbol, settings = {}) {
   const isActive = settings?.strategyProfile === 'active';
-  const chart = isActive
-    ? await fetchChart(symbol, settings.activeChartRange || '5d', settings.activeChartInterval || '15m', { minBars: 5 })
-    : await fetchChart(symbol);
-  const lastBar = chart.bars?.[chart.bars.length - 1];
+  if (!isActive) {
+    const chart = await fetchChart(symbol);
+    const lastBar = chart.bars?.[chart.bars.length - 1];
+    return {
+      chart,
+      price: chart.lastPrice,
+      low: lastBar?.low ?? chart.lastPrice,
+      high: lastBar?.high ?? chart.lastPrice,
+    };
+  }
+
+  const [daily, intraday] = await Promise.all([
+    fetchChart(symbol, '5d', '1d', { minBars: 1 }),
+    fetchChart(symbol, settings.activeChartRange || '5d', settings.activeChartInterval || '15m', { minBars: 5 }),
+  ]);
+  const lastBar = intraday.bars?.[intraday.bars.length - 1];
+  const livePrice = daily.lastPrice ?? intraday.lastPrice;
+  const barLow = lastBar?.low ?? livePrice;
+  const barHigh = lastBar?.high ?? livePrice;
+
   return {
-    chart,
-    price: chart.lastPrice,
-    low: lastBar?.low ?? chart.lastPrice,
-    high: lastBar?.high ?? chart.lastPrice,
+    chart: intraday,
+    price: livePrice,
+    low: Math.min(barLow, livePrice),
+    high: Math.max(barHigh, livePrice),
   };
 }
 

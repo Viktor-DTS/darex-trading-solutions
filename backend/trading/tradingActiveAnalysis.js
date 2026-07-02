@@ -100,15 +100,14 @@ function scoreActiveSymbol(chart, externalContext = {}, settings = {}) {
   let takeProfit = round2(price + targetUsd);
 
   if (atr14 != null) {
-    const minStop = round2(price - atr14 * 0.6);
-    const maxStop = round2(price - atr14 * 1.2);
-    if (stopLoss > maxStop) stopLoss = maxStop;
-    if (stopLoss < minStop) stopLoss = minStop;
-    const risk = price - stopLoss;
-    takeProfit = round2(price + Math.max(targetUsd, risk * 1.5));
+    const atrStop = round2(price - atr14 * 1.0);
+    stopLoss = Math.min(stopLoss, atrStop);
   }
+  // Ніколи не ставимо SL ближче ніж targetRiskPerTradeUsd ($4 за замовч.)
+  stopLoss = Math.min(stopLoss, round2(price - riskUsd));
 
   const risk = price - stopLoss;
+  takeProfit = round2(price + Math.max(targetUsd, risk * 1.5));
   const rr = risk > 0 ? (takeProfit - price) / risk : 0;
 
   let action = 'SKIP';
