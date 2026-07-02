@@ -354,3 +354,24 @@
   color: #c62828;
   font-weight: 600;
 }
+
+.trading-row-selected {
+  background: rgba(46, 125, 50, 0.06);
+}
+
+.trading-tag-pick {
+  margin-left: 0.35rem;
+  background: rgba(46, 125, 50, 0.15);
+  color: #2e7d32;
+}
+
+.trading-watchlist-input {
+  width: 100%;
+  margin-top: 0.35rem;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}

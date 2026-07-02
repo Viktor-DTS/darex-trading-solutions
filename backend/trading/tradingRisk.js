@@ -24,11 +24,6 @@ function applyRiskToSignals(signals, settings, riskState, openTradesCount) {
       copy.reason = `${copy.reason}; trading paused: ${riskState.pauseReason || 'limit'}`;
       return copy;
     }
-    if (copy.action === 'BUY' && openTradesCount >= maxOpen) {
-      copy.action = 'SKIP';
-      copy.reason = `${copy.reason}; max open positions ${maxOpen}`;
-      return copy;
-    }
     if (copy.action === 'BUY' && copy.entryPrice && copy.stopLoss) {
       const sizing = calcPositionSizeUsd(
         settings.equityUsd ?? 1700,

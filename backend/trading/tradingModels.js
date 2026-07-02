@@ -20,7 +20,13 @@ function initTradingModels(getAssistantConnection) {
         mode: { type: String, enum: ['paper', 'live', 'simulate'], default: 'paper' },
         autoEnabled: { type: Boolean, default: false },
         simCommissionPerSideUsd: { type: Number, default: 1 },
-        watchlist: { type: [String], default: ['VOO', 'SPY', 'AAPL', 'MSFT', 'NVDA'] },
+        watchlist: {
+          type: [String],
+          default: [
+            'VOO', 'SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META',
+            'JPM', 'UNH', 'COST', 'AMD', 'AVGO', 'LLY',
+          ],
+        },
         riskPerTradePct: { type: Number, default: 0.8 },
         maxOpenPositions: { type: Number, default: 2 },
         dailyLossLimitPct: { type: Number, default: 2 },

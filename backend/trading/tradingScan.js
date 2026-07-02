@@ -13,6 +13,7 @@ const { syncTradesFromIbkr } = require('./ibkrTradeSync');
 const { isIbkrFullyConfigured } = require('./ibkrApi');
 const { isSimulationMode, runSimulationCycle, applySimulationSizingToSignals } = require('./tradeSimulator');
 const { refreshOpenTradeMarkPrices } = require('./tradingMarkPrices');
+const { rankAndSelectBuyCandidates } = require('./tradingRank');
 
 const ACTIVE_TRADE_STATUSES = ['open', 'pending_ibkr', 'pending_sim'];
 
@@ -55,27 +56,41 @@ async function runTradingScan(getAssistantConnection, options = {}) {
     });
 
     const watchlist = Array.isArray(settings.watchlist) ? settings.watchlist : [];
+    const openTrades = await models.TradingTrade.find({
+      status: { $in: ACTIVE_TRADE_STATUSES },
+    }).select('symbol').lean();
+    const openCount = openTrades.length;
+    const occupiedSymbols = new Set(
+      openTrades.map((t) => String(t.symbol || '').trim().toUpperCase()).filter(Boolean),
+    );
+
     let signals = await analyzeWatchlist(watchlist, macro);
 
-    const openCount = await models.TradingTrade.countDocuments({
-      status: { $in: ACTIVE_TRADE_STATUSES },
-    });
     signals = applyRiskToSignals(signals, settings, { ...riskState, regime: macro.regime }, openCount);
     if (isSimulationMode(settings)) {
       signals = applySimulationSizingToSignals(signals, settings, { regime: macro.regime });
     }
+
+    const rankResult = rankAndSelectBuyCandidates(signals, settings, openCount, occupiedSymbols);
+    signals = rankResult.signals;
 
     const savedSignals = [];
     for (const sig of signals) {
       const doc = await models.TradingSignal.create({
         ...sig,
         scanId,
-        meta: { indicators: sig.indicators, riskReward: sig.riskReward, quantity: sig.quantity },
+        meta: {
+          indicators: sig.indicators,
+          riskReward: sig.riskReward,
+          quantity: sig.quantity,
+          buyRank: sig.buyRank ?? null,
+          selectedForEntry: sig.selectedForEntry ?? false,
+        },
       });
       savedSignals.push(doc.toObject());
     }
 
-    const buySignals = savedSignals.filter((s) => s.action === 'BUY');
+    const buySignals = savedSignals.filter((s) => s.action === 'BUY' && s.selectedForEntry !== false);
     let tradesCreatedCount = 0;
     let simulation = null;
     let ibkrSync = null;
@@ -149,6 +164,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       vix: macro.vix,
       signalCount: savedSignals.length,
       buyCount: buySignals.length,
+      buyRankStats: rankResult.stats,
       tradesCreated: tradesCreatedCount,
       simulation,
       ibkrSync,

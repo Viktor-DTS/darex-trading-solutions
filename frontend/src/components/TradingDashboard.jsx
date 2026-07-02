@@ -44,6 +44,15 @@ function fmtDateTime(value) {
   return new Date(value).toLocaleString('uk-UA');
 }
 
+function signalBuyRank(s) {
+  return s?.meta?.buyRank ?? s?.buyRank ?? null;
+}
+
+function signalSelectedForEntry(s) {
+  if (s?.action === 'BUY') return true;
+  return s?.meta?.selectedForEntry === true;
+}
+
 function tradeStatusClass(status) {
   if (status === 'open') return 'trading-trade-open';
   if (status === 'closed') return 'trading-trade-closed';
@@ -289,6 +298,17 @@ export default function TradingDashboard({ user, embedded = false }) {
   const pendingTrades = data?.pendingTrades || [];
   const integrations = data?.integrations || {};
   const isSimMode = settings.mode === 'simulate';
+  const latestScanId = signals[0]?.scanId;
+  const latestScanSignals = latestScanId
+    ? signals.filter((s) => s.scanId === latestScanId)
+    : [];
+  const topEntryPicks = latestScanSignals
+    .filter((s) => s.action === 'BUY')
+    .sort((a, b) => (signalBuyRank(a) ?? 99) - (signalBuyRank(b) ?? 99));
+  const rankedCandidates = latestScanSignals
+    .filter((s) => signalBuyRank(s) != null)
+    .sort((a, b) => signalBuyRank(a) - signalBuyRank(b))
+    .slice(0, 5);
 
   return (
     <div className={`trading-page${embedded ? ' trading-page-embedded' : ''}`}>
@@ -376,6 +396,34 @@ export default function TradingDashboard({ user, embedded = false }) {
               <div className="trading-paused-banner">⏸ ПАУЗА: {risk.pauseReason || 'вручну'}</div>
             )}
           </div>
+          {latestScanSignals.length > 0 && (
+            <div className="trading-card trading-card-wide">
+              <div className="trading-card-label">Найкращі для входу (останній скан)</div>
+              {topEntryPicks.length > 0 ? (
+                <ul className="trading-pending-list">
+                  {topEntryPicks.map((s) => (
+                    <li key={s._id}>
+                      <strong>#{signalBuyRank(s) ?? '?'}</strong> {s.symbol} · F{s.finalScore} · R:R {s.meta?.riskReward ?? '—'}
+                      {' '}@ {s.entryPrice} · SL {s.stopLoss} · TP {s.takeProfit}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="trading-muted">
+                  Немає обраних BUY — {rankedCandidates.length ? 'найсильніші кандидати:' : 'усі нижче порогу або слоти зайняті'}
+                </p>
+              )}
+              {!topEntryPicks.length && rankedCandidates.length > 0 && (
+                <ul className="trading-pending-list">
+                  {rankedCandidates.map((s) => (
+                    <li key={s._id}>
+                      <strong>#{signalBuyRank(s)}</strong> {s.symbol} · F{s.finalScore} · {s.action}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {pendingTrades.length > 0 && (
             <div className="trading-card trading-card-wide">
               <div className="trading-card-label">Очікують виконання ({pendingTrades.length})</div>
@@ -399,6 +447,7 @@ export default function TradingDashboard({ user, embedded = false }) {
               <tr>
                 <th>Час</th>
                 <th>Тикер</th>
+                <th>Ранг</th>
                 <th>Дія</th>
                 <th>Бали</th>
                 <th>Вхід / SL / TP</th>
@@ -407,10 +456,16 @@ export default function TradingDashboard({ user, embedded = false }) {
             </thead>
             <tbody>
               {signals.map((s) => (
-                <tr key={s._id}>
+                <tr key={s._id} className={signalSelectedForEntry(s) ? 'trading-row-selected' : ''}>
                   <td>{new Date(s.createdAt).toLocaleString('uk-UA')}</td>
                   <td><strong>{s.symbol}</strong></td>
-                  <td><span className={`trading-badge ${actionClass(s.action)}`}>{s.action}</span></td>
+                  <td>{signalBuyRank(s) != null ? `#${signalBuyRank(s)}` : '—'}</td>
+                  <td>
+                    <span className={`trading-badge ${actionClass(s.action)}`}>{s.action}</span>
+                    {signalSelectedForEntry(s) && s.action === 'BUY' && (
+                      <span className="trading-tag trading-tag-pick">вхід</span>
+                    )}
+                  </td>
                   <td>T{s.technicalScore} E{s.externalScore} F{s.finalScore}</td>
                   <td>
                     {s.entryPrice ?? '—'} / {s.stopLoss ?? '—'} / {s.takeProfit ?? '—'}
@@ -419,7 +474,7 @@ export default function TradingDashboard({ user, embedded = false }) {
                 </tr>
               ))}
               {!signals.length && (
-                <tr><td colSpan={6} className="trading-muted">Немає сигналів — натисни «Сканувати»</td></tr>
+                <tr><td colSpan={7} className="trading-muted">Немає сигналів — натисни «Сканувати»</td></tr>
               )}
             </tbody>
           </table>
@@ -721,11 +776,36 @@ export default function TradingDashboard({ user, embedded = false }) {
             )}
             {isSimMode && (
               <p className="trading-hint">
-                1) Увімкни <strong>simulate</strong> + <strong>Авто</strong> → «Сканувати» для реальних BUY-сигналів.
+                1) Увімкни <strong>simulate</strong> + <strong>Авто</strong> → «Сканувати» — бот обере{' '}
+                <strong>топ-{settings.maxOpenPositions ?? 2}</strong> BUY за балами (finalScore).
                 2) Або «Тестова сим-угода» — одразу відкриває позицію по SPY/watchlist з SL/TP.
                 3) Кожен наступний скан перевіряє stop/take-profit по Yahoo-ціні.
               </p>
             )}
+          </div>
+
+          <div className="trading-card trading-card-wide">
+            <div className="trading-card-label">Список спостереження (тикери для аналізу)</div>
+            <textarea
+              className="trading-watchlist-input"
+              rows={3}
+              defaultValue={(settings.watchlist || []).join(', ')}
+              disabled={busy === 'settings'}
+              onBlur={(e) => {
+                const list = e.target.value
+                  .split(/[,;\s]+/)
+                  .map((t) => t.trim().toUpperCase())
+                  .filter(Boolean);
+                const prev = (settings.watchlist || []).join(',');
+                const next = list.join(',');
+                if (list.length && prev !== next) patchSettings({ watchlist: list });
+              }}
+              placeholder="VOO, SPY, AAPL, MSFT, NVDA…"
+            />
+            <p className="trading-hint">
+              Через кому або пробіл. Бот порівнює всі тикери і купує лише найсильніші сигнали в межах{' '}
+              <strong>макс. {settings.maxOpenPositions ?? 2} позицій</strong>.
+            </p>
           </div>
 
           <div className="trading-card trading-card-wide">

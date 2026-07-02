@@ -55,7 +55,9 @@ async function notifyBuySignals({ scanId, regime, vix, buys, mode, autoEnabled, 
   ].filter(Boolean);
 
   for (const s of buys) {
-    lines.push(`<b>${escapeHtml(s.symbol)}</b> @ ${s.entryPrice}`);
+    const rank = s.meta?.buyRank ?? s.buyRank;
+    const rankTxt = rank ? ` · топ #${rank}` : '';
+    lines.push(`<b>${escapeHtml(s.symbol)}</b>${rankTxt} @ ${s.entryPrice}`);
     lines.push(`SL ${s.stopLoss} | TP ${s.takeProfit}`);
     lines.push(`Score ${s.finalScore} | ~$${s.positionSizeUsd ?? '?'} | qty ${s.quantity ?? '?'}`);
     lines.push(`<i>${escapeHtml(s.reason)}</i>`);
