@@ -6,7 +6,7 @@ const {
 } = require('./tradingModels');
 const { analyzeWatchlist } = require('./tradingAnalysis');
 const { fetchMacroSnapshot } = require('./tradingExternal');
-const { applyRiskToSignals, evaluateCircuitBreaker } = require('./tradingRisk');
+const { applyRiskToSignals, applyDailyEntryBlocks, evaluateCircuitBreaker } = require('./tradingRisk');
 const { notifyTradingScan, notifyBuySignals, isTelegramConfigured, isBuyOnlyTelegram } = require('./tradingTelegram');
 const { processBuySignals } = require('./ibkrOrders');
 const { syncTradesFromIbkr } = require('./ibkrTradeSync');
@@ -14,6 +14,9 @@ const { isIbkrFullyConfigured } = require('./ibkrApi');
 const { isSimulationMode, runSimulationCycle, applySimulationSizingToSignals } = require('./tradeSimulator');
 const { refreshOpenTradeMarkPrices } = require('./tradingMarkPrices');
 const { rankAndSelectBuyCandidates } = require('./tradingRank');
+const { isActiveEntryWindow } = require('./tradingSession');
+const { calcDailyPnlUsd, countTradesOpenedToday, evaluateDailyLimits } = require('./tradingDailyPnl');
+const { getEtDayKey } = require('./tradingSession');
 
 const ACTIVE_TRADE_STATUSES = ['open', 'pending_ibkr', 'pending_sim'];
 
@@ -56,6 +59,18 @@ async function runTradingScan(getAssistantConnection, options = {}) {
     });
 
     const watchlist = Array.isArray(settings.watchlist) ? settings.watchlist : [];
+    const isActive = settings.strategyProfile === 'active';
+    const dailyPnlUsd = await calcDailyPnlUsd(models);
+    const tradesToday = await countTradesOpenedToday(models);
+    const dailyLimits = evaluateDailyLimits(settings, dailyPnlUsd, tradesToday);
+    const entryWindowOpen = !isActive || isActiveEntryWindow();
+
+    const macroForAnalysis = {
+      ...macro,
+      blockNewEntries: dailyLimits.blockNewEntries || macro.blockNewEntries,
+      blockReason: dailyLimits.blockReason || macro.blockReason,
+    };
+
     const openTrades = await models.TradingTrade.find({
       status: { $in: ACTIVE_TRADE_STATUSES },
     }).select('symbol').lean();
@@ -64,9 +79,10 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       openTrades.map((t) => String(t.symbol || '').trim().toUpperCase()).filter(Boolean),
     );
 
-    let signals = await analyzeWatchlist(watchlist, macro);
+    let signals = await analyzeWatchlist(watchlist, macroForAnalysis, settings);
 
     signals = applyRiskToSignals(signals, settings, { ...riskState, regime: macro.regime }, openCount);
+    signals = applyDailyEntryBlocks(signals, dailyLimits, entryWindowOpen);
     if (isSimulationMode(settings)) {
       signals = applySimulationSizingToSignals(signals, settings, { regime: macro.regime });
     }
@@ -85,6 +101,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
           quantity: sig.quantity,
           buyRank: sig.buyRank ?? null,
           selectedForEntry: sig.selectedForEntry ?? false,
+          strategyProfile: settings.strategyProfile || 'swing',
         },
       });
       savedSignals.push(doc.toObject());
@@ -98,7 +115,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
     if (isSimulationMode(settings)) {
       simulation = await runSimulationCycle(models, settings, {
         buySignals,
-        autoEnabled: settings.autoEnabled && !riskState.tradingPaused,
+        autoEnabled: settings.autoEnabled && !riskState.tradingPaused && !dailyLimits.blockNewEntries,
       });
       tradesCreatedCount = simulation.buysCreated;
     } else if (buySignals.length && settings.autoEnabled && !riskState.tradingPaused) {
@@ -116,12 +133,18 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       status: { $in: ACTIVE_TRADE_STATUSES },
     });
 
+    const dailyPnlAfter = await calcDailyPnlUsd(models);
+    const tradesTodayAfter = await countTradesOpenedToday(models);
+
     const riskUpdates = evaluateCircuitBreaker(riskState, settings, settings.equityUsd ?? 1700);
     const riskSet = {
       ...riskUpdates,
       vix: macro.vix,
       regime: macro.regime,
       openPositionsCount: openCountAfter,
+      dailyPnlUsd: dailyPnlAfter,
+      dailyPnlDayKey: getEtDayKey(),
+      tradesTodayCount: tradesTodayAfter,
       lastScanAt: new Date(),
       lastScanStatus: 'ok',
       lastTriggeredBy: triggeredBy,
@@ -165,6 +188,9 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       signalCount: savedSignals.length,
       buyCount: buySignals.length,
       buyRankStats: rankResult.stats,
+      dailyPnlUsd: dailyPnlAfter,
+      dailyLimits,
+      strategyProfile: settings.strategyProfile || 'swing',
       tradesCreated: tradesCreatedCount,
       simulation,
       ibkrSync,

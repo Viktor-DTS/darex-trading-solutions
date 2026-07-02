@@ -2,6 +2,7 @@ const { fetchChart } = require('./tradingMarketData');
 const { fetchMacroSnapshot } = require('./tradingExternal');
 const { scoreSymbol } = require('./tradingAnalysis');
 const { calcPositionSizeUsd } = require('./tradingRisk');
+const { isEodFlattenTime } = require('./tradingSession');
 
 const SIM_SOURCE = 'simulation';
 const ACTIVE_STATUSES = ['open', 'pending_sim'];
@@ -130,8 +131,11 @@ function detectSimExit(trade, price, barLow, barHigh) {
   return null;
 }
 
-async function getSymbolMarket(symbol) {
-  const chart = await fetchChart(symbol);
+async function getSymbolMarket(symbol, settings = {}) {
+  const isActive = settings?.strategyProfile === 'active';
+  const chart = isActive
+    ? await fetchChart(symbol, settings.activeChartRange || '5d', settings.activeChartInterval || '15m', { minBars: 5 })
+    : await fetchChart(symbol);
   const lastBar = chart.bars?.[chart.bars.length - 1];
   return {
     chart,
@@ -151,7 +155,7 @@ async function simulatePendingEntries(models, settings) {
   let filled = 0;
   for (const trade of pending) {
     try {
-      const { price } = await getSymbolMarket(trade.symbol);
+      const { price } = await getSymbolMarket(trade.symbol, settings);
       if (price == null || price > trade.entryPrice) continue;
 
       await models.TradingTrade.updateOne(
@@ -184,7 +188,7 @@ async function simulateOpenExits(models, settings) {
   let closed = 0;
   for (const trade of open) {
     try {
-      const { price, low, high } = await getSymbolMarket(trade.symbol);
+      const { price, low, high } = await getSymbolMarket(trade.symbol, settings);
       const exit = detectSimExit(trade, price, low, high);
       if (!exit) continue;
 
@@ -218,6 +222,56 @@ async function simulateOpenExits(models, settings) {
       closed += 1;
     } catch (e) {
       console.warn('[sim] exit check', trade.symbol, e.message);
+    }
+  }
+  return closed;
+}
+
+async function simulateEodFlatten(models, settings) {
+  if (settings?.strategyProfile !== 'active') return 0;
+  if (settings?.eodFlattenEnabled === false) return 0;
+  if (!isEodFlattenTime()) return 0;
+
+  const perSide = simCommissionPerSide(settings);
+  const open = await models.TradingTrade.find({
+    status: 'open',
+    source: SIM_SOURCE,
+  });
+
+  let closed = 0;
+  for (const trade of open) {
+    try {
+      const { price } = await getSymbolMarket(trade.symbol, settings);
+      if (price == null) continue;
+
+      const buyCommission = Number(trade.commissionUsd) || perSide;
+      const totalCommission = round2(buyCommission + perSide);
+      const exitPrice = round2(price);
+      const { pnlUsd, pnlPct } = calcClosedPnl(
+        trade.entryPrice,
+        exitPrice,
+        trade.quantity,
+        totalCommission,
+      );
+
+      await models.TradingTrade.updateOne(
+        { _id: trade._id },
+        {
+          $set: {
+            status: 'closed',
+            exitPrice,
+            exitReason: 'eod',
+            closedAt: new Date(),
+            commissionUsd: totalCommission,
+            pnlUsd,
+            pnlPct,
+            notes: appendNote(trade.notes, `SIM EOD flatten @ ${exitPrice} · P/L ${pnlUsd ?? '—'}`),
+          },
+        },
+      );
+      closed += 1;
+    } catch (e) {
+      console.warn('[sim] eod flatten', trade.symbol, e.message);
     }
   }
   return closed;
@@ -280,7 +334,7 @@ async function processSimBuySignals(models, buySignals, settings) {
     let fillNow = true;
     let marketPrice = sig.entryPrice;
     try {
-      const market = await getSymbolMarket(symbol);
+      const market = await getSymbolMarket(symbol, settings);
       marketPrice = market.price ?? sig.entryPrice;
       fillNow = marketPrice != null && marketPrice <= sig.entryPrice;
     } catch (_) {
@@ -315,6 +369,7 @@ async function runSimulationCycle(models, settings, options = {}) {
   const stats = {
     pendingFilled: 0,
     exitsClosed: 0,
+    eodClosed: 0,
     buysCreated: 0,
     repaired: 0,
   };
@@ -322,6 +377,7 @@ async function runSimulationCycle(models, settings, options = {}) {
   stats.repaired = await repairIncompleteSimTrades(models, settings);
   stats.pendingFilled = await simulatePendingEntries(models, settings);
   stats.exitsClosed = await simulateOpenExits(models, settings);
+  stats.eodClosed = await simulateEodFlatten(models, settings);
 
   const { buySignals = [], autoEnabled = false } = options;
   if (autoEnabled && buySignals.length) {

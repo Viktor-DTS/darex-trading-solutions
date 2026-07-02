@@ -11,6 +11,21 @@ function calcPositionSizeUsd(equityUsd, riskPerTradePct, entry, stopLoss) {
   };
 }
 
+function applyDailyEntryBlocks(signals, dailyLimits, sessionOpen) {
+  if (!dailyLimits?.blockNewEntries && sessionOpen !== false) return signals;
+
+  return signals.map((sig) => {
+    if (sig.action !== 'BUY') return sig;
+    const copy = { ...sig, action: 'SKIP' };
+    if (dailyLimits?.blockNewEntries) {
+      copy.reason = `${sig.reason}; ${dailyLimits.blockReason}`;
+    } else if (sessionOpen === false) {
+      copy.reason = `${sig.reason}; поза торговим вікном (active)`;
+    }
+    return copy;
+  });
+}
+
 function applyRiskToSignals(signals, settings, riskState, openTradesCount) {
   const paused = riskState?.tradingPaused === true;
   const maxOpen = settings.maxOpenPositions ?? 2;
@@ -70,5 +85,6 @@ function round2(n) {
 module.exports = {
   calcPositionSizeUsd,
   applyRiskToSignals,
+  applyDailyEntryBlocks,
   evaluateCircuitBreaker,
 };

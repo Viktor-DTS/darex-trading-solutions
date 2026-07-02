@@ -28,6 +28,11 @@ function modeLabel(mode) {
   return 'paper';
 }
 
+function strategyLabel(profile) {
+  if (profile === 'active') return 'Active ($5–15/день)';
+  return 'Swing';
+}
+
 function fmtMoney(n) {
   if (n == null || Number.isNaN(Number(n))) return '—';
   return `$${Number(n).toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -298,6 +303,7 @@ export default function TradingDashboard({ user, embedded = false }) {
   const pendingTrades = data?.pendingTrades || [];
   const integrations = data?.integrations || {};
   const isSimMode = settings.mode === 'simulate';
+  const isActiveMode = settings.strategyProfile === 'active';
   const latestScanId = signals[0]?.scanId;
   const latestScanSignals = latestScanId
     ? signals.filter((s) => s.scanId === latestScanId)
@@ -317,6 +323,7 @@ export default function TradingDashboard({ user, embedded = false }) {
           <h1>Торгівля — IBKR (зростання капіталу)</h1>
           <p className="trading-sub">
             {user?.login} · режим <strong>{modeLabel(settings.mode)}</strong>
+            · стратегія <strong>{strategyLabel(settings.strategyProfile)}</strong>
             · авто <strong>{settings.autoEnabled ? 'УВІМК' : 'ВИМК'}</strong>
             {isSimMode && <span className="trading-sim-badge"> без IBKR</span>}
           </p>
@@ -380,6 +387,25 @@ export default function TradingDashboard({ user, embedded = false }) {
             <div className="trading-card-label">Відкриті позиції</div>
             <div className="trading-card-value">{openTrades.length}</div>
           </div>
+          {isActiveMode && (
+            <>
+              <div className="trading-card">
+                <div className="trading-card-label">P/L сьогодні</div>
+                <div className={`trading-card-value ${(risk.dailyPnlUsd ?? 0) >= 0 ? 'trading-pnl-pos' : 'trading-pnl-neg'}`}>
+                  {fmtMoney(risk.dailyPnlUsd ?? 0)}
+                </div>
+                <div className="trading-card-value trading-card-value-sm trading-muted">
+                  ціль {fmtMoney(settings.dailyProfitTargetUsd ?? 15)} · угод {risk.tradesTodayCount ?? 0}/{settings.maxTradesPerDay ?? 5}
+                </div>
+              </div>
+              <div className="trading-card">
+                <div className="trading-card-label">TP / SL на угоду</div>
+                <div className="trading-card-value trading-card-value-sm">
+                  +{fmtMoney(settings.targetProfitPerTradeUsd ?? 6)} / −{fmtMoney(settings.targetRiskPerTradeUsd ?? 4)}
+                </div>
+              </div>
+            </>
+          )}
           <div className="trading-card trading-card-wide">
             <div className="trading-card-label">Останній скан</div>
             <div className="trading-card-value trading-card-value-sm">
@@ -729,6 +755,35 @@ export default function TradingDashboard({ user, embedded = false }) {
       {tab === 'settings' && (
         <div className="trading-settings">
           <div className="trading-card trading-card-wide">
+            <div className="trading-card-label">Стратегія</div>
+            <div className="trading-settings-row">
+              <select
+                value={settings.strategyProfile || 'swing'}
+                onChange={(e) => {
+                  const profile = e.target.value;
+                  const patch = { strategyProfile: profile };
+                  if (profile === 'active') {
+                    patch.maxOpenPositions = 1;
+                    patch.mode = 'simulate';
+                  }
+                  patchSettings(patch);
+                }}
+                disabled={busy === 'settings'}
+              >
+                <option value="swing">Swing (денні бари, 1–2 позиції)</option>
+                <option value="active">Active Income ($5–15/день, intraday SPY/QQQ)</option>
+              </select>
+            </div>
+            {isActiveMode && (
+              <p className="trading-hint">
+                Active: 15m VWAP+EMA, фіксований TP ~${settings.targetProfitTargetUsd ?? 6}/угода,
+                денна ціль ${settings.dailyProfitTargetUsd ?? 15}, закриття о <strong>15:55 ET</strong>.
+                Cron: <code>*/5 14-20 * * 1-5</code> (UTC, підлаштуй під DST).
+              </p>
+            )}
+          </div>
+
+          <div className="trading-card trading-card-wide">
             <div className="trading-card-label">Авто-торгівля</div>
             <div className="trading-settings-row">
               <label>
@@ -784,6 +839,83 @@ export default function TradingDashboard({ user, embedded = false }) {
             )}
           </div>
 
+          {isActiveMode && (
+            <div className="trading-card trading-card-wide">
+              <div className="trading-card-label">Active Income — параметри</div>
+              <div className="trading-settings-row trading-settings-grid">
+                <label>
+                  TP / угода ($):
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={settings.targetProfitPerTradeUsd ?? 6}
+                    onChange={(e) => patchSettings({ targetProfitPerTradeUsd: Number(e.target.value) })}
+                    disabled={busy === 'settings'}
+                    className="trading-input-num"
+                  />
+                </label>
+                <label>
+                  SL / угода ($):
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={settings.targetRiskPerTradeUsd ?? 4}
+                    onChange={(e) => patchSettings({ targetRiskPerTradeUsd: Number(e.target.value) })}
+                    disabled={busy === 'settings'}
+                    className="trading-input-num"
+                  />
+                </label>
+                <label>
+                  Денна ціль ($):
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={settings.dailyProfitTargetUsd ?? 15}
+                    onChange={(e) => patchSettings({ dailyProfitTargetUsd: Number(e.target.value) })}
+                    disabled={busy === 'settings'}
+                    className="trading-input-num"
+                  />
+                </label>
+                <label>
+                  Макс. угод / день:
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value={settings.maxTradesPerDay ?? 5}
+                    onChange={(e) => patchSettings({ maxTradesPerDay: Number(e.target.value) })}
+                    disabled={busy === 'settings'}
+                    className="trading-input-num"
+                  />
+                </label>
+              </div>
+              <textarea
+                className="trading-watchlist-input"
+                rows={2}
+                defaultValue={(settings.activeWatchlist || ['SPY', 'QQQ']).join(', ')}
+                disabled={busy === 'settings'}
+                onBlur={(e) => {
+                  const list = e.target.value
+                    .split(/[,;\s]+/)
+                    .map((t) => t.trim().toUpperCase())
+                    .filter(Boolean);
+                  const prev = (settings.activeWatchlist || ['SPY', 'QQQ']).join(',');
+                  const next = list.join(',');
+                  if (list.length && prev !== next) patchSettings({ activeWatchlist: list });
+                }}
+                placeholder="SPY, QQQ"
+              />
+              <p className="trading-hint">
+                Рекомендовано <strong>SPY</strong> або <strong>QQQ</strong> — вузький spread, ~$6 рух ≈ 1%.
+                Після досягнення денної цілі нові входи блокуються до завтра.
+              </p>
+            </div>
+          )}
+
           <div className="trading-card trading-card-wide">
             <div className="trading-card-label">Список спостереження (тикери для аналізу)</div>
             <textarea
@@ -803,8 +935,10 @@ export default function TradingDashboard({ user, embedded = false }) {
               placeholder="VOO, SPY, AAPL, MSFT, NVDA…"
             />
             <p className="trading-hint">
-              Через кому або пробіл. Бот порівнює всі тикери і купує лише найсильніші сигнали в межах{' '}
-              <strong>макс. {settings.maxOpenPositions ?? 2} позицій</strong>.
+              {isActiveMode
+                ? 'У режимі Active використовується activeWatchlist вище; swing-watchlist — для довгострокового скану.'
+                : <>Через кому або пробіл. Бот порівнює всі тикери і купує лише найсильніші сигнали в межах{' '}
+                <strong>макс. {settings.maxOpenPositions ?? 2} позицій</strong>.</>}
             </p>
           </div>
 

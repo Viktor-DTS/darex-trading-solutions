@@ -1,4 +1,5 @@
 const { fetchChart, sma, ema, rsi, atr } = require('./tradingMarketData');
+const { analyzeActiveWatchlist } = require('./tradingActiveAnalysis');
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
@@ -113,7 +114,14 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
-async function analyzeWatchlist(symbols, externalContext) {
+async function analyzeWatchlist(symbols, externalContext, settings = {}) {
+  if (settings?.strategyProfile === 'active') {
+    const activeSymbols = Array.isArray(settings.activeWatchlist) && settings.activeWatchlist.length
+      ? settings.activeWatchlist
+      : ['SPY', 'QQQ'];
+    return analyzeActiveWatchlist(activeSymbols, externalContext, settings);
+  }
+
   const results = [];
   for (const symbol of symbols) {
     try {

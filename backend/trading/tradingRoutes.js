@@ -167,6 +167,18 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
       'mode',
       'autoEnabled',
       'watchlist',
+      'strategyProfile',
+      'activeWatchlist',
+      'activeChartInterval',
+      'activeChartRange',
+      'activeMinScore',
+      'activeMinExternal',
+      'targetProfitPerTradeUsd',
+      'targetRiskPerTradeUsd',
+      'dailyProfitTargetUsd',
+      'dailyLossLimitUsd',
+      'maxTradesPerDay',
+      'eodFlattenEnabled',
       'riskPerTradePct',
       'maxOpenPositions',
       'dailyLossLimitPct',
@@ -184,6 +196,15 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
     }
     if (patch.watchlist) {
       patch.watchlist = patch.watchlist.map((s) => String(s).trim().toUpperCase()).filter(Boolean).slice(0, 30);
+    }
+    if (patch.activeWatchlist && !Array.isArray(patch.activeWatchlist)) {
+      return res.status(400).json({ error: 'activeWatchlist must be array' });
+    }
+    if (patch.activeWatchlist) {
+      patch.activeWatchlist = patch.activeWatchlist.map((s) => String(s).trim().toUpperCase()).filter(Boolean).slice(0, 10);
+    }
+    if (patch.strategyProfile && !['swing', 'active'].includes(patch.strategyProfile)) {
+      return res.status(400).json({ error: 'strategyProfile must be swing or active' });
     }
 
     const doc = await models.TradingSettings.findOneAndUpdate(

@@ -2,6 +2,7 @@ const YAHOO_CHART = 'https://query1.finance.yahoo.com/v8/finance/chart';
 const STOOQ_DAILY = 'https://stooq.com/q/d/l/';
 
 const CACHE_TTL_MS = parseInt(process.env.TRADING_CHART_CACHE_MS || String(45 * 60 * 1000), 10);
+const INTRADAY_CACHE_TTL_MS = parseInt(process.env.TRADING_INTRADAY_CACHE_MS || '120000', 10);
 const FETCH_GAP_MS = parseInt(process.env.TRADING_FETCH_GAP_MS || '1500', 10);
 
 /** @type {Map<string, { expires: number, data: object }>} */
@@ -28,8 +29,9 @@ function cacheGet(symbol) {
   return hit.data;
 }
 
-function cacheSet(symbol, data) {
-  memoryCache.set(symbol, { expires: Date.now() + CACHE_TTL_MS, data });
+function cacheSet(symbol, data, interval = '1d') {
+  const ttl = interval === '1d' ? CACHE_TTL_MS : INTRADAY_CACHE_TTL_MS;
+  memoryCache.set(symbol, { expires: Date.now() + ttl, data });
 }
 
 async function throttle() {
@@ -179,7 +181,7 @@ async function fetchChart(symbol, range = '1y', interval = '1d', options = {}) {
     }
   }
 
-  cacheSet(key, chart);
+  cacheSet(key, chart, interval);
   return chart;
 }
 
