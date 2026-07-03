@@ -2,6 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const config = require('../config');
 const { analyzePair } = require('../services/analyzer');
+const { readState } = require('../services/state');
+const { readRecent, summarize } = require('../services/journal');
+const { getActiveBlackouts, isNewsBlackout } = require('../services/calendar/newsBlackout');
 
 const app = express();
 app.use(express.json());
@@ -14,6 +17,8 @@ app.get('/health', (_req, res) => {
     provider: config.dataProvider,
     tickMs: config.tickMs,
     simulate: config.simulate,
+    newsBlackout: config.newsBlackout,
+    dxyFilter: config.dxyFilter,
   });
 });
 
@@ -28,8 +33,23 @@ app.get('/analyze', async (req, res) => {
 });
 
 app.get('/state', (_req, res) => {
+  const state = readState();
+  if (!state) {
+    return res.json({ worker: 'offline', hint: 'npm start' });
+  }
+  res.json(state);
+});
+
+app.get('/journal', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  res.json({ summary: summarize(), events: readRecent(limit) });
+});
+
+app.get('/calendar', (_req, res) => {
+  const now = new Date();
   res.json({
-    note: 'Run worker separately: npm start. Future: Redis shared state.',
+    blackouts: getActiveBlackouts(now),
+    active: isNewsBlackout(now),
   });
 });
 

@@ -2,15 +2,27 @@ const config = require('../../config');
 const { fetchAnalysisBars } = require('../market-data');
 const { scorePullbackLong } = require('./regime');
 const { normPair, pipsToPrice, round, isInUtcSession } = require('../utils');
+const { isNewsBlackout } = require('../calendar/newsBlackout');
+const { fetchDxySnapshot, dxyBlocksLong } = require('../macro/dxy');
 
 async function analyzePair(pairInput, options = {}) {
   const pair = normPair(pairInput || config.pair);
   const cfg = { ...config, ...options.config };
+  const liveQuote = options.liveQuote || null;
 
   const inSession = isInUtcSession(new Date(), cfg.sessionStartUtc, cfg.sessionEndUtc);
-  const { m1, m5, m15 } = await fetchAnalysisBars(pair);
+  const news = cfg.newsBlackout !== false ? isNewsBlackout(new Date(), cfg.newsBlackoutBufferMin ?? 0) : { blocked: false };
+  const dxy = cfg.dxyFilter !== false ? await fetchDxySnapshot() : null;
+  const dxyBlock = dxyBlocksLong(dxy, pair);
 
-  const quote = {
+  const { m1, m5 } = await fetchAnalysisBars(pair);
+
+  const quote = liveQuote ? {
+    mid: liveQuote.mid,
+    bid: liveQuote.bid,
+    ask: liveQuote.ask,
+    spreadPips: liveQuote.spreadPips ?? cfg.simSpreadPips,
+  } : {
     mid: m1.mid,
     bid: m1.bid,
     ask: m1.ask,
@@ -21,14 +33,15 @@ async function analyzePair(pairInput, options = {}) {
   const spreadOk = quote.spreadPips <= cfg.maxSpreadPips;
 
   let action = signal.action;
-  let blockReason = '';
+  const blocks = [];
 
-  if (!inSession) {
+  if (!inSession) blocks.push('outside session (UTC)');
+  if (!spreadOk) blocks.push(`spread ${quote.spreadPips} > max ${cfg.maxSpreadPips} pips`);
+  if (news.blocked) blocks.push(`news blackout: ${news.reason}`);
+  if (dxyBlock.blocked) blocks.push(dxyBlock.reason);
+
+  if (blocks.length && (action === 'BUY' || action === 'WATCH')) {
     action = 'SKIP';
-    blockReason = 'outside session (UTC)';
-  } else if (!spreadOk) {
-    action = 'SKIP';
-    blockReason = `spread ${quote.spreadPips} > max ${cfg.maxSpreadPips} pips`;
   }
 
   const entry = quote.ask ?? quote.mid;
@@ -36,10 +49,6 @@ async function analyzePair(pairInput, options = {}) {
   const targetPips = cfg.targetPips;
   const stopLoss = round(entry - pipsToPrice(stopPips, pair), 5);
   const takeProfit = round(entry + pipsToPrice(targetPips, pair), 5);
-
-  if (blockReason && action === 'BUY') {
-    action = 'SKIP';
-  }
 
   return {
     pair,
@@ -51,7 +60,7 @@ async function analyzePair(pairInput, options = {}) {
     regime: signal.regime,
     action,
     score: signal.score,
-    reason: blockReason ? `${signal.reason}; ${blockReason}` : signal.reason,
+    reason: blocks.length ? `${signal.reason}; ${blocks.join('; ')}` : signal.reason,
     entry: action === 'BUY' ? entry : null,
     stopLoss: action === 'BUY' ? stopLoss : null,
     takeProfit: action === 'BUY' ? takeProfit : null,
@@ -59,7 +68,9 @@ async function analyzePair(pairInput, options = {}) {
     targetPips,
     indicators: signal.indicators,
     regimeInfo: signal.regimeInfo,
-    dataSource: m1.source,
+    macro: { dxy },
+    newsBlackout: news.blocked ? news.reason : null,
+    dataSource: liveQuote?.source || m1.source,
   };
 }
 

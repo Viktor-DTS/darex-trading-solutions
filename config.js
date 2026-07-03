@@ -33,4 +33,8 @@ module.exports = {
   simulate: process.env.FX_SIMULATE !== '0',
   simSpreadPips: num('FX_SIM_SPREAD_PIPS', 0.8),
   simCommissionUsd: num('FX_SIM_COMMISSION_USD', 0),
+  newsBlackout: process.env.FX_NEWS_BLACKOUT !== '0',
+  newsBlackoutBufferMin: num('FX_NEWS_BLACKOUT_BUFFER_MIN', 0),
+  dxyFilter: process.env.FX_DXY_FILTER !== '0',
+  stateFileEnabled: process.env.FX_STATE_FILE !== '0',
 };

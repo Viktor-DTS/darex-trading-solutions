@@ -60,15 +60,30 @@ See `.env.example`. Key vars:
 
 - `GET /health`
 - `GET /analyze?pair=EURUSD`
-- `GET /state` — worker status (if running)
+- `GET /state` — worker snapshot (`data/worker-state.json`)
+- `GET /journal` — trade log
+- `GET /calendar` — news blackout windows
+
+## Phase 2 — OANDA demo
+
+1. Register https://www.oanda.com/demo-account/
+2. API token from portal
+3. `.env`:
+   ```
+   FX_DATA_PROVIDER=oanda
+   FX_OANDA_TOKEN=...
+   FX_OANDA_ACCOUNT=...
+   FX_OANDA_ENV=practice
+   FX_TICK_MS=500
+   ```
 
 ## Roadmap
 
 1. ✅ Yahoo 1m/5m + regime + simulate
-2. ⬜ OANDA demo stream (`FX_DATA_PROVIDER=oanda`)
-3. ⬜ Economic calendar blackout
-4. ⬜ DXY macro filter
-5. ⬜ Journal + dashboard
+2. ✅ News blackout + DXY filter + journal
+3. ✅ OANDA WebSocket stub + bar refresh
+4. ⬜ OANDA paper orders
+5. ⬜ React dashboard
 
 ## No broker account needed for phase 1
 
