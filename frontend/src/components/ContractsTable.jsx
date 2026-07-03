@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
-import { analyzeContractFileByUrl } from '../utils/pdfUtils';
+import { analyzeContractFileByUrl, openContractFilePreview } from '../utils/pdfUtils';
 import './ContractsTable.css';
 
 /** v1 — лише pdfKey рядком; v2 — об'єкт { pdfKey, contractNumber, contractDate } */
@@ -441,9 +441,7 @@ function ContractsTable({ user }) {
   };
 
   const openContractFile = (url) => {
-    if (url) {
-      window.open(url, '_blank');
-    }
+    openContractFilePreview(url);
   };
 
   if (loading) {

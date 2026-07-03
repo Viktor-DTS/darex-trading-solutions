@@ -23,6 +23,24 @@ export function isContractFileSupported(nameOrUrl = '', mime = '') {
   return kind === 'pdf' || kind === 'docx' || kind === 'doc';
 }
 
+/** URL для перегляду в браузері: PDF напряму, Word — через Office Online. */
+export function getContractFilePreviewUrl(url) {
+  const fileUrl = String(url || '').trim();
+  if (!fileUrl) return '';
+  const kind = getContractFileKind(fileUrl);
+  if (kind === 'docx' || kind === 'doc') {
+    return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`;
+  }
+  return fileUrl;
+}
+
+export function openContractFilePreview(url) {
+  const previewUrl = getContractFilePreviewUrl(url);
+  if (previewUrl) {
+    window.open(previewUrl, '_blank', 'noopener,noreferrer');
+  }
+}
+
 /**
  * Завантажує PDF.js бібліотеку
  */

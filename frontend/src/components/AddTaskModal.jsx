@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
-import { getPdfUniqueKey, extractContractMetaFromFile, analyzeContractFileByUrl, isContractFileSupported } from '../utils/pdfUtils';
+import { getPdfUniqueKey, extractContractMetaFromFile, analyzeContractFileByUrl, isContractFileSupported, openContractFilePreview } from '../utils/pdfUtils';
 import { getEdrpouList, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
@@ -2458,7 +2458,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           <button
                             type="button"
                             className="btn-contract-view"
-                            onClick={() => window.open(selectedContractUrl, '_blank')}
+                            onClick={() => openContractFilePreview(selectedContractUrl)}
                             title="Переглянути договір"
                           >
                             👁️ Переглянути
@@ -2559,7 +2559,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                                   type="button"
                                   className="contract-selector-preview"
                                   title="Відкрити документ"
-                                  onClick={() => window.open(contractUrl, '_blank')}
+                                  onClick={() => openContractFilePreview(contractUrl)}
                                 >
                                   👁️
                                 </button>
