@@ -90,21 +90,57 @@ try {
   console.warn('[FCM] Firebase Admin не налаштовано:', e.message);
 }
 
-// Multer Storage для Cloudinary (договори) - як для рахунків
+// Multer Storage для Cloudinary (договори) - PDF/Word
 const contractStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    folder: 'contracts',
-    allowed_formats: ['pdf', 'jpg', 'jpeg', 'png'],
-    resource_type: 'auto'  // 'auto' як для рахунків
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const mimetype = file?.mimetype || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
+    const isImage = mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png'].includes(ext);
+    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
+    const resourceType = isImage || isPdf ? 'image' : 'raw';
+    const uid = `contract_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const params = {
+      folder: 'contracts',
+      resource_type: resourceType,
+      overwrite: false,
+      invalidate: true,
+      public_id: uid
+    };
+    if (resourceType === 'image') {
+      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png'];
+    } else {
+      params.allowed_formats = ['doc', 'docx'];
+      if (ext) params.format = ext;
+      if (originalName) params.filename_override = originalName;
+    }
+    return params;
   }
 });
+
+const CONTRACT_FILE_RE = /\.(pdf|doc|docx)$/i;
+function contractFilesFilter(req, file, cb) {
+  const name = String(file.originalname || '');
+  if (CONTRACT_FILE_RE.test(name)) return cb(null, true);
+  const mt = String(file.mimetype || '').toLowerCase();
+  if (
+    mt === 'application/pdf' ||
+    mt === 'application/msword' ||
+    mt === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    return cb(null, true);
+  }
+  cb(new Error('Дозволені лише файли PDF та Word (.doc, .docx)'));
+}
 
 const uploadContract = multer({
   storage: contractStorage,
   limits: {
     fileSize: 20 * 1024 * 1024 // 20MB
-  }
+  },
+  fileFilter: contractFilesFilter
 });
 
 // Multer Storage для фото обладнання (шильдиків)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
-import { analyzeContractPdfByUrl } from '../utils/pdfUtils';
+import { analyzeContractFileByUrl } from '../utils/pdfUtils';
 import './ContractsTable.css';
 
 /** v1 — лише pdfKey рядком; v2 — об'єкт { pdfKey, contractNumber, contractDate } */
@@ -204,7 +204,7 @@ function ContractsTable({ user }) {
       setPdfAnalysisLoadingUrls((prev) => new Set(prev).add(url));
 
       try {
-        const { pdfKey, meta } = await analyzeContractPdfByUrl(url);
+        const { pdfKey, meta } = await analyzeContractFileByUrl(url);
         const row = {
           pdfKey: pdfKey || url,
           contractNumber: meta?.contractNumber || '',

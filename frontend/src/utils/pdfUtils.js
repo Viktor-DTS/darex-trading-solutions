@@ -1,9 +1,27 @@
 /**
- * Утиліта для роботи з PDF файлами
- * Використовує PDF.js для читання вмісту PDF
+ * Утиліта для роботи з PDF та Word файлами договорів
+ * PDF — PDF.js; Word (.docx) — Mammoth
  */
 
 let pdfjsLib = null;
+let mammothLib = null;
+
+const CONTRACT_DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const CONTRACT_DOC_MIME = 'application/msword';
+
+export function getContractFileKind(nameOrUrl = '', mime = '') {
+  const lower = String(nameOrUrl || '').toLowerCase().split('?')[0];
+  const mt = String(mime || '').toLowerCase();
+  if (mt === 'application/pdf' || lower.endsWith('.pdf')) return 'pdf';
+  if (mt === CONTRACT_DOCX_MIME || lower.endsWith('.docx')) return 'docx';
+  if (mt === CONTRACT_DOC_MIME || lower.endsWith('.doc')) return 'doc';
+  return 'unknown';
+}
+
+export function isContractFileSupported(nameOrUrl = '', mime = '') {
+  const kind = getContractFileKind(nameOrUrl, mime);
+  return kind === 'pdf' || kind === 'docx' || kind === 'doc';
+}
 
 /**
  * Завантажує PDF.js бібліотеку
@@ -44,6 +62,74 @@ async function loadPdfJs() {
   } catch (error) {
     throw new Error('Помилка завантаження PDF.js: ' + error.message);
   }
+}
+
+/**
+ * Завантажує Mammoth для читання .docx
+ */
+async function loadMammoth() {
+  if (mammothLib) return mammothLib;
+
+  if (window.mammoth) {
+    mammothLib = window.mammoth;
+    return mammothLib;
+  }
+
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+  script.async = true;
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Таймаут завантаження Mammoth'));
+    }, 15000);
+
+    script.onload = () => {
+      clearTimeout(timeout);
+      if (window.mammoth) {
+        mammothLib = window.mammoth;
+        resolve(mammothLib);
+      } else {
+        reject(new Error('Mammoth не ініціалізовано'));
+      }
+    };
+
+    script.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error('Не вдалося завантажити Mammoth'));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+async function extractTextFromDocxArrayBuffer(arrayBuffer) {
+  const mammoth = await loadMammoth();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return String(result?.value || '');
+}
+
+async function extractTextFromDocxFile(file) {
+  const data = await file.arrayBuffer();
+  return extractTextFromDocxArrayBuffer(data);
+}
+
+async function extractTextFromDocxUrl(url) {
+  const response = await fetch(url.trim());
+  if (!response.ok) {
+    throw new Error(`Не вдалося завантажити Word файл: ${response.status}`);
+  }
+  const data = await response.arrayBuffer();
+  return extractTextFromDocxArrayBuffer(data);
+}
+
+function buildContractUniqueKeyFromPlainText(text, fallbackUrl = '') {
+  const lines = String(text || '')
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const key = lines.slice(0, 3).join('|').toLowerCase().trim();
+  return key || fallbackUrl;
 }
 
 /**
@@ -338,15 +424,36 @@ function parseContractMetaFromTextContent(textContent) {
  * @returns {Promise<{ pdfKey: string, meta: { contractNumber: string, contractDate: string } }>}
  */
 export async function analyzeContractPdfByUrl(pdfUrl) {
+  return analyzeContractFileByUrl(pdfUrl);
+}
+
+/**
+ * Аналіз договору (PDF або Word) за URL: ключ дедуплікації + номер/дата.
+ * @param {string} fileUrl
+ * @returns {Promise<{ pdfKey: string, meta: { contractNumber: string, contractDate: string } }>}
+ */
+export async function analyzeContractFileByUrl(fileUrl) {
   const emptyMeta = { contractNumber: '', contractDate: '' };
   try {
-    if (!pdfUrl || typeof pdfUrl !== 'string') {
-      return { pdfKey: pdfUrl || '', meta: emptyMeta };
+    if (!fileUrl || typeof fileUrl !== 'string') {
+      return { pdfKey: fileUrl || '', meta: emptyMeta };
+    }
+
+    const kind = getContractFileKind(fileUrl);
+    if (kind === 'docx') {
+      const text = await extractTextFromDocxUrl(fileUrl);
+      return {
+        pdfKey: buildContractUniqueKeyFromPlainText(text, fileUrl),
+        meta: parseContractMetaFromPdfPlainText(text),
+      };
+    }
+    if (kind === 'doc') {
+      return { pdfKey: fileUrl, meta: emptyMeta };
     }
 
     const pdfjs = await loadPdfJs();
     const loadingTask = pdfjs.getDocument({
-      url: pdfUrl.trim(),
+      url: fileUrl.trim(),
       httpHeaders: {},
       withCredentials: false
     });
@@ -359,13 +466,38 @@ export async function analyzeContractPdfByUrl(pdfUrl) {
       .map((item) => item.str)
       .filter((str) => String(str).trim() !== '');
     const firstThreeLines = textItems.slice(0, 3);
-    const pdfKey = firstThreeLines.join('|').toLowerCase().trim() || pdfUrl;
+    const pdfKey = firstThreeLines.join('|').toLowerCase().trim() || fileUrl;
     const meta = parseContractMetaFromTextContent(textContent);
 
     return { pdfKey, meta };
   } catch (e) {
-    console.error('[PDF] analyzeContractPdfByUrl:', e?.message || e);
-    return { pdfKey: pdfUrl, meta: emptyMeta };
+    console.error('[CONTRACT] analyzeContractFileByUrl:', e?.message || e);
+    return { pdfKey: fileUrl, meta: emptyMeta };
+  }
+}
+
+/**
+ * Перша сторінка PDF або Word (.docx) → номер і дата договору.
+ * @param {{ url?: string, file?: File | Blob }} source
+ * @returns {Promise<{ contractNumber: string, contractDate: string }>}
+ */
+export async function extractContractMetaFromFile(source = {}) {
+  const { url, file } = source;
+  const name = file?.name || url || '';
+  const kind = getContractFileKind(name, file?.type || '');
+
+  try {
+    if (kind === 'docx') {
+      const text = file ? await extractTextFromDocxFile(file) : await extractTextFromDocxUrl(url);
+      return parseContractMetaFromPdfPlainText(text);
+    }
+    if (kind === 'doc') {
+      return { contractNumber: '', contractDate: '' };
+    }
+    return extractContractMetaFromPdf(source);
+  } catch (e) {
+    console.warn('[CONTRACT] extractContractMetaFromFile:', e?.message || e);
+    return { contractNumber: '', contractDate: '' };
   }
 }
 

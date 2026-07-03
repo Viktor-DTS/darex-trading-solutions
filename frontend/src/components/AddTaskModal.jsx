@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
-import { getPdfUniqueKey, extractContractMetaFromPdf, analyzeContractPdfByUrl } from '../utils/pdfUtils';
+import { getPdfUniqueKey, extractContractMetaFromFile, analyzeContractFileByUrl, isContractFileSupported } from '../utils/pdfUtils';
 import { getEdrpouList, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
@@ -665,7 +665,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     lastContractPdfBackfillKeyRef.current = '';
   }, [open, initialData?._id, initialData?.id]);
 
-  // Якщо в заявці вже є PDF договору, але ще немає номера/дати — зчитуємо з першої сторінки і зберігаємо в БД
+  // Якщо в заявці вже є файл договору, але ще немає номера/дати — зчитуємо з документа і зберігаємо в БД
   useEffect(() => {
     if (!open || isReadOnly || isNewTask) return;
 
@@ -684,7 +684,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
     (async () => {
       try {
-        const meta = await extractContractMetaFromPdf({ url });
+        const meta = await extractContractMetaFromFile({ url });
         if (cancelled) return;
 
         const patch = {};
@@ -729,7 +729,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
         lastContractPdfBackfillKeyRef.current = key;
       } catch (e) {
-        console.warn('[CONTRACT] Не вдалося автоматично зчитати договір із PDF:', e);
+        console.warn('[CONTRACT] Не вдалося автоматично зчитати договір із файлу:', e);
       }
     })();
 
@@ -1189,8 +1189,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     if (!file) return;
 
     // Перевірка типу файлу
-    if (file.type !== 'application/pdf') {
-      alert('Дозволено лише PDF файли');
+    if (!isContractFileSupported(file.name, file.type)) {
+      alert('Дозволено лише PDF та Word (.doc, .docx)');
       return;
     }
 
@@ -1223,9 +1223,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
         let meta = { contractNumber: '', contractDate: '' };
         try {
-          meta = await extractContractMetaFromPdf({ file });
+          meta = await extractContractMetaFromFile({ file });
         } catch (parseErr) {
-          console.warn('[CONTRACT] Парсинг PDF після завантаження:', parseErr);
+          console.warn('[CONTRACT] Парсинг договору після завантаження:', parseErr);
         }
 
         const parsedDate =
@@ -1316,7 +1316,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         batch.map(async (url) => {
           try {
             if (!keysMap.has(url) || !metaByUrl.has(url)) {
-              const { pdfKey, meta } = await analyzeContractPdfByUrl(url);
+              const { pdfKey, meta } = await analyzeContractFileByUrl(url);
               if (!keysMap.has(url)) {
                 keysMap.set(url, pdfKey || url);
               }
@@ -1463,7 +1463,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
     (async () => {
       try {
-        const meta = await extractContractMetaFromPdf({ url });
+        const meta = await extractContractMetaFromFile({ url });
         if (!meta.contractNumber?.trim() && !meta.contractDate?.trim()) return;
         const parsedDate =
           meta.contractDate && String(meta.contractDate).trim()
@@ -2442,7 +2442,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           type="file"
                           ref={contractFileInputRef}
                           onChange={handleContractFileChange}
-                          accept=".pdf"
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                           style={{ display: 'none' }}
                         />
                         <div className="contract-upload-buttons">
@@ -2466,7 +2466,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                             📋 Вибрати з існуючих
                           </button>
                         </div>
-                        <span className="contract-file-hint">Максимум 20MB, тільки PDF</span>
+                        <span className="contract-file-hint">Максимум 20MB, PDF або Word (.doc, .docx)</span>
                       </div>
                     )}
                   </div>
