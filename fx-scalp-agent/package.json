@@ -7,10 +7,12 @@
   "scripts": {
     "start": "node worker/index.js",
     "api": "node api/server.js",
+    "panel": "node api/server.js",
     "dev": "node --watch worker/index.js",
     "analyze": "node -e \"require('./services/analyzer').analyzePair('EURUSD').then(r=>console.log(JSON.stringify(r,null,2)))\"",
     "learn": "node jobs/learn.js",
-    "learn:dry": "node jobs/learn.js --dry-run"
+    "learn:dry": "node jobs/learn.js --dry-run",
+    "seed:journal": "node scripts/seed-journal.js"
   },
   "engines": {
     "node": ">=20"

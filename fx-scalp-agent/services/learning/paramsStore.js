@@ -1,4 +1,6 @@
-const LEARNED_PATH = require('path').join(__dirname, '../../data/learned-params.json');
+const path = require('path');
+const { DATA_DIR } = require('../state');
+const LEARNED_PATH = path.join(DATA_DIR, 'learned-params.json');
 
 const DEFAULTS = {
   minBuyScore: 72,

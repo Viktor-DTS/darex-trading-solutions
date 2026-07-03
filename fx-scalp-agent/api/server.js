@@ -1,13 +1,21 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const config = require('../config');
 const { analyzePair } = require('../services/analyzer');
 const { readState } = require('../services/state');
 const { readRecent, summarize } = require('../services/journal');
 const { getActiveBlackouts, isNewsBlackout } = require('../services/calendar/newsBlackout');
+const supervisor = require('../services/supervisor');
 
 const app = express();
 app.use(express.json());
+
+const dashboardDir = path.join(__dirname, '../dashboard');
+app.use('/dashboard', express.static(dashboardDir));
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(dashboardDir, 'index.html'));
+});
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -19,7 +27,29 @@ app.get('/health', (_req, res) => {
     simulate: config.simulate,
     newsBlackout: config.newsBlackout,
     dxyFilter: config.dxyFilter,
+    panel: true,
   });
+});
+
+app.get('/control/status', (_req, res) => {
+  res.json(supervisor.getControlStatus());
+});
+
+app.post('/control/worker/start', (_req, res) => {
+  const result = supervisor.startWorker();
+  if (!result.ok) return res.status(409).json(result);
+  res.json(result);
+});
+
+app.post('/control/worker/stop', (_req, res) => {
+  const result = supervisor.stopWorker();
+  if (!result.ok) return res.status(409).json(result);
+  res.json(result);
+});
+
+app.get('/control/logs', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 150, 500);
+  res.json({ lines: supervisor.getLogs(limit) });
 });
 
 app.get('/analyze', async (req, res) => {
@@ -35,7 +65,7 @@ app.get('/analyze', async (req, res) => {
 app.get('/state', (_req, res) => {
   const state = readState();
   if (!state) {
-    return res.json({ worker: 'offline', hint: 'npm start' });
+    return res.json({ worker: 'offline', hint: 'Запустіть worker через панель або npm start' });
   }
   res.json(state);
 });
@@ -69,6 +99,17 @@ app.post('/learning/run', async (req, res) => {
   }
 });
 
+function shutdown() {
+  if (supervisor.isManagedRunning()) {
+    supervisor.stopWorker();
+  }
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 app.listen(config.apiPort, () => {
-  console.log(`[fx-api] http://0.0.0.0:${config.apiPort}`);
+  console.log(`[fx-panel] http://127.0.0.1:${config.apiPort}`);
+  console.log('[fx-panel] dashboard + API + worker control');
 });
