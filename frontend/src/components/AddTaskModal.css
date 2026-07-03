@@ -1018,6 +1018,79 @@
   text-align: center;
 }
 
+.contract-file-pick-hint {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid #f59e0b;
+  color: #fbbf24;
+  font-size: 11px;
+  text-align: center;
+}
+
+.contract-inline-existing {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.contract-inline-existing-title {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.contract-inline-empty,
+.contract-inline-loading {
+  margin: 0;
+  padding: 8px 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.contract-inline-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.contract-inline-columns,
+.contract-inline-row.contract-selector-columns {
+  grid-template-columns: 28px minmax(0, 1fr) minmax(108px, 130px) minmax(88px, 104px) 44px;
+}
+
+.contract-inline-row.contract-selector-columns {
+  cursor: default;
+}
+
+.contract-inline-row-selected {
+  border-color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+}
+
+.contract-selector-check-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.contract-selector-check-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.contract-selector-col-check {
+  width: 28px;
+}
+
+.contract-inline-columns .contract-selector-col-doc {
+  padding-left: 0;
+}
+
 .btn-contract-upload {
   padding: 8px 16px;
   background: var(--primary);

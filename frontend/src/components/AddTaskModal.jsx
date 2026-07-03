@@ -333,7 +333,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [contractFileUploading, setContractFileUploading] = useState(false);
   const contractFileInputRef = useRef(null);
   const lastContractPdfBackfillKeyRef = useRef('');
-  const [showContractSelector, setShowContractSelector] = useState(false);
   const [existingContracts, setExistingContracts] = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   
@@ -375,7 +374,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [keysLoadingProgress, setKeysLoadingProgress] = useState({ loaded: 0, total: 0 });
   const pdfKeysCacheRef = useRef(pdfKeysCache);
   const formDataRef = useRef(formData);
-  const showContractSelectorRef = useRef(false);
   const autoContractByEdrpouInFlightRef = useRef(false);
   useEffect(() => {
     pdfKeysCacheRef.current = pdfKeysCache;
@@ -383,9 +381,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   useEffect(() => {
     formDataRef.current = formData;
   }, [formData]);
-  useEffect(() => {
-    showContractSelectorRef.current = showContractSelector;
-  }, [showContractSelector]);
   
   // ========== АВТОЗАПОВНЕННЯ ==========
   // Стан для автозаповнення ЄДРПОУ
@@ -1385,7 +1380,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     const trimmed = (edrpouRaw || '').trim();
     if (!trimmed) return;
     if (formDataRef.current.contractFile) return;
-    if (showContractSelectorRef.current) return;
     if (autoContractByEdrpouInFlightRef.current) return;
 
     autoContractByEdrpouInFlightRef.current = true;
@@ -1401,13 +1395,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
       if (formDataRef.current.contractFile) return;
 
-      if (uniqueContracts.length === 1) {
-        const url = uniqueContracts[0].url;
-        setFormData(prev => (prev.contractFile ? prev : { ...prev, contractFile: url }));
-      } else if (uniqueContracts.length > 1) {
-        setExistingContracts(uniqueContracts);
-        setShowContractSelector(true);
+      if (uniqueContracts.length === 1 && !formDataRef.current.contractFile) {
+        handleSelectExistingContract(uniqueContracts[0]);
       }
+      setExistingContracts(uniqueContracts);
     } catch (error) {
       console.error('[CONTRACT-AUTO] Помилка автопідстановки договору:', error);
     } finally {
@@ -1439,6 +1430,17 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     }
   };
 
+  // Завантаження існуючих договорів контрагента при відкритті форми / зміні ЄДРПОУ
+  useEffect(() => {
+    if (!open || isReadOnly) return;
+    const edrpou = (formData.edrpou || '').trim();
+    if (!edrpou) {
+      setExistingContracts([]);
+      return;
+    }
+    loadExistingContracts(false);
+  }, [open, formData.edrpou, isReadOnly]);
+
   // Вибір існуючого договору
   const handleSelectExistingContract = (contract) => {
     if (isReadOnly) return;
@@ -1454,7 +1456,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       ...(fromListNum ? { contractNumber: fromListNum } : {}),
       ...(fromListDateIso ? { contractDate: fromListDateIso } : {})
     }));
-    setShowContractSelector(false);
 
     if (!url) return;
 
@@ -1482,12 +1483,22 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     })();
   };
 
-  // Відкриття вибору існуючих договорів
-  const openContractSelector = () => {
+  const handleExistingContractToggle = (contract, checked) => {
     if (isReadOnly) return;
-    loadExistingContracts();
-    setShowContractSelector(true);
+    const url = contract?.url || '';
+    const currentUrl = getContractFileUrlString(formData.contractFile);
+    if (checked) {
+      if (currentUrl !== url) {
+        handleSelectExistingContract(contract);
+      }
+      return;
+    }
+    if (currentUrl === url) {
+      handleRemoveContractFile();
+    }
   };
+
+  const selectedContractUrl = getContractFileUrlString(formData.contractFile);
 
   const addOtherMaterialLine = () => {
     if (isReadOnly) return;
@@ -1566,6 +1577,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         }
         if (!formData.paymentType || formData.paymentType === 'не вибрано') {
           missingFields.push('Вид оплати');
+        }
+        if (!getContractFileUrlString(formData.contractFile)) {
+          alert('Просимо вибрати договір або додати новий');
+          setLoading(false);
+          return;
         }
         // Для сервісної служби - обов'язкове поле "Сервісний інженер №1"
         if (panelType === 'service' && !formData.engineer1) {
@@ -2407,137 +2423,116 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="contract-file-block">
                   <label>Файл договору</label>
                   <div className="contract-file-content">
-                    {formData.contractFile ? (
+                    <div className="contract-file-upload">
+                      <input
+                        type="file"
+                        ref={contractFileInputRef}
+                        onChange={handleContractFileChange}
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        style={{ display: 'none' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-contract-upload"
+                        onClick={() => contractFileInputRef.current?.click()}
+                        disabled={contractFileUploading || isReadOnly}
+                      >
+                        {contractFileUploading ? (
+                          <>⏳ Завантаження...</>
+                        ) : (
+                          <>📤 Завантажити новий</>
+                        )}
+                      </button>
+                      <span className="contract-file-hint">Максимум 20MB, PDF або Word (.doc, .docx)</span>
+                    </div>
+
+                    {selectedContractUrl && (
                       <div className="contract-file-uploaded">
                         <div className="contract-file-info">
                           <span className="contract-file-icon">📄</span>
                           <span className="contract-file-name">
-                            {typeof formData.contractFile === 'string' 
-                              ? formData.contractFile.split('/').pop() 
-                              : 'Файл договору'}
+                            {selectedContractUrl.split('/').pop()}
                           </span>
                         </div>
                         <div className="contract-file-actions">
                           <button
                             type="button"
                             className="btn-contract-view"
-                            onClick={() => window.open(formData.contractFile, '_blank')}
+                            onClick={() => window.open(selectedContractUrl, '_blank')}
                             title="Переглянути договір"
                           >
                             👁️ Переглянути
                           </button>
-                          <button
-                            type="button"
-                            className="btn-contract-remove"
-                            onClick={handleRemoveContractFile}
-                            title="Видалити договір"
-                          >
-                            🗑️ Видалити
-                          </button>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              className="btn-contract-remove"
+                              onClick={handleRemoveContractFile}
+                              title="Видалити договір"
+                            >
+                              🗑️ Видалити
+                            </button>
+                          )}
                         </div>
-                      </div>
-                    ) : (
-                      <div className="contract-file-upload">
-                        <input
-                          type="file"
-                          ref={contractFileInputRef}
-                          onChange={handleContractFileChange}
-                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                          style={{ display: 'none' }}
-                        />
-                        <div className="contract-upload-buttons">
-                          <button
-                            type="button"
-                            className="btn-contract-upload"
-                            onClick={() => contractFileInputRef.current?.click()}
-                            disabled={contractFileUploading}
-                          >
-                            {contractFileUploading ? (
-                              <>⏳ Завантаження...</>
-                            ) : (
-                              <>📤 Завантажити новий</>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-contract-select"
-                            onClick={openContractSelector}
-                          >
-                            📋 Вибрати з існуючих
-                          </button>
-                        </div>
-                        <span className="contract-file-hint">Максимум 20MB, PDF або Word (.doc, .docx)</span>
                       </div>
                     )}
-                  </div>
-                </div>
 
-                {/* Модальне вікно вибору існуючого договору */}
-                {showContractSelector && (
-                  <div className="contract-selector-overlay" onClick={() => setShowContractSelector(false)}>
-                    <div className="contract-selector-modal" onClick={(e) => e.stopPropagation()}>
-                      <div className="contract-selector-header">
-                        <h4>Вибрати договір {formData.edrpou && `(ЄДРПОУ: ${formData.edrpou})`}</h4>
-                        <button type="button" className="contract-selector-close" onClick={() => setShowContractSelector(false)}>×</button>
+                    {!selectedContractUrl && !isReadOnly && (
+                      <p className="contract-file-pick-hint">Просимо вибрати договір або додати новий</p>
+                    )}
+
+                    <div className="contract-inline-existing">
+                      <div className="contract-inline-existing-title">
+                        Існуючі договори
+                        {formData.edrpou && ` (ЄДРПОУ: ${formData.edrpou})`}
                       </div>
-                      <div className="contract-selector-body">
-                        {contractsLoading ? (
-                          <div className="contract-selector-loading">
-                            <p>Аналіз договорів...</p>
-                            {keysLoadingProgress.total > 0 && (
-                              <div className="contract-progress">
-                                <div className="contract-progress-text">
-                                  {keysLoadingProgress.loaded} / {keysLoadingProgress.total}
-                                </div>
-                                <div className="contract-progress-bar">
-                                  <div 
-                                    className="contract-progress-fill" 
-                                    style={{ width: `${(keysLoadingProgress.loaded / keysLoadingProgress.total) * 100}%` }}
-                                  />
-                                </div>
+
+                      {!formData.edrpou?.trim() ? (
+                        <p className="contract-inline-empty">Вкажіть ЄДРПОУ для перегляду договорів контрагента</p>
+                      ) : contractsLoading ? (
+                        <div className="contract-selector-loading contract-inline-loading">
+                          <p>Аналіз договорів...</p>
+                          {keysLoadingProgress.total > 0 && (
+                            <div className="contract-progress">
+                              <div className="contract-progress-text">
+                                {keysLoadingProgress.loaded} / {keysLoadingProgress.total}
                               </div>
-                            )}
-                          </div>
-                        ) : existingContracts.length === 0 ? (
-                          <div className="contract-selector-empty">
-                            {formData.edrpou 
-                              ? (
-                                <>
-                                  <p>Немає договорів для ЄДРПОУ {formData.edrpou}</p>
-                                  <button 
-                                    type="button" 
-                                    className="btn-show-all-contracts"
-                                    onClick={() => loadExistingContracts(true)}
-                                  >
-                                    Показати всі договори
-                                  </button>
-                                </>
-                              )
-                              : 'Немає доступних договорів'
-                            }
-                          </div>
-                        ) : (
-                          <div className="contract-selector-list">
-                            <div className="contract-selector-columns contract-selector-columns-header" aria-hidden>
-                              <span className="contract-selector-col-doc">Документ</span>
-                              <span className="contract-selector-col-num">Номер договору</span>
-                              <span className="contract-selector-col-date">Дата договору</span>
-                              <span className="contract-selector-col-eye" />
+                              <div className="contract-progress-bar">
+                                <div
+                                  className="contract-progress-fill"
+                                  style={{ width: `${(keysLoadingProgress.loaded / keysLoadingProgress.total) * 100}%` }}
+                                />
+                              </div>
                             </div>
-                            {existingContracts.map((contract, idx) => (
+                          )}
+                        </div>
+                      ) : existingContracts.length === 0 ? (
+                        <p className="contract-inline-empty">Немає договорів для цього контрагента</p>
+                      ) : (
+                        <div className="contract-selector-list contract-inline-list">
+                          <div className="contract-selector-columns contract-selector-columns-header contract-inline-columns" aria-hidden>
+                            <span className="contract-selector-col-check" />
+                            <span className="contract-selector-col-doc">Документ</span>
+                            <span className="contract-selector-col-num">Номер договору</span>
+                            <span className="contract-selector-col-date">Дата договору</span>
+                            <span className="contract-selector-col-eye" />
+                          </div>
+                          {existingContracts.map((contract, idx) => {
+                            const contractUrl = contract.url || '';
+                            const isSelected = selectedContractUrl === contractUrl;
+                            return (
                               <div
-                                key={contract.pdfKey || contract.url || idx}
-                                className="contract-selector-item contract-selector-columns"
-                                onClick={() => handleSelectExistingContract(contract)}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    handleSelectExistingContract(contract);
-                                  }
-                                }}
+                                key={contract.pdfKey || contractUrl || idx}
+                                className={`contract-selector-item contract-selector-columns contract-inline-row${isSelected ? ' contract-inline-row-selected' : ''}`}
                               >
+                                <label className="contract-selector-check-cell">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    disabled={isReadOnly}
+                                    onChange={(e) => handleExistingContractToggle(contract, e.target.checked)}
+                                  />
+                                </label>
                                 <div className="contract-selector-doc-cell">
                                   <span className="contract-selector-icon">📄</span>
                                   <div className="contract-selector-info">
@@ -2563,22 +2558,19 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                                 <button
                                   type="button"
                                   className="contract-selector-preview"
-                                  title="Відкрити PDF"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.open(contract.url, '_blank');
-                                  }}
+                                  title="Відкрити документ"
+                                  onClick={() => window.open(contractUrl, '_blank')}
                                 >
                                   👁️
                                 </button>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Запит на рахунок - показуємо тільки при редагуванні */}
                 {(initialData?._id || initialData?.id) && (
