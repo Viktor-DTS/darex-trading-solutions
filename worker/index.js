@@ -6,6 +6,7 @@ const { createRiskState, checkEntryAllowed } = require('../services/risk');
 const { createSimExecutor } = require('../services/executor/sim');
 const { appendEvent, summarize } = require('../services/journal');
 const { writeState } = require('../services/state');
+const { runLearningCycle } = require('../services/learning');
 const { round } = require('../services/utils');
 
 const hub = new MarketDataHub({ pair: config.pair, provider: config.dataProvider });
@@ -117,6 +118,13 @@ async function main() {
   }
 
   publishState({ startedAt: new Date().toISOString() });
+
+  const learnIntervalMs = Number(process.env.FX_LEARN_INTERVAL_MS) || 24 * 3600000;
+  setInterval(() => {
+    runLearningCycle()
+      .then((r) => console.log('[fx-learn]', r.applied ? 'params updated' : 'no change', r.notes.join('; ')))
+      .catch((e) => console.error('[fx-learn]', e.message));
+  }, learnIntervalMs);
 }
 
 process.on('SIGINT', () => {

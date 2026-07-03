@@ -22,6 +22,9 @@ function createSimExecutor(options = {}) {
         takeProfit: analysis.takeProfit,
         openedAt: Date.now(),
         score: analysis.score,
+        regime: analysis.regime,
+        stopPips: analysis.stopPips,
+        targetPips: analysis.targetPips,
       };
       return openTrade;
     },

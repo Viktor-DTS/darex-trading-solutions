@@ -53,6 +53,22 @@ app.get('/calendar', (_req, res) => {
   });
 });
 
+app.get('/learning', (_req, res) => {
+  const { readLearnedParams } = require('../services/learning/paramsStore');
+  res.json(readLearnedParams());
+});
+
+app.post('/learning/run', async (req, res) => {
+  try {
+    const { runLearningCycle } = require('../services/learning');
+    const dryRun = req.query.dryRun === '1' || req.body?.dryRun === true;
+    const result = await runLearningCycle({ dryRun });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.listen(config.apiPort, () => {
   console.log(`[fx-api] http://0.0.0.0:${config.apiPort}`);
 });

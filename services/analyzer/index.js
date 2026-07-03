@@ -4,10 +4,11 @@ const { scorePullbackLong } = require('./regime');
 const { normPair, pipsToPrice, round, isInUtcSession } = require('../utils');
 const { isNewsBlackout } = require('../calendar/newsBlackout');
 const { fetchDxySnapshot, dxyBlocksLong } = require('../macro/dxy');
+const { getEffectiveConfig } = require('../learning/paramsStore');
 
 async function analyzePair(pairInput, options = {}) {
   const pair = normPair(pairInput || config.pair);
-  const cfg = { ...config, ...options.config };
+  const cfg = getEffectiveConfig({ ...config, ...options.config });
   const liveQuote = options.liveQuote || null;
 
   const inSession = isInUtcSession(new Date(), cfg.sessionStartUtc, cfg.sessionEndUtc);
@@ -29,7 +30,9 @@ async function analyzePair(pairInput, options = {}) {
     spreadPips: m1.spreadPips || cfg.simSpreadPips,
   };
 
-  const signal = scorePullbackLong(m1.bars, m5.bars, quote);
+  const signal = scorePullbackLong(m1.bars, m5.bars, quote, {
+    minBuyScore: cfg.minBuyScore,
+  });
   const spreadOk = quote.spreadPips <= cfg.maxSpreadPips;
 
   let action = signal.action;
@@ -50,6 +53,11 @@ async function analyzePair(pairInput, options = {}) {
   const stopLoss = round(entry - pipsToPrice(stopPips, pair), 5);
   const takeProfit = round(entry + pipsToPrice(targetPips, pair), 5);
 
+  if (cfg.learned?.tradingPaused) {
+    blocks.push(`learning pause: ${cfg.learned.pauseReason || 'edge weak'}`);
+    action = 'SKIP';
+  }
+
   return {
     pair,
     mode: cfg.mode,
@@ -66,6 +74,8 @@ async function analyzePair(pairInput, options = {}) {
     takeProfit: action === 'BUY' ? takeProfit : null,
     stopPips,
     targetPips,
+    minBuyScore: cfg.minBuyScore,
+    learnedVersion: cfg.learned?.version ?? 0,
     indicators: signal.indicators,
     regimeInfo: signal.regimeInfo,
     macro: { dxy },

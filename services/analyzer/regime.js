@@ -20,7 +20,9 @@ function detectRegime(bars5m) {
   return { regime: 'range', adx: adx14 != null ? round(adx14, 1) : null, ema20, ema50 };
 }
 
-function scorePullbackLong(bars1m, bars5m, quote) {
+function scorePullbackLong(bars1m, bars5m, quote, options = {}) {
+  const minBuyScore = Number(options.minBuyScore) || 72;
+  const watchScore = minBuyScore - 12;
   const closes1 = bars1m.map((b) => b.close);
   const closes5 = bars5m.map((b) => b.close);
   const price = quote.mid ?? quote.bid ?? closes1[closes1.length - 1];
@@ -80,8 +82,8 @@ function scorePullbackLong(bars1m, bars5m, quote) {
   }
 
   let action = 'SKIP';
-  if (score >= 72) action = 'BUY';
-  else if (score >= 60) action = 'WATCH';
+  if (score >= minBuyScore) action = 'BUY';
+  else if (score >= watchScore) action = 'WATCH';
 
   return {
     action,

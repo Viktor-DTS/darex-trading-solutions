@@ -1,0 +1,13 @@
+[Unit]
+Description=FX Scalp Agent — daily learning cycle
+After=network.target
+
+[Service]
+Type=oneshot
+User=fxagent
+WorkingDirectory=/opt/fx-scalp-agent
+EnvironmentFile=/opt/fx-scalp-agent/.env
+ExecStart=/usr/bin/node jobs/learn.js
+
+[Install]
+WantedBy=multi-user.target
