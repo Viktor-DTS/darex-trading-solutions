@@ -14,6 +14,16 @@ function hasContractFile(task) {
   return !!getContractFileUrlString(task?.contractFile);
 }
 
+const WITHOUT_CONTRACT_COMMENT = 'рахунок виставляти без договору';
+
+function buildComments(userComments, worksWithoutContract) {
+  const trimmed = (userComments || '').trim();
+  if (!worksWithoutContract) return trimmed;
+  if (!trimmed) return WITHOUT_CONTRACT_COMMENT;
+  if (trimmed.toLowerCase().includes(WITHOUT_CONTRACT_COMMENT.toLowerCase())) return trimmed;
+  return `${trimmed}\n${WITHOUT_CONTRACT_COMMENT}`;
+}
+
 const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly = false, onBeforeOpenModal = null }) => {
   const [showModal, setShowModal] = useState(false);
   const [invoiceRequest, setInvoiceRequest] = useState(null);
@@ -436,7 +446,10 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
                     formData.set('edrpou', edrpou);
                     formData.set('address', document.getElementById('inv-address')?.value || '');
                     formData.set('bankDetails', bankDetails);
-                    formData.set('comments', document.getElementById('inv-comments')?.value || '');
+                    formData.set(
+                      'comments',
+                      buildComments(document.getElementById('inv-comments')?.value, worksWithoutContract)
+                    );
                     
                     handleRequest(formData);
                   }}
