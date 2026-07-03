@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FX Scalp Agent — Панель</title>
+  <link rel="stylesheet" href="/dashboard/style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>FX Scalp Agent <span id="pairLabel">—</span></h1>
+      <div style="margin-top:0.35rem">
+        <span id="statusBadge" class="badge stopped">Зупинено</span>
+        <span id="metaLine" style="margin-left:0.5rem;font-size:0.8rem;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="btnStart" class="primary">▶ Запустити worker</button>
+      <button id="btnStop" class="danger" disabled>■ Зупинити worker</button>
+      <button id="btnLearnDry">Learning (dry)</button>
+      <button id="btnLearn">Learning (apply)</button>
+      <button id="btnRefresh">↻ Оновити</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card">
+        <h2>Останній аналіз</h2>
+        <div class="kv" id="analysisKv"></div>
+        <p class="reason" id="analysisReason"></p>
+      </section>
+
+      <section class="card">
+        <h2>Ризик / день</h2>
+        <div class="kv" id="riskKv"></div>
+      </section>
+
+      <section class="card">
+        <h2>Журнал</h2>
+        <div class="kv" id="journalKv"></div>
+      </section>
+
+      <section class="card">
+        <h2>Learning</h2>
+        <div class="kv" id="learningKv"></div>
+      </section>
+    </div>
+
+    <div class="split">
+      <section class="card">
+        <h2>Логи worker</h2>
+        <div id="logBox" class="log-box"></div>
+      </section>
+
+      <section class="card">
+        <h2>Останні події журналу</h2>
+        <div style="overflow-x:auto;max-height:320px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Час</th>
+                <th>Тип</th>
+                <th>P/L</th>
+                <th>Pips</th>
+                <th>Причина</th>
+              </tr>
+            </thead>
+            <tbody id="journalTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <p class="footer-meta">Оновлення кожні 3 с · Панель: <code>npm run panel</code> · API порт <span id="portLabel">8787</span></p>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="/dashboard/app.js"></script>
+</body>
+</html>

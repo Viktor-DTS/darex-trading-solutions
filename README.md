@@ -28,10 +28,23 @@ VPS (London / Frankfurt)
 cd fx-scalp-agent
 cp .env.example .env
 npm install
+npm run panel           # ← панель керування + API (рекомендовано)
+# відкрий http://127.0.0.1:8787 — Start/Stop worker, логи, журнал, learning
+
 npm run analyze          # one-shot EURUSD analysis
-npm start                # worker loop
-npm run api              # API on :8787 (separate terminal)
+npm start                # worker loop (окремо, якщо без панелі)
 ```
+
+### Локальна панель
+
+Один процес `npm run panel` дає:
+
+- **Dashboard** — http://127.0.0.1:8787
+- **Start / Stop** worker з UI
+- **Логи** в реальному часі
+- **Стан** — аналіз, ризик, журнал, learning params
+
+На Windows у `.env` додай `FX_TLS_INSECURE=1` для Yahoo.
 
 ## VPS deploy (Hetzner / OVH)
 
