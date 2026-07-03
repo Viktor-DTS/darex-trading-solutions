@@ -2,12 +2,30 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import './InvoiceRequestBlock.css';
 
+function getContractFileUrlString(contractFile) {
+  if (contractFile == null) return '';
+  if (typeof contractFile === 'string') return contractFile.trim();
+  const u =
+    contractFile.url || contractFile.href || contractFile.secure_url || contractFile.publicUrl || '';
+  return String(u).trim();
+}
+
+function hasContractFile(task) {
+  return !!getContractFileUrlString(task?.contractFile);
+}
+
 const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly = false, onBeforeOpenModal = null }) => {
   const [showModal, setShowModal] = useState(false);
   const [invoiceRequest, setInvoiceRequest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [needInvoice, setNeedInvoice] = useState(true);
   const [needAct, setNeedAct] = useState(false);
+  const [worksWithoutContract, setWorksWithoutContract] = useState(false);
+
+  const closeModal = () => {
+    setShowModal(false);
+    setWorksWithoutContract(false);
+  };
 
   // Завантаження запиту на рахунок
   const loadInvoiceRequest = async () => {
@@ -88,7 +106,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
       
       if (response.ok) {
         alert('✅ Запит на рахунок успішно створено!');
-        setShowModal(false);
+        closeModal();
         loadInvoiceRequest();
         if (onRequest) onRequest();
       } else {
@@ -222,7 +240,10 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
               <button 
                 type="button"
                 className="btn-request-again"
-                onClick={() => setShowModal(true)}
+                onClick={() => {
+                  setWorksWithoutContract(false);
+                  setShowModal(true);
+                }}
               >
                 🔄 Подати запит знову
               </button>
@@ -301,14 +322,11 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
                 type="button"
                 className={task.invoiceRejectionReason ? 'btn-request-again' : 'btn-request'}
                 onClick={async () => {
-                  if (!task.invoiceRecipientDetails || task.invoiceRecipientDetails.trim() === '') {
-                    alert('Не заповнене поле "Реквізити отримувача рахунку".\n\nПрошу заповнити це поле.');
-                    return;
-                  }
                   if (onBeforeOpenModal) {
                     const ok = await onBeforeOpenModal();
                     if (!ok) return;
                   }
+                  setWorksWithoutContract(false);
                   setShowModal(true);
                 }}
               >
@@ -321,7 +339,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
 
       {/* Модальне вікно */}
       {showModal && (
-        <div className="invoice-modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="invoice-modal-overlay" onClick={closeModal}>
           <div className="invoice-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Запит на рахунок для заявки №{task.requestNumber}</h3>
             
@@ -342,7 +360,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
               </div>
 
               <div className="form-group">
-                <label>Реквізити отримувача рахунку</label>
+                <label>Реквізити отримувача рахунку *</label>
                 <textarea 
                   id="inv-bankDetails" 
                   rows="2"
@@ -370,6 +388,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
                   />
                   <span>📋 Потрібен акт виконаних робіт</span>
                 </label>
+
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={worksWithoutContract}
+                    onChange={(e) => setWorksWithoutContract(e.target.checked)}
+                  />
+                  <span>Даний контрагент працює без договору</span>
+                </label>
               </div>
 
               <div className="form-group">
@@ -378,7 +405,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
               </div>
 
               <div className="modal-actions">
-                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>
+                <button type="button" className="btn-cancel" onClick={closeModal}>
                   Скасувати
                 </button>
                 <button 
@@ -387,9 +414,20 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
                   onClick={() => {
                     const companyName = document.getElementById('inv-companyName')?.value;
                     const edrpou = document.getElementById('inv-edrpou')?.value;
+                    const bankDetails = (document.getElementById('inv-bankDetails')?.value || '').trim();
                     
                     if (!companyName || !edrpou) {
                       alert('Заповніть обов\'язкові поля: Назва компанії та ЄДРПОУ');
+                      return;
+                    }
+
+                    if (!bankDetails) {
+                      alert('Поле Реквізити отримувача рахунку обов\'язкове для заповнення');
+                      return;
+                    }
+
+                    if (!worksWithoutContract && !hasContractFile(task)) {
+                      alert('Просимо підвантажити договір згідно якого договору працює даний контрагент');
                       return;
                     }
                     
@@ -397,7 +435,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
                     formData.set('companyName', companyName);
                     formData.set('edrpou', edrpou);
                     formData.set('address', document.getElementById('inv-address')?.value || '');
-                    formData.set('bankDetails', document.getElementById('inv-bankDetails')?.value || '');
+                    formData.set('bankDetails', bankDetails);
                     formData.set('comments', document.getElementById('inv-comments')?.value || '');
                     
                     handleRequest(formData);
