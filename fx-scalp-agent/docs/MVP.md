@@ -10,13 +10,16 @@ EUR/USD intraday agent on **VPS**, 1-second decision loop, path to OANDA tick st
 - [x] Strategy: 5m trend + 1m EMA9 pullback long
 - [x] Simulate SL/TP in pips
 - [x] Worker 1s tick
+- [x] News blackout + DXY filter
+- [x] Journal + /state API
 - [ ] 1 week paper journal
 
 ## Phase 2 — OANDA demo
-- [ ] `FX_OANDA_TOKEN` practice API
-- [ ] WebSocket pricing stream
-- [ ] `FX_TICK_MS=200`
+- [x] WebSocket pricing stream (code ready)
+- [ ] Practice API token configured
+- [ ] `FX_TICK_MS=500`
 - [ ] Real spread filter
+- [ ] Paper orders API
 
 ## Phase 3 — VPS production
 - [ ] Hetzner London CX22

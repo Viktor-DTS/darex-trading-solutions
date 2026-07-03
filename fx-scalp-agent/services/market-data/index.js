@@ -20,6 +20,11 @@ class MarketDataHub extends EventEmitter {
 
   async start() {
     if (this.provider === 'oanda') {
+      await this.refreshBars().catch((e) => console.warn('[fx] oanda bar refresh', e.message));
+      this._barTimer = setInterval(() => {
+        this.refreshBars().catch((e) => console.warn('[fx] oanda bar refresh', e.message));
+      }, 60000);
+
       this.stream = new OandaPriceStream({
         token: config.oanda.token,
         accountId: config.oanda.accountId,
@@ -27,7 +32,11 @@ class MarketDataHub extends EventEmitter {
         env: config.oanda.env,
       });
       this.stream.on('quote', (q) => {
-        this.lastSnapshot = { ...q, bars: this.lastBars?.bars || [] };
+        this.lastSnapshot = {
+          ...q,
+          bars1m: this.lastBars?.m1?.bars || [],
+          bars5m: this.lastBars?.m5?.bars || [],
+        };
         this.emit('tick', this.lastSnapshot);
       });
       this.stream.on('error', (e) => this.emit('error', e));
@@ -58,6 +67,7 @@ class MarketDataHub extends EventEmitter {
   }
 
   stop() {
+    if (this._barTimer) clearInterval(this._barTimer);
     if (this.stream) this.stream.disconnect();
   }
 }

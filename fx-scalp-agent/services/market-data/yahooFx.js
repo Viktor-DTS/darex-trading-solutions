@@ -3,7 +3,8 @@ const { yahooFxSymbol, round } = require('../utils');
 const YAHOO = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 async function fetchYahooBars(pair, interval = '1m', range = '1d', minBars = 20) {
-  const symbol = yahooFxSymbol(pair);
+  const raw = String(pair || '');
+  const symbol = raw.includes('-') || raw.startsWith('^') ? raw : yahooFxSymbol(raw);
   const url = `${YAHOO}/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
   const fetchOpts = {
     headers: {

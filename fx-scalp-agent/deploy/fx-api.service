@@ -1,0 +1,15 @@
+[Unit]
+Description=FX Scalp Agent API
+After=network.target
+
+[Service]
+Type=simple
+User=fxagent
+WorkingDirectory=/opt/fx-scalp-agent
+EnvironmentFile=/opt/fx-scalp-agent/.env
+ExecStart=/usr/bin/node api/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
