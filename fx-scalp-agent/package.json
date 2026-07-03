@@ -8,7 +8,9 @@
     "start": "node worker/index.js",
     "api": "node api/server.js",
     "dev": "node --watch worker/index.js",
-    "analyze": "node -e \"require('./services/analyzer').analyzePair('EURUSD').then(r=>console.log(JSON.stringify(r,null,2)))\""
+    "analyze": "node -e \"require('./services/analyzer').analyzePair('EURUSD').then(r=>console.log(JSON.stringify(r,null,2)))\"",
+    "learn": "node jobs/learn.js",
+    "learn:dry": "node jobs/learn.js --dry-run"
   },
   "engines": {
     "node": ">=20"

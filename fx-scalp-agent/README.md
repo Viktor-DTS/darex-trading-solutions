@@ -56,6 +56,23 @@ See `.env.example`. Key vars:
 - `FX_DATA_PROVIDER=yahoo|oanda`
 - `FX_MODE=intraday|scalp`
 
+## Learning module (self-improvement)
+
+After **8+ closed trades**, the bot analyzes journal and auto-tunes:
+
+- `minBuyScore` — raise if win rate low, lower if edge stable
+- `stopPips` / `targetPips` — adjust from stop/TP hit ratio
+- **AUTO PAUSE** if profit factor < 0.85 or 4 losses in row
+
+```bash
+npm run learn          # apply + save data/learned-params.json
+npm run learn:dry      # preview only
+curl -X POST http://localhost:8787/learning/run
+curl http://localhost:8787/learning
+```
+
+Worker reloads learned params on each analyze cycle. Daily cron: `deploy/fx-learn.timer` (21:00 UTC).
+
 ## API
 
 - `GET /health`
