@@ -1,0 +1,21 @@
+{
+  "name": "fx-scalp-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Low-latency FX intraday/scalp agent — VPS worker + stream-ready architecture",
+  "main": "worker/index.js",
+  "scripts": {
+    "start": "node worker/index.js",
+    "api": "node api/server.js",
+    "dev": "node --watch worker/index.js",
+    "analyze": "node -e \"require('./services/analyzer').analyzePair('EURUSD').then(r=>console.log(JSON.stringify(r,null,2)))\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}
