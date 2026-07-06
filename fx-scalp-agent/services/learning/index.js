@@ -21,6 +21,7 @@ async function runLearningCycle(options = {}) {
   const tuneResult = tuneParams(
     {
       minBuyScore: previous.minBuyScore,
+      minLayersAligned: previous.minLayersAligned,
       stopPips: previous.stopPips ?? config.stopPips,
       targetPips: previous.targetPips ?? config.targetPips,
     },

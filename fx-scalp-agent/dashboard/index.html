@@ -24,29 +24,55 @@
     </div>
   </header>
 
-  <main>
-    <div class="grid">
-      <section class="card">
-        <h2>Останній аналіз</h2>
-        <div class="kv" id="analysisKv"></div>
+  <div id="externalBanner" class="banner hidden">
+    Зовнішній worker (Cursor) оновлює стан. Натисніть <strong>Запустити worker</strong> — панель запустить свій.
+    Для чистого старту закрий Cursor або перезавантаж ПК.
+  </div>
+
+  <main class="dashboard">
+    <section class="card card-live live-strip" id="livePositionCard">
+      <div class="live-strip-head">
+        <h2>Відкриті позиції · live</h2>
+        <span id="liveSlotsLabel" class="live-slots"></span>
+      </div>
+      <div id="livePositionBody" class="live-positions-grid">
+        <p class="live-empty">Немає відкритих угод</p>
+      </div>
+    </section>
+
+    <div class="row-workspace">
+      <section class="card card-analysis">
+        <h2>Аналіз пар</h2>
+        <div id="analysisKv" class="analysis-stats"></div>
+        <div id="pairsTableWrap" class="pairs-table-wrap"></div>
         <p class="reason" id="analysisReason"></p>
       </section>
 
-      <section class="card">
-        <h2>Ризик / день</h2>
-        <div class="kv" id="riskKv"></div>
-      </section>
+      <aside class="sidebar-stats">
+        <section class="card card-compact">
+          <h2>Ризик / день</h2>
+          <div class="kv kv-compact" id="riskKv"></div>
+        </section>
 
-      <section class="card">
-        <h2>Журнал</h2>
-        <div class="kv" id="journalKv"></div>
-      </section>
+        <section class="card card-compact">
+          <h2>Журнал</h2>
+          <div class="kv kv-compact" id="journalKv"></div>
+        </section>
 
-      <section class="card">
-        <h2>Learning</h2>
-        <div class="kv" id="learningKv"></div>
-      </section>
+        <section class="card card-compact">
+          <h2>Learning</h2>
+          <div class="kv kv-compact" id="learningKv"></div>
+        </section>
+      </aside>
     </div>
+
+    <section class="card card-formula card-formula-wide">
+      <h2>Ideal Formula v3 · фактори</h2>
+      <div class="formula-body">
+        <div class="kv kv-compact formula-kv" id="formulaKv"></div>
+        <div id="factorsWrap" class="factors-wrap"></div>
+      </div>
+    </section>
 
     <div class="split">
       <section class="card">
@@ -56,11 +82,12 @@
 
       <section class="card">
         <h2>Останні події журналу</h2>
-        <div style="overflow-x:auto;max-height:320px;overflow-y:auto">
+        <div class="journal-scroll">
           <table>
             <thead>
               <tr>
                 <th>Час</th>
+                <th>Пара</th>
                 <th>Тип</th>
                 <th>P/L</th>
                 <th>Pips</th>
@@ -73,7 +100,7 @@
       </section>
     </div>
 
-    <p class="footer-meta">Оновлення кожні 3 с · Панель: <code>npm run panel</code> · API порт <span id="portLabel">8787</span></p>
+    <p class="footer-meta">Оновлення кожні 3 с · Панель: <code>npm run panel</code> · Порт <span id="portLabel">8788</span></p>
   </main>
 
   <div id="toast" class="toast"></div>

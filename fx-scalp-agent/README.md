@@ -68,6 +68,7 @@ See `.env.example`. Key vars:
 - `FX_TICK_MS=1000` — worker interval (100–500 when on OANDA)
 - `FX_DATA_PROVIDER=yahoo|oanda`
 - `FX_MODE=intraday|scalp`
+- `FX_PAIRS=EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD` — scan multiple pairs; opens **one** best BUY (highest score)
 
 ## Learning module (self-improvement)
 

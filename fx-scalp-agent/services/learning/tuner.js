@@ -8,6 +8,7 @@ const { DEFAULTS } = require('./paramsStore');
 function tuneParams(current, metrics, trades) {
   const next = {
     minBuyScore: current.minBuyScore ?? DEFAULTS.minBuyScore,
+    minLayersAligned: current.minLayersAligned ?? DEFAULTS.minLayersAligned,
     stopPips: current.stopPips ?? config.stopPips,
     targetPips: current.targetPips ?? config.targetPips,
     tradingPaused: false,
@@ -39,11 +40,17 @@ function tuneParams(current, metrics, trades) {
   }
 
   if (metrics.winRate < 40 && metrics.count >= minTrades) {
-    next.minBuyScore = Math.min(85, next.minBuyScore + 2);
-    notes.push(`↑ minBuyScore → ${next.minBuyScore} (win rate ${metrics.winRate}%)`);
+    next.minBuyScore = Math.min(92, next.minBuyScore + 2);
+    next.minLayersAligned = Math.min(4, (next.minLayersAligned ?? 3) + 1);
+    notes.push(`↑ minBuyScore → ${next.minBuyScore}, layers → ${next.minLayersAligned} (WR ${metrics.winRate}%)`);
   } else if (metrics.winRate > 55 && metrics.profitFactor > 1.2 && metrics.count >= minTrades) {
-    next.minBuyScore = Math.max(68, next.minBuyScore - 1);
+    next.minBuyScore = Math.max(80, next.minBuyScore - 1);
     notes.push(`↓ minBuyScore → ${next.minBuyScore} (стабільний edge)`);
+  }
+
+  if (metrics.profitFactor < 0.9 && metrics.count >= 10) {
+    next.minLayersAligned = Math.min(4, (next.minLayersAligned ?? 3) + 1);
+    notes.push(`↑ minLayersAligned → ${next.minLayersAligned} (PF ${metrics.profitFactor})`);
   }
 
   const stopHits = metrics.byExitReason?.stop?.count || 0;
@@ -59,7 +66,7 @@ function tuneParams(current, metrics, trades) {
   }
 
   if (tpHits === 0 && metrics.count >= 10 && metrics.avgPipsWin < 5) {
-    next.targetPips = Math.max(5, next.targetPips - 1);
+    next.targetPips = Math.max(3, next.targetPips - 1);
     notes.push(`↓ targetPips → ${next.targetPips} (TP не досягається)`);
   } else if (tpHits / Math.max(metrics.count, 1) > 0.4 && metrics.profitFactor > 1.1) {
     next.targetPips = Math.min(12, next.targetPips + 1);

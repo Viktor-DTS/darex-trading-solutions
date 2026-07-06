@@ -1,0 +1,36 @@
+# Render Blueprint — FX Scalp Agent (окремий Web Service)
+# Підключіть репозиторій з rootDir = fx-scalp-agent або скопіюйте цей файл у корінь сервісу.
+#
+# Після деплою на Darex backend:
+#   FX_SCALP_AGENT_URL=https://YOUR-SERVICE.onrender.com
+#   FX_SCALP_AGENT_SECRET=<same as FX_API_SECRET below>
+
+services:
+  - type: web
+    name: fx-scalp-agent
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node api/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: FX_AUTO_START_WORKER
+        value: "1"
+      - key: FX_STATE_FILE
+        value: "1"
+      - key: FX_PROFIT_BOOST
+        value: "1"
+      - key: FX_SIMULATE
+        value: "1"
+      - key: FX_EXECUTOR
+        value: sim
+      - key: FX_DATA_PROVIDER
+        value: yahoo
+      - key: FX_API_SECRET
+        generateValue: true
+    disk:
+      name: fx-scalp-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

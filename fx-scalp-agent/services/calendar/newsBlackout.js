@@ -31,13 +31,13 @@ function getActiveBlackouts(now = new Date()) {
       id: 'london_open',
       label: 'London open volatility',
       start: 7 * 60,
-      end: 7 * 60 + 15,
+      end: 7 * 60 + 5,
     });
     events.push({
       id: 'ny_open',
       label: 'NY open volatility',
       start: 13 * 60 + 30,
-      end: 13 * 60 + 45,
+      end: 13 * 60 + 35,
     });
   }
 

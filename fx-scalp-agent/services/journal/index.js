@@ -10,10 +10,11 @@ function appendEvent(type, payload) {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
+  const { type: _ignoredType, ts: _ignoredTs, ...rest } = payload || {};
   const line = JSON.stringify({
     ts: new Date().toISOString(),
     type,
-    ...payload,
+    ...rest,
   });
   fs.appendFileSync(journalPath(), `${line}\n`);
 }
@@ -66,18 +67,71 @@ function getClosedTrades(limit = 500) {
   return trades;
 }
 
+/** Entries without matching exit (still open). */
+function getOpenEntries() {
+  const events = readAllEvents();
+  const openByKey = new Map();
+  for (const ev of events) {
+    const key = `${ev.pair}-${ev.openedAt}`;
+    const isExit = ev.type === 'exit' || ev.exitReason != null || ev.closedAt != null;
+    if (isExit) {
+      openByKey.delete(key);
+      continue;
+    }
+    if (ev.type === 'entry') openByKey.set(key, ev);
+  }
+  return [...openByKey.values()];
+}
+
+function dayKeyFromTs(ts) {
+  if (ts == null || ts === '') return '';
+  const n = Number(ts);
+  if (Number.isFinite(n) && n > 1e11) {
+    return new Date(n).toISOString().slice(0, 10);
+  }
+  return String(ts).slice(0, 10);
+}
+
+function getTodayClosedPnl(dayKey = new Date().toISOString().slice(0, 10)) {
+  return getClosedTrades(500)
+    .filter((t) => dayKeyFromTs(t.closedAt) === dayKey)
+    .reduce((s, t) => s + (Number(t.pnlUsd) || 0), 0);
+}
+
 function summarize() {
   const closed = getClosedTrades(500);
+  const openEntries = getOpenEntries();
   const wins = closed.filter((t) => (t.pnlUsd ?? 0) > 0).length;
   const losses = closed.filter((t) => (t.pnlUsd ?? 0) <= 0).length;
   const pnl = closed.reduce((s, t) => s + (Number(t.pnlUsd) || 0), 0);
+  const dayKey = new Date().toISOString().slice(0, 10);
   return {
     totalClosed: closed.length,
+    openCount: openEntries.length,
+    openTrades: openEntries,
     wins,
     losses,
     totalPnlUsd: Math.round(pnl * 100) / 100,
+    todayPnlUsd: Math.round(getTodayClosedPnl(dayKey) * 100) / 100,
     lastEvents: readRecent(10),
   };
+}
+
+function repairMalformedEvents() {
+  const events = readAllEvents();
+  let fixed = 0;
+  const repaired = events.map((ev) => {
+    if (ev.type === 'entry' && (ev.exitReason != null || ev.closedAt != null)) {
+      fixed += 1;
+      const { type: _t, ...rest } = ev;
+      return { ...rest, type: 'exit' };
+    }
+    return ev;
+  });
+  if (fixed === 0) return 0;
+  const body = repaired.map((ev) => JSON.stringify(ev)).join('\n');
+  fs.writeFileSync(journalPath(), body ? `${body}\n` : '');
+  return fixed;
 }
 
 module.exports = {
@@ -85,5 +139,9 @@ module.exports = {
   readRecent,
   readAllEvents,
   getClosedTrades,
+  getOpenEntries,
+  getTodayClosedPnl,
+  dayKeyFromTs,
   summarize,
+  repairMalformedEvents,
 };

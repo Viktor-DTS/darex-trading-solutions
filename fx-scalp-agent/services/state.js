@@ -13,19 +13,57 @@ function statePath() {
   return path.join(DATA_DIR, 'worker-state.json');
 }
 
-function readState() {
-  ensureDataDir();
-  try {
-    const raw = fs.readFileSync(statePath(), 'utf8');
-    return JSON.parse(raw);
-  } catch (_) {
-    return null;
-  }
+function sleepMs(ms) {
+  const start = Date.now();
+  while (Date.now() - start < ms) { /* wait for file lock */ }
 }
 
+function readState() {
+  ensureDataDir();
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      const raw = fs.readFileSync(statePath(), 'utf8');
+      if (!raw.trim()) return null;
+      return JSON.parse(raw);
+    } catch (_) {
+      if (i < 2) sleepMs(25);
+    }
+  }
+  return null;
+}
+
+/** Atomic write with Windows-friendly fallback. Returns false instead of throwing. */
 function writeState(state) {
   ensureDataDir();
-  fs.writeFileSync(statePath(), JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 2));
+  const target = statePath();
+  const tmp = `${target}.${process.pid}.tmp`;
+  const doc = JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 2);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      fs.writeFileSync(tmp, doc);
+      try {
+        fs.renameSync(tmp, target);
+        return true;
+      } catch (err) {
+        if (process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EACCES')) {
+          fs.copyFileSync(tmp, target);
+          try { fs.unlinkSync(tmp); } catch (_) { /* ignore */ }
+          return true;
+        }
+        throw err;
+      }
+    } catch (err) {
+      if (attempt < 4) {
+        sleepMs(20 * (attempt + 1));
+        continue;
+      }
+      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) { /* ignore */ }
+      console.warn('[fx-state] write failed:', err.code || err.message);
+      return false;
+    }
+  }
+  return false;
 }
 
 module.exports = {
