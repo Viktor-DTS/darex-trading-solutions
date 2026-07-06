@@ -1015,23 +1015,24 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   }, [formData]);
 
   // Збереження заявки без валідації (перед відкриттям модалки «Запросити рахунок»). Оголошується після calculations.
-  const saveTaskToServer = useCallback(async () => {
+  const saveTaskToServer = useCallback(async (patch = {}) => {
     const taskId = initialData?._id || initialData?.id;
     if (!taskId) return false;
 
     try {
       const token = localStorage.getItem('token');
-      let bonusApprovalDate = formData.bonusApprovalDate;
+      const mergedForm = { ...formData, ...patch };
+      let bonusApprovalDate = mergedForm.bonusApprovalDate;
       if (
         !bonusApprovalDate &&
-        formData.status === 'Виконано' &&
-        formData.approvedByWarehouse === 'Підтверджено' &&
-        formData.approvedByAccountant === 'Підтверджено'
+        mergedForm.status === 'Виконано' &&
+        mergedForm.approvedByWarehouse === 'Підтверджено' &&
+        mergedForm.approvedByAccountant === 'Підтверджено'
       ) {
         bonusApprovalDate = calculations.autoBonusApprovalDate;
       }
       const taskData = {
-        ...formData,
+        ...mergedForm,
         oilTotal: calculations.oilTotal,
         filterSum: calculations.filterSum,
         fuelFilterSum: calculations.fuelFilterSum,
@@ -1040,13 +1041,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         workPrice: calculations.workPrice,
         bonusApprovalDate: bonusApprovalDate
       };
-      if (initialData?.approvedByWarehouse !== 'Підтверджено' && formData.approvedByWarehouse === 'Підтверджено' && initialData?.approvedByAccountant === 'Відмова') {
+      if (initialData?.approvedByWarehouse !== 'Підтверджено' && mergedForm.approvedByWarehouse === 'Підтверджено' && initialData?.approvedByAccountant === 'Відмова') {
         taskData.approvedByAccountant = 'На розгляді';
       }
-      if (initialData?.approvedByWarehouse !== 'Відмова' && formData.approvedByWarehouse === 'Відмова') {
+      if (initialData?.approvedByWarehouse !== 'Відмова' && mergedForm.approvedByWarehouse === 'Відмова') {
         taskData.status = 'В роботі';
       }
-      if (initialData?.status === 'В роботі' && formData.status === 'Виконано') {
+      if (initialData?.status === 'В роботі' && mergedForm.status === 'Виконано') {
         if (initialData?.approvedByWarehouse === 'Відмова') taskData.approvedByWarehouse = 'На розгляді';
         if (initialData?.approvedByAccountant === 'Відмова') taskData.approvedByAccountant = 'На розгляді';
       }
@@ -2602,6 +2603,15 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     onBeforeOpenModal={async () => {
                       // Спочатку зберігаємо заявку з поточними даними форми (без валідації), потім відкривається модалка запиту на рахунок
                       return await saveTaskToServer();
+                    }}
+                    onSyncWorksWithoutContract={async (worksWithoutContract) => {
+                      const value = !!worksWithoutContract;
+                      setFormData((prev) => {
+                        const next = { ...prev, worksWithoutContract: value };
+                        formDataRef.current = next;
+                        return next;
+                      });
+                      return await saveTaskToServer({ worksWithoutContract: value });
                     }}
                     onRequest={async () => {
                       console.log('[DEBUG] Запит на рахунок створено');

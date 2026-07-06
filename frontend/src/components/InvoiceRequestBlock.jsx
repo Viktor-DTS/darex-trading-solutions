@@ -24,7 +24,15 @@ function buildComments(userComments, worksWithoutContract) {
   return `${trimmed}\n${WITHOUT_CONTRACT_COMMENT}`;
 }
 
-const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly = false, onBeforeOpenModal = null }) => {
+const InvoiceRequestBlock = ({
+  task,
+  user,
+  onRequest,
+  onFileUploaded,
+  readOnly = false,
+  onBeforeOpenModal = null,
+  onSyncWorksWithoutContract = null,
+}) => {
   const [showModal, setShowModal] = useState(false);
   const [invoiceRequest, setInvoiceRequest] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -34,7 +42,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
 
   const closeModal = () => {
     setShowModal(false);
-    setWorksWithoutContract(false);
+  };
+
+  const openRequestModal = async () => {
+    if (onBeforeOpenModal) {
+      const ok = await onBeforeOpenModal();
+      if (!ok) return;
+    }
+    setWorksWithoutContract(!!task.worksWithoutContract);
+    setShowModal(true);
   };
 
   // Завантаження запиту на рахунок
@@ -87,6 +103,11 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
   // Подати запит на рахунок
   const handleRequest = async (formData) => {
     try {
+      if (onSyncWorksWithoutContract) {
+        const synced = await onSyncWorksWithoutContract(worksWithoutContract);
+        if (!synced) return;
+      }
+
       const token = localStorage.getItem('token');
       const taskId = task.id || task._id;
       
@@ -250,10 +271,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
               <button 
                 type="button"
                 className="btn-request-again"
-                onClick={() => {
-                  setWorksWithoutContract(false);
-                  setShowModal(true);
-                }}
+                onClick={openRequestModal}
               >
                 🔄 Подати запит знову
               </button>
@@ -331,14 +349,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
               <button 
                 type="button"
                 className={task.invoiceRejectionReason ? 'btn-request-again' : 'btn-request'}
-                onClick={async () => {
-                  if (onBeforeOpenModal) {
-                    const ok = await onBeforeOpenModal();
-                    if (!ok) return;
-                  }
-                  setWorksWithoutContract(false);
-                  setShowModal(true);
-                }}
+                onClick={openRequestModal}
               >
                 {task.invoiceRejectionReason ? '🔄 Подати запит знову' : '📋 Запросити рахунок'}
               </button>
