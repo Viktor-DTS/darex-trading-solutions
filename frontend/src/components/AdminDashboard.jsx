@@ -6,6 +6,7 @@ import ProductCardManagement from './equipment/ProductCardManagement';
 import SystemCoefficientsSettings from './SystemCoefficientsSettings';
 import OneCWorkerPanel from './onec/OneCWorkerPanel';
 import TradingDashboard from './TradingDashboard';
+import FxScalpPanel from './fxScalp/FxScalpPanel';
 import './AdminDashboard.css';
 
 /** Ключі панелей у матриці (як у App.jsx) */
@@ -65,6 +66,7 @@ const ADMIN_TABS = [
   { id: 'systemCoefficients', label: '🔢 Системні коефіцієнти', icon: '🔢' },
   { id: 'onecAgent', label: '🤖 Агент 1С', icon: '🤖' },
   { id: 'trading', label: '📈 Trading (IBKR)', icon: '📈', superAdminOnly: true },
+  { id: 'fxScalp', label: '🤖 Bot Scalpe', icon: '🤖', superAdminOnly: true },
 ];
 
 function AdminDashboard({ user }) {
@@ -2085,6 +2087,7 @@ function AdminDashboard({ user }) {
       case 'systemCoefficients': return <SystemCoefficientsSettings />;
       case 'onecAgent': return <OneCWorkerPanel />;
       case 'trading': return isSuperAdmin ? <TradingDashboard user={user} embedded /> : renderUsersTab();
+      case 'fxScalp': return isSuperAdmin ? <FxScalpPanel /> : renderUsersTab();
       default: return renderUsersTab();
     }
   };

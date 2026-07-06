@@ -32,6 +32,7 @@ function runPsScript(scriptName, log, extraArgs = []) {
     return null;
   }
   const args = [...psExtraArgs(scriptName), ...extraArgs];
+  const parseLines = (out) => (out || '').trim().split(/\r?\n/).filter(Boolean);
   try {
     const out = execFileSync(
       'powershell',
@@ -40,12 +41,15 @@ function runPsScript(scriptName, log, extraArgs = []) {
         timeout: 15000,
         windowsHide: true }
     ).trim();
-    const lines = out.split(/\r?\n/).filter(Boolean);
-    return lines;
+    return parseLines(out);
   } catch (e) {
     const combined = [e.stdout, e.stderr, e.message].filter(Boolean).join('\n').trim();
+    const lines = parseLines(e.stdout || combined);
+    if (lines.some((l) => l.startsWith('FOCUS|') || l.startsWith('MIN|'))) {
+      return lines;
+    }
     log?.(`! ${scriptName}: ${combined.slice(0, 300) || 'failed'}`);
-    return null;
+    return lines.length ? lines : null;
   }
 }
 
@@ -80,4 +84,17 @@ async function refocus1cMain(log, automation) {
   return false;
 }
 
-module.exports = { prepareDesktopForAutomation, refocus1cMain };
+/** Перед cron-spawn: згорнути консоль агента і віддати фокус 1С (як перед ручним Test-Once). */
+async function minimizeAgentBeforeSpawn(log, automation) {
+  if (os.platform() !== 'win32') return false;
+  log?.('Підготовка робочого столу перед spawn (згорнути агента, фокус 1С)…');
+  const lines = runPsScript('prepare-desktop.ps1', log, []) || [];
+  for (const line of lines) {
+    if (line.startsWith('MIN|')) log?.(`✓ Згорнуто: ${line.slice(4)}`);
+    if (line.startsWith('FOCUS|')) log?.(`✓ Фокус 1С: ${line.slice(6)}`);
+  }
+  await new Promise((r) => setTimeout(r, automation?.preSpawnSettleMs ?? 800));
+  return true;
+}
+
+module.exports = { prepareDesktopForAutomation, refocus1cMain, minimizeAgentBeforeSpawn };

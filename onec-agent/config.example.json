@@ -38,9 +38,10 @@
     "clickBeforeKeys": false,
     "clickBeforeSave": false,
     "dismissFieldPicker": true,
+    "refocusBeforeSaveOpen": false,
     "windowActivateClick": null,
     "saveDialogConfirmClick": null,
-    "reportClick": { "x": 700, "y": 450 },
+    "reportClick": null,
     "formWaitMs": 35000,
     "saveRetry": { "maxAttempts": 18, "intervalMs": 5000 },
     "saveOpenAttempts": [
@@ -51,7 +52,7 @@
     "toolbarSaveClick": null,
     "steps": [
       { "action": "comment", "text": "=== 1. Сформировать ===" },
-      { "action": "focusWindow", "dialog": "main", "titleContains": ["Ведомость", "Предприятие"] },
+      { "action": "focusWindow", "dialog": "main", "preferReport": true, "titleContains": ["Ведомость", "Предприятие"] },
       { "action": "wait", "ms": 500 },
       { "action": "key", "keys": ["LeftControl", "Enter"], "skipRefocus": true },
 

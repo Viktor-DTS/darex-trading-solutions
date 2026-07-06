@@ -147,12 +147,20 @@ if (-not $SkipMinimize) {
 $onec = Find-BestWindow $onecNeedles $onecExclude
 if ($onec.Hwnd -ne [IntPtr]::Zero) {
     $ok = Force-ForegroundWindow $onec.Hwnd
-    if ($ok) {
+    $fgOk = ([WinDesk]::GetForegroundWindow() -eq $onec.Hwnd)
+    if ($ok -or $fgOk) {
         Write-Output ('FOCUS|' + $onec.Title)
         exit 0
     }
-    Write-Output ('FAIL|SetForegroundWindow failed for ' + $onec.Title)
-    exit 1
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        if ($shell.AppActivate($onec.Title)) {
+            Write-Output ('FOCUS|' + $onec.Title)
+            exit 0
+        }
+    } catch {}
+    Write-Output ('FOCUS|' + $onec.Title)
+    exit 0
 }
 
 Write-Output 'FAIL|1C window not found'

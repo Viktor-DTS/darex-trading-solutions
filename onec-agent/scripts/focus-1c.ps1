@@ -2,6 +2,7 @@
 param(
     [string]$NeedlesFile = '',
     [switch]$PreferShort,
+    [switch]$PreferReport,
     [switch]$MainOnly,
     [switch]$FindOnly,
     [switch]$ListAll
@@ -9,6 +10,8 @@ param(
 
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$script:PreferShort = $PreferShort.IsPresent
+$script:PreferReport = $PreferReport.IsPresent
 
 $needles = @()
 if ($NeedlesFile -and (Test-Path -LiteralPath $NeedlesFile)) {
@@ -92,6 +95,35 @@ if ($ListAll) {
     exit 0
 }
 
+function Test-ReportTitle([string]$title) {
+    if (-not $title) { return $false }
+    return ($title.IndexOf('Ведомость', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+}
+
+function Pick-BetterMatch([IntPtr]$hWnd, [string]$title) {
+    $isReport = Test-ReportTitle $title
+    $bestIsReport = Test-ReportTitle $script:bestTitle
+    if ($script:PreferReport) {
+        if ($isReport -and -not $bestIsReport) {
+            $script:bestHwnd = $hWnd
+            $script:bestTitle = $title
+            return
+        }
+        if ($bestIsReport -and -not $isReport) { return }
+    }
+    if ($script:PreferShort) {
+        if ($script:bestHwnd -eq [IntPtr]::Zero -or $title.Length -lt $script:bestTitle.Length) {
+            $script:bestHwnd = $hWnd
+            $script:bestTitle = $title
+        }
+    } else {
+        if ($script:bestHwnd -eq [IntPtr]::Zero -or $title.Length -gt $script:bestTitle.Length) {
+            $script:bestHwnd = $hWnd
+            $script:bestTitle = $title
+        }
+    }
+}
+
 # 1) Enum all visible windows (finds save dialog "Сохранение")
 if ($needles.Count -gt 0) {
     $saveMode = Save-Needles-Active $needles
@@ -121,17 +153,7 @@ if ($needles.Count -gt 0) {
             }
         }
         if ($matched) {
-            if ($script:PreferShort) {
-                if ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -lt $script:bestTitle.Length) {
-                    $script:bestHwnd = $hWnd
-                    $script:bestTitle = $t
-                }
-            } else {
-                if ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -gt $script:bestTitle.Length) {
-                    $script:bestHwnd = $hWnd
-                    $script:bestTitle = $t
-                }
-            }
+            Pick-BetterMatch $hWnd $t
         }
         return $true
     }

@@ -156,7 +156,7 @@ async function runSteps(automation, ctx, log) {
         await refocus1cMain(log, automation);
         try {
           await focusWindow(
-            { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
+            { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'], preferReport: true },
             automation,
             getWindows,
             log
@@ -169,10 +169,29 @@ async function runSteps(automation, ctx, log) {
     return closed;
   };
 
+  const focusReportWindow = async () => {
+    try {
+      await focusWindow(
+        { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'], preferReport: true },
+        automation,
+        getWindows,
+        log
+      );
+    } catch (_) {
+      /* fall back to main shell */
+    }
+  };
+
   const focusBeforeKeys = async (focusOpts = {}) => {
     if (focusOpts.dialog === 'save') {
       await dismissFieldPickerIfOpen('save');
       await ensureSaveDialogFocused();
+      return;
+    }
+    if (focusOpts.skipRefocus || focusOpts.focusReport) {
+      if (focusOpts.focusReport !== false) {
+        await focusReportWindow();
+      }
       return;
     }
     await ensure1cFocused(focusOpts);
@@ -208,7 +227,7 @@ async function runSteps(automation, ctx, log) {
     }
     try {
       await focusWindow(
-        { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
+        { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'], preferReport: true },
         automation,
         getWindows,
         log
@@ -230,7 +249,7 @@ async function runSteps(automation, ctx, log) {
   };
 
   const clickReport = async () => {
-    await ensure1cFocused({ click: false });
+    await focusReportWindow();
     const rc = automation.reportClick;
     if (!rc || rc.x == null || rc.y == null) return;
     await mouse.setPosition(new Point(rc.x, rc.y));
@@ -246,17 +265,22 @@ async function runSteps(automation, ctx, log) {
   const tryOpenSaveDialog = async (step, opts = {}) => {
     const attempts = saveOpenAttemptsList(step);
     const dialogWaitMs = opts.dialogWaitMs ?? 4000;
+    const clickReportEnabled =
+      opts.clickReport === true ||
+      step?.clickReport === true ||
+      automation.clickReport === true;
+    const saveFocusOpts = { skipRefocus: true, focusReport: true };
 
     for (let attemptIdx = 0; attemptIdx < (opts.maxOuterAttempts || 1); attemptIdx++) {
-      await refocus1cMain(log, automation);
-      await focusWindow(
-        { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
-        automation,
-        getWindows,
-        log
-      );
-      if (opts.clickReport !== false) await clickReport();
-      else await ensure1cFocused({ click: automation.clickBeforeSave !== false });
+      if (automation.refocusBeforeSaveOpen === true) {
+        await refocus1cMain(log, automation);
+      }
+      await focusReportWindow();
+      if (clickReportEnabled) {
+        await clickReport();
+      } else {
+        await dismissFieldPickerIfOpen();
+      }
 
       for (const att of attempts) {
         if (att.toolbar) {
@@ -265,14 +289,15 @@ async function runSteps(automation, ctx, log) {
             log(`• Пропуск «${att.label || 'toolbar'}» — не задано toolbarSaveClick у config.json`);
             continue;
           }
+          await focusReportWindow();
           await mouse.setPosition(new Point(t.x, t.y));
           await mouse.click(Button.LEFT);
           log(`✓ Клік «Зберегти» на панелі (${t.x},${t.y})`);
         } else if (att.sequence) {
-          await pressSequence(att.keys, att.gapMs || 200);
+          await pressSequence(att.keys, att.gapMs || 200, saveFocusOpts);
           log(`✓ Послідовність: ${(att.keys || []).join(' ')} (${att.label || ''})`);
         } else if (att.keys?.length) {
-          await pressChord(att.keys);
+          await pressChord(att.keys, saveFocusOpts);
           log(`✓ Клавіші: ${att.keys.join('+')} (${att.label || ''})`);
         }
         await new Promise((r) => setTimeout(r, att.waitMs ?? dialogWaitMs));

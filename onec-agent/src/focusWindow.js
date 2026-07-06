@@ -130,6 +130,7 @@ function focusViaPowerShell(needles, log, opts = {}) {
   const psArgs = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-NeedlesFile', needlesFile];
   if (opts.preferShort) psArgs.push('-PreferShort');
   if (opts.mainOnly) psArgs.push('-MainOnly');
+  if (opts.preferReport) psArgs.push('-PreferReport');
   if (opts.findOnly) psArgs.push('-FindOnly');
 
   try {
@@ -169,6 +170,7 @@ async function focusWindow(step, automation, getWindows, log) {
   const psOpts = {
     preferShort: !!(step.preferShort || step.dialog === 'save'),
     mainOnly: !!(step.mainOnly || step.dialog === 'main'),
+    preferReport: step.preferReport === true || (step.dialog === 'main' && !step.preferShort),
   };
 
   // Діалог «Сохранение»: лише PowerShell, заголовок має містити «Сохранение»/«Сохранить»

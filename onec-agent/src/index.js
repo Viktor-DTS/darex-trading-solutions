@@ -11,8 +11,9 @@ const automation = require('./automation');
 const { runPipeline } = require('./pipeline');
 const { getAgentRoot, loadConfig, getAgentTempDir } = require('./paths');
 const { spawnOnceRun } = require('./spawnOnce');
+const { minimizeAgentBeforeSpawn } = require('./agentWindow');
 
-const AGENT_BUILD = '2026-06-19-save-dialog-focus';
+const AGENT_BUILD = '2026-06-23-spawn-like-test-once';
 
 const config = loadConfig();
 const onceMode = process.argv.includes('--once');
@@ -102,9 +103,18 @@ function triggerRunViaSpawn(trigger) {
   status.importSummary = null;
   status.error = null;
   status.log = [];
-  pushLog(`Запуск циклу (${trigger}) — окремий процес як Test-Once.`);
+  pushLog(`Запуск циклу (${trigger}) — окремий процес як Test-Once (Run-Once.bat / --once).`);
 
-  activeChild = spawnOnceRun(trigger, {
+  const automation = config.automation || {};
+
+  (async () => {
+    try {
+      await minimizeAgentBeforeSpawn(pushLog, automation);
+    } catch (e) {
+      pushLog(`! pre-spawn minimize: ${e.message}`);
+    }
+
+    activeChild = spawnOnceRun(trigger, {
     onLine: (line) => {
       if (/^\[\d{4}-/.test(line)) {
         status.log.push(line);
@@ -136,9 +146,11 @@ function triggerRunViaSpawn(trigger) {
         pushLog(`ПОМИЛКА: ${status.error}`);
       }
     },
-  });
+    });
 
-  status.childPid = activeChild.pid || null;
+    status.childPid = activeChild.pid || null;
+  })();
+
   return { started: true };
 }
 
@@ -247,7 +259,7 @@ function startHttpServer() {
       }
       if (valid.length) {
         console.log(
-          `Розклад: ${valid.join(' | ')} (${tz || 'локальний час'}) — запуск як Test-Once (--once)`
+          `Розклад: ${valid.join(' | ')} (${tz || 'локальний час'}) — spawn Run-Once.bat (= Test-Once без pause)`
         );
       }
     }

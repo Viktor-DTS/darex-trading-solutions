@@ -76,6 +76,14 @@ pause
 "@
 Set-Content -Path (Join-Path $dist 'Test-Once.bat') -Value $testBat -Encoding ASCII
 
+$runOnceBat = @"
+@echo off
+chcp 65001 >nul
+cd /d "%~dp0"
+node\node.exe app\src\index.js --once
+"@
+Set-Content -Path (Join-Path $dist 'Run-Once.bat') -Value $runOnceBat -Encoding ASCII
+
 $readme = @"
 DTS 1C Agent (portable)
 =======================
@@ -85,6 +93,7 @@ Node.js is included in node\ - do NOT install Node on the server.
 1. Edit config.json (bugai1c password, agentToken, save.dir)
 2. Run Start-Agent.bat
 3. Test: Test-Once.bat
+4. Cron uses Run-Once.bat (same command, no pause) via spawnLikeTest
 
 Autostart: shortcut to Start-Agent.bat in shell:startup
 "@

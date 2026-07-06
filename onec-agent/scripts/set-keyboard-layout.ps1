@@ -58,8 +58,8 @@ function Title-Matches([string]$title, [string[]]$needles) {
 }
 
 function Focus-1cWindow {
-    $bestHwnd = [IntPtr]::Zero
-    $bestTitle = ''
+    $script:bestHwnd = [IntPtr]::Zero
+    $script:bestTitle = ''
     $cb = {
         param($hWnd, $lParam)
         if (-not [KbdLayout]::IsWindowVisible($hWnd)) { return $true }
@@ -71,7 +71,14 @@ function Focus-1cWindow {
             return $true
         }
         if (Title-Matches $t $script:OneCNeedles) {
-            if ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -gt $script:bestTitle.Length) {
+            $isReport = ($t.IndexOf('Ведомость', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+            $bestIsReport = $script:bestTitle -and ($script:bestTitle.IndexOf('Ведомость', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+            if ($isReport -and -not $bestIsReport) {
+                $script:bestHwnd = $hWnd
+                $script:bestTitle = $t
+            } elseif ($bestIsReport -and -not $isReport) {
+                # keep report window
+            } elseif ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -gt $script:bestTitle.Length) {
                 $script:bestHwnd = $hWnd
                 $script:bestTitle = $t
             }
@@ -79,11 +86,11 @@ function Focus-1cWindow {
         return $true
     }
     [KbdLayout]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null
-    if ($bestHwnd -ne [IntPtr]::Zero) {
-        [void][KbdLayout]::ShowWindow($bestHwnd, 9)
-        [void][KbdLayout]::SetForegroundWindow($bestHwnd)
+    if ($script:bestHwnd -ne [IntPtr]::Zero) {
+        [void][KbdLayout]::ShowWindow($script:bestHwnd, 9)
+        [void][KbdLayout]::SetForegroundWindow($script:bestHwnd)
         Start-Sleep -Milliseconds 150
-        return $bestTitle
+        return $script:bestTitle
     }
     return ''
 }
@@ -120,8 +127,8 @@ if ($Action -eq 'SaveEnglish') {
 
     $focused = Focus-1cWindow
     if (-not $focused) {
-        Write-Output 'FAIL|1C window not found for layout'
-        exit 1
+        $fg = Get-ForegroundLayout
+        if ($fg.Hkl -eq 0) { Write-Output 'FAIL|no foreground window'; exit 1 }
     }
 
     $fg = Get-ForegroundLayout

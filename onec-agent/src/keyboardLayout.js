@@ -67,7 +67,11 @@ function runLayoutPs(action, log, opts = {}) {
     return line;
   } catch (e) {
     const combined = [e.stdout, e.stderr, e.message].filter(Boolean).join('\n');
-    const line = combined.split(/\r?\n/).filter(Boolean).pop() || '';
+    const lines = combined.split(/\r?\n/).filter(Boolean);
+    const line = lines.pop() || '';
+    if (lines.some((l) => l.startsWith('OK|')) || line.startsWith('OK|')) {
+      return line.startsWith('OK|') ? line : lines.find((l) => l.startsWith('OK|'));
+    }
     log?.(`! Розкладка (${action}): ${line || combined.slice(0, 300)}${opts.stateFile ? ` | file: ${opts.stateFile}` : ''}`);
     return null;
   }
