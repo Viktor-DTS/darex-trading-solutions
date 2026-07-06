@@ -65,11 +65,25 @@ async function proxyAgent(path, options = {}) {
   }
 }
 
+function agentUrlHint(statusCode) {
+  if (statusCode === 404) {
+    return [
+      'FX_SCALP_AGENT_URL має вказувати на окремий Web Service fx-scalp-agent (не Darex backend/frontend).',
+      'Render: New Web Service → репозиторій dts-service, branch master, Root Directory = fx-scalp-agent, Start = node api/server.js.',
+      'Після деплою: FX_SCALP_AGENT_URL=https://YOUR-FX-SERVICE.onrender.com та FX_SCALP_AGENT_SECRET = FX_API_SECRET агента.',
+    ].join(' ');
+  }
+  return null;
+}
+
 function sendProxyError(res, e) {
-  res.status(e.status || 502).json({
+  const status = e.status || 502;
+  res.status(status).json({
     error: e.message,
+    hint: agentUrlHint(status),
     details: e.body || null,
     agentUrl: agentConfigured() ? agentBaseUrl() : null,
+    reachable: false,
   });
 }
 
@@ -92,11 +106,22 @@ function registerFxScalpRoutes(app) {
       ]);
       res.json({
         configured: true,
+        reachable: true,
         agentUrl: agentBaseUrl(),
         health,
         control,
       });
     } catch (e) {
+      if (e.status === 404 || e.status === 502) {
+        return res.json({
+          configured: true,
+          reachable: false,
+          agentUrl: agentBaseUrl(),
+          error: e.message,
+          hint: agentUrlHint(e.status),
+          details: e.body || null,
+        });
+      }
       sendProxyError(res, e);
     }
   });

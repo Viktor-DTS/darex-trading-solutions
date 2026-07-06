@@ -126,6 +126,7 @@
 }
 
 .fx-badge.ok { background: #d1fae5; color: #065f46; }
+.fx-badge.warn { background: #fef3c7; color: #92400e; }
 .fx-badge.off { background: #f3f4f6; color: #6b7280; }
 
 .fx-section {

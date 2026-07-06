@@ -49,9 +49,15 @@ function FxScalpPanel() {
     try {
       const r = await fetch(`${API_BASE_URL}/fx-scalp/status`, { headers: authHeaders() });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      if (!r.ok) throw new Error(data.error || data.hint || `HTTP ${r.status}`);
       setStatus(data);
-      if (!data.configured) setError('');
+      if (!data.configured) {
+        setError('');
+      } else if (data.reachable === false) {
+        setError(data.hint || data.error || 'Агент недоступний за вказаним URL');
+      } else {
+        setError('');
+      }
       return data;
     } catch (e) {
       setStatus(null);
@@ -74,8 +80,6 @@ function FxScalpPanel() {
       return null;
     }
   }, []);
-
-  const fetchLogs = useCallback(async () => {
     try {
       const r = await fetch(`${API_BASE_URL}/fx-scalp/logs?limit=120`, { headers: authHeaders() });
       const data = await r.json().catch(() => ({}));
@@ -88,7 +92,7 @@ function FxScalpPanel() {
 
   const refreshAll = useCallback(async () => {
     const st = await fetchStatus();
-    if (st?.configured) {
+    if (st?.configured && st?.reachable !== false) {
       await Promise.all([fetchDashboard(), fetchLogs()]);
     }
   }, [fetchStatus, fetchDashboard, fetchLogs]);
@@ -124,6 +128,7 @@ function FxScalpPanel() {
   }, [refreshAll]);
 
   const configured = status?.configured;
+  const reachable = status?.reachable !== false;
   const control = dash?.control || status?.control;
   const state = dash?.state;
   const journal = dash?.journal;
@@ -176,7 +181,11 @@ function FxScalpPanel() {
         </div>
       </div>
 
-      {error && <div className="fx-alert fx-alert-error">{error}</div>}
+      {error && (
+        <div className={`fx-alert ${configured && !reachable ? 'fx-alert-warn' : 'fx-alert-error'}`}>
+          {error}
+        </div>
+      )}
 
       {!configured && status && (
         <div className="fx-alert fx-alert-warn">
@@ -184,12 +193,19 @@ function FxScalpPanel() {
         </div>
       )}
 
+      {configured && !reachable && status?.agentUrl && (
+        <div className="fx-alert fx-alert-warn">
+          Поточний URL: <code>{status.agentUrl}</code> — сервіс не відповідає на <code>/health</code>.
+          Створіть окремий Render Web Service для <code>fx-scalp-agent</code> (branch <code>master</code>, root <code>fx-scalp-agent</code>).
+        </div>
+      )}
+
       <div className="fx-cards">
         <div className="fx-card">
           <div className="fx-card-label">Agent</div>
           <div className="fx-card-value">{status?.agentUrl || '—'}</div>
-          <div className={`fx-badge ${configured ? 'ok' : 'off'}`}>
-            {configured ? 'підключено' : 'не налаштовано'}
+          <div className={`fx-badge ${configured && reachable ? 'ok' : configured ? 'warn' : 'off'}`}>
+            {configured && reachable ? 'online' : configured ? 'URL задано' : 'не налаштовано'}
           </div>
         </div>
         <div className="fx-card">
