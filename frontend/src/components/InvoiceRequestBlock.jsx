@@ -404,6 +404,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
                     type="checkbox"
                     checked={worksWithoutContract}
                     onChange={(e) => setWorksWithoutContract(e.target.checked)}
+                    disabled={hasContractFile(task)}
                   />
                   <span>Даний контрагент працює без договору</span>
                 </label>

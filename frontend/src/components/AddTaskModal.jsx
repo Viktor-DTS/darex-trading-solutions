@@ -239,6 +239,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     paymentType: 'не вибрано',
     invoiceRecipientDetails: '',
     contractFile: '', // Файл договору
+    worksWithoutContract: false, // Контрагент працює без договору
     contractNumber: '',
     contractDate: '',
     equipment: '',
@@ -1231,6 +1232,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         setFormData((prev) => ({
           ...prev,
           contractFile: result.url || result.fileUrl || result.path,
+          worksWithoutContract: false,
           ...(meta.contractNumber && String(meta.contractNumber).trim()
             ? { contractNumber: String(meta.contractNumber).trim() }
             : {}),
@@ -1453,6 +1455,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     setFormData((prev) => ({
       ...prev,
       contractFile: url,
+      worksWithoutContract: false,
       ...(fromListNum ? { contractNumber: fromListNum } : {}),
       ...(fromListDateIso ? { contractDate: fromListDateIso } : {})
     }));
@@ -1578,8 +1581,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         if (!formData.paymentType || formData.paymentType === 'не вибрано') {
           missingFields.push('Вид оплати');
         }
-        if (!getContractFileUrlString(formData.contractFile)) {
-          alert('Просимо вибрати договір або додати новий');
+        const hasContract = !!getContractFileUrlString(formData.contractFile);
+        if (!hasContract && !formData.worksWithoutContract) {
+          alert('Просимо вибрати договір, додати новий або відмітити «Даний контрагент працює без договору»');
           setLoading(false);
           return;
         }
@@ -2477,9 +2481,22 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       </div>
                     )}
 
-                    {!selectedContractUrl && !isReadOnly && (
+                    {!selectedContractUrl && !formData.worksWithoutContract && !isReadOnly && (
                       <p className="contract-file-pick-hint">Просимо вибрати договір або додати новий</p>
                     )}
+
+                    <div className="form-group checkbox-group contract-without-checkbox">
+                      <label>
+                        <input
+                          type="checkbox"
+                          name="worksWithoutContract"
+                          checked={!!formData.worksWithoutContract}
+                          onChange={handleChange}
+                          disabled={isReadOnly || !!selectedContractUrl}
+                        />
+                        <span>Даний контрагент працює без договору</span>
+                      </label>
+                    </div>
 
                     <div className="contract-inline-existing">
                       <div className="contract-inline-existing-title">
