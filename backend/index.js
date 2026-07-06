@@ -55,7 +55,6 @@ const {
 } = require('./assistantCashlessPending');
 const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
-const { registerFxScalpRoutes } = require('./fxScalp');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -16995,7 +16994,6 @@ scheduleCashlessPendingJob();
 
 registerTradingRoutes(app, { getAssistantConnection });
 scheduleTradingScanJob(getAssistantConnection);
-registerFxScalpRoutes(app);
 
 // ============================================
 // СТАРТ СЕРВЕРА
