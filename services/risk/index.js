@@ -27,12 +27,10 @@ function checkEntryAllowed(state, settings = config) {
   return { allowed: true, reason: '' };
 }
 
-function calcUnits(equityUsd, riskPct, stopPips, pair) {
-  const riskUsd = equityUsd * (riskPct / 100);
-  const pipValuePerUnit = pair.includes('JPY') ? 0.01 / 100 : 0.0001;
-  if (stopPips <= 0 || pipValuePerUnit <= 0) return 0;
-  const units = Math.floor(riskUsd / (stopPips * pipValuePerUnit));
-  return Math.max(0, units);
+const { calcUnitsForRisk } = require('../executor/pricing');
+
+function calcUnits(equityUsd, riskPct, stopPips, pair, midPrice = null) {
+  return calcUnitsForRisk(equityUsd, riskPct, stopPips, pair, midPrice);
 }
 
 module.exports = {

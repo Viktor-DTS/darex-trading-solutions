@@ -7,12 +7,19 @@
   "scripts": {
     "start": "node worker/index.js",
     "api": "node api/server.js",
-    "panel": "node api/server.js",
+    "panel": "node scripts/run-panel.js",
+    "panel:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-panel.ps1",
+    "panel:open": "node -e \"require('child_process').spawn('start',['','http://127.0.0.1:'+(process.env.FX_API_PORT||8787)],{shell:true})\"",
     "dev": "node --watch worker/index.js",
     "analyze": "node -e \"require('./services/analyzer').analyzePair('EURUSD').then(r=>console.log(JSON.stringify(r,null,2)))\"",
     "learn": "node jobs/learn.js",
     "learn:dry": "node jobs/learn.js --dry-run",
-    "seed:journal": "node scripts/seed-journal.js"
+    "backtest": "node jobs/backtest.js",
+    "backtest:pair": "node jobs/backtest.js EURUSD",
+    "seed:journal": "node scripts/seed-journal.js",
+    "seed:calendar": "node scripts/seed-calendar.js",
+    "calendar:refresh": "node scripts/refresh-calendar.js",
+    "oanda:check": "node scripts/check-oanda.js"
   },
   "engines": {
     "node": ">=20"

@@ -17,6 +17,7 @@ function buildReport(metrics, tuneResult, previous, next) {
   lines.push('');
   lines.push('Params:');
   lines.push(`  minBuyScore: ${previous.minBuyScore} → ${next.minBuyScore}`);
+  lines.push(`  minLayersAligned: ${previous.minLayersAligned ?? 3} → ${next.minLayersAligned ?? 3}`);
   lines.push(`  stopPips: ${previous.stopPips ?? '—'} → ${next.stopPips}`);
   lines.push(`  targetPips: ${previous.targetPips ?? '—'} → ${next.targetPips}`);
   if (next.tradingPaused) {

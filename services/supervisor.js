@@ -2,9 +2,11 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { readState, DATA_DIR } = require('./state');
+const { isProcessAlive, releaseWorkerLock } = require('./stateCache');
 
 const ROOT = path.join(__dirname, '..');
 const LOG_PATH = path.join(DATA_DIR, 'worker.log');
+const LOCK_PATH = path.join(DATA_DIR, 'worker.lock');
 const MAX_LOG_LINES = 2000;
 
 let child = null;
@@ -17,6 +19,7 @@ function ensureDataDir() {
 
 function appendLog(chunk) {
   ensureDataDir();
+  rotateLogIfNeeded();
   const text = String(chunk).replace(/\r\n/g, '\n');
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
@@ -27,13 +30,74 @@ function appendLog(chunk) {
   }
 }
 
+function rotateLogIfNeeded() {
+  const maxBytes = Number(process.env.FX_LOG_MAX_BYTES) || 512 * 1024;
+  try {
+    if (!fs.existsSync(LOG_PATH)) return;
+    const size = fs.statSync(LOG_PATH).size;
+    if (size < maxBytes) return;
+    const rotated = `${LOG_PATH}.1`;
+    if (fs.existsSync(rotated)) fs.unlinkSync(rotated);
+    fs.renameSync(LOG_PATH, rotated);
+  } catch (_) { /* ignore rotation errors */ }
+}
+
 function isManagedRunning() {
   return child != null && child.exitCode == null && !child.killed;
 }
 
-function startWorker() {
+function stopOrphanWorkers() {
+  const candidates = new Set();
+  try {
+    const owner = Number(fs.readFileSync(LOCK_PATH, 'utf8').trim());
+    if (owner) candidates.add(owner);
+  } catch (_) { /* no lock */ }
+
+  const state = readState();
+  if (state?.pid) candidates.add(Number(state.pid));
+
+  let stopped = 0;
+  for (const pid of candidates) {
+    if (!pid || !isProcessAlive(pid)) continue;
+    if (child?.pid === pid) continue;
+    appendLog(`[supervisor] stopping orphan worker PID ${pid}`);
+    try {
+      if (process.platform === 'win32') {
+        require('child_process').execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' });
+      } else {
+        process.kill(pid, 'SIGTERM');
+      }
+      stopped += 1;
+    } catch (_) { /* ignore */ }
+  }
+
+  try {
+    if (fs.existsSync(LOCK_PATH)) fs.unlinkSync(LOCK_PATH);
+  } catch (_) { /* ignore */ }
+  releaseWorkerLock();
+
+  return stopped;
+}
+
+function startWorker(options = {}) {
   if (isManagedRunning()) {
     return { ok: false, error: 'Worker вже запущений', pid: child.pid };
+  }
+
+  const killed = options.force ? stopOrphanWorkers() : 0;
+  if (!options.force) {
+    try {
+      const owner = Number(fs.readFileSync(LOCK_PATH, 'utf8').trim());
+      if (isProcessAlive(owner)) {
+        return {
+          ok: false,
+          error: `Worker вже працює (PID ${owner}). Натисни Start ще раз з force або npm run panel:stop`,
+          externalPid: owner,
+        };
+      }
+    } catch (_) { /* stale lock */ }
+  } else if (killed > 0) {
+    appendLog(`[supervisor] cleared ${killed} orphan worker(s)`);
   }
 
   ensureDataDir();
@@ -41,7 +105,7 @@ function startWorker() {
 
   child = spawn(process.execPath, ['worker/index.js'], {
     cwd: ROOT,
-    env: { ...process.env },
+    env: { ...process.env, FX_WORKER_INSTANCE: 'panel' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -108,6 +172,8 @@ function getControlStatus() {
     mode,
     managed,
     externalWorkerLikely: !managed && fresh,
+    stateInstance: state?.instance ?? null,
+    statePid: state?.pid ?? null,
     pid: managed ? child.pid : null,
     startedAt: managed ? startedAt : null,
     stateFresh: fresh,

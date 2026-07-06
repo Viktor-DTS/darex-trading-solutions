@@ -3,9 +3,10 @@ const { DATA_DIR } = require('../state');
 const LEARNED_PATH = path.join(DATA_DIR, 'learned-params.json');
 
 const DEFAULTS = {
-  minBuyScore: 72,
+  minBuyScore: 78,
+  minLayersAligned: 3,
   stopPips: 5,
-  targetPips: 8,
+  targetPips: 4,
   tradingPaused: false,
   pauseReason: '',
   version: 0,
@@ -44,7 +45,8 @@ function getEffectiveConfig(baseConfig) {
     ...baseConfig,
     stopPips: learned.stopPips ?? baseConfig.stopPips,
     targetPips: learned.targetPips ?? baseConfig.targetPips,
-    minBuyScore: learned.minBuyScore ?? 72,
+    minBuyScore: learned.minBuyScore ?? baseConfig.minBuyScore ?? 78,
+    minLayersAligned: learned.minLayersAligned ?? baseConfig.minLayersAligned ?? 3,
     learned,
   };
 }
