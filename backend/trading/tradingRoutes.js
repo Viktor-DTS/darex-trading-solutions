@@ -4,7 +4,7 @@ const {
   ensureRiskState,
 } = require('./tradingModels');
 const { runTradingScan } = require('./tradingScan');
-const { notifyTradingAlert, sendTelegramTest, isTelegramConfigured, isBuyOnlyTelegram } = require('./tradingTelegram');
+const { notifyTradingPaused, sendTelegramTest, isTelegramConfigured, isBuyOnlyTelegram } = require('./tradingTelegram');
 const { getIbkrStatus, testIbkrConnection } = require('./ibkrClient');
 const { enrichTrade, summarizeTrades } = require('./tradingTrades');
 const { syncTradesFromIbkr } = require('./ibkrTradeSync');
@@ -244,7 +244,7 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
     );
 
     if (paused) {
-      await notifyTradingAlert(`Trading PAUSED: ${reason} (${req.user?.login})`);
+      await notifyTradingPaused(reason, req.user?.login);
     }
 
     res.json({ ok: true, paused, reason });

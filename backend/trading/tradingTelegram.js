@@ -31,6 +31,41 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
+function regimeLabel(regime) {
+  const r = String(regime || '').toLowerCase().replace(/\s+/g, '_');
+  if (r === 'risk_on') return 'ризик-on';
+  if (r === 'risk_off') return 'ризик-off';
+  if (r === 'elevated') return 'підвищений';
+  return regime;
+}
+
+function modeLabel(mode) {
+  const m = String(mode || '').toLowerCase();
+  if (m === 'simulate' || m === 'sim') return 'симуляція';
+  if (m === 'paper') return 'paper';
+  if (m === 'live') return 'live';
+  return mode;
+}
+
+function triggerLabel(triggeredBy) {
+  const t = String(triggeredBy || '');
+  if (t === 'interval') return 'інтервал';
+  if (t === 'startup') return 'старт';
+  if (t.includes('cron')) return 'cron';
+  if (t.startsWith('manual:')) return `вручну (${t.slice(7)})`;
+  return triggeredBy;
+}
+
+function autoLabel(on) {
+  return on ? 'УВІМК' : 'ВИМК';
+}
+
+function pauseReasonLabel(reason) {
+  const r = String(reason || '').toLowerCase();
+  if (r === 'manual from dashboard') return 'вручну з панелі';
+  return reason;
+}
+
 function isBuyOnlyTelegram() {
   return process.env.TRADING_TELEGRAM_BUY_ONLY !== '0';
 }
@@ -47,10 +82,10 @@ async function notifyBuySignals({ scanId, regime, vix, buys, mode, autoEnabled, 
   if (!buys.length) return { ok: false, skipped: true };
 
   const lines = [
-    `<b>🟢 BUY SIGNAL</b> · scan <code>${escapeHtml(scanId)}</code>`,
-    `Regime: <b>${escapeHtml(regime)}</b> | VIX: <b>${vix ?? '—'}</b>`,
-    `Mode: <b>${escapeHtml(mode)}</b> | Auto: <b>${autoEnabled ? 'ON' : 'OFF'}</b>`,
-    triggeredBy ? `Trigger: ${escapeHtml(triggeredBy)}` : '',
+    `<b>🟢 СИГНАЛ КУПІВЛІ</b> · скан <code>${escapeHtml(scanId)}</code>`,
+    `Режим: <b>${escapeHtml(regimeLabel(regime))}</b> | VIX: <b>${vix ?? '—'}</b>`,
+    `Торгівля: <b>${escapeHtml(modeLabel(mode))}</b> | Авто: <b>${autoLabel(autoEnabled)}</b>`,
+    triggeredBy ? `Тригер: ${escapeHtml(triggerLabel(triggeredBy))}` : '',
     '',
   ].filter(Boolean);
 
@@ -76,15 +111,15 @@ async function notifyTradingScan({ scanId, regime, vix, signals, mode, autoEnabl
 
   const buys = signals.filter((s) => s.action === 'BUY');
   const lines = [
-    `<b>📊 Trading scan</b> <code>${escapeHtml(scanId)}</code>`,
-    `Mode: <b>${escapeHtml(mode)}</b> | Auto: <b>${autoEnabled ? 'ON' : 'OFF'}</b>`,
-    `Regime: <b>${escapeHtml(regime)}</b> | VIX: <b>${vix ?? '—'}</b>`,
-    triggeredBy ? `Via: <b>${escapeHtml(triggeredBy)}</b>` : '',
+    `<b>📊 Скан торгівлі</b> <code>${escapeHtml(scanId)}</code>`,
+    `Торгівля: <b>${escapeHtml(modeLabel(mode))}</b> | Авто: <b>${autoLabel(autoEnabled)}</b>`,
+    `Режим: <b>${escapeHtml(regimeLabel(regime))}</b> | VIX: <b>${vix ?? '—'}</b>`,
+    triggeredBy ? `Запуск: <b>${escapeHtml(triggerLabel(triggeredBy))}</b>` : '',
     '',
   ].filter(Boolean);
 
   if (!buys.length) {
-    lines.push('BUY сигналів немає.');
+    lines.push('Сигналів BUY немає.');
     const top = signals
       .filter((s) => !s.error)
       .sort((a, b) => (b.finalScore || 0) - (a.finalScore || 0))
@@ -103,12 +138,17 @@ async function notifyTradingScan({ scanId, regime, vix, signals, mode, autoEnabl
 }
 
 async function notifyTradingAlert(message) {
-  return sendTelegramMessage(`<b>⚠️ Trading</b>\n${escapeHtml(message)}`);
+  return sendTelegramMessage(`<b>⚠️ Торгівля</b>\n${escapeHtml(message)}`);
+}
+
+async function notifyTradingPaused(reason, login) {
+  const who = login ? ` (${login})` : '';
+  return notifyTradingAlert(`Торгівлю ПАУЗУ: ${pauseReasonLabel(reason)}${who}`);
 }
 
 async function sendTelegramTest() {
   return sendTelegramMessage(
-    '<b>✅ Trading Telegram test</b>\nЗв\'язок працює. BUY-алерти будуть приходити сюди.',
+    '<b>✅ Тест Telegram торгівлі</b>\nЗв\'язок працює. Сигнали BUY надходитимуть сюди.',
   );
 }
 
@@ -119,5 +159,10 @@ module.exports = {
   notifyBuySignals,
   notifyTradingScan,
   notifyTradingAlert,
+  notifyTradingPaused,
   sendTelegramTest,
+  regimeLabel,
+  modeLabel,
+  triggerLabel,
+  pauseReasonLabel,
 };

@@ -279,7 +279,7 @@ export default function TradingDashboard({ user, embedded = false }) {
       const res = await fetch(`${API_BASE_URL}/trading/pause`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ paused, reason: paused ? 'manual from dashboard' : '' }),
+        body: JSON.stringify({ paused, reason: paused ? 'вручну з панелі' : '' }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
