@@ -140,6 +140,17 @@ function formatEquipmentQuantityCell(item) {
   return `${getEquipmentQuantityNumber(item)} ${getEquipmentBatchUnit(item)}`;
 }
 
+function isActiveColumnFilterValue(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  return value != null && String(value).trim() !== '';
+}
+
+function parseWarehouseFilterSelection(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
+  const s = value != null ? String(value).trim() : '';
+  return s ? [s] : [];
+}
+
 /** MongoDB _id усіх документів, що відповідають рядку таблиці (включно зі згрупованими). */
 function getEquipmentIdsFromRow(item) {
   if (item?.isGrouped && Array.isArray(item.batchItems) && item.batchItems.length) {
@@ -209,6 +220,8 @@ const EquipmentList = forwardRef(({
   /** null — дерево ще не завантажено; Set — id категорій гілки необоротних активів */
   const [fixedAssetsCategoryIds, setFixedAssetsCategoryIds] = useState(null);
   const initialLoadDone = useRef(false);
+  const warehouseFilterRef = useRef(null);
+  const [warehouseFilterOpen, setWarehouseFilterOpen] = useState(false);
   const [linkingProductCards, setLinkingProductCards] = useState(false);
   const [backfillingRootCategory, setBackfillingRootCategory] = useState(false);
 
@@ -293,7 +306,7 @@ const EquipmentList = forwardRef(({
       if (showWithoutProductCardOnly) params.set('withoutProductCard', '1');
       if (showDeleted) params.set('includeDeleted', '1');
       const activeCf = Object.fromEntries(
-        Object.entries(debouncedColumnFilters).filter(([, v]) => v != null && String(v).trim() !== '')
+        Object.entries(debouncedColumnFilters).filter(([, v]) => isActiveColumnFilterValue(v))
       );
       if (Object.keys(activeCf).length) {
         params.set('columnFilters', JSON.stringify(activeCf));
@@ -359,6 +372,17 @@ const EquipmentList = forwardRef(({
   useEffect(() => {
     loadEquipment({ page: currentPage });
   }, [currentPage, buildListQueryParams, loadEquipment]);
+
+  useEffect(() => {
+    if (!warehouseFilterOpen) return undefined;
+    const onDocMouseDown = (e) => {
+      if (warehouseFilterRef.current && !warehouseFilterRef.current.contains(e.target)) {
+        setWarehouseFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [warehouseFilterOpen]);
 
   useEffect(() => {
     if (managerCategoryContext) {
@@ -539,10 +563,31 @@ const EquipmentList = forwardRef(({
     }));
   };
 
+  const toggleWarehouseFilter = (name) => {
+    setColumnFilters((prev) => {
+      const cur = parseWarehouseFilterSelection(prev.currentWarehouse);
+      const next = cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name];
+      const copy = { ...prev };
+      if (next.length) copy.currentWarehouse = next;
+      else delete copy.currentWarehouse;
+      return copy;
+    });
+  };
+
+  const clearWarehouseFilter = () => {
+    setColumnFilters((prev) => {
+      const copy = { ...prev };
+      delete copy.currentWarehouse;
+      return copy;
+    });
+    setWarehouseFilterOpen(false);
+  };
+
   const clearAllFilters = () => {
     setColumnFilters({});
     setFilter('');
     setShowWithoutProductCardOnly(false);
+    setWarehouseFilterOpen(false);
     try {
       localStorage.removeItem('equipmentTable_filters');
       localStorage.removeItem('equipmentTable_filter');
@@ -552,12 +597,13 @@ const EquipmentList = forwardRef(({
   };
 
   const hasActiveFilters =
-    Object.values(columnFilters).some((v) => v && v.trim() !== '') ||
+    Object.values(columnFilters).some((v) => isActiveColumnFilterValue(v)) ||
     filter.trim() !== '' ||
     showWithoutProductCardOnly;
 
   const getFilterType = (columnKey) => {
     if (columnKey === 'manufactureDate' || columnKey === 'reservationEndDate') return 'date';
+    if (columnKey === 'currentWarehouse' && managerCategoryContext) return 'multi-select';
     if (columnKey === 'currentWarehouse') return 'select';
     if (columnKey === 'status') return 'select';
     if (columnKey === 'reservationStatus') return 'select';
@@ -815,6 +861,54 @@ const EquipmentList = forwardRef(({
       );
     }
     
+    if (filterType === 'multi-select' && col.key === 'currentWarehouse') {
+      const options = getFilterOptions(col.key).filter(Boolean);
+      const selected = parseWarehouseFilterSelection(columnFilters.currentWarehouse);
+      const triggerLabel =
+        selected.length === 0
+          ? 'Всі склади'
+          : selected.length === 1
+            ? selected[0]
+            : `${selected.length} складів`;
+
+      return (
+        <div className="filter-warehouse-multi" ref={warehouseFilterRef}>
+          <button
+            type="button"
+            className={`filter-warehouse-multi-trigger ${selected.length ? 'active' : ''}`}
+            onClick={() => setWarehouseFilterOpen((open) => !open)}
+            title={selected.length ? selected.join(', ') : 'Оберіть один або кілька складів'}
+          >
+            <span className="filter-warehouse-multi-label">{triggerLabel}</span>
+            <span className="filter-warehouse-multi-caret" aria-hidden>▾</span>
+          </button>
+          {warehouseFilterOpen && (
+            <div className="filter-warehouse-multi-panel">
+              <div className="filter-warehouse-multi-actions">
+                <button type="button" className="filter-warehouse-multi-action" onClick={clearWarehouseFilter}>
+                  Скинути
+                </button>
+              </div>
+              <ul className="filter-warehouse-multi-list">
+                {options.map((name) => (
+                  <li key={name}>
+                    <label className="filter-warehouse-multi-option">
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(name)}
+                        onChange={() => toggleWarehouseFilter(name)}
+                      />
+                      <span>{name}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     if (filterType === 'select') {
       const options = getFilterOptions(col.key);
       return (

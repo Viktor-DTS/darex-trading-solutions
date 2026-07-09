@@ -11420,12 +11420,25 @@ function applyEquipmentColumnFilters(query, columnFilters, opts = {}) {
     }
 
     if (key === 'currentWarehouse') {
-      pushEquipmentQueryAnd(query, {
-        $or: [
-          { currentWarehouseName: filterValue },
-          { currentWarehouse: filterValue },
-        ],
-      });
+      const values = Array.isArray(raw)
+        ? raw.map((v) => String(v).trim()).filter(Boolean)
+        : [String(raw ?? '').trim()].filter(Boolean);
+      if (!values.length) continue;
+      if (values.length === 1) {
+        pushEquipmentQueryAnd(query, {
+          $or: [
+            { currentWarehouseName: values[0] },
+            { currentWarehouse: values[0] },
+          ],
+        });
+      } else {
+        pushEquipmentQueryAnd(query, {
+          $or: [
+            { currentWarehouseName: { $in: values } },
+            { currentWarehouse: { $in: values } },
+          ],
+        });
+      }
       continue;
     }
 
@@ -11638,9 +11651,10 @@ async function buildEquipmentListQuery(req) {
 
   const columnFilters = parseColumnFiltersQuery(columnFiltersRaw);
   const needsFixedAssets =
-    Object.values(columnFilters).some((v) =>
-      String(v || '').includes('Необоротні активи') || String(v || '').includes('офісно-складське')
-    );
+    Object.values(columnFilters).some((v) => {
+      const text = Array.isArray(v) ? v.join(' ') : String(v || '');
+      return text.includes('Необоротні активи') || text.includes('офісно-складське');
+    });
   let fixedAssetsCategoryIds = [];
   if (needsFixedAssets) {
     const fromClient = String(req.query.fixedAssetsCategoryIds || '')
