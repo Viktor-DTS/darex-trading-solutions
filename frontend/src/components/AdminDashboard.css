@@ -681,6 +681,20 @@
   font-size: 11px;
 }
 
+.logs-request-search {
+  padding: 6px 10px;
+  min-width: 160px;
+  background: #152030;
+  border: 1px solid #3a4f64;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+}
+
+.logs-request-search::placeholder {
+  color: #8a9bb0;
+}
+
 .btn-refresh,
 .btn-cleanup {
   padding: 6px 12px;

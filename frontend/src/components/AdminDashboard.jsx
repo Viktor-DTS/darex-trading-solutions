@@ -1405,6 +1405,13 @@ function AdminDashboard({ user }) {
   const [logsPage, setLogsPage] = useState(1);
   const [logsTotal, setLogsTotal] = useState(0);
   const [logsFilter, setLogsFilter] = useState('');
+  const [logsRequestNumber, setLogsRequestNumber] = useState('');
+  const [debouncedLogsRequestNumber, setDebouncedLogsRequestNumber] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedLogsRequestNumber(logsRequestNumber.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [logsRequestNumber]);
 
   const loadEventLogs = useCallback(async (page = 1) => {
     setLogsLoading(true);
@@ -1412,6 +1419,7 @@ function AdminDashboard({ user }) {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({ page, limit: 30 });
       if (logsFilter) params.append('action', logsFilter);
+      if (debouncedLogsRequestNumber) params.append('requestNumber', debouncedLogsRequestNumber);
       
       const res = await fetch(`${API_BASE_URL}/event-log?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -1428,13 +1436,13 @@ function AdminDashboard({ user }) {
     } finally {
       setLogsLoading(false);
     }
-  }, [logsFilter]);
+  }, [logsFilter, debouncedLogsRequestNumber]);
 
   useEffect(() => {
     if (activeTab === 'logs') {
       loadEventLogs(1);
     }
-  }, [activeTab, logsFilter]);
+  }, [activeTab, logsFilter, debouncedLogsRequestNumber]);
 
   const handleCleanupLogs = async () => {
     if (!window.confirm('Видалити записи старше 30 днів?')) return;
@@ -1487,6 +1495,14 @@ function AdminDashboard({ user }) {
       <div className="logs-header">
         <h3>📜 Журнал подій</h3>
         <div className="logs-controls">
+          <input
+            type="text"
+            className="logs-request-search"
+            placeholder="🔍 Номер заявки..."
+            value={logsRequestNumber}
+            onChange={(e) => setLogsRequestNumber(e.target.value)}
+            title="Пошук за номером заявки (наприклад KV-0001107)"
+          />
           <select 
             value={logsFilter} 
             onChange={(e) => setLogsFilter(e.target.value)}

@@ -7706,12 +7706,24 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
 app.get('/api/event-log', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { page = 1, limit = 50, action, userId, entityType } = req.query;
-    
-    const filter = {};
-    if (action) filter.action = action;
-    if (userId) filter.userId = userId;
-    if (entityType) filter.entityType = entityType;
+    const { page = 1, limit = 50, action, userId, entityType, requestNumber } = req.query;
+
+    const conditions = [];
+    if (action) conditions.push({ action });
+    if (userId) conditions.push({ userId });
+    if (entityType) conditions.push({ entityType });
+    if (requestNumber && String(requestNumber).trim()) {
+      const q = escapeRegexForMongo(String(requestNumber).trim());
+      conditions.push({
+        $or: [
+          { description: { $regex: q, $options: 'i' } },
+          { 'details.requestNumber': { $regex: q, $options: 'i' } },
+        ],
+      });
+    }
+
+    const filter =
+      conditions.length === 0 ? {} : conditions.length === 1 ? conditions[0] : { $and: conditions };
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
