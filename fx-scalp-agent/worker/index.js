@@ -91,12 +91,22 @@ function getOracleCfg() {
   const minPUp = tbMinP != null && String(tbMinP).trim() !== ''
     ? Number(tbMinP)
     : 0.48;
+  const tbMinHit = process.env.FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT;
+  const minDirectionHitRate = tbMinHit != null && String(tbMinHit).trim() !== ''
+    ? Number(tbMinHit)
+    : 0.45;
+  const tbMicroM1 = process.env.FX_TESTBOT_ORACLE_MICRO_M1;
+  const microMinM1 = tbMicroM1 != null && String(tbMicroM1).trim() !== ''
+    ? Number(tbMicroM1)
+    : 1.5;
   return {
     ...o,
     microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0.35,
+    microMinM1: Number.isFinite(microMinM1) ? microMinM1 : 1.5,
     minPUp: Number.isFinite(minPUp) ? minPUp : 0.48,
     minKappa: Number(process.env.FX_TESTBOT_ORACLE_MIN_KAPPA) || 0.50,
     minPTp: Number(process.env.FX_TESTBOT_ORACLE_MIN_P_TP) || 0.48,
+    minDirectionHitRate: Number.isFinite(minDirectionHitRate) ? minDirectionHitRate : 0.45,
     skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR !== '0',
     testbotJournalFile: getTbCfg().journalFile || testbotJournalFile,
   };
