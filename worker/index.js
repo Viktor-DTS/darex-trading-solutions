@@ -91,7 +91,7 @@ function getOracleCfg() {
   const tbMinP = process.env.FX_TESTBOT_ORACLE_MIN_P_UP;
   const minPUp = tbMinP != null && String(tbMinP).trim() !== ''
     ? Number(tbMinP)
-    : 0.48;
+    : 0.40;
   // 0 = вимкнути calibration block на sim (інакше spam-прогнози вбивають hit rate)
   const tbMinHit = process.env.FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT;
   const minDirectionHitRate = tbMinHit != null && String(tbMinHit).trim() !== ''
@@ -101,17 +101,22 @@ function getOracleCfg() {
   const microMinM1 = tbMicroM1 != null && String(tbMicroM1).trim() !== ''
     ? Number(tbMicroM1)
     : 1;
+  // 0 = не блокувати по P(TP): при $3 SL і wide TP theta майже завжди <40%
   const tbMinPTp = process.env.FX_TESTBOT_ORACLE_MIN_P_TP;
   const minPTp = tbMinPTp != null && String(tbMinPTp).trim() !== ''
     ? Number(tbMinPTp)
-    : 0.40;
+    : 0;
+  const tbMinKappa = process.env.FX_TESTBOT_ORACLE_MIN_KAPPA;
+  const minKappa = tbMinKappa != null && String(tbMinKappa).trim() !== ''
+    ? Number(tbMinKappa)
+    : 0.30;
   return {
     ...o,
     microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0,
     microMinM1: Number.isFinite(microMinM1) ? microMinM1 : 1,
-    minPUp: Number.isFinite(minPUp) ? minPUp : 0.48,
-    minKappa: Number(process.env.FX_TESTBOT_ORACLE_MIN_KAPPA) || 0.50,
-    minPTp: Number.isFinite(minPTp) ? minPTp : 0.40,
+    minPUp: Number.isFinite(minPUp) ? minPUp : 0.40,
+    minKappa: Number.isFinite(minKappa) ? minKappa : 0.30,
+    minPTp: Number.isFinite(minPTp) ? minPTp : 0,
     minDirectionHitRate: Number.isFinite(minDirectionHitRate) ? minDirectionHitRate : 0,
     skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR !== '0',
     testbotJournalFile: getTbCfg().journalFile || testbotJournalFile,
