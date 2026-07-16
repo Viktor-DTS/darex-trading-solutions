@@ -264,11 +264,11 @@ services:
       - key: FX_TESTBOT_ORACLE_MIN_KAPPA
         value: "0.50"
       - key: FX_TESTBOT_ORACLE_MIN_P_TP
-        value: "0.48"
+        value: "0.40"
       - key: FX_TESTBOT_ORACLE_SOFT_DIR
         value: "1"
       - key: FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT
-        value: "0.45"
+        value: "0"
       - key: FX_TESTBOT_ORACLE_MICRO_M1
         value: "1"
       - key: FX_PAIR_REFRESH_CONCURRENCY
