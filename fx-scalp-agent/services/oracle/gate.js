@@ -72,7 +72,7 @@ function oracleGateAllows(oracle, analysis, cfg = {}) {
     return { ok: false, reason: `oracle pUp=${(oracle.pUp * 100).toFixed(1)}% > ${((1 - minP) * 100).toFixed(0)}% (short)`, stats };
   }
 
-  if (oracle.pHitTpBeforeSl != null && oracle.pHitTpBeforeSl < minPTp) {
+  if (oracle.pHitTpBeforeSl != null && minPTp > 0 && oracle.pHitTpBeforeSl < minPTp) {
     return {
       ok: false,
       reason: `oracle P(TP)=${(oracle.pHitTpBeforeSl * 100).toFixed(1)}% < ${(minPTp * 100).toFixed(0)}%`,
