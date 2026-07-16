@@ -3,7 +3,7 @@ const { DATA_DIR } = require('../state');
 const LEARNED_PATH = path.join(DATA_DIR, 'learned-params.json');
 
 const DEFAULTS = {
-  minBuyScore: 78,
+  minBuyScore: 68,
   minLayersAligned: 3,
   stopPips: 5,
   targetPips: 4,
@@ -38,6 +38,39 @@ function writeLearnedParams(params) {
   return doc;
 }
 
+function resumeLearning(extra = {}) {
+  const prev = readLearnedParams();
+  return writeLearnedParams({
+    ...prev,
+    tradingPaused: false,
+    pauseReason: '',
+    manualResumeAt: new Date().toISOString(),
+    ...extra,
+  });
+}
+
+function resetStatsBaseline() {
+  const prev = readLearnedParams();
+  return writeLearnedParams({
+    ...prev,
+    tradingPaused: false,
+    pauseReason: '',
+    manualResumeAt: new Date().toISOString(),
+    lastMetrics: null,
+    lastReport: null,
+  });
+}
+
+function pauseLearning(reason = 'вручну з панелі') {
+  const prev = readLearnedParams();
+  return writeLearnedParams({
+    ...prev,
+    tradingPaused: true,
+    pauseReason: reason,
+    manualResumeAt: null,
+  });
+}
+
 /** Merge base config with learned overrides for analyzer/worker. */
 function getEffectiveConfig(baseConfig) {
   const learned = readLearnedParams();
@@ -45,8 +78,8 @@ function getEffectiveConfig(baseConfig) {
     ...baseConfig,
     stopPips: learned.stopPips ?? baseConfig.stopPips,
     targetPips: learned.targetPips ?? baseConfig.targetPips,
-    minBuyScore: learned.minBuyScore ?? baseConfig.minBuyScore ?? 78,
-    minLayersAligned: learned.minLayersAligned ?? baseConfig.minLayersAligned ?? 3,
+    minBuyScore: baseConfig.minBuyScore ?? learned.minBuyScore ?? 68,
+    minLayersAligned: baseConfig.minLayersAligned ?? learned.minLayersAligned ?? 3,
     learned,
   };
 }
@@ -54,6 +87,9 @@ function getEffectiveConfig(baseConfig) {
 module.exports = {
   readLearnedParams,
   writeLearnedParams,
+  resumeLearning,
+  pauseLearning,
+  resetStatsBaseline,
   getEffectiveConfig,
   LEARNED_PATH,
   DEFAULTS,

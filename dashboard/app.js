@@ -8,13 +8,17 @@ const els = {
   btnStop: $('btnStop'),
   btnLearnDry: $('btnLearnDry'),
   btnLearn: $('btnLearn'),
+  btnLearnPause: $('btnLearnPause'),
+  btnJournalClear: $('btnJournalClear'),
   btnRefresh: $('btnRefresh'),
   analysisKv: $('analysisKv'),
   pairsTableWrap: $('pairsTableWrap'),
+  pulseKv: $('pulseKv'),
   analysisReason: $('analysisReason'),
   formulaKv: $('formulaKv'),
   factorsWrap: $('factorsWrap'),
   riskKv: $('riskKv'),
+  brokerKv: $('brokerKv'),
   journalKv: $('journalKv'),
   learningKv: $('learningKv'),
   livePositionBody: $('livePositionBody'),
@@ -22,6 +26,21 @@ const els = {
   liveSlotsLabel: $('liveSlotsLabel'),
   logBox: $('logBox'),
   journalTable: $('journalTable'),
+  tbJournalTable: $('tbJournalTable'),
+  tbLiveBody: $('tbLiveBody'),
+  tbSlotsLabel: $('tbSlotsLabel'),
+  tbAnalysisKv: $('tbAnalysisKv'),
+  tbPairsTableWrap: $('tbPairsTableWrap'),
+  tbAccountKv: $('tbAccountKv'),
+  tbRiskKv: $('tbRiskKv'),
+  tbJournalKv: $('tbJournalKv'),
+  tbOracleKv: $('tbOracleKv'),
+  tbOracleTable: $('tbOracleTable'),
+  tabLive: $('tabLive'),
+  tabTestbot: $('tabTestbot'),
+  panelTabs: $('panelTabs'),
+  btnTbJournalClear: $('btnTbJournalClear'),
+  btnTbFlipOn: $('btnTbFlipOn'),
   toast: $('toast'),
   externalBanner: $('externalBanner'),
 };
@@ -39,42 +58,20 @@ function mergePreferRichClient(prev, next) {
     out.lastAnalysis = next.lastAnalysis || prev.lastAnalysis;
   }
 
-  const nextJournalOpen = next.journal?.openCount;
-  const prevTrades = prev.openTrades?.length ?? 0;
-  const nextTrades = next.openTrades?.length ?? 0;
-
-  if (next.journal?.openTrades != null && nextJournalOpen != null) {
-    out.openTrades = nextJournalOpen > 0
-      ? next.journal.openTrades.map((e) => ({
-        pair: e.pair,
-        side: e.side || 'long',
-        entry: e.entry,
-        stopLoss: e.stopLoss,
-        takeProfit: e.takeProfit,
-        openedAt: e.openedAt,
-        score: e.score,
-        regime: e.regime,
-      }))
-      : [];
+  // Executor/worker open state wins over journal
+  if (next.openTrades != null || next.openPositionsLive != null) {
+    out.openTrades = next.openTrades ?? [];
     out.openTrade = out.openTrades[0] ?? null;
-
-    const liveByPair = new Map((next.openPositionsLive || prev.openPositionsLive || []).map((l) => [l.pair, l]));
-    const openPairs = new Set(out.openTrades.map((t) => t.pair));
-    out.openPositionsLive = out.openTrades.map((t) => liveByPair.get(t.pair) || {
-      pair: t.pair,
-      side: t.side || 'long',
-      entry: t.entry,
-      mark: null,
-      stopLoss: t.stopLoss,
-      takeProfit: t.takeProfit,
-      score: t.score,
-    });
+    out.openPositionsLive = next.openPositionsLive ?? [];
     out.openPositionLive = out.openPositionsLive[0] ?? null;
-  } else if (nextTrades === 0 && prevTrades > 0) {
-    out.openTrades = prev.openTrades;
-    out.openTrade = prev.openTrades[0] ?? null;
-    out.openPositionsLive = prev.openPositionsLive ?? [];
-    out.openPositionLive = prev.openPositionsLive?.[0] ?? null;
+  }
+
+  if (next.journal || prev.journal) {
+    out.journal = { ...(prev.journal || {}), ...(next.journal || {}) };
+  }
+
+  if (next.testbot) {
+    out.testbot = next.testbot;
   }
 
   if (prev.risk && next.risk && prev.risk.dayKey === next.risk.dayKey) {
@@ -89,34 +86,10 @@ function mergePreferRichClient(prev, next) {
 
 function enrichStateWithJournal(state, journalSummary) {
   if (!state || !journalSummary) return state;
-  const out = { ...state };
-  const openTrades = (journalSummary.openTrades || []).map((e) => ({
-    pair: e.pair,
-    side: e.side || 'long',
-    entry: e.entry,
-    stopLoss: e.stopLoss,
-    takeProfit: e.takeProfit,
-    openedAt: e.openedAt,
-    score: e.score,
-    regime: e.regime,
-  }));
-
-  out.openTrades = openTrades;
-  out.openTrade = openTrades[0] ?? null;
-
-  const liveByPair = new Map((state.openPositionsLive || []).map((l) => [l.pair, l]));
-  out.openPositionsLive = openTrades.map((t) => liveByPair.get(t.pair) || {
-    pair: t.pair,
-    side: t.side || 'long',
-    entry: t.entry,
-    mark: null,
-    stopLoss: t.stopLoss,
-    takeProfit: t.takeProfit,
-    score: t.score,
-  });
-  out.openPositionLive = out.openPositionsLive[0] ?? null;
-  out.journal = { ...(state.journal || {}), ...journalSummary };
-  return out;
+  return {
+    ...state,
+    journal: { ...(state.journal || {}), ...journalSummary },
+  };
 }
 
 function mergeState(raw) {
@@ -133,10 +106,27 @@ function toast(msg) {
   setTimeout(() => els.toast.classList.remove('show'), 2800);
 }
 
-async function api(path, opts) {
-  const res = await fetch(path, opts);
+async function api(path, opts = {}) {
+  const base = String(window.FX_API_BASE || '').replace(/\/+$/, '');
+  const url = base ? `${base}${path.startsWith('/') ? path : `/${path}`}` : path;
+  const headers = {
+    Accept: 'application/json',
+    ...(window.FxAuth?.authHeaders() || {}),
+    ...(opts.headers || {}),
+  };
+  const res = await fetch(url, { ...opts, headers });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (res.status === 401 && window.FxAuth) {
+    window.FxAuth.setToken('');
+    window.FxAuth.redirectLogin();
+    throw new Error('Сесію завершено');
+  }
+  if (!res.ok) {
+    const err = new Error(data.error || data.hint || res.statusText);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
   return data;
 }
 
@@ -179,12 +169,14 @@ function setStatus(control, health) {
     els.btnStop.disabled = false;
     els.externalBanner.classList.add('hidden');
   } else if (mode === 'external') {
-    els.statusBadge.className = 'badge external';
-    els.statusBadge.textContent = 'Зовнішній worker';
-    els.btnStart.disabled = false;
-    els.btnStart.textContent = '▶ Запустити worker (панель)';
-    els.btnStop.disabled = true;
-    els.externalBanner.classList.remove('hidden');
+    els.statusBadge.className = 'badge running';
+    els.statusBadge.textContent = control.lockAlive && !control.stateFresh
+      ? 'Працює (Render auto)'
+      : 'Працює';
+    els.btnStart.disabled = true;
+    els.btnStart.textContent = '▶ Worker працює';
+    els.btnStop.disabled = false;
+    els.externalBanner.classList.add('hidden');
   } else {
     els.statusBadge.className = 'badge stopped';
     els.statusBadge.textContent = 'Зупинено';
@@ -201,8 +193,10 @@ function setStatus(control, health) {
   els.metaLine.textContent = parts.join(' · ');
 }
 
-function isWorkerOnline(state) {
+function isWorkerOnline(state, control) {
+  if (control?.mode === 'managed' || control?.externalWorkerLikely) return true;
   if (!state || state.worker === 'offline') return false;
+  if (state.worker === 'online') return true;
   if (!state.updatedAt) {
     return Boolean(state.tickCount || state.openPositionLive || state.openPositionsLive?.length);
   }
@@ -210,30 +204,29 @@ function isWorkerOnline(state) {
 }
 
 function getOpenCount(state) {
-  if (state?.openTrades?.length) return state.openTrades.length;
   if (state?.openPositionsLive?.length) return state.openPositionsLive.length;
-  if (state?.openTrade || state?.openPositionLive) return 1;
-  return state?.journal?.openCount ?? 0;
+  if (state?.openTrades?.length) return state.openTrades.length;
+  if (state?.openPositionLive || state?.openTrade) return 1;
+  return 0;
 }
 
 function getOpenPairs(state) {
   const pairs = new Set();
-  for (const t of state?.openTrades || []) pairs.add(t.pair);
   for (const t of state?.openPositionsLive || []) pairs.add(t.pair);
+  for (const t of state?.openTrades || []) pairs.add(t.pair);
   if (state?.openTrade?.pair) pairs.add(state.openTrade.pair);
   if (state?.openPositionLive?.pair) pairs.add(state.openPositionLive.pair);
-  for (const t of state?.journal?.openTrades || []) pairs.add(t.pair);
   return pairs;
 }
 
-function renderAnalysis(state, calendarApi) {
+function renderAnalysis(state, calendarApi, control) {
   const list = state?.lastAnalyses?.length
     ? state.lastAnalyses
     : state?.lastAnalysis
       ? [state.lastAnalysis]
       : [];
 
-  if (!isWorkerOnline(state)) {
+  if (!isWorkerOnline(state, control)) {
     els.analysisKv.innerHTML = statChip('Статус', 'Worker offline', 'skip');
     els.pairsTableWrap.innerHTML = '';
     els.analysisReason.textContent = state?.hint || 'Натисніть «Запустити worker»';
@@ -242,9 +235,9 @@ function renderAnalysis(state, calendarApi) {
   }
 
   if (!list.length) {
-    els.analysisKv.innerHTML = statChip('Статус', 'Оновлення…', 'watch');
+    els.analysisKv.innerHTML = statChip('Статус', control?.stateFresh === false ? 'Синхронізація…' : 'Оновлення…', 'watch');
     els.pairsTableWrap.innerHTML = '';
-    els.analysisReason.textContent = 'Чекаємо перший цикл аналізу (~5 с)';
+    els.analysisReason.textContent = state?.hint || 'Чекаємо перший цикл аналізу (~10 с)';
     renderFormula(null, []);
     return;
   }
@@ -270,6 +263,7 @@ function renderAnalysis(state, calendarApi) {
     if (action === 'BUY') return 'buy';
     if (action === 'SELL') return 'sell';
     if (action === 'WATCH') return 'watch';
+    if (action === 'OPEN') return 'buy';
     return 'skip';
   }
 
@@ -295,10 +289,12 @@ function renderAnalysis(state, calendarApi) {
   }
 
   if (best) {
-    const actionCls = actionClass(best.action);
+    const bestIsOpen = openPairs.has(best.pair);
+    const bestAction = bestIsOpen ? 'OPEN' : best.action;
+    const actionCls = actionClass(bestAction);
     els.analysisKv.innerHTML = [
       statChip('Сигнал', best.pair, actionCls),
-      statChip('Дія', best.action, actionCls),
+      statChip('Дія', bestAction, actionCls),
       statChip('Conv', best.smart ? `${best.smart.conviction}/${best.smart.threshold}` : best.score),
       statChip('Regime', best.marketRegime || best.regime),
       statChip('Layers', renderLamps(best.smart, best.layerEval)),
@@ -318,22 +314,58 @@ function renderAnalysis(state, calendarApi) {
     els.analysisReason.textContent = reason;
   }
 
+  const sortedList = list.slice().sort((a, b) => {
+    const ca = a.smart?.conviction ?? a.score ?? 0;
+    const cb = b.smart?.conviction ?? b.score ?? 0;
+    return cb - ca;
+  });
+
+  function renderAct(a) {
+    if (a.actScore == null) return '—';
+    const rank = a.actRank != null ? `#${a.actRank}` : '';
+    const dead = a.actAlive === false ? ' ·!' : '';
+    const atr = a.atrPips != null ? `ATR ${a.atrPips}p` : '';
+    const rng = a.rangePips != null ? `rng ${a.rangePips}p` : '';
+    const title = [atr, rng, a.actAlive === false ? 'quiet' : ''].filter(Boolean).join(' · ');
+    return `<span class="act-cell" title="${escapeHtml(title)}">${a.actScore}${rank ? `<span class="act-sub">${rank}</span>` : ''}${dead}</span>`;
+  }
+
+  function renderNear(a) {
+    const n = a.nearLevel || a.charlie?.nearLevel;
+    if (!n?.label) return '<span class="muted">—</span>';
+    const pips = n.pips != null ? `${n.pips}p` : '—';
+    return `<span class="near-cell" title="nearest liquidity level">${escapeHtml(n.label)} ${pips}</span>`;
+  }
+
+  const charliePanel = Boolean(state?.charlieAlwaysOn || state?.charlieFocus?.length
+    || list.some((a) => a.actScore != null || a.nearLevel));
+
   els.pairsTableWrap.innerHTML = `<table>
-    <thead><tr><th>Пара</th><th>Дія</th><th>Conv</th><th>Market</th><th>Layers</th><th>Ціна</th></tr></thead>
-    <tbody>${list.map((a) => {
+    <thead><tr><th>Пара</th><th>Дія</th><th>Conv</th>${charliePanel ? '<th>Act</th><th>Near</th>' : '<th>Layers</th>'}<th>Market</th><th>Ціна</th></tr></thead>
+    <tbody>${sortedList.map((a) => {
     const cls = actionClass(a.action);
     const isOpen = openPairs.has(a.pair);
     const rowCls = isOpen ? 'row-open' : '';
+    const displayAction = isOpen ? 'OPEN' : a.action;
+    const actionTitle = escapeHtml(a.reason || '');
     const layers = renderLamps(a.smart, a.layerEval);
     const alt = a.altSignal
       ? `<div class="alt-signal" title="${escapeHtml(a.altSignal.reason || '')}">↔ ${a.altSignal.action} conv ${a.altSignal.score ?? '—'}${a.altSignal.entryMode === 'htf' ? ' HTF' : ''}</div>`
       : '';
+    const skipHint = (a.action === 'SKIP' && (a.score ?? 0) >= (a.smart?.threshold ?? 70))
+      ? `<div class="skip-reason" title="${actionTitle}">${escapeHtml((a.reason || '').split(';').slice(-1)[0].trim().slice(0, 48))}</div>`
+      : '';
+    const nearHint = (a.action === 'SKIP' && (a.score ?? 0) < (a.smart?.threshold ?? 70) && (a.nearLevel || a.charlie?.nearLevel))
+      ? `<div class="near-hint" title="${escapeHtml(a.reason || '')}">немає свіпа</div>`
+      : '';
     return `<tr class="${rowCls}">
       <td>${a.pair}${isOpen ? ' <span class="open-tag">OPEN</span>' : ''}</td>
-      <td class="value ${cls}">${a.action}${alt}</td>
+      <td class="value ${cls}" title="${actionTitle}">${displayAction}${alt}${skipHint}${nearHint}</td>
       <td>${scoreLabel(a)}</td>
+      ${charliePanel
+    ? `<td>${renderAct(a)}</td><td>${renderNear(a)}</td>`
+    : `<td>${layers}</td>`}
       <td>${a.marketRegime || a.regime}</td>
-      <td>${layers}</td>
       <td>${a.quote?.mid ?? a.quote?.bid ?? '—'}</td>
     </tr>`;
   }).join('')}</tbody></table>`;
@@ -410,15 +442,43 @@ function renderFormula(best, list, calendarData) {
   els.factorsWrap.innerHTML = html;
 }
 
+function renderPulse(state) {
+  if (!els.pulseKv) return;
+  const churn = state?.charlieUniverseChurn;
+  const pulse = state?.charliePulse;
+  const focus = state?.charlieFocus || [];
+  const universe = state?.charlieUniverse || [];
+  if (!churn && !pulse && !focus.length && !universe.length) {
+    els.pulseKv.innerHTML = kvRow('Статус', 'немає charlie pulse');
+    return;
+  }
+  const up = (churn?.replaced || []).map((r) => r.in || r).filter(Boolean);
+  const down = churn?.demoted || [];
+  const fUp = pulse?.promoted || [];
+  const fDown = pulse?.demoted || [];
+  els.pulseKv.innerHTML = [
+    kvRow('Universe', `${universe.length || '—'} · rot ${churn?.rotating?.length ?? '—'}`),
+    kvRow('Focus', focus.length ? focus.join(', ') : '—'),
+    kvRow('↑ uni', up.length ? up.slice(0, 6).join(', ') : '—', up.length ? 'positive' : ''),
+    kvRow('↓ uni', down.length ? down.slice(0, 6).join(', ') : '—', down.length ? 'negative' : ''),
+    kvRow('↑ focus', fUp.length ? fUp.join(', ') : '—', fUp.length ? 'positive' : ''),
+    kvRow('↓ focus', fDown.length ? fDown.join(', ') : '—', fDown.length ? 'negative' : ''),
+    kvRow('Unique 1h', pulse?.unique1h != null ? String(pulse.unique1h) : '—'),
+    kvRow('Source', churn?.source || '—'),
+  ].join('');
+}
+
 function renderRisk(state) {
   const r = state?.risk;
-  const opens = state?.openTrades?.length
-    ? state.openTrades
-    : state?.openPositionsLive?.length
-      ? state.openPositionsLive
-      : state?.openTrade
-        ? [state.openTrade]
-        : state?.journal?.openTrades || [];
+  const opens = state?.openPositionsLive?.length
+    ? state.openPositionsLive
+    : state?.openTrades?.length
+      ? state.openTrades
+      : state?.openPositionLive
+        ? [state.openPositionLive]
+        : state?.openTrade
+          ? [state.openTrade]
+          : [];
   const maxOpen = state?.maxOpenPositions ?? 5;
 
   let html = [
@@ -435,6 +495,72 @@ function renderRisk(state) {
     html += kvRow('SL / TP', `${open.stopLoss} / ${open.takeProfit}`);
   }
   els.riskKv.innerHTML = html;
+}
+
+function marketDataStreamRow(state, health, capital) {
+  const provider = (state?.provider || health?.provider || '').toLowerCase();
+  const capitalMode = provider === 'capital' || capital?.executorMode === 'capital';
+  if (!capitalMode) return null;
+
+  if (state?.capitalWs) {
+    return kvRow('Потік даних', 'Capital WebSocket ✓', 'buy');
+  }
+  if (state?.yahooFallback) {
+    return kvRow('Потік даних', 'Yahoo → WS (тимчасово)', 'watch');
+  }
+  if (state?.worker === 'offline') {
+    return kvRow('Потік даних', 'worker офлайн', 'paused');
+  }
+  if (state?.hint && !state?.tickCount) {
+    return kvRow('Потік даних', state.hint, 'watch');
+  }
+  if (capital?.rateLimited) {
+    return kvRow('Потік даних', 'пауза API · retry ~60с', 'paused');
+  }
+  if (state?.capitalReady && !state?.yahooFallback) {
+    return kvRow('Потік даних', 'Capital REST', 'watch');
+  }
+  return kvRow('Потік даних', 'завантаження…', 'watch');
+}
+
+function renderBroker(capital, state, health) {
+  if (!els.brokerKv) return;
+  if (!capital) {
+    els.brokerKv.innerHTML = kvRow('Статус', '—');
+    return;
+  }
+
+  const connected = Boolean(capital.connected);
+  const envLabel = capital.env === 'live' ? 'Live' : 'Demo';
+  const mode = capital.executorMode || 'sim';
+  const brokerLabel = mode === 'capital' ? `Capital · ${envLabel}` : mode;
+
+  let html = [
+    kvRow('Режим', brokerLabel),
+    kvRow('API', connected ? 'підключено' : (capital.rateLimited ? 'пауза API' : 'немає'), connected ? 'buy' : 'paused'),
+  ];
+
+  if (capital.executorHint) {
+    html.push(kvRow('Увага', capital.executorHint, 'paused'));
+  }
+
+  const streamRow = marketDataStreamRow(state, health, capital);
+  if (streamRow) html.push(streamRow);
+
+  if (connected) {
+    html.push(kvRow('Капітал', capital.balance != null ? fmtUsd(capital.balance) : '—'));
+    html.push(kvRow('Доступно', capital.available != null ? fmtUsd(capital.available) : '—'));
+    if (capital.profitLoss != null) {
+      const plCls = capital.profitLoss > 0 ? 'positive' : capital.profitLoss < 0 ? 'negative' : '';
+      html.push(kvRow('P/L брокер', fmtUsd(capital.profitLoss), plCls));
+    }
+    if (capital.currency) html.push(kvRow('Валюта', capital.currency));
+    if (capital.stale) html.push(kvRow('Оновлення', 'кеш (API тимчасово)', 'watch'));
+  } else {
+    html.push(kvRow('Дані', capital.hint || capital.error || 'налаштуйте FX_CAPITAL_*', 'paused'));
+  }
+
+  els.brokerKv.innerHTML = html.join('');
 }
 
 function normalizeJournalSummary(summary, events) {
@@ -526,12 +652,38 @@ function renderLivePosition(state) {
   els.livePositionBody.innerHTML = liveList.map((live) => renderLiveCard(live, state)).join('');
 }
 
+function learningMetricsRows(metrics) {
+  const m = metrics || {};
+  if (!m.count) {
+    return [kvRow('Вінрейт', '— (немає закритих)', 'skip')];
+  }
+  const wr = m.winRate ?? 0;
+  const wrCls = wr >= 45 ? 'positive' : wr < 40 ? 'negative' : '';
+  const rows = [
+    kvRow('Вінрейт', `${wr}%`, wrCls),
+    kvRow('W / L', `${m.wins ?? 0} / ${m.losses ?? 0} · ${m.count} угод`),
+  ];
+  if (m.profitFactor != null) rows.push(kvRow('PF', m.profitFactor));
+  if (m.expectancyUsd != null) rows.push(kvRow('Очікування', `${fmtUsd(m.expectancyUsd)}/угода`));
+  if (m.totalPnlUsd != null) {
+    const pnlCls = m.totalPnlUsd > 0 ? 'positive' : m.totalPnlUsd < 0 ? 'negative' : '';
+    rows.push(kvRow('P/L (50)', fmtUsd(m.totalPnlUsd), pnlCls));
+  }
+  return rows;
+}
+
 function renderLearning(l) {
+  const metrics = l?.metrics || l?.lastMetrics;
   if (!l || !l.minBuyScore) {
-    els.learningKv.innerHTML = kvRow('Статус', 'Дефолтні параметри', 'skip');
+    els.learningKv.innerHTML = [
+      kvRow('Статус', 'Дефолтні параметри', 'skip'),
+      ...learningMetricsRows(metrics),
+    ].join('');
+    renderPauseButton({ tradingPaused: false });
     return;
   }
   els.learningKv.innerHTML = [
+    ...learningMetricsRows(metrics),
     kvRow('minBuyScore', l.minBuyScore),
     kvRow('minLayers', l.minLayersAligned ?? 3),
     kvRow('stopPips', l.stopPips),
@@ -542,6 +694,26 @@ function renderLearning(l) {
   ].join('');
   if (l.pauseReason) {
     els.learningKv.innerHTML += kvRow('Причина', l.pauseReason, 'paused');
+  }
+  renderPauseButton(l);
+}
+
+let learningPaused = false;
+
+function renderPauseButton(learning) {
+  const btn = els.btnLearnPause;
+  if (!btn) return;
+  learningPaused = Boolean(learning?.tradingPaused);
+  if (learningPaused) {
+    btn.textContent = '▶ Зняти паузу';
+    btn.classList.remove('danger');
+    btn.classList.add('primary');
+    btn.title = 'Дозволити нові входи';
+  } else {
+    btn.textContent = '⏸ Поставити паузу';
+    btn.classList.remove('primary');
+    btn.classList.add('danger');
+    btn.title = 'Заблокувати нові входи (learning pause)';
   }
 }
 
@@ -591,15 +763,194 @@ function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function testbotConv(a) {
+  return a?.smart?.conviction ?? a?.score ?? 0;
+}
+
+function testbotEligible(a, minScore = 60) {
+  if (testbotConv(a) < minScore) return false;
+  if (a.action === 'BUY' || a.action === 'SELL') return true;
+  return Boolean(a.setupDraft?.action);
+}
+
+function testbotExecAction(signalAction, invert = false) {
+  if (!signalAction || signalAction === '—') return '—';
+  if (!invert) return signalAction;
+  return signalAction === 'BUY' ? 'SELL' : signalAction === 'SELL' ? 'BUY' : signalAction;
+}
+
+function renderTestbot(state, control) {
+  const tb = state?.testbot;
+  const minScore = tb?.minScore ?? 60;
+  const pairCdMin = Math.round((tb?.pairCooldownMs ?? 300000) / 60000);
+  const invert = tb?.invertDirection === true;
+  const online = isWorkerOnline(state, control);
+
+  if (!tb?.enabled) {
+    els.tbAnalysisKv.innerHTML = statChip('Статус', 'Testbot вимкнено (FX_TESTBOT_ENABLED=1)', 'skip');
+    els.tbPairsTableWrap.innerHTML = '';
+    els.tbLiveBody.innerHTML = '<p class="live-empty">Увімкни FX_TESTBOT_ENABLED=1 на worker</p>';
+    return;
+  }
+
+  const opens = tb.openPositionsLive || [];
+  const maxOpen = tb.maxOpenPositions ?? 20;
+  els.tbSlotsLabel.textContent = `${opens.length}/${maxOpen} sim`;
+
+  if (!opens.length) {
+    els.tbLiveBody.innerHTML = '<p class="live-empty">Немає відкритих sim-угод</p>';
+  } else {
+    els.tbLiveBody.innerHTML = opens.map((p) => {
+      const sideCls = p.side === 'short' ? 'sell' : 'buy';
+      const u = p.unrealizedPnlUsd;
+      const uCls = u > 0 ? 'positive' : u < 0 ? 'negative' : '';
+      const tgt = p.targetUsd ?? 1;
+      const part = p.partialUsd ?? 0.5;
+      return `<article class="live-pos-card">
+        <div class="live-pos-head"><strong>${p.pair}</strong> <span class="value ${sideCls}">${p.side}</span></div>
+        <div class="live-pos-grid">
+          <span>Entry</span><span>${p.entry ?? '—'}</span>
+          <span>Mark</span><span>${p.mark ?? '—'}</span>
+          <span>U/P</span><span class="${uCls}">${u != null ? `$${u.toFixed(2)}` : '—'}</span>
+          <span>Ціль</span><span>$${tgt} · $${part}@${p.ageSec ?? 0}s</span>
+          <span>Conv</span><span>${p.entryConviction ?? '—'}</span>
+        </div>
+      </article>`;
+    }).join('');
+  }
+
+  const risk = tb.risk || {};
+  els.tbAccountKv.innerHTML = [
+    kvRow('Режим', 'Sim (окремо від Capital)'),
+    kvRow('Equity', `$${Number(risk.equityUsd ?? 1000).toFixed(0)}`),
+    kvRow('P/L всього', fmtUsd(tb.journal?.totalPnlUsd)),
+  ].join('');
+
+  els.tbRiskKv.innerHTML = [
+    kvRow('P/L сьогодні', fmtUsd(risk.dailyPnlUsd ?? tb.journal?.todayPnlUsd)),
+    kvRow('Входів сьогодні', risk.tradesToday ?? tb.journal?.todayEntries ?? 0),
+    kvRow('Відкрито', `${opens.length}/${maxOpen}`),
+    kvRow('Ліміт/день', '∞'),
+  ].join('');
+
+  const j = tb.journal || {};
+  els.tbJournalKv.innerHTML = [
+    kvRow('Закрито', j.totalClosed ?? 0),
+    kvRow('W / L', `${j.wins ?? 0} / ${j.losses ?? 0}`),
+    kvRow('Total P/L', fmtUsd(j.totalPnlUsd)),
+  ].join('');
+
+  const list = state?.lastAnalyses?.length ? state.lastAnalyses : [];
+  const eligible = list.filter((a) => testbotEligible(a, minScore));
+  const openPairs = new Set(opens.map((p) => p.pair));
+
+  const partialMin = Math.round((tb.partialAfterMs ?? 600000) / 60000);
+  const oracle = tb.oracle;
+  const oracleHit = oracle?.directionHitPct;
+  const oracleCls = oracle?.calibrationOk === false ? 'skip' : oracle?.samples >= 30 ? 'buy' : 'watch';
+  els.tbAnalysisKv.innerHTML = online
+    ? [
+      statChip('Готові', eligible.length, eligible.length ? 'buy' : 'skip'),
+      statChip('Min conv', minScore),
+      statChip('Pair CD', `${pairCdMin}хв`, 'watch'),
+      statChip('Target', `$${tb.targetUsd ?? 1}`, 'buy'),
+      statChip('Max SL', `$${tb.maxStopLossUsd ?? 10}+comm`, 'skip'),
+      statChip('Partial', `$${tb.partialUsd ?? 0.5} / ${partialMin}хв`, 'watch'),
+      statChip('Sim open', `${opens.length}/${maxOpen}`),
+      oracle ? statChip('ORACLE hit', oracleHit != null ? `${oracleHit}%` : '—', oracleCls) : '',
+    ].join('')
+    : statChip('Статус', 'Worker offline', 'skip');
+
+  if (els.tbOracleKv) {
+    if (!oracle) {
+      els.tbOracleKv.innerHTML = statChip('ORACLE-5', 'вимкнено (FX_ORACLE_5M=1)', 'skip');
+      if (els.tbOracleTable) els.tbOracleTable.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">ORACLE вимкнено</td></tr>';
+    } else {
+      els.tbOracleKv.innerHTML = [
+        statChip('Зразків', oracle.samples ?? 0, oracleCls),
+        statChip('Hit rate', oracleHit != null ? `${oracleHit}%` : '—', oracleCls),
+        statChip('Brier', oracle.brier != null ? oracle.brier.toFixed(3) : '—', 'watch'),
+        statChip('MAE pips', oracle.avgErrorPips != null ? oracle.avgErrorPips : '—', 'watch'),
+        statChip('Gate', oracle.tradeAllowed ? 'PASS' : 'BLOCK', oracle.tradeAllowed ? 'buy' : 'skip'),
+      ].join('');
+      const actuals = oracle.lastActuals || [];
+      if (els.tbOracleTable) {
+        els.tbOracleTable.innerHTML = actuals.length
+          ? actuals.map((a) => `<tr>
+            <td>${fmtTime(a.reconciledAt || a.t0)}</td>
+            <td>${a.pair || '—'}</td>
+            <td>${a.forecastMid_5m ?? '—'}</td>
+            <td>${a.actualMid_5m ?? '—'}</td>
+            <td>${a.pUp != null ? `${(a.pUp * 100).toFixed(0)}%` : '—'}</td>
+            <td class="value ${a.directionHit ? 'buy' : 'sell'}">${a.directionHit ? '✓' : '✗'}</td>
+          </tr>`).join('')
+          : '<tr><td colspan="6" style="color:var(--muted)">Ще немає reconcile (+5 хв після прогнозу)</td></tr>';
+      }
+    }
+  }
+
+  const sorted = list.slice().sort((a, b) => testbotConv(b) - testbotConv(a));
+  els.tbPairsTableWrap.innerHTML = sorted.length ? `<table>
+    <thead><tr><th>Пара</th><th>Conv</th><th>Testbot</th><th>Дія orig</th><th>Ціна</th></tr></thead>
+    <tbody>${sorted.slice(0, 24).map((a) => {
+    const conv = testbotConv(a);
+    const ok = testbotEligible(a, minScore);
+    const draft = a.setupDraft?.action;
+    const signalAction = ok ? (a.action === 'BUY' || a.action === 'SELL' ? a.action : draft) : '—';
+    const execAction = testbotExecAction(signalAction, invert);
+    const isOpen = openPairs.has(a.pair);
+    const rowCls = ok && !isOpen ? 'tb-row-ready' : isOpen ? 'row-open' : '';
+    const execCls = execAction === 'BUY' ? 'buy' : execAction === 'SELL' ? 'sell' : 'skip';
+    return `<tr class="${rowCls}">
+      <td>${a.pair}${isOpen ? ' <span class="open-tag">SIM</span>' : ''}</td>
+      <td>${conv}<span class="score-sub">/${minScore}</span></td>
+      <td class="value ${ok ? execCls : 'skip'}" title="${invert && signalAction !== '—' ? `аналіз ${signalAction} → ордер ${execAction}` : ''}">${isOpen ? 'OPEN' : execAction}${invert && signalAction !== '—' && !isOpen ? `<span class="act-sub">←${signalAction}</span>` : ''}</td>
+      <td>${a.action}${draft && a.action === 'SKIP' ? ` (${draft})` : ''}</td>
+      <td>${a.quote?.mid ?? '—'}</td>
+    </tr>`;
+  }).join('')}</tbody></table>` : '';
+
+  const events = (j.lastEvents || []).slice().reverse();
+  els.tbJournalTable.innerHTML = events.map((ev) => {
+    const pnl = ev.type === 'exit' ? fmtUsd(ev.pnlUsd) : '—';
+    const typ = ev.type === 'exit' ? ev.exitReason || 'exit' : 'entry';
+    const orc = ev.oracle5m
+      ? `${ev.oracle5m.direction} ${(ev.oracle5m.pUp * 100).toFixed(0)}%→${ev.oracle5m.forecastMid_5m}`
+      : '';
+    const reason = ev.exitReason || (ev.type === 'entry' ? (orc || 'open') : '—');
+    return `<tr>
+      <td>${fmtTime(ev.ts || ev.closedAt || ev.openedAt)}</td>
+      <td>${ev.pair || '—'}</td>
+      <td>${typ}</td>
+      <td>${ev.score ?? ev.entryConviction ?? '—'}</td>
+      <td>${pnl}</td>
+      <td>${escapeHtml(reason)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="color:var(--muted)">Ще немає угод</td></tr>';
+}
+
+function initPanelTabs() {
+  if (!els.panelTabs) return;
+  els.panelTabs.querySelectorAll('.panel-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      els.panelTabs.querySelectorAll('.panel-tab').forEach((b) => b.classList.toggle('active', b === btn));
+      els.tabLive?.classList.toggle('hidden', tab !== 'live');
+      els.tabTestbot?.classList.toggle('hidden', tab !== 'testbot');
+    });
+  });
+}
+
 async function refresh() {
   try {
-    const [health, control, journal, learning, logs, calendar] = await Promise.all([
+    const [health, control, journal, learning, logs, calendar, capital] = await Promise.all([
       api('/health'),
       api('/control/status'),
       api('/journal?limit=30'),
       api('/learning'),
       api('/control/logs?limit=200'),
       api('/calendar').catch(() => null),
+      api('/capital/status').catch((e) => e.body || { connected: false, error: e.message }),
     ]);
     const journalSummary = normalizeJournalSummary(journal.summary, journal.events);
     const state = enrichStateWithJournal(
@@ -608,13 +959,16 @@ async function refresh() {
     );
 
     setStatus(control, health);
-    renderAnalysis(state, calendar);
+    renderAnalysis(state, calendar, control);
+    renderPulse(state);
     renderLivePosition(state);
     renderRisk(state);
+    renderBroker(capital, state, health);
     renderJournal(journalSummary);
     renderLearning(learning);
     renderJournalTable(journal.events);
     renderLogs(logs.lines);
+    renderTestbot(state, control);
   } catch (e) {
     toast(`Помилка: ${e.message}`);
   }
@@ -623,25 +977,21 @@ async function refresh() {
 els.btnStart.addEventListener('click', async () => {
   try {
     const control = await api('/control/status');
-    if (control.mode === 'managed') {
-      toast('Worker вже працює через панель');
+    if (control.mode === 'managed' || control.externalWorkerLikely) {
+      toast('Worker вже працює');
+      await refresh();
       return;
     }
-    let force = false;
-    if (control.mode === 'external') {
-      const ok = confirm(
-        'Зовнішній worker (Cursor/термінал) ще активний.\n\n'
-        + 'Панель зупинить його і запустить СВІЙ worker.\n\n'
-        + 'Продовжити?',
-      );
-      if (!ok) return;
-      force = true;
-    }
-    const url = force ? '/control/worker/start?force=1' : '/control/worker/start';
+    const url = '/control/worker/start?force=1';
     const r = await api(url, { method: 'POST' });
-    toast(r.ok ? `Worker запущено (PID ${r.pid})` : r.error);
+    toast(r.ok ? `Worker запущено (PID ${r.pid})` : (r.error || 'Помилка'));
     await refresh();
   } catch (e) {
+    if (e.status === 409 || e.body?.externalPid) {
+      toast('Worker вже працює — статус оновлено');
+      await refresh();
+      return;
+    }
     toast(e.message);
   }
 });
@@ -659,7 +1009,8 @@ els.btnStop.addEventListener('click', async () => {
 els.btnLearnDry.addEventListener('click', async () => {
   try {
     const r = await api('/learning/run?dryRun=1', { method: 'POST' });
-    toast(r.notes?.join('; ') || 'Learning dry-run готово');
+    const wr = r.metrics?.count ? `WR ${r.metrics.winRate}%` : 'WR —';
+    toast(`${wr} · ${r.notes?.join('; ') || 'Learning dry-run готово'}`);
     await refresh();
   } catch (e) {
     toast(e.message);
@@ -677,11 +1028,89 @@ els.btnLearn.addEventListener('click', async () => {
   }
 });
 
+els.btnLearnPause.addEventListener('click', async () => {
+  if (learningPaused) {
+    if (!confirm('Зняти learning-паузу і дозволити нові входи?')) return;
+    try {
+      const r = await api('/learning/resume', { method: 'POST' });
+      toast(r.ok ? 'Паузу знято — торгівля дозволена' : 'Не вдалося');
+      await refresh();
+    } catch (e) {
+      toast(e.message || 'Помилка — перезайдіть у панель');
+    }
+    return;
+  }
+  if (!confirm('Поставити learning-паузу? Нові входи буде заблоковано.')) return;
+  try {
+    const r = await api('/learning/pause', { method: 'POST', body: JSON.stringify({ reason: 'вручну з панелі' }) });
+    toast(r.ok ? 'Паузу встановлено' : 'Не вдалося');
+    await refresh();
+  } catch (e) {
+    toast(e.message || 'Помилка — перезайдіть у панель');
+  }
+});
+
+els.btnJournalClear.addEventListener('click', async () => {
+  if (!confirm('Очистити журнал і статистику?\n\nСтара історія збережеться у backup. Worker перезапуститься.')) return;
+  try {
+    const r = await api('/journal/clear', { method: 'POST' });
+    toast(r.message || 'Журнал очищено');
+    await refresh();
+  } catch (e) {
+    toast(e.message || 'Не вдалося очистити журнал');
+  }
+});
+
+if (els.btnTbFlipOn) {
+  els.btnTbFlipOn.addEventListener('click', async () => {
+    if (!confirm('Увімкнути FLIP на testbot?\n\ninvert ON · TP $3 · SL $3 · partial $1.5\n(risk% / units без змін)\n\nРекомендовано потім очистити журнал.')) return;
+    try {
+      const r = await api('/testbot/settings', {
+        method: 'POST',
+        body: JSON.stringify({ preset: 'flip' }),
+      });
+      toast(r.message || 'Flip увімкнено');
+      await refresh();
+    } catch (e) {
+      toast(e.message || 'Не вдалося увімкнути flip (потрібен redeploy API)');
+    }
+  });
+}
+
+if (els.btnTbJournalClear) {
+  els.btnTbJournalClear.addEventListener('click', async () => {
+    if (!confirm('Очистити testbot журнал, sim-баланс і статистику?\n\nBackup збережеться. Відкриті sim-позиції будуть скинуті.')) return;
+    try {
+      let r = await api('/testbot/clear', { method: 'POST' });
+      toast(r.message || 'Testbot очищено');
+      await refresh();
+    } catch (e) {
+      if (e.status === 409) {
+        const msg = e.body?.error || e.message || 'Є відкриті sim-позиції';
+        if (!confirm(`${msg}. Примусово скинути все?`)) return;
+        try {
+          const r = await api('/testbot/clear?force=1', { method: 'POST' });
+          toast(r.message || 'Testbot очищено');
+          await refresh();
+        } catch (err) {
+          toast(err.message || 'Не вдалося очистити testbot');
+        }
+        return;
+      }
+      toast(e.message || 'Не вдалося очистити testbot');
+    }
+  });
+}
+
 els.btnRefresh.addEventListener('click', refresh);
+
+const btnLogout = document.getElementById('btnLogout');
+if (btnLogout) btnLogout.addEventListener('click', () => window.FxAuth?.logout());
 
 els.logBox.addEventListener('scroll', () => {
   logStickBottom = els.logBox.scrollHeight - els.logBox.scrollTop - els.logBox.clientHeight < 40;
 });
 
 refresh();
-setInterval(refresh, 2000);
+initPanelTabs();
+setInterval(refresh, 5000);

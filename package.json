@@ -14,12 +14,17 @@
     "analyze": "node -e \"require('./services/analyzer').analyzePair('EURUSD').then(r=>console.log(JSON.stringify(r,null,2)))\"",
     "learn": "node jobs/learn.js",
     "learn:dry": "node jobs/learn.js --dry-run",
+    "learn:resume": "node -e \"require('./services/learning').resumeLearning(); console.log('[learn] pause cleared')\"",
+    "journal:clear": "node -e \"const j=require('./services/journal'); const l=require('./services/learning'); j.clearJournal(); l.resetStatsBaseline(); console.log('[journal] cleared')\"",
     "backtest": "node jobs/backtest.js",
     "backtest:pair": "node jobs/backtest.js EURUSD",
+    "backtest:charlie": "node jobs/backtestCharlie.js",
     "seed:journal": "node scripts/seed-journal.js",
     "seed:calendar": "node scripts/seed-calendar.js",
     "calendar:refresh": "node scripts/refresh-calendar.js",
-    "oanda:check": "node scripts/check-oanda.js"
+    "oanda:check": "node scripts/check-oanda.js",
+    "capital:check": "node scripts/check-capital.js",
+    "telegram:test": "node scripts/test-telegram.js"
   },
   "engines": {
     "node": ">=20"

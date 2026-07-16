@@ -9,6 +9,7 @@ const { fetchMacroSnapshot } = require('../macro/snapshot');
 const { getEffectiveConfig } = require('../learning/paramsStore');
 const { getSessionProfile, applySessionToConfig } = require('../learning/sessionAdapt');
 const { getPairDayStats } = require('../learning/pairStats');
+const { getMinScoreForPair } = require('../risk/pairTier');
 const { getSpreadPips, resolveTargetPips } = require('../executor/pricing');
 const { checkRegimeGreenLight, computeSmartScore } = require('./smartScore');
 const {
@@ -28,6 +29,39 @@ function scorePairForSide(bars1m, bars5m, quote, cfg, ctx, side, entryMeta = {})
   const scoreBoost = entryMeta.scoreBoost ?? 0;
   const marketRegime = entryMeta.regimeCtx
     || regimeContextForSide(side, ctx.marketRegime, ctx.bars1h, entryMode);
+
+  const pairStats = ctx.pairStats || (ctx.pair
+    ? getPairDayStats(ctx.pair, {
+      pauseAfterSl: cfg.smartPairPauseAfterSl ?? 3,
+      minSideTrades: cfg.sideProfileMinTrades,
+      sideLookback: cfg.sideProfileLookback,
+      badSideWinRate: cfg.sideProfileBadWr,
+      goodSideWinRate: cfg.sideProfileGoodWr,
+      sideThresholdPenalty: cfg.sideProfileThresholdPenalty,
+      sideConvictionBonus: cfg.sideProfileConvictionBonus,
+      sideProfileMinWrGap: cfg.sideProfileMinWrGap,
+    })
+    : null);
+  const sideProfile = pairStats?.sideProfile;
+
+  if (sideProfile?.blockedSides?.[side]) {
+    return {
+      action: 'SKIP',
+      side: null,
+      score: 0,
+      regime: marketRegime.trend5?.regime || marketRegime.marketRegime,
+      reason: `side profile: ${sideProfile.blockReasons[side] || `${side} заблоковано`}`,
+      regimeInfo: marketRegime.trend5,
+      marketRegime,
+      layers: null,
+      layerEval: null,
+      smart: null,
+      pairStats,
+      fundamental: null,
+      entryMode,
+      direction: side,
+    };
+  }
 
   const opts = {
     minBuyScore: cfg.minBuyScore,
@@ -55,10 +89,6 @@ function scorePairForSide(bars1m, bars5m, quote, cfg, ctx, side, entryMeta = {})
   let score = Math.max(layerEval.compositeScore, pullback.score || 0);
   const reasons = [marketRegime.reason, layerEval.reason, pullback.reason];
   if (entryMode === 'htf') reasons.unshift('HTF-led entry');
-
-  const pairStats = ctx.pairStats || (ctx.pair
-    ? getPairDayStats(ctx.pair, { pauseAfterSl: cfg.smartPairPauseAfterSl ?? 3 })
-    : null);
 
   const effectiveSpread = quote.spreadPips > 0 ? quote.spreadPips : (ctx.effectiveSpreadPips ?? 0);
   const macroFund = layerEval.layers?.macro?.fundamental ?? null;
@@ -91,7 +121,10 @@ function scorePairForSide(bars1m, bars5m, quote, cfg, ctx, side, entryMeta = {})
     } else if (!layerEval.pass) {
       reasons.unshift(`layers ${layerEval.alignedCount}/${layerEval.minRequired}`);
     } else if (!smart.pass) {
-      reasons.unshift(`conviction ${smart.conviction} < ${smart.threshold}`);
+      const sideHint = sideProfile?.weakSide === side && sideProfile.thresholdAdjust?.[side]
+        ? ` (+${sideProfile.thresholdAdjust[side]} weak side)`
+        : '';
+      reasons.unshift(`conviction ${smart.conviction} < ${smart.threshold}${sideHint}`);
     } else if (pullback.action === 'BUY' || pullback.action === 'SELL' || layerEval.alignedCount >= (cfg.minLayersAligned ?? 3)) {
       action = side === 'long' ? 'BUY' : 'SELL';
       if (pullback.action === 'SKIP') reasons.push('entry via layers (pullback soft)');
@@ -226,6 +259,14 @@ async function analyzePair(pairInput, options = {}) {
 
   const session = getSessionProfile(new Date());
   cfg = applySessionToConfig(cfg, session);
+  const scoreFloor = getMinScoreForPair(pair, cfg, session);
+  if (scoreFloor.tier === 2) {
+    cfg = {
+      ...cfg,
+      minBuyScore: scoreFloor.minBuyScore,
+      minSellScore: scoreFloor.minSellScore,
+    };
+  }
 
   const liveQuote = options.liveQuote || null;
   const inSession = isInUtcSession(new Date(), cfg.sessionStartUtc, cfg.sessionEndUtc);
@@ -240,7 +281,8 @@ async function analyzePair(pairInput, options = {}) {
   let m1;
   let m5;
   let h1;
-  if (options.bars?.m1?.bars?.length >= 20 && options.bars?.m5?.bars?.length >= 20) {
+  const minBars = config.capitalMinBars ?? 15;
+  if (options.bars?.m1?.bars?.length >= minBars && options.bars?.m5?.bars?.length >= minBars) {
     m1 = options.bars.m1;
     m5 = options.bars.m5;
     h1 = options.bars.h1;
@@ -361,4 +403,9 @@ async function analyzePair(pairInput, options = {}) {
   };
 }
 
-module.exports = { analyzePair, scorePairSignal, classifyMarketRegime };
+module.exports = {
+  analyzePair,
+  scorePairSignal,
+  scorePairForSide,
+  classifyMarketRegime,
+};

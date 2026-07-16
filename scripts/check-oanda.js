@@ -14,11 +14,10 @@ async function main() {
   if (!client.configured) {
     console.log('\nOANDA not configured. Add to .env:');
     console.log('  FX_OANDA_TOKEN=...');
-    console.log('  FX_OANDA_ACCOUNT=...');
+    console.log('  FX_OANDA_ACCOUNT=101-004-XXXXXXX-001');
     console.log('  FX_OANDA_ENV=practice');
-    console.log('  FX_SIMULATE=0');
     console.log('  FX_EXECUTOR=oanda');
-    console.log('  FX_DATA_PROVIDER=oanda');
+    console.log('  FX_DATA_PROVIDER=yahoo   # 40 пар: дані з Yahoo, виконання OANDA');
     process.exit(1);
   }
 
@@ -26,8 +25,10 @@ async function main() {
   const acct = summary.account || {};
   console.log('\nOK — connected to OANDA practice/live API');
   console.log('Balance:', acct.balance, acct.currency);
+  console.log('Margin available:', acct.marginAvailable);
   console.log('Open trades:', acct.openTradeCount);
   console.log('Unrealized P/L:', acct.unrealizedPL);
+  console.log('\nНаступне: FX_EXECUTOR=oanda → перезапуск worker. Дивись /oanda/status.');
 }
 
 main().catch((e) => {

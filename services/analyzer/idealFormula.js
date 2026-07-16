@@ -57,6 +57,10 @@ function computeIdealConviction(ctx) {
   conviction -= spreadPenalty;
 
   let pairPenalty = 0;
+  let sideProfileAdj = 0;
+  const sideKey = side === 'short' ? 'short' : side === 'long' ? 'long' : null;
+  const sideProfile = pairStats?.sideProfile;
+
   if (pairStats?.paused) pairPenalty = 20;
   else if ((pairStats?.consecutiveLosses ?? 0) >= 2) pairPenalty = 10;
   else if ((pairStats?.todayPnlUsd ?? 0) < -3) pairPenalty = 8;
@@ -64,6 +68,11 @@ function computeIdealConviction(ctx) {
     conviction += 4;
   }
   conviction -= pairPenalty;
+
+  if (sideKey && sideProfile) {
+    sideProfileAdj = sideProfile.convictionAdjust?.[sideKey] ?? 0;
+    conviction += sideProfileAdj;
+  }
 
   const newsBoost = findPostNewsBoost({ cfg, side, pair, macro });
   if (newsBoost) {
@@ -85,7 +94,16 @@ function computeIdealConviction(ctx) {
   if ((fundamental?.edge ?? 0) < 0) threshold += 4;
   if (newsBoost) threshold -= newsBoost.thresholdDrop;
 
+  if (sideKey && sideProfile?.thresholdAdjust?.[sideKey]) {
+    threshold += sideProfile.thresholdAdjust[sideKey];
+  }
+
   threshold = Math.max(65, Math.min(92, Math.round(threshold)));
+  const floorMin = cfg.minBuyScore ?? cfg.learned?.minBuyScore ?? 70;
+  if (floorMin >= 78) {
+    const floor = Math.max(65, floorMin - 8);
+    threshold = Math.max(floor, threshold);
+  }
   conviction = Math.round(conviction);
 
   return {
@@ -101,6 +119,13 @@ function computeIdealConviction(ctx) {
       adxBonus,
       spreadPenalty: round(spreadPenalty, 1),
       pairPenalty,
+      sideProfileAdj,
+      sideProfile: sideProfile && sideKey ? {
+        preferredSide: sideProfile.preferredSide,
+        weakSide: sideProfile.weakSide,
+        thresholdAdjust: sideProfile.thresholdAdjust?.[sideKey] ?? 0,
+        convictionAdjust: sideProfileAdj,
+      } : null,
     },
     weights: W,
     formula: 'Ideal v3: 0.30×Fund + 0.28×H1 + 0.18×M5 + 0.14×M1 + bonuses − penalties',

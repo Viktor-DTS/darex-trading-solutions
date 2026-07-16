@@ -1,11 +1,12 @@
 const config = require('../../config');
 const { DEFAULTS } = require('./paramsStore');
+const { computeMetrics } = require('./metrics');
 
 /**
  * Rule-based tuner from closed trades (no ML yet).
  * Adjusts minBuyScore, stopPips, targetPips within safe bounds.
  */
-function tuneParams(current, metrics, trades) {
+function tuneParams(current, metrics, trades, options = {}) {
   const next = {
     minBuyScore: current.minBuyScore ?? DEFAULTS.minBuyScore,
     minLayersAligned: current.minLayersAligned ?? DEFAULTS.minLayersAligned,
@@ -17,6 +18,16 @@ function tuneParams(current, metrics, trades) {
   const notes = [];
 
   const minTrades = Number(process.env.FX_LEARN_MIN_TRADES) || 8;
+  const manualResumeAt = options.manualResumeAt || null;
+  const pauseTrades = manualResumeAt
+    ? trades.filter((t) => (t.closedAt || 0) >= new Date(manualResumeAt).getTime())
+    : trades;
+  const pauseMetrics = pauseTrades.length
+    ? computeMetrics(pauseTrades)
+    : { maxConsecutiveLosses: 0, profitFactor: metrics.profitFactor, count: 0 };
+
+  const pauseEval = manualResumeAt ? pauseMetrics : metrics;
+  const pauseCount = manualResumeAt ? pauseTrades.length : metrics.count;
 
   if (metrics.count < minTrades) {
     return {
@@ -27,15 +38,15 @@ function tuneParams(current, metrics, trades) {
     };
   }
 
-  if (metrics.profitFactor < 0.85 && metrics.count >= 10) {
+  if (pauseEval.profitFactor < 0.85 && pauseCount >= 10) {
     next.tradingPaused = true;
-    next.pauseReason = `learning: profit factor ${metrics.profitFactor} < 0.85`;
+    next.pauseReason = `learning: profit factor ${pauseEval.profitFactor} < 0.85`;
     notes.push('AUTO PAUSE — edge слабкий, потрібен review');
   }
 
-  if (metrics.maxConsecutiveLosses >= 4) {
+  if (pauseEval.maxConsecutiveLosses >= 4) {
     next.tradingPaused = true;
-    next.pauseReason = `learning: ${metrics.maxConsecutiveLosses} losses in row`;
+    next.pauseReason = `learning: ${pauseEval.maxConsecutiveLosses} losses in row`;
     notes.push('AUTO PAUSE — серія збиткових угод');
   }
 

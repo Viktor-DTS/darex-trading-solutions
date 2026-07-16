@@ -1,6 +1,11 @@
 const { ema, rsi, atr, adx } = require('./indicators');
 const { round } = require('../utils');
 
+function regimeMinAdx() {
+  const v = Number(process.env.FX_REGIME_MIN_ADX);
+  return Number.isFinite(v) && v > 0 ? v : 18;
+}
+
 /** Last N-1 moves among last N closes must align with direction. */
 function hasBarMomentum(closes, direction, lookback = 3) {
   if (!closes || closes.length < lookback + 1) return true;
@@ -26,14 +31,14 @@ function lastCompletedBarBias(bars) {
   return 'neutral';
 }
 
-function detectRegime(bars5m) {
+function detectRegime(bars5m, minAdx = regimeMinAdx()) {
   const closes = bars5m.map((b) => b.close);
   const price = closes[closes.length - 1];
   const ema20 = ema(closes, 20);
   const ema50 = ema(closes, 50);
   const adx14 = adx(bars5m, 14);
 
-  if (adx14 != null && adx14 >= 20 && ema20 != null && ema50 != null) {
+  if (adx14 != null && adx14 >= minAdx && ema20 != null && ema50 != null) {
     if (ema20 > ema50 && price > ema20) {
       return { regime: 'trend_up', adx: round(adx14, 1), ema20: round(ema20, 5), ema50: round(ema50, 5) };
     }
@@ -254,6 +259,7 @@ function scorePullbackShort(bars1m, bars5m, quote, options = {}) {
 
 module.exports = {
   detectRegime,
+  regimeMinAdx,
   scorePullbackLong,
   scorePullbackShort,
   hasBarMomentum,

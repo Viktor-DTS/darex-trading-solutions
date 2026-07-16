@@ -143,6 +143,9 @@ function hardBlock(pair, side, macro) {
   if (side === 'long' && base === 'CHF' && macro.risk === 'risk_on' && macro.gold?.bias === 'down') {
     return 'risk-on + gold↓ — weak CHF long';
   }
+  if (side === 'long' && quote === 'CHF' && macro.risk === 'risk_off' && macro.gold?.bias === 'up') {
+    return 'haven + gold↑ — long проти CHF';
+  }
   if (side === 'short' && quote === 'CHF' && macro.risk === 'risk_off' && macro.gold?.bias === 'up') {
     return 'haven + gold↑ — short проти CHF';
   }

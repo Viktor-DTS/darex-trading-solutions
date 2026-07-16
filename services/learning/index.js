@@ -2,7 +2,7 @@ const config = require('../../config');
 const { getClosedTrades } = require('../journal');
 const { computeMetrics } = require('./metrics');
 const { tuneParams } = require('./tuner');
-const { readLearnedParams, writeLearnedParams } = require('./paramsStore');
+const { readLearnedParams, writeLearnedParams, resumeLearning, pauseLearning, resetStatsBaseline } = require('./paramsStore');
 const { buildReport } = require('./report');
 const { sendLearningReport } = require('./telegram');
 
@@ -27,6 +27,7 @@ async function runLearningCycle(options = {}) {
     },
     metrics,
     recentTrades,
+    { manualResumeAt: previous.manualResumeAt },
   );
 
   const nextParams = {
@@ -35,6 +36,18 @@ async function runLearningCycle(options = {}) {
     lastMetrics: metrics,
     lastReport: buildReport(metrics, tuneResult, previous, tuneResult.params),
   };
+
+  if (previous.manualResumeAt && nextParams.tradingPaused) {
+    const resumedAt = new Date(previous.manualResumeAt).getTime();
+    const postResume = recentTrades.filter((t) => (t.closedAt || 0) >= resumedAt);
+    const postMetrics = computeMetrics(postResume);
+    const shouldStayPaused = postMetrics.maxConsecutiveLosses >= 4
+      || (postMetrics.profitFactor < 0.85 && postResume.length >= 10);
+    if (!shouldStayPaused) {
+      nextParams.tradingPaused = false;
+      nextParams.pauseReason = '';
+    }
+  }
 
   if (!dryRun && (tuneResult.applied || tuneResult.recommendPause || metrics.count > 0)) {
     writeLearnedParams(nextParams);
@@ -66,4 +79,7 @@ async function runLearningCycle(options = {}) {
 
 module.exports = {
   runLearningCycle,
+  resumeLearning,
+  pauseLearning,
+  resetStatsBaseline,
 };
