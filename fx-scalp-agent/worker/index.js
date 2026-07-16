@@ -118,7 +118,7 @@ function getOracleCfg() {
     minKappa: Number.isFinite(minKappa) ? minKappa : 0.30,
     minPTp: Number.isFinite(minPTp) ? minPTp : 0,
     minDirectionHitRate: Number.isFinite(minDirectionHitRate) ? minDirectionHitRate : 0,
-    skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR !== '0',
+    skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR === '1',
     testbotJournalFile: getTbCfg().journalFile || testbotJournalFile,
   };
 }

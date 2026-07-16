@@ -840,6 +840,15 @@ function renderTestbot(state, control) {
     kvRow('Total P/L', fmtUsd(j.totalPnlUsd)),
   ].join('');
 
+  if (els.btnTbFlipOn) {
+    els.btnTbFlipOn.textContent = invert
+      ? '⟲ Flip ON → OFF'
+      : '⟲ Flip OFF → ON';
+    els.btnTbFlipOn.title = invert
+      ? 'Зараз invert ON — клік вимкне flip'
+      : 'Зараз invert OFF — клік увімкне flip';
+  }
+
   const list = state?.lastAnalyses?.length ? state.lastAnalyses : [];
   const eligible = list.filter((a) => testbotEligible(a, minScore));
   const openPairs = new Set(opens.map((p) => p.pair));
@@ -1076,7 +1085,22 @@ els.btnJournalClear.addEventListener('click', async () => {
 
 if (els.btnTbFlipOn) {
   els.btnTbFlipOn.addEventListener('click', async () => {
-    if (!confirm('Увімкнути FLIP на testbot?\n\ninvert ON · TP $3 · SL $3 · partial $1.5\n(risk% / units без змін)\n\nРекомендовано потім очистити журнал.')) return;
+    const invertOn = Boolean(lastGoodState?.testbot?.invertDirection);
+    if (invertOn) {
+      if (!confirm('Вимкнути FLIP?\n\ninvert OFF · TP $3 · SL $6\n(торгівля за оригінальним сигналом)')) return;
+      try {
+        const r = await api('/testbot/settings', {
+          method: 'POST',
+          body: JSON.stringify({ preset: 'flip_off' }),
+        });
+        toast(r.message || 'Flip вимкнено');
+        await refresh();
+      } catch (e) {
+        toast(e.message || 'Не вдалося вимкнути flip');
+      }
+      return;
+    }
+    if (!confirm('Увімкнути FLIP на testbot?\n\ninvert ON · TP $3 · SL $6 · partial $1.5\n\nУвага: при тісному SL спред може дати миттєвий стоп.')) return;
     try {
       const r = await api('/testbot/settings', {
         method: 'POST',

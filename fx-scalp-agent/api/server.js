@@ -422,13 +422,28 @@ app.post('/testbot/settings', (req, res) => {
         invertDirection: true,
         targetUsd: 3,
         partialUsd: 1.5,
-        maxStopLossUsd: 3,
+        maxStopLossUsd: 6,
       });
       return res.json({
         ok: true,
         runtime,
         effective: mergeTestbotConfig(config.testbot || {}),
-        message: 'FLIP preset: invert ON, TP=$3, SL=$3, partial=$1.5 (risk% без змін)',
+        message: 'FLIP preset: invert ON, TP=$3, SL=$6, partial=$1.5 (risk% без змін)',
+      });
+    }
+
+    if (body.preset === 'flip_off' || body.preset === 'normal') {
+      const runtime = writeRuntimeSettings({
+        invertDirection: false,
+        targetUsd: 3,
+        partialUsd: 1.5,
+        maxStopLossUsd: 6,
+      });
+      return res.json({
+        ok: true,
+        runtime,
+        effective: mergeTestbotConfig(config.testbot || {}),
+        message: 'Flip OFF: invert вимкнено, TP=$3, SL=$6',
       });
     }
 

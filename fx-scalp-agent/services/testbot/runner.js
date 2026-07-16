@@ -395,9 +395,13 @@ function evaluateTestbotExit(trade, quote, cfg) {
 
 
   if (netPnl != null && netPnl <= -maxNetStop) {
-
+    // Не різати на 1-му тіку: short entry=bid, mark=ask → одразу −spread ≥ $3
+    const rawGrace = cfg.stopGraceMs != null ? Number(cfg.stopGraceMs) : Number(process.env.FX_TESTBOT_STOP_GRACE_MS);
+    const graceMs = Number.isFinite(rawGrace) ? rawGrace : 30000;
+    if (ageMs < graceMs) {
+      return { action: 'hold' };
+    }
     return { action: 'close', reason: 'stop_usd', exitPrice };
-
   }
 
 
