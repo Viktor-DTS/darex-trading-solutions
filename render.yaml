@@ -228,13 +228,15 @@ services:
       - key: FX_TESTBOT_STOP_PIPS
         value: "3"
       - key: FX_TESTBOT_MAX_STOP_USD
-        value: "3"
+        value: "6"
       - key: FX_TESTBOT_INVERT_DIRECTION
-        value: "1"
+        value: "0"
       - key: FX_TESTBOT_ENTRY_INTERVAL_MS
         value: "2000"
       - key: FX_TESTBOT_PAIR_COOLDOWN_MS
         value: "300000"
+      - key: FX_TESTBOT_STOP_GRACE_MS
+        value: "30000"
       - key: FX_ORACLE_5M
         value: "1"
       - key: FX_ORACLE_HORIZON_SEC
@@ -266,7 +268,7 @@ services:
       - key: FX_TESTBOT_ORACLE_MIN_P_TP
         value: "0"
       - key: FX_TESTBOT_ORACLE_SOFT_DIR
-        value: "1"
+        value: "0"
       - key: FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT
         value: "0"
       - key: FX_TESTBOT_ORACLE_MICRO_M1

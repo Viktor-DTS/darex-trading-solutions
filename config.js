@@ -329,6 +329,8 @@ module.exports = {
     simCommissionUsd: num('FX_TESTBOT_COMMISSION_USD', 0.05),
     /** Max net loss at SL = maxStopLossUsd + commission (default $10 + fee). */
     maxStopLossUsd: num('FX_TESTBOT_MAX_STOP_USD', 10),
+    /** Не різати stop_usd на перших N мс (спред bid/ask). */
+    stopGraceMs: num('FX_TESTBOT_STOP_GRACE_MS', 30000),
     entryIntervalMs: num('FX_TESTBOT_ENTRY_INTERVAL_MS', 2000),
     /** Min wait before re-entry on same pair after exit; then fresh re-analyze. */
     pairCooldownMs: num('FX_TESTBOT_PAIR_COOLDOWN_MS', 300000),
