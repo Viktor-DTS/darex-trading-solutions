@@ -86,7 +86,7 @@ function getOracleCfg() {
   const tbMicro = process.env.FX_TESTBOT_ORACLE_MICRO_BARS;
   const microMin = tbMicro != null && String(tbMicro).trim() !== ''
     ? Number(tbMicro)
-    : 0.35;
+    : 0;
   const tbMinP = process.env.FX_TESTBOT_ORACLE_MIN_P_UP;
   const minPUp = tbMinP != null && String(tbMinP).trim() !== ''
     ? Number(tbMinP)
@@ -101,8 +101,8 @@ function getOracleCfg() {
     : 1.5;
   return {
     ...o,
-    microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0.35,
-    microMinM1: Number.isFinite(microMinM1) ? microMinM1 : 1.5,
+    microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0,
+    microMinM1: Number.isFinite(microMinM1) ? microMinM1 : 1,
     minPUp: Number.isFinite(minPUp) ? minPUp : 0.48,
     minKappa: Number(process.env.FX_TESTBOT_ORACLE_MIN_KAPPA) || 0.50,
     minPTp: Number(process.env.FX_TESTBOT_ORACLE_MIN_P_TP) || 0.48,
