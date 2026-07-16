@@ -81,10 +81,27 @@ function getPendingCount() {
   return pendingForecasts.size;
 }
 
+function getPendingForecastsSnapshot(limit = 12) {
+  return [...pendingForecasts.values()]
+    .sort((a, b) => (b.t0Ms || 0) - (a.t0Ms || 0))
+    .slice(0, limit)
+    .map((f) => ({
+      oracleId: f.oracleId,
+      pair: f.pair,
+      t0: f.t0,
+      forecastMid_5m: f.forecastMid_5m,
+      pUp: f.pUp,
+      direction: f.direction,
+      linkedEntry: f.linkedEntry ?? false,
+      horizonSec: f.horizonSec ?? 300,
+    }));
+}
+
 module.exports = {
   registerPendingForecast,
   loadPendingFromDisk,
   reconcileOracleActuals,
   getPendingCount,
+  getPendingForecastsSnapshot,
   pendingForecasts,
 };

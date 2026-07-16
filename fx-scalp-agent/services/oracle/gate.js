@@ -61,10 +61,10 @@ function oracleGateAllows(oracle, analysis, cfg = {}) {
     return { ok: false, reason: `oracle κ=${oracle.kappa.toFixed(2)} < ${minKappa}`, stats };
   }
 
-  if (!oracle.microOk) {
+  const microMin = cfg.microMinBarsInStop ?? 1.5;
+  if (microMin > 0 && !oracle.microOk) {
     return { ok: false, reason: oracle.microReason || 'oracle micro fail', stats };
   }
-
   if (side === 'long' && oracle.pUp < minP) {
     return { ok: false, reason: `oracle pUp=${(oracle.pUp * 100).toFixed(1)}% < ${(minP * 100).toFixed(0)}% (long)`, stats };
   }
@@ -82,7 +82,7 @@ function oracleGateAllows(oracle, analysis, cfg = {}) {
 
   const execSide = side === 'short' ? 'short' : side === 'long' ? 'long' : null;
   const oracleSide = oracle.direction === 'up' ? 'long' : 'short';
-  if (execSide && execSide !== oracleSide) {
+  if (!cfg.skipDirectionMatch && execSide && execSide !== oracleSide) {
     return {
       ok: false,
       reason: `oracle ${oracle.direction} vs exec ${execSide}`,
@@ -90,7 +90,7 @@ function oracleGateAllows(oracle, analysis, cfg = {}) {
     };
   }
 
-  if (cfg.respectInvert !== false && analysis?.testbotInverted) {
+  if (cfg.respectInvert !== false && !cfg.skipDirectionMatch && analysis?.testbotInverted) {
     const signalSide = analysis.testbotSignalAction === 'BUY' ? 'long'
       : analysis.testbotSignalAction === 'SELL' ? 'short' : null;
     if (signalSide && signalSide === oracleSide && execSide !== oracleSide) {

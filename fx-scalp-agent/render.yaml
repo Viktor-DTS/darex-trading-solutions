@@ -257,6 +257,16 @@ services:
         value: "0.52"
       - key: FX_ORACLE_MICRO_BARS
         value: "1.5"
+      - key: FX_TESTBOT_ORACLE_MICRO_BARS
+        value: "0.35"
+      - key: FX_TESTBOT_ORACLE_MIN_P_UP
+        value: "0.48"
+      - key: FX_TESTBOT_ORACLE_MIN_KAPPA
+        value: "0.50"
+      - key: FX_TESTBOT_ORACLE_MIN_P_TP
+        value: "0.48"
+      - key: FX_TESTBOT_ORACLE_SOFT_DIR
+        value: "1"
       - key: FX_PAIR_REFRESH_CONCURRENCY
         value: "8"
       - key: FX_MAX_JPY_CROSS

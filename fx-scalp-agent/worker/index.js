@@ -74,6 +74,7 @@ const {
   reconcileOracleActuals,
   summarizeOracleStats,
   getPendingCount,
+  getPendingForecastsSnapshot,
 } = require('../services/oracle');
 
 const tbBase = config.testbot || {};
@@ -82,8 +83,21 @@ function getTbCfg() {
 }
 function getOracleCfg() {
   const o = config.oracle || {};
+  const tbMicro = process.env.FX_TESTBOT_ORACLE_MICRO_BARS;
+  const microMin = tbMicro != null && String(tbMicro).trim() !== ''
+    ? Number(tbMicro)
+    : 0.35;
+  const tbMinP = process.env.FX_TESTBOT_ORACLE_MIN_P_UP;
+  const minPUp = tbMinP != null && String(tbMinP).trim() !== ''
+    ? Number(tbMinP)
+    : 0.48;
   return {
     ...o,
+    microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0.35,
+    minPUp: Number.isFinite(minPUp) ? minPUp : 0.48,
+    minKappa: Number(process.env.FX_TESTBOT_ORACLE_MIN_KAPPA) || 0.50,
+    minPTp: Number(process.env.FX_TESTBOT_ORACLE_MIN_P_TP) || 0.48,
+    skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR !== '0',
     testbotJournalFile: getTbCfg().journalFile || testbotJournalFile,
   };
 }
@@ -347,6 +361,11 @@ async function processTestbotEntries(force = false) {
         analysis,
         cfg: oracleCfg,
       });
+      if (!oracle?.ok) {
+        console.log(`[tb-skip] ${raw.pair} ${oracle.reason || 'oracle fail'}`);
+        continue;
+      }
+      registerPendingForecast({ ...oracle, linkedEntry: false });
       const gate = oracleGateAllows(oracle, analysis, oracleCfg);
       if (!gate.ok) {
         console.log(`[tb-skip] ${raw.pair} ${gate.reason}`);
@@ -824,7 +843,11 @@ function publishState(extra = {}, force = false) {
       openTrades: testbotExecutor.getOpenTrades(),
       openPositionsLive: buildTestbotLivePositions(),
       journal: summarizeTestbot(testbotJournalFile),
-      oracle: getOracleCfg().enabled ? summarizeOracleStats(getOracleCfg()) : null,
+      oracle: getOracleCfg().enabled ? {
+        ...summarizeOracleStats(getOracleCfg()),
+        pending: getPendingCount(),
+        pendingForecasts: getPendingForecastsSnapshot(12),
+      } : null,
     } : { enabled: false },
     ...extra,
   };

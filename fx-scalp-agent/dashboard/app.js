@@ -868,22 +868,35 @@ function renderTestbot(state, control) {
     } else {
       els.tbOracleKv.innerHTML = [
         statChip('Зразків', oracle.samples ?? 0, oracleCls),
+        statChip('Очікує', oracle.pending ?? 0, (oracle.pending ?? 0) > 0 ? 'watch' : 'skip'),
         statChip('Hit rate', oracleHit != null ? `${oracleHit}%` : '—', oracleCls),
         statChip('Brier', oracle.brier != null ? oracle.brier.toFixed(3) : '—', 'watch'),
         statChip('MAE pips', oracle.avgErrorPips != null ? oracle.avgErrorPips : '—', 'watch'),
         statChip('Gate', oracle.tradeAllowed ? 'PASS' : 'BLOCK', oracle.tradeAllowed ? 'buy' : 'skip'),
       ].join('');
       const actuals = oracle.lastActuals || [];
-      if (els.tbOracleTable) {
-        els.tbOracleTable.innerHTML = actuals.length
-          ? actuals.map((a) => `<tr>
+      const pending = oracle.pendingForecasts || [];
+      const rows = [
+        ...pending.map((p) => `<tr class="oracle-pending">
+            <td>${fmtTime(p.t0)}</td>
+            <td>${p.pair || '—'}</td>
+            <td>${p.forecastMid_5m ?? '—'}</td>
+            <td style="color:var(--muted)">+${Math.round((p.horizonSec ?? 300) / 60)}хв</td>
+            <td>${p.pUp != null ? `${(p.pUp * 100).toFixed(0)}%` : '—'}</td>
+            <td class="value watch">…</td>
+          </tr>`),
+        ...actuals.map((a) => `<tr>
             <td>${fmtTime(a.reconciledAt || a.t0)}</td>
             <td>${a.pair || '—'}</td>
             <td>${a.forecastMid_5m ?? '—'}</td>
             <td>${a.actualMid_5m ?? '—'}</td>
             <td>${a.pUp != null ? `${(a.pUp * 100).toFixed(0)}%` : '—'}</td>
             <td class="value ${a.directionHit ? 'buy' : 'sell'}">${a.directionHit ? '✓' : '✗'}</td>
-          </tr>`).join('')
+          </tr>`),
+      ];
+      if (els.tbOracleTable) {
+        els.tbOracleTable.innerHTML = rows.length
+          ? rows.join('')
           : '<tr><td colspan="6" style="color:var(--muted)">Ще немає reconcile (+5 хв після прогнозу)</td></tr>';
       }
     }
