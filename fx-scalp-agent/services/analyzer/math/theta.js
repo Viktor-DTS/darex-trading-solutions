@@ -87,7 +87,7 @@ function evaluateTheta({
     }
   }
   // M1 tick noise if available
-  if (microOk && barsM1?.length >= 20) {
+  if (microOk && barsM1?.length >= 20 && (cfg.mathMicroMinM1 ?? 3) > 0) {
     const m1Range = medianBarRange(barsM1, 30);
     if (m1Range != null && distSl < m1Range * (cfg.mathMicroMinM1 ?? 3)) {
       microOk = false;
