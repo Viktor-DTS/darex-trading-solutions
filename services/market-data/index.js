@@ -504,8 +504,8 @@ class MarketDataHub extends EventEmitter {
     }
 
     const [m1, m5, h1] = await Promise.all([
-      fetchYahooBars(p, '1m', '1d', 30),
-      fetchYahooBars(p, '5m', '5d', 30),
+      fetchYahooBars(p, '1m', '1d', 60),
+      fetchYahooBars(p, '5m', '5d', 48),
       fetchYahooBars(p, '1h', '3mo', 50),
     ]);
     const snap = {
@@ -624,6 +624,54 @@ class MarketDataHub extends EventEmitter {
     return { added, removed, pairs: this.pairs };
   }
 
+  /**
+   * Ensure snapshot has enough OHLC for ORACLE / math (Capital WS often has quotes only).
+   */
+  async ensurePairHistory(pair, { minM5 = 30, minM1 = 20 } = {}) {
+    const p = normPair(pair);
+    let snap = this.getPairSnapshot(p);
+    const m5Len = snap?.bars5m?.length ?? 0;
+    const m1Len = snap?.bars1m?.length ?? 0;
+    if (m5Len >= minM5 && m1Len >= minM1) return snap;
+
+    if (this.provider === 'capital' && !isCapitalRateLimited()) {
+      try {
+        const refreshed = await this._refreshCapitalBars(p);
+        if (refreshed) {
+          snap = refreshed;
+          if ((snap.bars5m?.length ?? 0) >= minM5 && (snap.bars1m?.length ?? 0) >= minM1) {
+            return snap;
+          }
+        }
+      } catch (e) {
+        console.warn(`[capital-data] ensureBars ${p}`, e.message);
+      }
+    }
+
+    try {
+      const yahoo = await fetchAnalysisBars(p);
+      const prev = snap || { pair: p, bars1m: [], bars5m: [], bars1h: [] };
+      const merged = {
+        ...prev,
+        pair: p,
+        source: prev.source || 'yahoo-bars',
+        bid: prev.bid ?? yahoo.m1?.bid,
+        ask: prev.ask ?? yahoo.m1?.ask,
+        mid: prev.mid ?? yahoo.m1?.mid,
+        spreadPips: prev.spreadPips ?? yahoo.m1?.spreadPips,
+        bars1m: yahoo.m1?.bars?.length >= minM1 ? yahoo.m1.bars : (prev.bars1m || []),
+        bars5m: yahoo.m5?.bars?.length >= minM5 ? yahoo.m5.bars : (prev.bars5m || []),
+        bars1h: yahoo.h1?.bars?.length ? yahoo.h1.bars : (prev.bars1h || []),
+        updatedAt: Date.now(),
+      };
+      this.snapshots.set(p, merged);
+      return merged;
+    } catch (e) {
+      console.warn(`[fx-bars] ensureBars yahoo ${p}`, e.message);
+      return snap;
+    }
+  }
+
   getPairSnapshot(pair) {
     return this.snapshots.get(normPair(pair)) || null;
   }
@@ -666,8 +714,8 @@ async function fetchAnalysisBars(pair) {
   if (hit && Date.now() - hit.at < cacheMs) return hit.data;
 
   const [m1, m5, m15, h1] = await Promise.all([
-    fetchYahooBars(p, '1m', '1d', 30),
-    fetchYahooBars(p, '5m', '5d', 30),
+    fetchYahooBars(p, '1m', '1d', 60),
+    fetchYahooBars(p, '5m', '5d', 48),
     fetchYahooBars(p, '15m', '5d', 20),
     fetchYahooBars(p, '1h', '3mo', 50),
   ]);
