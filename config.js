@@ -314,9 +314,9 @@ module.exports = {
   // Testbot — sim scalp on shared worker data (no Capital executor)
   testbot: {
     enabled: process.env.FX_TESTBOT_ENABLED === '1',
-    minScore: num('FX_TESTBOT_MIN_SCORE', 60),
-    targetUsd: num('FX_TESTBOT_TARGET_USD', 1),
-    partialUsd: num('FX_TESTBOT_PARTIAL_USD', 0.5),
+    minScore: num('FX_TESTBOT_MIN_SCORE', 70),
+    targetUsd: num('FX_TESTBOT_TARGET_USD', 5),
+    partialUsd: num('FX_TESTBOT_PARTIAL_USD', 2.5),
     partialAfterMs: num('FX_TESTBOT_PARTIAL_MS', 600000),
     maxHoldMs: num('FX_TESTBOT_MAX_HOLD_MS', 900000),
     maxOpenPositions: num('FX_TESTBOT_MAX_OPEN', 20),
@@ -324,11 +324,11 @@ module.exports = {
     maxEntriesPerCycle: num('FX_TESTBOT_MAX_ENTRIES_CYCLE', 12),
     equityUsd: num('FX_TESTBOT_EQUITY_USD', 1000),
     riskPerTradePct: num('FX_TESTBOT_RISK_PCT', 0.35),
-    stopPips: num('FX_TESTBOT_STOP_PIPS', 3),
+    stopPips: num('FX_TESTBOT_STOP_PIPS', 5),
     wideTpPips: num('FX_TESTBOT_WIDE_TP_PIPS', 40),
     simCommissionUsd: num('FX_TESTBOT_COMMISSION_USD', 0.05),
-    /** Max net loss at SL = maxStopLossUsd + commission (default $10 + fee). */
-    maxStopLossUsd: num('FX_TESTBOT_MAX_STOP_USD', 10),
+    /** Max net loss at SL = maxStopLossUsd + commission. Keep = targetUsd for 1:1 R:R. */
+    maxStopLossUsd: num('FX_TESTBOT_MAX_STOP_USD', 5),
     /** Не різати stop_usd на перших N мс (спред bid/ask). */
     stopGraceMs: num('FX_TESTBOT_STOP_GRACE_MS', 30000),
     entryIntervalMs: num('FX_TESTBOT_ENTRY_INTERVAL_MS', 2000),
@@ -338,6 +338,8 @@ module.exports = {
     journalFile: str('FX_TESTBOT_JOURNAL_FILE', 'testbot-trades.jsonl'),
     /** Flip execution vs analysis (off by default). */
     invertDirection: process.env.FX_TESTBOT_INVERT_DIRECTION === '1',
+    /** Allow sim entry on CHARLIE setupDraft (MATH BLOCK etc). Off = only live BUY/SELL. */
+    allowSetupDraft: process.env.FX_TESTBOT_ALLOW_DRAFT === '1',
     /** Allow sim entry when CHARLIE already has the same pair on Capital. */
     allowCharlieOverlap: process.env.FX_TESTBOT_ALLOW_CHARLIE_OVERLAP !== '0',
   },

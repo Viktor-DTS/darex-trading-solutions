@@ -767,9 +767,11 @@ function testbotConv(a) {
   return a?.smart?.conviction ?? a?.score ?? 0;
 }
 
-function testbotEligible(a, minScore = 60) {
+function testbotEligible(a, minScore = 70, allowDraft = false) {
   if (testbotConv(a) < minScore) return false;
   if (a.action === 'BUY' || a.action === 'SELL') return true;
+  if (!allowDraft) return false;
+  if (/MATH\s*BLOCK/i.test(String(a.reason || ''))) return false;
   return Boolean(a.setupDraft?.action);
 }
 
@@ -781,9 +783,10 @@ function testbotExecAction(signalAction, invert = false) {
 
 function renderTestbot(state, control) {
   const tb = state?.testbot;
-  const minScore = tb?.minScore ?? 60;
+  const minScore = tb?.minScore ?? 70;
   const pairCdMin = Math.round((tb?.pairCooldownMs ?? 300000) / 60000);
   const invert = tb?.invertDirection === true;
+  const allowDraft = tb?.allowSetupDraft === true;
   const online = isWorkerOnline(state, control);
 
   if (!tb?.enabled) {
@@ -850,7 +853,7 @@ function renderTestbot(state, control) {
   }
 
   const list = state?.lastAnalyses?.length ? state.lastAnalyses : [];
-  const eligible = list.filter((a) => testbotEligible(a, minScore));
+  const eligible = list.filter((a) => testbotEligible(a, minScore, allowDraft));
   const openPairs = new Set(opens.map((p) => p.pair));
 
   const partialMin = Math.round((tb.partialAfterMs ?? 600000) / 60000);
@@ -916,7 +919,7 @@ function renderTestbot(state, control) {
     <thead><tr><th>Пара</th><th>Conv</th><th>Testbot</th><th>Дія orig</th><th>Ціна</th></tr></thead>
     <tbody>${sorted.slice(0, 24).map((a) => {
     const conv = testbotConv(a);
-    const ok = testbotEligible(a, minScore);
+    const ok = testbotEligible(a, minScore, allowDraft);
     const draft = a.setupDraft?.action;
     const signalAction = ok ? (a.action === 'BUY' || a.action === 'SELL' ? a.action : draft) : '—';
     const execAction = testbotExecAction(signalAction, invert);
@@ -1087,7 +1090,7 @@ if (els.btnTbFlipOn) {
   els.btnTbFlipOn.addEventListener('click', async () => {
     const invertOn = Boolean(lastGoodState?.testbot?.invertDirection);
     if (invertOn) {
-      if (!confirm('Вимкнути FLIP?\n\ninvert OFF · TP $3 · SL $6\n(торгівля за оригінальним сигналом)')) return;
+      if (!confirm('Вимкнути FLIP?\n\ninvert OFF · TP $5 · SL $5 · minConv 70\n(1:1 R:R, без math-draft)')) return;
       try {
         const r = await api('/testbot/settings', {
           method: 'POST',
@@ -1100,7 +1103,7 @@ if (els.btnTbFlipOn) {
       }
       return;
     }
-    if (!confirm('Увімкнути FLIP на testbot?\n\ninvert ON · TP $3 · SL $6 · partial $1.5\n\nУвага: при тісному SL спред може дати миттєвий стоп.')) return;
+    if (!confirm('Увімкнути FLIP на testbot?\n\ninvert ON · TP $5 · SL $5 · partial $2.5 · minConv 70')) return;
     try {
       const r = await api('/testbot/settings', {
         method: 'POST',

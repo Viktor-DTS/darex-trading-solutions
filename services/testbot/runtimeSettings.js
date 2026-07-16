@@ -36,6 +36,15 @@ function mergeTestbotConfig(baseCfg = {}) {
     out.minScore = Number(over.minScore);
   }
   if (over.enabled != null) out.enabled = Boolean(over.enabled);
+
+  // Quality lock: env TP/SL/score wins over stale Flip runtime ($3/$6 etc.)
+  if (process.env.FX_TESTBOT_QUALITY_LOCK === '1') {
+    if (baseCfg.minScore != null) out.minScore = baseCfg.minScore;
+    if (baseCfg.targetUsd != null) out.targetUsd = baseCfg.targetUsd;
+    if (baseCfg.maxStopLossUsd != null) out.maxStopLossUsd = baseCfg.maxStopLossUsd;
+    if (baseCfg.partialUsd != null) out.partialUsd = baseCfg.partialUsd;
+    if (baseCfg.allowSetupDraft != null) out.allowSetupDraft = baseCfg.allowSetupDraft;
+  }
   return out;
 }
 
