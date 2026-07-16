@@ -37,7 +37,11 @@ function writeState(state) {
   ensureDataDir();
   const target = statePath();
   const tmp = `${target}.${process.pid}.tmp`;
-  const doc = JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 2);
+  const doc = JSON.stringify(
+    { ...state, updatedAt: new Date().toISOString() },
+    process.env.FX_STATE_PRETTY === '1' ? null : undefined,
+    process.env.FX_STATE_PRETTY === '1' ? 2 : undefined,
+  );
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {

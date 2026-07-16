@@ -1,5 +1,5 @@
 const { adx, atr, ema } = require('./indicators');
-const { detectRegime } = require('./regime');
+const { detectRegime, regimeMinAdx } = require('./regime');
 const { round } = require('../utils');
 
 /**
@@ -50,7 +50,7 @@ function classifyMarketRegime(bars5m, bars1h = null) {
     };
   }
 
-  if ((trend5.regime === 'trend_up' || trend5.regime === 'trend_down') && adxVal >= 20) {
+  if ((trend5.regime === 'trend_up' || trend5.regime === 'trend_down') && adxVal >= regimeMinAdx()) {
     return {
       marketRegime: 'trend',
       tradeAllowed: true,

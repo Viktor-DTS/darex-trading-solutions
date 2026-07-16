@@ -8,8 +8,11 @@ function round(n, digits = 5) {
 }
 
 function pipSize(pair) {
-  const p = String(pair || '').toUpperCase();
-  return p.includes('JPY') ? 0.01 : 0.0001;
+  const p = normPair(pair);
+  if (p.includes('JPY')) return 0.01;
+  const quote = p.slice(3, 6);
+  if (['SEK', 'NOK', 'HUF', 'TRY', 'MXN', 'ZAR'].includes(quote)) return 0.01;
+  return 0.0001;
 }
 
 function pipsToPrice(pips, pair) {

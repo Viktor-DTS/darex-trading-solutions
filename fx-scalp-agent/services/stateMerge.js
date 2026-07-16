@@ -39,34 +39,16 @@ function mergePreferRich(prev, next) {
     out.lastAnalysis = next.lastAnalysis || prev.lastAnalysis;
   }
 
-  const nextJournalOpen = next.journal?.openCount;
-  const prevTrades = prev.openTrades?.length ?? 0;
-  const nextTrades = next.openTrades?.length ?? 0;
-  const nextLive = next.openPositionsLive?.length ?? 0;
-
-  // Journal embedded in worker state is authoritative for open/closed
-  if (next.journal?.openTrades != null && nextJournalOpen != null) {
-    out.openTrades = nextJournalOpen > 0
-      ? next.journal.openTrades.map(mapJournalEntry)
-      : [];
-    out.openTrade = out.openTrades[0] ?? null;
-
-    const liveByPair = new Map((next.openPositionsLive || prev.openPositionsLive || []).map((l) => [l.pair, l]));
-    out.openPositionsLive = out.openTrades.length
-      ? buildLiveFromJournal(out.openTrades, liveByPair)
-      : [];
-    out.openPositionLive = out.openPositionsLive[0] ?? null;
-  } else if (nextTrades === 0 && prevTrades > 0) {
-    // Incomplete write — keep previous until journal arrives
-    out.openTrades = prev.openTrades;
-    out.openTrade = prev.openTrades[0] ?? null;
-    out.openPositionsLive = prev.openPositionsLive ?? [];
-    out.openPositionLive = prev.openPositionsLive?.[0] ?? null;
-  } else {
+  // Executor/worker is authoritative for live positions — never replace with journal
+  if (next.openTrades != null || next.openPositionsLive != null) {
     out.openTrades = next.openTrades ?? [];
-    out.openTrade = next.openTrades?.[0] ?? null;
+    out.openTrade = out.openTrades[0] ?? null;
     out.openPositionsLive = next.openPositionsLive ?? [];
-    out.openPositionLive = next.openPositionsLive?.[0] ?? null;
+    out.openPositionLive = out.openPositionsLive[0] ?? null;
+  }
+
+  if (next.journal || prev.journal) {
+    out.journal = { ...(prev.journal || {}), ...(next.journal || {}) };
   }
 
   if (prev.risk && next.risk && prev.risk.dayKey === next.risk.dayKey) {
@@ -80,20 +62,13 @@ function mergePreferRich(prev, next) {
   return out;
 }
 
+/** Attach journal stats/history — does not overwrite executor open positions. */
 function enrichWithJournal(state, journalSummary) {
   if (!state || !journalSummary) return state;
-  const out = { ...state };
-  const openTrades = (journalSummary.openTrades || []).map(mapJournalEntry);
-
-  out.openTrades = openTrades;
-  out.openTrade = openTrades[0] ?? null;
-
-  const liveByPair = new Map((state.openPositionsLive || []).map((l) => [l.pair, l]));
-  out.openPositionsLive = buildLiveFromJournal(openTrades, liveByPair);
-  out.openPositionLive = out.openPositionsLive[0] ?? null;
-  out.journal = { ...(state.journal || {}), ...journalSummary };
-
-  return out;
+  return {
+    ...state,
+    journal: { ...(state.journal || {}), ...journalSummary },
+  };
 }
 
 module.exports = { mergePreferRich, enrichWithJournal, mapJournalEntry, buildLiveFromJournal };

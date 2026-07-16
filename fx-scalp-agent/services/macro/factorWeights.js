@@ -30,6 +30,13 @@ const CURRENCY_FACTOR_WEIGHTS = {
   AUD: { risk: 0.30, china: 0.35, audnzd: 0.20, oil: 0.15 },
   NZD: { risk: 0.30, china: 0.25, audnzdInverse: 0.30, spy: 0.15 },
   CAD: { oil: 0.45, dxy: 0.25, risk: 0.15, yields: 0.15 },
+  SEK: { risk: 0.35, dxyInverse: 0.30, yieldsInverse: 0.20, riskOff: 0.15 },
+  NOK: { oil: 0.35, risk: 0.25, dxyInverse: 0.25, riskOff: 0.15 },
+  SGD: { risk: 0.35, china: 0.30, dxy: 0.20, spy: 0.15 },
+  HKD: { dxy: 0.50, risk: 0.25, china: 0.25 },
+  PLN: { risk: 0.30, dxyInverse: 0.35, yieldsInverse: 0.20, riskOff: 0.15 },
+  MXN: { oil: 0.30, risk: 0.30, dxy: 0.25, yields: 0.15 },
+  ZAR: { risk: 0.35, gold: 0.25, dxy: 0.25, oil: 0.15 },
 };
 
 const FACTOR_LABELS = {

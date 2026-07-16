@@ -4,19 +4,28 @@ const {
   getSpreadPips,
   fillLongEntry,
   fillShortEntry,
+  applyEntrySlippage,
+  applyStopSlippage,
+  widenSpreadForSim,
   tradePnlUsd,
   enrichTradeSizing,
   calcUnitsForRisk,
   pipValueUsd,
 } = require('./pricing');
+const { applyBreakevenIfNeeded } = require('./breakeven');
 
 function buildTradeFromAnalysis(analysis, cfg) {
   const pair = normPair(analysis.pair);
-  const spreadPips = getSpreadPips(pair, cfg);
+  const sessionName = typeof analysis.session === 'string'
+    ? analysis.session
+    : (analysis.session?.name ?? analysis.sessionName ?? null);
+  const spreadPips = widenSpreadForSim(getSpreadPips(pair, cfg), cfg, sessionName);
   const mid = analysis.quote?.mid ?? analysis.entry;
   const isShort = analysis.action === 'SELL' || analysis.side === 'short';
   const stopPips = analysis.stopPips ?? cfg.stopPips;
   const useRiskSizing = cfg.simUseRiskSizing !== false;
+  const slipPips = cfg.simSlippagePips ?? 0;
+  const side = isShort ? 'short' : 'long';
 
   let entry;
   if (isShort) {
@@ -32,9 +41,16 @@ function buildTradeFromAnalysis(analysis, cfg) {
       ? round(analysis.quote.ask, 5)
       : fillLongEntry(analysis.entry ?? mid, pair, spreadPips);
   }
+  entry = applyEntrySlippage(entry, side, pair, slipPips);
 
   const units = useRiskSizing
-    ? calcUnitsForRisk(cfg.equityUsd, cfg.riskPerTradePct, stopPips, pair, mid)
+    ? calcUnitsForRisk(
+      cfg.equityUsd,
+      analysis.riskPerTradePct ?? cfg.riskPerTradePct,
+      stopPips,
+      pair,
+      mid,
+    )
     : Math.floor(100000 * (cfg.equityUsd / 1000));
   const pipVal = pipValueUsd(units, pair, mid);
 
@@ -46,14 +62,19 @@ function buildTradeFromAnalysis(analysis, cfg) {
     takeProfit: analysis.takeProfit,
     openedAt: Date.now(),
     score: analysis.score,
+    entryConviction: analysis.smart?.conviction ?? analysis.score ?? 0,
     regime: analysis.regime,
+    signalEngine: analysis.signalEngine || analysis.mode || null,
+    features: analysis.features || analysis.charlie?.features || null,
+    charlie: analysis.charlie || null,
+    charlieWindow: analysis.charlieWindow || null,
     stopPips,
     targetPips: analysis.targetPips,
     units,
     spreadPips,
     pipValueUsd: round(pipVal, 4),
     lots: round(units / 100000, 4),
-    riskUsd: round(cfg.equityUsd * cfg.riskPerTradePct / 100, 2),
+    riskUsd: round(cfg.equityUsd * (analysis.riskPerTradePct ?? cfg.riskPerTradePct) / 100, 2),
   };
 }
 
@@ -104,6 +125,10 @@ function createSimExecutor(options = {}) {
       openTrade.lastAsk = ask;
       openTrade.lastMarkAt = Date.now();
 
+      if (applyBreakevenIfNeeded(openTrade, { bid, ask }, cfg)) {
+        /* worker logs [fx-be] */
+      }
+
       if (openTrade.side === 'short') {
         openTrade.lastMark = ask;
         if (ask >= openTrade.stopLoss) {
@@ -128,11 +153,16 @@ function createSimExecutor(options = {}) {
     _close(pair, exitPrice, reason) {
       const t = openByPair.get(pair);
       if (!t) return null;
-      const { pips, grossUsd, pnlUsd } = tradePnlUsd(t, exitPrice, cfg.simCommissionUsd);
+      const stopSlip = reason === 'stop' ? (cfg.simStopSlippagePips ?? 0) : 0;
+      const fill = stopSlip
+        ? applyStopSlippage(exitPrice, t.side, t.pair, stopSlip)
+        : round(exitPrice, 5);
+      const { pips, grossUsd, pnlUsd } = tradePnlUsd(t, fill, cfg.simCommissionUsd);
       const trade = {
         ...t,
-        exit: round(exitPrice, 5),
+        exit: round(fill, 5),
         exitReason: reason,
+        exitSlippagePips: stopSlip,
         closedAt: Date.now(),
         pips,
         grossPnlUsd: grossUsd,
@@ -144,12 +174,20 @@ function createSimExecutor(options = {}) {
       return trade;
     },
 
+    closeMarket(trade, exitReason = 'manual') {
+      if (!trade?.pair) return null;
+      const pair = normPair(trade.pair);
+      const t = openByPair.get(pair);
+      if (!t) return null;
+      const exit = t.side === 'short' ? (t.lastAsk ?? t.entry) : (t.lastBid ?? t.entry);
+      return this._close(pair, exit, exitReason);
+    },
+
     forceClose(pairInput, reason = 'manual') {
       const pair = normPair(pairInput);
       const t = openByPair.get(pair);
       if (!t) return null;
-      const exit = t.side === 'short' ? (t.lastAsk ?? t.entry) : (t.lastBid ?? t.entry);
-      return this._close(pair, exit, reason);
+      return this.closeMarket(t, reason);
     },
 
     restoreOpen(entry) {
@@ -167,6 +205,11 @@ function createSimExecutor(options = {}) {
         if (this.restoreOpen(entry)) n += 1;
       }
       return n;
+    },
+
+    reset() {
+      openByPair.clear();
+      closed.length = 0;
     },
   };
 }

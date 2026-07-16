@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FX Scalp Agent — Панель</title>
-  <link rel="stylesheet" href="/dashboard/style.css" />
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./login.css" />
 </head>
 <body>
   <header>
@@ -16,10 +17,13 @@
       </div>
     </div>
     <div class="controls">
+      <button type="button" id="btnLogout" class="btn-logout" title="Вийти">Вийти</button>
       <button id="btnStart" class="primary">▶ Запустити worker</button>
       <button id="btnStop" class="danger" disabled>■ Зупинити worker</button>
       <button id="btnLearnDry">Learning (dry)</button>
       <button id="btnLearn">Learning (apply)</button>
+      <button id="btnLearnPause" class="danger">⏸ Поставити паузу</button>
+      <button id="btnJournalClear" class="danger">🗑 Очистити журнал</button>
       <button id="btnRefresh">↻ Оновити</button>
     </div>
   </header>
@@ -29,7 +33,12 @@
     Для чистого старту закрий Cursor або перезавантаж ПК.
   </div>
 
-  <main class="dashboard">
+  <nav class="panel-tabs" id="panelTabs">
+    <button type="button" class="panel-tab active" data-tab="live">CHARLIE · Live</button>
+    <button type="button" class="panel-tab" data-tab="testbot">Testbot · Sim</button>
+  </nav>
+
+  <main class="dashboard" id="tabLive">
     <section class="card card-live live-strip" id="livePositionCard">
       <div class="live-strip-head">
         <h2>Відкриті позиції · live</h2>
@@ -49,6 +58,16 @@
       </section>
 
       <aside class="sidebar-stats">
+        <section class="card card-compact">
+          <h2>Pulse · hunt</h2>
+          <div class="kv kv-compact" id="pulseKv"></div>
+        </section>
+
+        <section class="card card-compact">
+          <h2>Capital.com</h2>
+          <div class="kv kv-compact" id="brokerKv"></div>
+        </section>
+
         <section class="card card-compact">
           <h2>Ризик / день</h2>
           <div class="kv kv-compact" id="riskKv"></div>
@@ -103,7 +122,94 @@
     <p class="footer-meta">Оновлення кожні 3 с · Панель: <code>npm run panel</code> · Порт <span id="portLabel">8788</span></p>
   </main>
 
+  <main class="dashboard hidden" id="tabTestbot">
+    <section class="card card-live live-strip">
+      <div class="live-strip-head">
+        <h2>Testbot · відкриті sim-позиції</h2>
+        <span id="tbSlotsLabel" class="live-slots"></span>
+      </div>
+      <div id="tbLiveBody" class="live-positions-grid">
+        <p class="live-empty">Немає відкритих sim-угод</p>
+      </div>
+    </section>
+
+    <div class="row-workspace">
+      <section class="card card-analysis">
+        <h2>Testbot · сигнали (conv ≥ 60)</h2>
+        <p class="tb-desc">Sim окремо від Capital. Flip-режим: invert сигналу, TP/SL у $ (сайзинг без змін). Повторна ставка на пару — через 5 хв + свіжий аналіз.</p>
+        <div id="tbAnalysisKv" class="analysis-stats"></div>
+        <div id="tbPairsTableWrap" class="pairs-table-wrap"></div>
+      </section>
+
+      <aside class="sidebar-stats">
+        <section class="card card-compact">
+          <h2>Testbot · рахунок</h2>
+          <div class="kv kv-compact" id="tbAccountKv"></div>
+        </section>
+        <section class="card card-compact">
+          <h2>Testbot · день</h2>
+          <div class="kv kv-compact" id="tbRiskKv"></div>
+        </section>
+        <section class="card card-compact">
+          <h2>Testbot · журнал</h2>
+          <div class="kv kv-compact" id="tbJournalKv"></div>
+          <button type="button" id="btnTbFlipOn" class="tb-clear-btn">⟲ Flip ON (invert+$3/$3)</button>
+          <button type="button" id="btnTbJournalClear" class="danger tb-clear-btn">🗑 Очистити testbot</button>
+        </section>
+      </aside>
+    </div>
+
+    <section class="card">
+      <h2>ORACLE-5 · прогноз +5 хв</h2>
+      <div id="tbOracleKv" class="analysis-stats"></div>
+      <div class="journal-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Час</th>
+              <th>Пара</th>
+              <th>Прогноз</th>
+              <th>Факт</th>
+              <th>pUp</th>
+              <th>Hit</th>
+            </tr>
+          </thead>
+          <tbody id="tbOracleTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Testbot · останні угоди</h2>
+      <div class="journal-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Час</th>
+              <th>Пара</th>
+              <th>Тип</th>
+              <th>Conv</th>
+              <th>P/L</th>
+              <th>Причина</th>
+            </tr>
+          </thead>
+          <tbody id="tbJournalTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
   <div id="toast" class="toast"></div>
-  <script src="/dashboard/app.js"></script>
+  <script src="./config.js"></script>
+  <script src="./auth.js"></script>
+  <script>
+    FxAuth.requireLogin().then((ok) => {
+      if (ok) {
+        const s = document.createElement('script');
+        s.src = './app.js';
+        document.body.appendChild(s);
+      }
+    });
+  </script>
 </body>
 </html>

@@ -22,6 +22,29 @@ const DEFAULT_SPREAD_PIPS = {
   AUDCAD: 1.8,
   NZDJPY: 1.6,
   CHFJPY: 1.8,
+  AUDNZD: 2.0,
+  EURCAD: 1.8,
+  GBPCAD: 2.2,
+  GBPNZD: 2.8,
+  AUDCHF: 2.0,
+  NZDCHF: 2.2,
+  CADCHF: 2.0,
+  NZDCAD: 2.0,
+  EURSEK: 2.5,
+  EURNOK: 2.8,
+  USDSEK: 2.2,
+  USDNOK: 2.5,
+  USDSGD: 1.8,
+  USDHKD: 1.5,
+  USDPLN: 3.0,
+  EURPLN: 3.2,
+  USDMXN: 3.5,
+  USDZAR: 4.0,
+  GBPSEK: 3.0,
+  GBPNOK: 3.2,
+  USDCNH: 2.5,
+  EURHUF: 4.5,
+  EURTRY: 6.0,
 };
 
 const QUOTE_TO_USD = {
@@ -32,6 +55,13 @@ const QUOTE_TO_USD = {
   AUD: 0.65,
   NZD: 0.60,
   EUR: 1.09,
+  SEK: 0.095,
+  NOK: 0.092,
+  SGD: 0.74,
+  HKD: 0.128,
+  PLN: 0.25,
+  MXN: 0.058,
+  ZAR: 0.055,
 };
 
 function parseSpreadMap(raw) {
@@ -82,6 +112,31 @@ function fillLongEntry(midOrAsk, pair, spreadPips) {
 function fillShortEntry(midOrBid, pair, spreadPips) {
   const half = pipsToPrice(spreadPips, pair) / 2;
   return round(midOrBid - half, 5);
+}
+
+/** Market-order entry slippage — fills slightly worse than quoted (adverse). */
+function applyEntrySlippage(price, side, pair, slipPips = 0) {
+  if (!slipPips) return round(price, 5);
+  const d = pipsToPrice(slipPips, pair);
+  return round(side === 'short' ? price - d : price + d, 5);
+}
+
+/** Stop-loss slippage — stop orders fill at market, often worse than the level. */
+function applyStopSlippage(stopPrice, side, pair, slipPips = 0) {
+  if (!slipPips) return round(stopPrice, 5);
+  const d = pipsToPrice(slipPips, pair);
+  return round(side === 'short' ? stopPrice + d : stopPrice - d, 5);
+}
+
+/**
+ * Session-aware spread widening for sim realism.
+ * Peak (overlap/london) ≈ base; off-peak / late = wider.
+ */
+function widenSpreadForSim(baseSpread, cfg = {}, sessionName = null) {
+  const mult = cfg.simSpreadSessionMult ?? 1;
+  if (mult <= 1 || !sessionName) return baseSpread;
+  const wide = new Set(['quiet', 'ny_close', 'extended', 'closed', 'overlap_late']);
+  return wide.has(sessionName) ? round(baseSpread * mult, 2) : baseSpread;
 }
 
 function tradePnlUsd(trade, exitPrice, commissionUsd = 0) {
@@ -144,6 +199,9 @@ module.exports = {
   calcUnitsForRisk,
   fillLongEntry,
   fillShortEntry,
+  applyEntrySlippage,
+  applyStopSlippage,
+  widenSpreadForSim,
   tradePnlUsd,
   resolveTargetPips,
   enrichTradeSizing,

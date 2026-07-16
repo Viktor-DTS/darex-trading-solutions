@@ -33,6 +33,17 @@ function readRecent(limit = 50) {
   return all.slice(-limit);
 }
 
+function inferTradeSide(exitEv, entryEv) {
+  const raw = exitEv.side || entryEv?.side;
+  if (raw === 'short' || raw === 'long') return raw;
+  const entry = exitEv.entry ?? entryEv?.entry;
+  const sl = entryEv?.stopLoss ?? exitEv.stopLoss;
+  if (entry != null && sl != null) {
+    return sl > entry ? 'short' : 'long';
+  }
+  return 'long';
+}
+
 /** Pair entry + exit into round-trip trades. */
 function getClosedTrades(limit = 500) {
   const events = readAllEvents().slice(-limit * 2);
@@ -48,6 +59,7 @@ function getClosedTrades(limit = 500) {
       const entry = openByKey.get(key) || {};
       trades.push({
         pair: ev.pair,
+        side: inferTradeSide(ev, entry),
         openedAt: ev.openedAt,
         closedAt: ev.closedAt,
         entry: ev.entry ?? entry.entry,
@@ -98,6 +110,13 @@ function getTodayClosedPnl(dayKey = new Date().toISOString().slice(0, 10)) {
     .reduce((s, t) => s + (Number(t.pnlUsd) || 0), 0);
 }
 
+function getTodayEntryCount(dayKey = new Date().toISOString().slice(0, 10)) {
+  return readAllEvents().filter((ev) => {
+    if (ev.type !== 'entry') return false;
+    return dayKeyFromTs(ev.ts || ev.openedAt) === dayKey;
+  }).length;
+}
+
 function summarize() {
   const closed = getClosedTrades(500);
   const openEntries = getOpenEntries();
@@ -134,6 +153,21 @@ function repairMalformedEvents() {
   return fixed;
 }
 
+function clearJournal({ backup = true } = {}) {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  let backupPath = null;
+  const target = journalPath();
+  if (backup && fs.existsSync(target)) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    backupPath = path.join(DATA_DIR, `trades-backup-${stamp}.jsonl`);
+    fs.copyFileSync(target, backupPath);
+  }
+  fs.writeFileSync(target, '');
+  return { backupPath, clearedAt: new Date().toISOString() };
+}
+
 module.exports = {
   appendEvent,
   readRecent,
@@ -141,7 +175,9 @@ module.exports = {
   getClosedTrades,
   getOpenEntries,
   getTodayClosedPnl,
+  getTodayEntryCount,
   dayKeyFromTs,
   summarize,
   repairMalformedEvents,
+  clearJournal,
 };

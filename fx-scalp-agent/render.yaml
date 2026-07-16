@@ -1,21 +1,22 @@
-# Render Blueprint — FX Scalp Agent (окремий Web Service)
-# Підключіть репозиторій з rootDir = fx-scalp-agent або скопіюйте цей файл у корінь сервісу.
-#
-# Після деплою на Darex backend:
-#   FX_SCALP_AGENT_URL=https://YOUR-SERVICE.onrender.com
-#   FX_SCALP_AGENT_SECRET=<same as FX_API_SECRET below>
+# FX Scalp Agent — окремий Render акаунт (API + Static panel)
+# Blueprint: branch fx-scalp-agent, файл render.yaml у корені
+
+envVarGroups:
+  - name: fx-scalp-shared
+    envVars:
+      - key: FX_API_SECRET
+        generateValue: true
 
 services:
   - type: web
-    name: fx-scalp-agent
+    name: fx-scalp-api
     runtime: node
     plan: starter
     buildCommand: npm install
     startCommand: node api/server.js
     healthCheckPath: /health
     envVars:
-      - key: NODE_VERSION
-        value: "22"
+      - fromGroup: fx-scalp-shared
       - key: FX_AUTO_START_WORKER
         value: "1"
       - key: FX_STATE_FILE
@@ -25,12 +26,262 @@ services:
       - key: FX_SIMULATE
         value: "1"
       - key: FX_EXECUTOR
-        value: sim
+        value: capital
       - key: FX_DATA_PROVIDER
-        value: yahoo
-      - key: FX_API_SECRET
-        generateValue: true
+        value: capital
+      # Real-time bid/ask + OHLC via Capital WebSocket (до 40 пар, без REST quote rotation)
+      - key: FX_CAPITAL_USE_WEBSOCKET
+        value: "1"
+      # OANDA paper — заповни TOKEN + ACCOUNT у Render, потім зміни FX_EXECUTOR=oanda
+      - key: FX_OANDA_ENV
+        value: practice
+      - key: FX_OANDA_TOKEN
+        sync: false
+      - key: FX_OANDA_ACCOUNT
+        sync: false
+      # Capital.com paper (demo, доступно в Україні) — заповни 3 секрети у Render,
+      # увімкни 2FA і згенеруй API key, далі FX_EXECUTOR=capital
+      - key: FX_CAPITAL_ENV
+        value: demo
+      - key: FX_CAPITAL_API_KEY
+        sync: false
+      - key: FX_CAPITAL_IDENTIFIER
+        sync: false
+      - key: FX_CAPITAL_PASSWORD
+        sync: false
+      - key: FX_SIGNAL_ENGINE
+        value: charlie
+      - key: FX_PAIRS
+        value: EURUSD,GBPUSD,USDJPY,AUDUSD,GBPJPY,EURJPY,AUDJPY,GBPAUD,EURAUD,GBPCHF,EURGBP,USDCAD
+      - key: FX_CHARLIE_STOP_PIPS
+        value: "4.5"
+      - key: FX_CHARLIE_TARGET_MIN
+        value: "10"
+      - key: FX_CHARLIE_TARGET_MAX
+        value: "28"
+      - key: FX_CHARLIE_MAX_PAIRS
+        value: "4"
+      - key: FX_CHARLIE_SCAN_PAIRS
+        value: "24"
+      - key: FX_CHARLIE_ALWAYS_ON
+        value: "1"
+      - key: FX_CHARLIE_MARKET_HUNT
+        value: "1"
+      - key: FX_CHARLIE_UNIVERSE_MAX
+        value: "24"
+      - key: FX_CHARLIE_UNIVERSE_ROTATE
+        value: "16"
+      - key: FX_CHARLIE_UNIVERSE_CORE_SEED
+        value: "4"
+      - key: FX_CHARLIE_HUNT_INTERVAL_MS
+        value: "1800000"
+      - key: FX_CHARLIE_SOFT_ROTATE_MS
+        value: "120000"
+      - key: FX_CHARLIE_FOCUS_STICKINESS
+        value: "2"
+      - key: FX_CHARLIE_FOCUS_MAX_CCY
+        value: "2"
+      - key: FX_CHARLIE_PULSE_LOG
+        value: "1"
+      - key: FX_CHARLIE_SETUPS_MAX_LINES
+        value: "2000"
+      - key: FX_CHARLIE_PREFER_VOL
+        value: "1"
+      - key: FX_CHARLIE_MIN_ATR_PIPS
+        value: "6"
+      - key: FX_CHARLIE_MIN_RANGE_PIPS
+        value: "12"
+      - key: FX_CHARLIE_MIN_ATR_SPREAD
+        value: "3"
+      - key: FX_CHARLIE_ATR_LEVELS
+        value: "1"
+      - key: FX_MAX_SPREAD_PIPS
+        value: "2.5"
+      - key: FX_CHARLIE_MIN_SCORE
+        value: "70"
+      - key: FX_CHARLIE_MAX_ENTRIES_CYCLE
+        value: "2"
+      - key: FX_CHARLIE_MAX_TRADES_DAY
+        value: "6"
+      - key: FX_CHARLIE_SKIP_STATIC_BLACKOUT
+        value: "1"
+      - key: FX_CHARLIE_REQUIRE_MSS
+        value: "0"
+      - key: FX_CHARLIE_STRICT_MSS
+        value: "0"
+      - key: FX_CHARLIE_REQUIRE_DISP
+        value: "1"
+      - key: FX_MATH_GATE
+        value: "1"
+      - key: FX_MATH_THETA
+        value: "1"
+      - key: FX_MATH_MIN_PREACH
+        value: "0.52"
+      - key: FX_MATH_MIN_EXPECTANCY_R
+        value: "0.05"
+      - key: FX_MATH_MIN_KAPPA
+        value: "0.55"
+      - key: FX_MATH_MAX_JUMP
+        value: "0.35"
+      - key: FX_MATH_FRICTION_K
+        value: "0.55"
+      - key: FX_MATH_MICRO_BARS
+        value: "1.5"
+      - key: FX_MATH_WINDOW_BARS
+        value: "36"
+      - key: FX_MATH_STRONG_PREACH
+        value: "0.58"
+      - key: FX_MATH_SCORE_FLOOR
+        value: "68"
+      - key: FX_CHARLIE_FVG_ENTRY
+        value: "1"
+      - key: FX_CHARLIE_DYNAMIC_TP
+        value: "1"
+      - key: FX_CHARLIE_SHADOW_LOG
+        value: "1"
+      - key: FX_CHARLIE_DXY_BIAS
+        value: "1"
+      - key: FX_CHARLIE_ASIAN_START
+        value: "00:00"
+      - key: FX_CHARLIE_ASIAN_END
+        value: "07:00"
+      - key: FX_CHARLIE_SESSION_STOP_SL
+        value: "3"
+      - key: FX_CHARLIE_SETUP_DEDUP_MS
+        value: "2700000"
+      - key: FX_SCALP_MODE
+        value: "0"
+      - key: FX_TARGET_PIPS
+        value: "10"
+      - key: FX_STOP_PIPS
+        value: "4.5"
+      - key: FX_POSITION_MGMT
+        value: "1"
+      - key: FX_POS_DYNAMIC_TP
+        value: "1"
+      - key: FX_BREAKEVEN_PIPS
+        value: "2"
+      - key: FX_POS_TP_DECAY_CONV
+        value: "10"
+      - key: FX_POS_DYNAMIC_TP_MIN_FAV
+        value: "0"
+      - key: FX_MIN_BUY_SCORE
+        value: "72"
+      - key: FX_PAIR_BLACKLIST
+        value: ""
+      - key: FX_MIN_LAYERS_ALIGNED
+        value: "3"
+      - key: FX_PAIR_TIER2_MIN_BUY_SCORE
+        value: "72"
+      - key: FX_MIN_SELL_SCORE
+        value: "74"
+      - key: FX_SCALP_TIER1_ONLY
+        value: "0"
+      - key: FX_BREAKEVEN
+        value: "1"
+      - key: FX_BREAKEVEN_BROKER
+        value: "1"
+      - key: FX_RISK_PER_TRADE_PCT
+        value: "0.5"
+      - key: FX_REGIME_MIN_ADX
+        value: "18"
+      - key: FX_PAIR_TIER2_MAX_SPREAD
+        value: "3"
+      # Реалізм симуляції: slippage входу/стопу + ширший спред поза піком
+      - key: FX_SIM_SLIPPAGE_PIPS
+        value: "0.2"
+      - key: FX_SIM_STOP_SLIPPAGE_PIPS
+        value: "0.5"
+      - key: FX_SIM_SPREAD_SESSION_MULT
+        value: "1.4"
+      - key: FX_SESSION_END_UTC
+        value: "17:00"
+      - key: FX_SMART_MAX_ENTRIES_CYCLE
+        value: "3"
+      - key: FX_PAIR_MAX_TRADES_DAY
+        value: "6"
+      - key: FX_ANALYZE_GAP_MS
+        value: "12000"
+      - key: FX_OPEN_MONITOR_MS
+        value: "1000"
+      - key: FX_OPEN_BROKER_SYNC_MS
+        value: "5000"
+      - key: FX_TESTBOT_ENABLED
+        value: "1"
+      - key: FX_TESTBOT_MIN_SCORE
+        value: "60"
+      # Flip experiment 16.07: invert polarity + symmetric $R:R (same stake sizing)
+      - key: FX_TESTBOT_TARGET_USD
+        value: "3"
+      - key: FX_TESTBOT_PARTIAL_USD
+        value: "1.5"
+      - key: FX_TESTBOT_PARTIAL_MS
+        value: "600000"
+      - key: FX_TESTBOT_MAX_HOLD_MS
+        value: "900000"
+      - key: FX_TESTBOT_MAX_OPEN
+        value: "20"
+      - key: FX_TESTBOT_MAX_TRADES_DAY
+        value: "0"
+      - key: FX_TESTBOT_MAX_ENTRIES_CYCLE
+        value: "12"
+      - key: FX_TESTBOT_STOP_PIPS
+        value: "3"
+      - key: FX_TESTBOT_MAX_STOP_USD
+        value: "3"
+      - key: FX_TESTBOT_INVERT_DIRECTION
+        value: "1"
+      - key: FX_TESTBOT_ENTRY_INTERVAL_MS
+        value: "2000"
+      - key: FX_TESTBOT_PAIR_COOLDOWN_MS
+        value: "300000"
+      - key: FX_ORACLE_5M
+        value: "1"
+      - key: FX_ORACLE_HORIZON_SEC
+        value: "300"
+      - key: FX_ORACLE_MIN_P_UP
+        value: "0.55"
+      - key: FX_ORACLE_MIN_KAPPA
+        value: "0.55"
+      - key: FX_ORACLE_MIN_P_TP
+        value: "0.52"
+      - key: FX_ORACLE_TRADE
+        value: "1"
+      - key: FX_ORACLE_RESPECT_INVERT
+        value: "1"
+      - key: FX_PAIR_REFRESH_CONCURRENCY
+        value: "8"
+      - key: FX_MAX_JPY_CROSS
+        value: "1"
+      - key: FX_WATCH_AUTO_ENTRY
+        value: "0"
+      - key: FX_TRADE_TELEGRAM
+        value: "1"
+      - key: FX_LEARN_TELEGRAM
+        value: "1"
+      - key: FX_TELEGRAM_CHAT_ID
+        value: "716206021"
+      - key: FX_TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: FX_CORS_ORIGINS
+        value: "*"
+      - key: FX_PANEL_USER
+        value: admin
+      - key: FX_PANEL_PASSWORD
+        sync: false
     disk:
       name: fx-scalp-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1
+
+  - type: web
+    name: fx-scalp-panel
+    runtime: static
+    buildCommand: npm install && node scripts/build-panel-config.js
+    staticPublishPath: ./dashboard
+    envVars:
+      - key: FX_PUBLIC_API_URL
+        fromService:
+          name: fx-scalp-api
+          type: web
+          property: host

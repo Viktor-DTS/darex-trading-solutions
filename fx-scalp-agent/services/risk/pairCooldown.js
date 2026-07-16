@@ -8,7 +8,10 @@ function createPairCooldown(cfg) {
   const untilByPair = new Map();
 
   function cooldownForReason(reason) {
-    return reason === 'take_profit' ? tpMs : stopMs;
+    const profitDecayMs = cfg.pairCooldownProfitDecayMs ?? 3600000;
+    if (reason === 'profit_decay' || reason === 'good_enough') return profitDecayMs;
+    if (reason === 'take_profit') return tpMs;
+    return stopMs;
   }
 
   function hydrateFromJournal() {
