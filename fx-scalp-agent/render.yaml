@@ -209,12 +209,12 @@ services:
       - key: FX_TESTBOT_ENABLED
         value: "1"
       - key: FX_TESTBOT_MIN_SCORE
-        value: "60"
-      # Flip experiment 16.07: invert polarity + symmetric $R:R (same stake sizing)
+        value: "70"
+      # Symmetric R:R — break-even ≈ 50% WR
       - key: FX_TESTBOT_TARGET_USD
-        value: "3"
+        value: "5"
       - key: FX_TESTBOT_PARTIAL_USD
-        value: "1.5"
+        value: "2.5"
       - key: FX_TESTBOT_PARTIAL_MS
         value: "600000"
       - key: FX_TESTBOT_MAX_HOLD_MS
@@ -226,9 +226,9 @@ services:
       - key: FX_TESTBOT_MAX_ENTRIES_CYCLE
         value: "12"
       - key: FX_TESTBOT_STOP_PIPS
-        value: "3"
+        value: "5"
       - key: FX_TESTBOT_MAX_STOP_USD
-        value: "6"
+        value: "5"
       - key: FX_TESTBOT_INVERT_DIRECTION
         value: "0"
       - key: FX_TESTBOT_ENTRY_INTERVAL_MS
@@ -237,6 +237,10 @@ services:
         value: "300000"
       - key: FX_TESTBOT_STOP_GRACE_MS
         value: "30000"
+      - key: FX_TESTBOT_ALLOW_DRAFT
+        value: "0"
+      - key: FX_TESTBOT_QUALITY_LOCK
+        value: "1"
       - key: FX_ORACLE_5M
         value: "1"
       - key: FX_ORACLE_HORIZON_SEC
@@ -262,9 +266,9 @@ services:
       - key: FX_TESTBOT_ORACLE_MICRO_BARS
         value: "0"
       - key: FX_TESTBOT_ORACLE_MIN_P_UP
-        value: "0.40"
+        value: "0.55"
       - key: FX_TESTBOT_ORACLE_MIN_KAPPA
-        value: "0.30"
+        value: "0.45"
       - key: FX_TESTBOT_ORACLE_MIN_P_TP
         value: "0"
       - key: FX_TESTBOT_ORACLE_SOFT_DIR

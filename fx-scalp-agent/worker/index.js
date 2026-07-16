@@ -91,8 +91,8 @@ function getOracleCfg() {
   const tbMinP = process.env.FX_TESTBOT_ORACLE_MIN_P_UP;
   const minPUp = tbMinP != null && String(tbMinP).trim() !== ''
     ? Number(tbMinP)
-    : 0.40;
-  // 0 = вимкнути calibration block на sim (інакше spam-прогнози вбивають hit rate)
+    : 0.55;
+  // 0 = вимкнути calibration block на sim
   const tbMinHit = process.env.FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT;
   const minDirectionHitRate = tbMinHit != null && String(tbMinHit).trim() !== ''
     ? Number(tbMinHit)
@@ -101,7 +101,6 @@ function getOracleCfg() {
   const microMinM1 = tbMicroM1 != null && String(tbMicroM1).trim() !== ''
     ? Number(tbMicroM1)
     : 1;
-  // 0 = не блокувати по P(TP): при $3 SL і wide TP theta майже завжди <40%
   const tbMinPTp = process.env.FX_TESTBOT_ORACLE_MIN_P_TP;
   const minPTp = tbMinPTp != null && String(tbMinPTp).trim() !== ''
     ? Number(tbMinPTp)
@@ -109,13 +108,13 @@ function getOracleCfg() {
   const tbMinKappa = process.env.FX_TESTBOT_ORACLE_MIN_KAPPA;
   const minKappa = tbMinKappa != null && String(tbMinKappa).trim() !== ''
     ? Number(tbMinKappa)
-    : 0.30;
+    : 0.45;
   return {
     ...o,
     microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0,
     microMinM1: Number.isFinite(microMinM1) ? microMinM1 : 1,
-    minPUp: Number.isFinite(minPUp) ? minPUp : 0.40,
-    minKappa: Number.isFinite(minKappa) ? minKappa : 0.30,
+    minPUp: Number.isFinite(minPUp) ? minPUp : 0.55,
+    minKappa: Number.isFinite(minKappa) ? minKappa : 0.45,
     minPTp: Number.isFinite(minPTp) ? minPTp : 0,
     minDirectionHitRate: Number.isFinite(minDirectionHitRate) ? minDirectionHitRate : 0,
     skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR === '1',
@@ -328,7 +327,7 @@ async function processTestbotEntries(force = false) {
           console.log(`[tb-skip] ${raw.pair} re-analyze: no data`);
           continue;
         }
-        const resolved = resolveTestbotCandidate(fresh, getTbCfg().minScore ?? 60);
+        const resolved = resolveTestbotCandidate(fresh, getTbCfg().minScore ?? 70, getTbCfg());
         if (!resolved) {
           console.log(`[tb-skip] ${raw.pair} re-analyze: conv/action fail conv=${fresh.score ?? fresh.smart?.conviction ?? 0}`);
           continue;
@@ -857,13 +856,14 @@ function publishState(extra = {}, force = false) {
       enabled: true,
       risk: testbotRisk,
       maxOpenPositions: getTbCfg().maxOpenPositions ?? 20,
-      minScore: getTbCfg().minScore ?? 60,
+      minScore: getTbCfg().minScore ?? 70,
       pairCooldownMs: getTbCfg().pairCooldownMs ?? 300000,
-      targetUsd: getTbCfg().targetUsd ?? 1,
-      partialUsd: getTbCfg().partialUsd ?? 0.5,
+      targetUsd: getTbCfg().targetUsd ?? 5,
+      partialUsd: getTbCfg().partialUsd ?? 2.5,
       partialAfterMs: getTbCfg().partialAfterMs ?? 600000,
-      maxStopLossUsd: getTbCfg().maxStopLossUsd ?? 10,
+      maxStopLossUsd: getTbCfg().maxStopLossUsd ?? 5,
       invertDirection: getTbCfg().invertDirection === true,
+      allowSetupDraft: getTbCfg().allowSetupDraft === true,
       allowCharlieOverlap: getTbCfg().allowCharlieOverlap !== false,
       openTrades: testbotExecutor.getOpenTrades(),
       openPositionsLive: buildTestbotLivePositions(),

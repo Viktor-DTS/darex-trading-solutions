@@ -14,88 +14,54 @@ function convictionOf(a) {
 
 
 
-/** Resolve entry from live analysis or charlie setupDraft (math-blocked). */
-
-function resolveTestbotCandidate(a, minScore) {
-
+/** Resolve entry from live BUY/SELL only (no math-blocked setupDraft by default). */
+function resolveTestbotCandidate(a, minScore, cfg = {}) {
   const conv = convictionOf(a);
-
   if (conv < minScore) return null;
 
-
-
   if (a.action === 'BUY' || a.action === 'SELL') {
-
     return { ...a, _testbotAction: a.action, _testbotConv: conv };
-
   }
 
-
-
-  const draft = a.setupDraft;
-
-  if (draft?.action === 'BUY' || draft.action === 'SELL') {
-
-    return {
-
-      ...a,
-
-      action: draft.action,
-
-      side: draft.side,
-
-      entry: draft.entry,
-
-      stopLoss: draft.stopLoss,
-
-      takeProfit: draft.takeProfit,
-
-      stopPips: draft.stopPips ?? a.stopPips,
-
-      _testbotAction: draft.action,
-
-      _testbotConv: conv,
-
-      _fromDraft: true,
-
-    };
-
+  // Live already rejected (MATH BLOCK / score) → setupDraft. Skip unless explicitly allowed.
+  if (cfg.allowSetupDraft === true) {
+    const draft = a.setupDraft;
+    const reason = String(a.reason || '');
+    if (/MATH\s*BLOCK/i.test(reason)) return null;
+    if (draft?.action === 'BUY' || draft.action === 'SELL') {
+      return {
+        ...a,
+        action: draft.action,
+        side: draft.side,
+        entry: draft.entry,
+        stopLoss: draft.stopLoss,
+        takeProfit: draft.takeProfit,
+        stopPips: draft.stopPips ?? a.stopPips,
+        _testbotAction: draft.action,
+        _testbotConv: conv,
+        _fromDraft: true,
+      };
+    }
   }
-
-
 
   return null;
-
 }
 
 
 
 function filterTestbotSignals(analyses, cfg) {
-
-  const minScore = cfg.minScore ?? 60;
-
+  const minScore = cfg.minScore ?? 70;
   const out = [];
-
   const seen = new Set();
-
   for (const a of analyses || []) {
-
-    const c = resolveTestbotCandidate(a, minScore);
-
+    const c = resolveTestbotCandidate(a, minScore, cfg);
     if (!c) continue;
-
     const pair = normPair(c.pair);
-
     if (seen.has(pair)) continue;
-
     seen.add(pair);
-
     out.push(c);
-
   }
-
   return out.sort((x, y) => (y._testbotConv ?? 0) - (x._testbotConv ?? 0));
-
 }
 
 
