@@ -81,6 +81,14 @@ function getPendingCount() {
   return pendingForecasts.size;
 }
 
+function hasPendingForPair(pair) {
+  if (!pair) return false;
+  for (const f of pendingForecasts.values()) {
+    if (f.pair === pair) return true;
+  }
+  return false;
+}
+
 function getPendingForecastsSnapshot(limit = 12) {
   return [...pendingForecasts.values()]
     .sort((a, b) => (b.t0Ms || 0) - (a.t0Ms || 0))
@@ -103,5 +111,6 @@ module.exports = {
   reconcileOracleActuals,
   getPendingCount,
   getPendingForecastsSnapshot,
+  hasPendingForPair,
   pendingForecasts,
 };

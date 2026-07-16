@@ -75,6 +75,7 @@ const {
   summarizeOracleStats,
   getPendingCount,
   getPendingForecastsSnapshot,
+  hasPendingForPair,
 } = require('../services/oracle');
 
 const tbBase = config.testbot || {};
@@ -91,22 +92,27 @@ function getOracleCfg() {
   const minPUp = tbMinP != null && String(tbMinP).trim() !== ''
     ? Number(tbMinP)
     : 0.48;
+  // 0 = вимкнути calibration block на sim (інакше spam-прогнози вбивають hit rate)
   const tbMinHit = process.env.FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT;
   const minDirectionHitRate = tbMinHit != null && String(tbMinHit).trim() !== ''
     ? Number(tbMinHit)
-    : 0.45;
+    : 0;
   const tbMicroM1 = process.env.FX_TESTBOT_ORACLE_MICRO_M1;
   const microMinM1 = tbMicroM1 != null && String(tbMicroM1).trim() !== ''
     ? Number(tbMicroM1)
-    : 1.5;
+    : 1;
+  const tbMinPTp = process.env.FX_TESTBOT_ORACLE_MIN_P_TP;
+  const minPTp = tbMinPTp != null && String(tbMinPTp).trim() !== ''
+    ? Number(tbMinPTp)
+    : 0.40;
   return {
     ...o,
     microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0,
     microMinM1: Number.isFinite(microMinM1) ? microMinM1 : 1,
     minPUp: Number.isFinite(minPUp) ? minPUp : 0.48,
     minKappa: Number(process.env.FX_TESTBOT_ORACLE_MIN_KAPPA) || 0.50,
-    minPTp: Number(process.env.FX_TESTBOT_ORACLE_MIN_P_TP) || 0.48,
-    minDirectionHitRate: Number.isFinite(minDirectionHitRate) ? minDirectionHitRate : 0.45,
+    minPTp: Number.isFinite(minPTp) ? minPTp : 0.40,
+    minDirectionHitRate: Number.isFinite(minDirectionHitRate) ? minDirectionHitRate : 0,
     skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR !== '0',
     testbotJournalFile: getTbCfg().journalFile || testbotJournalFile,
   };
@@ -363,21 +369,25 @@ async function processTestbotEntries(force = false) {
         console.log(`[tb-skip] ${raw.pair} oracle: need ≥${oracleMinM5} M5 bars (have ${m5n})`);
         continue;
       }
+      // Не спамити jsonl кожні 2с — інакше hit rate падає до 0–2% і gate блокує все
+      const alreadyPending = hasPendingForPair(raw.pair);
       const oracle = forecastOracle5m({
         pair: raw.pair,
         quote: liveQuote,
         barsM5: snap?.bars5m,
         barsM1: snap?.bars1m,
         analysis,
-        cfg: oracleCfg,
+        cfg: { ...oracleCfg, logForecasts: !alreadyPending },
       });
       if (!oracle?.ok) {
         console.log(`[tb-skip] ${raw.pair} ${oracle.reason || 'oracle fail'}`);
         continue;
       }
-      registerPendingForecast({ ...oracle, linkedEntry: false });
       const gate = oracleGateAllows(oracle, analysis, oracleCfg);
       if (!gate.ok) {
+        if (!alreadyPending) {
+          registerPendingForecast({ ...oracle, linkedEntry: false });
+        }
         console.log(`[tb-skip] ${raw.pair} ${gate.reason}`);
         continue;
       }
