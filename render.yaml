@@ -249,6 +249,14 @@ services:
         value: "1"
       - key: FX_ORACLE_RESPECT_INVERT
         value: "1"
+      - key: FX_ORACLE_TOXIC_WR
+        value: "0.40"
+      - key: FX_ORACLE_TOXIC_MIN_TRADES
+        value: "10"
+      - key: FX_ORACLE_MIN_DIRECTION_HIT
+        value: "0.52"
+      - key: FX_ORACLE_MICRO_BARS
+        value: "1.5"
       - key: FX_PAIR_REFRESH_CONCURRENCY
         value: "8"
       - key: FX_MAX_JPY_CROSS
