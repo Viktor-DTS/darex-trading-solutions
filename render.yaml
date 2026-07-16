@@ -267,6 +267,10 @@ services:
         value: "0.48"
       - key: FX_TESTBOT_ORACLE_SOFT_DIR
         value: "1"
+      - key: FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT
+        value: "0.45"
+      - key: FX_TESTBOT_ORACLE_MICRO_M1
+        value: "1.5"
       - key: FX_PAIR_REFRESH_CONCURRENCY
         value: "8"
       - key: FX_MAX_JPY_CROSS
