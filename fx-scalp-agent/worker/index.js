@@ -212,8 +212,9 @@ function buildTestbotLivePositions() {
 }
 
 async function analyzeTestbotPairFresh(pair) {
-  await hub.refreshPair(pair).catch(() => {});
-  const snap = hub.getPairSnapshot(pair);
+  const oracleMinM5 = Math.max(30, getOracleCfg().windowBars ?? 36);
+  const snap = await hub.ensurePairHistory(pair, { minM5: oracleMinM5, minM1: 20 })
+    .catch(() => hub.getPairSnapshot(pair));
   if (!snap) return null;
 
   const minBars = config.capitalMinBars ?? 15;
@@ -307,7 +308,17 @@ async function processTestbotEntries(force = false) {
       }
     }
 
-    const snap = hub.getPairSnapshot(raw.pair);
+    let snap = hub.getPairSnapshot(raw.pair);
+    const oracleCfg = getOracleCfg();
+    const oracleMinM5 = Math.max(30, oracleCfg.windowBars ?? 36);
+    if (oracleCfg.enabled) {
+      try {
+        snap = await hub.ensurePairHistory(raw.pair, { minM5: oracleMinM5, minM1: 20 }) || snap;
+      } catch (e) {
+        console.warn(`[tb-oracle] ${raw.pair} ensureBars`, e.message);
+      }
+    }
+
     const liveQuote = snap
       ? { bid: snap.bid, ask: snap.ask, mid: snap.mid, spreadPips: snap.spreadPips }
       : raw.quote;
@@ -322,8 +333,12 @@ async function processTestbotEntries(force = false) {
       continue;
     }
 
-    const oracleCfg = getOracleCfg();
     if (oracleCfg.enabled) {
+      const m5n = snap?.bars5m?.length ?? 0;
+      if (m5n < oracleMinM5) {
+        console.log(`[tb-skip] ${raw.pair} oracle: need ≥${oracleMinM5} M5 bars (have ${m5n})`);
+        continue;
+      }
       const oracle = forecastOracle5m({
         pair: raw.pair,
         quote: liveQuote,
