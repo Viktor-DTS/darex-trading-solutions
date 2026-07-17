@@ -123,7 +123,35 @@ function buildFolderNameFallback(rawName, bump = 0) {
   return bump ? `${base}_${bump}` : base;
 }
 
+function isStaleFsHandleError(err) {
+  const msg = String(err?.message || '');
+  return (
+    err?.name === 'InvalidStateError' ||
+    msg.includes('state had changed') ||
+    msg.includes('state cached')
+  );
+}
+
+export async function withFsRetry(operation, attempts = 3) {
+  let lastError = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (!isStaleFsHandleError(err) || i === attempts - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 30 * (i + 1)));
+    }
+  }
+  throw lastError;
+}
+
 export async function getOrCreateSubdir(parentHandle, folderName, usedNames = new Map()) {
+  const result = await getOrCreateSubdirResolved(parentHandle, folderName, usedNames);
+  return result.handle;
+}
+
+export async function getOrCreateSubdirResolved(parentHandle, folderName, usedNames = new Map()) {
   const primary = sanitizeFolderNameForLocalSave(folderName);
   const candidates = [primary];
   const edrpouOnly = String(folderName || '').trim().match(/^(\d{8,10})\b/)?.[1];
@@ -139,29 +167,41 @@ export async function getOrCreateSubdir(parentHandle, folderName, usedNames = ne
     try {
       const handle = await parentHandle.getDirectoryHandle(name, { create: true });
       usedNames.set(candidate, seen + 1);
-      return handle;
+      return { handle, resolvedName: name };
     } catch (err) {
       lastError = err;
-      if (!isGetDirectoryHandleNameRejected(err)) throw err;
+      if (!isGetDirectoryHandleNameRejected(err) && !isStaleFsHandleError(err)) throw err;
     }
   }
 
   for (let bump = 1; bump <= 5; bump += 1) {
     const name = buildFolderNameFallback(folderName, bump);
     try {
-      return await parentHandle.getDirectoryHandle(name, { create: true });
+      const handle = await parentHandle.getDirectoryHandle(name, { create: true });
+      return { handle, resolvedName: name };
     } catch (err) {
       lastError = err;
-      if (!isGetDirectoryHandleNameRejected(err)) throw err;
+      if (!isGetDirectoryHandleNameRejected(err) && !isStaleFsHandleError(err)) throw err;
     }
   }
 
   const lastResort = `folder_${Date.now()}`;
   try {
-    return await parentHandle.getDirectoryHandle(lastResort, { create: true });
+    const handle = await parentHandle.getDirectoryHandle(lastResort, { create: true });
+    return { handle, resolvedName: lastResort };
   } catch (err) {
     throw lastError || err;
   }
+}
+
+/** Відновлює шлях папок від кореня — без кешування DirectoryHandle (стабільно для довгих експортів). */
+export async function walkDirectoryPath(rootHandle, segmentNames, usedNames = new Map()) {
+  let current = rootHandle;
+  for (const rawSegment of segmentNames) {
+    const { handle } = await getOrCreateSubdirResolved(current, rawSegment, usedNames);
+    current = handle;
+  }
+  return current;
 }
 
 export async function writeBlobToDir(dirHandle, fileName, blob, usedNames = new Map()) {
@@ -184,7 +224,7 @@ export async function writeBlobToDir(dirHandle, fileName, blob, usedNames = new 
   try {
     await writeWithName(name);
   } catch (e) {
-    if (!isGetFileHandleNameRejected(e)) throw e;
+    if (!isGetFileHandleNameRejected(e) && !isStaleFsHandleError(e)) throw e;
     const extFallback = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
     let fallback = `file_${Date.now()}${extFallback || ''}`;
     let bump = 0;

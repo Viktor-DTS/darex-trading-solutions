@@ -4,10 +4,11 @@ import {
   downloadUrlAsBlob,
   formatUkDate,
   formatUkDateForFolder,
-  getOrCreateSubdir,
+  getOrCreateSubdirResolved,
   sanitizeFolderNameForLocalSave,
-  sanitizeNameForLocalSave,
   toDateOnlyMs,
+  walkDirectoryPath,
+  withFsRetry,
   writeBlobToDir,
 } from './localFsUtils';
 
@@ -211,27 +212,51 @@ export async function exportTasksToLocalFolder({
   const exportFolderName = sanitizeFolderNameForLocalSave(
     `Експорт ${formatUkDateForFolder(serverDate.toISOString())}`
   );
-  const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
 
-  const criteriaText = buildExportCriteriaText({
-    filters: filters || {},
-    serverDate,
-    count: tasks.length,
-    exportedBy,
+  await withFsRetry(async () => {
+    const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
+    const criteriaText = buildExportCriteriaText({
+      filters: filters || {},
+      serverDate,
+      count: tasks.length,
+      exportedBy,
+    });
+    const criteriaBlob = new Blob([criteriaText], { type: 'text/plain;charset=utf-8' });
+    await writeBlobToDir(exportDir, 'критерії_експорту.txt', criteriaBlob, new Map());
   });
-  const criteriaBlob = new Blob([criteriaText], { type: 'text/plain;charset=utf-8' });
-  await writeBlobToDir(exportDir, 'критерії_експорту.txt', criteriaBlob, new Map());
 
   if (signal?.aborted) {
     return { exportFolderName, count: 0, cancelled: true };
   }
 
-  const regionDirs = new Map();
-  const contractorDirs = new Map();
+  const regionSegmentNames = new Map();
+  const contractorSegmentNames = new Map();
   const folderNameUsage = new Map();
 
   let processed = 0;
   const total = tasks.length;
+
+  const ensureRegionSegment = async (regionName) => {
+    if (regionSegmentNames.has(regionName)) return regionSegmentNames.get(regionName);
+    const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
+    const { resolvedName } = await getOrCreateSubdirResolved(exportDir, regionName, folderNameUsage);
+    regionSegmentNames.set(regionName, resolvedName);
+    return resolvedName;
+  };
+
+  const ensureContractorSegment = async (regionName, contractorKey, task) => {
+    if (contractorSegmentNames.has(contractorKey)) return contractorSegmentNames.get(contractorKey);
+    const regionSeg = await ensureRegionSegment(regionName);
+    const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
+    const regionDir = await walkDirectoryPath(exportDir, [regionSeg], folderNameUsage);
+    const { resolvedName } = await getOrCreateSubdirResolved(
+      regionDir,
+      getContractorFolderName(task),
+      folderNameUsage
+    );
+    contractorSegmentNames.set(contractorKey, resolvedName);
+    return resolvedName;
+  };
 
   for (const task of tasks) {
     if (signal?.aborted) {
@@ -242,42 +267,40 @@ export async function exportTasksToLocalFolder({
     onProgress?.({ processed, total, task: task.requestNumber || task._id });
 
     const regionName = String(task.serviceRegion || 'Без регіону').trim() || 'Без регіону';
-    let regionDir = regionDirs.get(regionName);
-    if (!regionDir) {
-      regionDir = await getOrCreateSubdir(exportDir, regionName, folderNameUsage);
-      regionDirs.set(regionName, regionDir);
-    }
-
     const contractorKey = `${regionName}::${String(task.edrpou || '').trim() || String(task.client || '').trim()}`;
-    let contractorDir = contractorDirs.get(contractorKey);
-    if (!contractorDir) {
-      contractorDir = await getOrCreateSubdir(regionDir, getContractorFolderName(task), folderNameUsage);
-      contractorDirs.set(contractorKey, contractorDir);
-    }
 
-    const taskDir = await getOrCreateSubdir(contractorDir, getTaskFolderName(task), folderNameUsage);
-    const usedNames = new Map();
+    await withFsRetry(async () => {
+      const regionSeg = await ensureRegionSegment(regionName);
+      const contractorSeg = await ensureContractorSegment(regionName, contractorKey, task);
+      const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
+      const taskDir = await walkDirectoryPath(
+        exportDir,
+        [regionSeg, contractorSeg, getTaskFolderName(task)],
+        folderNameUsage
+      );
 
-    const pdfBlob = await generateTaskPdfBlob(task);
+      const usedNames = new Map();
+      const pdfBlob = await generateTaskPdfBlob(task);
+      if (signal?.aborted) return;
+      await writeBlobToDir(taskDir, `заявка_${task.requestNumber || 'без_номера'}.pdf`, pdfBlob, usedNames);
+
+      const taskId = task._id || task.id;
+      const workFiles = taskId ? await fetchWorkFiles(taskId, token) : [];
+      const attachments = collectAttachments(task, workFiles);
+
+      for (const att of attachments) {
+        if (signal?.aborted) return;
+        try {
+          const blob = await downloadUrlAsBlob(att.url);
+          await writeBlobToDir(taskDir, att.name, blob, usedNames);
+        } catch (err) {
+          console.warn('[export] attachment failed:', att.url, err);
+        }
+      }
+    });
+
     if (signal?.aborted) {
       return { exportFolderName, count: processed - 1, cancelled: true };
-    }
-    await writeBlobToDir(taskDir, `заявка_${task.requestNumber || 'без_номера'}.pdf`, pdfBlob, usedNames);
-
-    const taskId = task._id || task.id;
-    const workFiles = taskId ? await fetchWorkFiles(taskId, token) : [];
-    const attachments = collectAttachments(task, workFiles);
-
-    for (const att of attachments) {
-      if (signal?.aborted) {
-        return { exportFolderName, count: processed, cancelled: true };
-      }
-      try {
-        const blob = await downloadUrlAsBlob(att.url);
-        await writeBlobToDir(taskDir, att.name, blob, usedNames);
-      } catch (err) {
-        console.warn('[export] attachment failed:', att.url, err);
-      }
     }
   }
 
