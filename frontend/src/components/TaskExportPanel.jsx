@@ -70,6 +70,7 @@ function TaskExportPanel({ user }) {
   const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [previewCount, setPreviewCount] = useState(null);
+  const [totalLoaded, setTotalLoaded] = useState(null);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
 
@@ -97,6 +98,7 @@ function TaskExportPanel({ user }) {
     try {
       const token = localStorage.getItem('token');
       const { tasks } = await fetchAllTasks(token);
+      setTotalLoaded(tasks.length);
       const filtered = filterTasksForExport(tasks, {
         dateFrom,
         dateTo,
@@ -157,6 +159,7 @@ function TaskExportPanel({ user }) {
     try {
       const token = localStorage.getItem('token');
       const { tasks, serverDate } = await fetchAllTasks(token);
+      setTotalLoaded(tasks.length);
       const filtered = filterTasksForExport(tasks, {
         dateFrom,
         dateTo,
@@ -257,7 +260,10 @@ function TaskExportPanel({ user }) {
 
       {previewCount !== null && (
         <div className="task-export-preview">
-          Знайдено заявок для експорту: <strong>{previewCount}</strong>
+          {totalLoaded != null && (
+            <>Завантажено заявок: <strong>{totalLoaded}</strong> | </>
+          )}
+          Підходить під фільтр: <strong>{previewCount}</strong>
         </div>
       )}
 

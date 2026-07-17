@@ -161,8 +161,15 @@ export function parseTaskDate(value) {
     const [, d, m, y] = dmy.map(Number);
     return new Date(y, m - 1, d);
   }
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+export function toDateOnlyMs(value) {
+  const d = parseTaskDate(value);
+  if (!d) return null;
+  return d.getTime();
 }
 
 export function parseFilterDateInput(value, endOfDay = false) {

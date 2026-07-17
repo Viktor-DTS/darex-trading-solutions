@@ -4,9 +4,8 @@ import {
   downloadUrlAsBlob,
   formatUkDate,
   getOrCreateSubdir,
-  parseFilterDateInput,
-  parseTaskDate,
   sanitizeNameForLocalSave,
+  toDateOnlyMs,
   writeBlobToDir,
 } from './localFsUtils';
 
@@ -36,25 +35,32 @@ function getTaskFolderName(task) {
 }
 
 export function filterTasksForExport(tasks, { dateFrom, dateTo, regions, statuses }) {
-  const fromDate = parseFilterDateInput(dateFrom);
-  const toDate = parseFilterDateInput(dateTo, true);
-  const hasDateFilter = Boolean(dateFrom || dateTo);
-  const regionList = Array.isArray(regions) ? regions : (regions ? [regions] : []);
-  const statusList = Array.isArray(statuses) ? statuses : (statuses ? [statuses] : []);
+  const fromMs = dateFrom ? toDateOnlyMs(dateFrom) : null;
+  const toMs = dateTo ? toDateOnlyMs(dateTo) : null;
+  const hasDateFilter = fromMs != null || toMs != null;
+  const regionList = (Array.isArray(regions) ? regions : (regions ? [regions] : []))
+    .map((r) => String(r).trim())
+    .filter(Boolean);
+  const statusList = (Array.isArray(statuses) ? statuses : (statuses ? [statuses] : []))
+    .map((s) => String(s).trim())
+    .filter(Boolean);
 
   return tasks.filter((task) => {
-    if (statusList.length > 0 && !statusList.includes(task.status)) return false;
-    if (regionList.length > 0 && !regionList.includes(task.serviceRegion)) return false;
+    const taskStatus = String(task.status || '').trim();
+    if (statusList.length > 0 && !statusList.includes(taskStatus)) return false;
+
+    const taskRegion = String(task.serviceRegion || '').trim();
+    if (regionList.length > 0 && !regionList.includes(taskRegion)) return false;
 
     if (!hasDateFilter) return true;
 
     const rawDate = task.requestDate;
     if (!rawDate || String(rawDate).trim() === '') return true;
 
-    const taskDate = parseTaskDate(rawDate);
-    if (!taskDate) return true;
-    if (fromDate && taskDate < fromDate) return false;
-    if (toDate && taskDate > toDate) return false;
+    const taskMs = toDateOnlyMs(rawDate);
+    if (taskMs == null) return true;
+    if (fromMs != null && taskMs < fromMs) return false;
+    if (toMs != null && taskMs > toMs) return false;
     return true;
   });
 }
@@ -121,7 +127,7 @@ function getServerDateFromResponse(response) {
 }
 
 export async function fetchAllTasks(token) {
-  const response = await fetch(`${API_BASE_URL}/tasks/filter?filter=all`, {
+  const response = await fetch(`${API_BASE_URL}/tasks`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Помилка завантаження заявок');
