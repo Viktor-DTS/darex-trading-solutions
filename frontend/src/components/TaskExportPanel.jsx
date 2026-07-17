@@ -5,11 +5,13 @@ import {
   filterTasksForExport,
 } from '../utils/taskLocalExport';
 import {
+  getLastTaskExportSession,
   getTaskExportState,
   isTaskExportRunning,
   startTaskExport,
   subscribeTaskExport,
 } from '../utils/taskExportRunner';
+import LastExportSessionCard from './LastExportSessionCard';
 import './TaskExportPanel.css';
 
 const STATUS_OPTIONS = [
@@ -78,8 +80,12 @@ function TaskExportPanel({ user }) {
   const [totalLoaded, setTotalLoaded] = useState(null);
   const [error, setError] = useState('');
   const [exportJob, setExportJob] = useState(getTaskExportState);
+  const [lastSession, setLastSession] = useState(getLastTaskExportSession);
 
-  useEffect(() => subscribeTaskExport(setExportJob), []);
+  useEffect(() => subscribeTaskExport((state) => {
+    setExportJob(state);
+    setLastSession(state.session || getLastTaskExportSession());
+  }), []);
 
   const exportRunning = exportJob.status === 'running';
 
@@ -247,6 +253,10 @@ function TaskExportPanel({ user }) {
           Експорт у фоні: {exportJob.progress?.processed ?? 0} / {exportJob.progress?.total ?? '…'}
           {exportJob.message ? ` — ${exportJob.message}` : ''}
         </div>
+      )}
+
+      {!exportRunning && lastSession && (
+        <LastExportSessionCard session={lastSession} />
       )}
 
       {error && <div className="task-export-error">{error}</div>}

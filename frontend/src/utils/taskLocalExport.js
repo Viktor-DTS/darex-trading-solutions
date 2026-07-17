@@ -225,6 +225,8 @@ export async function exportTasksToLocalFolder({
     await writeBlobToDir(exportDir, 'критерії_експорту.txt', criteriaBlob, new Map());
   });
 
+  onProgress?.({ processed: 0, total: tasks.length, task: '...', exportFolderName });
+
   if (signal?.aborted) {
     return { exportFolderName, count: 0, cancelled: true };
   }
@@ -262,7 +264,12 @@ export async function exportTasksToLocalFolder({
     }
 
     processed += 1;
-    onProgress?.({ processed, total, task: task.requestNumber || task._id });
+    onProgress?.({
+      processed,
+      total,
+      task: task.requestNumber || task._id,
+      exportFolderName,
+    });
 
     const regionName = String(task.serviceRegion || 'Без регіону').trim() || 'Без регіону';
     const contractorKey = `${regionName}::${String(task.edrpou || '').trim() || String(task.client || '').trim()}`;

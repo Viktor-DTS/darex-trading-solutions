@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
   dismissTaskExportNotice,
+  getLastTaskExportSession,
   getTaskExportState,
   stopTaskExport,
   subscribeTaskExport,
 } from '../utils/taskExportRunner';
+import LastExportSessionCard from './LastExportSessionCard';
 import './TaskExportOverlay.css';
 
 function TaskExportOverlay() {
@@ -16,8 +18,9 @@ function TaskExportOverlay() {
 
   if (!state || state.status === 'idle') return null;
 
-  const { status, progress, message, result, error } = state;
+  const { status, progress, message, result, error, session } = state;
   const isRunning = status === 'running';
+  const displaySession = session || getLastTaskExportSession();
 
   return (
     <div className={`task-export-overlay task-export-overlay--${status}`}>
@@ -27,6 +30,7 @@ function TaskExportOverlay() {
           {status === 'completed' && '✅ Експорт завершено'}
           {status === 'cancelled' && '⏹ Експорт зупинено'}
           {status === 'error' && '❌ Помилка експорту'}
+          {status === 'interrupted' && '⚠️ Експорт перервано'}
         </span>
         {!isRunning && (
           <button
@@ -67,6 +71,10 @@ function TaskExportOverlay() {
       )}
 
       {error && <div className="task-export-overlay-error">{error}</div>}
+
+      {!isRunning && displaySession && (
+        <LastExportSessionCard session={displaySession} compact />
+      )}
 
       {isRunning && (
         <button
