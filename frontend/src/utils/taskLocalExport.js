@@ -204,6 +204,7 @@ export async function exportTasksToLocalFolder({
   token,
   filters,
   exportedBy,
+  signal,
 }) {
   const exportFolderName = sanitizeNameForLocalSave(
     `Експорт ${formatUkDate(serverDate.toISOString())}`,
@@ -220,6 +221,10 @@ export async function exportTasksToLocalFolder({
   const criteriaBlob = new Blob([criteriaText], { type: 'text/plain;charset=utf-8' });
   await writeBlobToDir(exportDir, 'критерії_експорту.txt', criteriaBlob, new Map());
 
+  if (signal?.aborted) {
+    return { exportFolderName, count: 0, cancelled: true };
+  }
+
   const regionDirs = new Map();
   const contractorDirs = new Map();
 
@@ -227,6 +232,10 @@ export async function exportTasksToLocalFolder({
   const total = tasks.length;
 
   for (const task of tasks) {
+    if (signal?.aborted) {
+      return { exportFolderName, count: processed, cancelled: true };
+    }
+
     processed += 1;
     onProgress?.({ processed, total, task: task.requestNumber || task._id });
 
@@ -248,6 +257,9 @@ export async function exportTasksToLocalFolder({
     const usedNames = new Map();
 
     const pdfBlob = await generateTaskPdfBlob(task);
+    if (signal?.aborted) {
+      return { exportFolderName, count: processed - 1, cancelled: true };
+    }
     await writeBlobToDir(taskDir, `заявка_${task.requestNumber || 'без_номера'}.pdf`, pdfBlob, usedNames);
 
     const taskId = task._id || task.id;
@@ -255,6 +267,9 @@ export async function exportTasksToLocalFolder({
     const attachments = collectAttachments(task, workFiles);
 
     for (const att of attachments) {
+      if (signal?.aborted) {
+        return { exportFolderName, count: processed, cancelled: true };
+      }
       try {
         const blob = await downloadUrlAsBlob(att.url);
         await writeBlobToDir(taskDir, att.name, blob, usedNames);
@@ -264,5 +279,5 @@ export async function exportTasksToLocalFolder({
     }
   }
 
-  return { exportFolderName, count: tasks.length };
+  return { exportFolderName, count: tasks.length, cancelled: false };
 }

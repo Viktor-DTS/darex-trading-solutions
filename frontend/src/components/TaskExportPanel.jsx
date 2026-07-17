@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import {
-  exportTasksToLocalFolder,
   fetchAllTasks,
   filterTasksForExport,
 } from '../utils/taskLocalExport';
+import {
+  getTaskExportState,
+  isTaskExportRunning,
+  startTaskExport,
+  subscribeTaskExport,
+} from '../utils/taskExportRunner';
 import './TaskExportPanel.css';
 
 const STATUS_OPTIONS = [
@@ -71,8 +76,12 @@ function TaskExportPanel({ user }) {
   const [loading, setLoading] = useState(false);
   const [previewCount, setPreviewCount] = useState(null);
   const [totalLoaded, setTotalLoaded] = useState(null);
-  const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
+  const [exportJob, setExportJob] = useState(getTaskExportState);
+
+  useEffect(() => subscribeTaskExport(setExportJob), []);
+
+  const exportRunning = exportJob.status === 'running';
 
   const loadRegions = useCallback(async () => {
     try {
@@ -115,56 +124,32 @@ function TaskExportPanel({ user }) {
   };
 
   const handlePreview = async () => {
+    if (exportRunning) return;
     setLoading(true);
     await countMatchingTasks();
     setLoading(false);
   };
 
-  const logExportEvent = async (count) => {
-    try {
-      const token = localStorage.getItem('token');
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      await fetch(`${API_BASE_URL}/event-log`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: currentUser._id || currentUser.id,
-          userName: currentUser.name || currentUser.login,
-          userRole: currentUser.role,
-          action: 'export',
-          entityType: 'tasks',
-          entityId: 'local',
-          description: `Експорт заявок на локальне місце (${count} шт.)`,
-          details: { dateFrom, dateTo, regions: selectedRegions, statuses: selectedStatuses, count },
-        }),
-      });
-    } catch (logErr) {
-      console.error('Помилка логування:', logErr);
-    }
-  };
-
   const handleExport = async () => {
     setError('');
-    setProgress(null);
+
+    if (isTaskExportRunning()) {
+      setError('Експорт уже виконується. Дивіться панель прогресу внизу справа.');
+      return;
+    }
 
     if (!('showDirectoryPicker' in window)) {
       setError('Ваш браузер не підтримує вибір папки для збереження. Використовуйте Chrome або Edge.');
       return;
     }
 
-    setLoading(true);
     let rootDirHandle;
     try {
-      // Діалог папки — одразу після кліку (до довгого завантаження заявок)
       rootDirHandle = await window.showDirectoryPicker({
         mode: 'readwrite',
         startIn: 'documents',
       });
     } catch (err) {
-      setLoading(false);
       if (err.name !== 'AbortError') {
         setError(err.message || 'Помилка вибору папки');
         alert('❌ Помилка вибору папки: ' + (err.message || 'невідома помилка'));
@@ -172,52 +157,30 @@ function TaskExportPanel({ user }) {
       return;
     }
 
-    try {
-      const token = localStorage.getItem('token');
-      const { tasks, serverDate } = await fetchAllTasks(token);
-      setTotalLoaded(tasks.length);
-      const filtered = filterTasksForExport(tasks, {
-        dateFrom,
-        dateTo,
-        regions: selectedRegions,
-        statuses: selectedStatuses,
-      });
-
-      if (filtered.length === 0) {
-        setError('За обраними фільтрами заявок не знайдено');
-        setPreviewCount(0);
-        alert('За обраними фільтрами заявок не знайдено. Експорт скасовано.');
-        return;
-      }
-
-      setPreviewCount(filtered.length);
-      setProgress({ processed: 0, total: filtered.length, task: '...' });
-
-      const result = await exportTasksToLocalFolder({
-        tasks: filtered,
-        rootDirHandle,
-        serverDate,
-        token,
-        onProgress: setProgress,
-        filters: { dateFrom, dateTo, regions: selectedRegions, statuses: selectedStatuses },
-        exportedBy: user?.name || user?.login || '',
-      });
-
-      await logExportEvent(result.count);
-
-      alert(
-        `✅ Експорт завершено!\n\n` +
-        `Папка: ${result.exportFolderName}\n` +
-        `Заявок: ${result.count}`
-      );
-    } catch (err) {
-      console.error('Помилка експорту:', err);
-      setError(err.message || 'Помилка експорту');
-      alert('❌ Помилка експорту: ' + (err.message || 'невідома помилка'));
-    } finally {
-      setLoading(false);
-      setProgress(null);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Немає токена авторизації');
+      return;
     }
+
+    const filters = {
+      dateFrom,
+      dateTo,
+      regions: selectedRegions,
+      statuses: selectedStatuses,
+    };
+
+    startTaskExport({
+      rootDirHandle,
+      token,
+      filters,
+      exportedBy: user?.name || user?.login || '',
+      userSnapshot: {
+        id: user?._id || user?.id,
+        name: user?.name || user?.login,
+        role: user?.role,
+      },
+    });
   };
 
   return (
@@ -225,8 +188,8 @@ function TaskExportPanel({ user }) {
       <h3>📤 Експорт заявок на локальне місце</h3>
       <p className="info-text task-export-desc">
         Оберіть фільтри та натисніть «Експорт у папку» — спочатку відкриється вікно вибору місця збереження,
-        потім завантажаться заявки та створиться папка «Експорт [дата сервера]» з файлом критеріїв експорту,
-        групуванням за регіоном → замовником (за ЄДРПОУ або назвою) → заявкою. У кожній папці заявки — PDF та прикріплені файли.
+        потім завантажаться заявки та створиться папка «Експорт [дата сервера]». Експорт працює у фоні —
+        можна вийти з системи, але не закривайте вкладку браузера. Зупинити — кнопкою внизу справа.
       </p>
 
       <div className="task-export-filters">
@@ -236,6 +199,7 @@ function TaskExportPanel({ user }) {
             type="date"
             value={dateFrom}
             onChange={(e) => { setDateFrom(e.target.value); setPreviewCount(null); }}
+            disabled={exportRunning}
           />
           <span className="filter-hint">Порожні дати заявок завжди включаються</span>
         </div>
@@ -246,6 +210,7 @@ function TaskExportPanel({ user }) {
             type="date"
             value={dateTo}
             onChange={(e) => { setDateTo(e.target.value); setPreviewCount(null); }}
+            disabled={exportRunning}
           />
         </div>
 
@@ -277,10 +242,10 @@ function TaskExportPanel({ user }) {
         </div>
       )}
 
-      {progress && (
+      {exportRunning && (
         <div className="task-export-progress">
-          Експорт: {progress.processed} / {progress.total}
-          {progress.task ? ` — ${progress.task}` : ''}
+          Експорт у фоні: {exportJob.progress?.processed ?? 0} / {exportJob.progress?.total ?? '…'}
+          {exportJob.message ? ` — ${exportJob.message}` : ''}
         </div>
       )}
 
@@ -291,17 +256,17 @@ function TaskExportPanel({ user }) {
           type="button"
           className="btn-secondary"
           onClick={handlePreview}
-          disabled={loading}
+          disabled={loading || exportRunning}
         >
-          {loading && !progress ? '⏳ ...' : '🔍 Підрахувати'}
+          {loading ? '⏳ ...' : '🔍 Підрахувати'}
         </button>
         <button
           type="button"
           className="btn-backup"
           onClick={handleExport}
-          disabled={loading}
+          disabled={exportRunning}
         >
-          {loading ? '⏳ Експорт...' : '📁 Експорт у папку'}
+          {exportRunning ? '⏳ Експорт триває...' : '📁 Експорт у папку'}
         </button>
       </div>
 

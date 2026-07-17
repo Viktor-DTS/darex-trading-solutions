@@ -21,6 +21,7 @@ import FinancialDashboard from './components/FinancialDashboard';
 import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import ProcurementDashboard from './components/ProcurementDashboard';
 import AssistantChatWidget from './components/AssistantChatWidget';
+import TaskExportOverlay from './components/TaskExportOverlay';
 import API_BASE_URL from './config';
 import { PANELS } from './constants/panelsCatalog';
 import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
@@ -433,6 +434,7 @@ function App() {
           path="*" 
           element={
             <div className="app">
+              <TaskExportOverlay />
               {!user ? (
                 <Login onLogin={handleLogin} />
               ) : (
