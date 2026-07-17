@@ -6,6 +6,7 @@ import ProductCardManagement from './equipment/ProductCardManagement';
 import SystemCoefficientsSettings from './SystemCoefficientsSettings';
 import OneCWorkerPanel from './onec/OneCWorkerPanel';
 import TradingDashboard from './TradingDashboard';
+import TaskExportPanel from './TaskExportPanel';
 import './AdminDashboard.css';
 
 /** Ключі панелей у матриці (як у App.jsx) */
@@ -57,6 +58,7 @@ const ADMIN_TABS = [
   { id: 'telegram', label: '📱 Telegram', icon: '📱' },
   { id: 'notifications', label: '🔔 Сповіщення', icon: '🔔' },
   { id: 'advertising', label: '📢 Реклама', icon: '📢' },
+  { id: 'taskExport', label: '📤 Експорт заявок', icon: '📤' },
   { id: 'backup', label: '💾 Бекап', icon: '💾' },
   { id: 'logs', label: '📜 Логи', icon: '📜' },
   { id: 'warehouses', label: '🏢 Управління складами', icon: '🏢' },
@@ -2093,6 +2095,7 @@ function AdminDashboard({ user }) {
       case 'telegram': return renderTelegramTab();
       case 'notifications': return renderNotificationsTab();
       case 'advertising': return renderAdvertisingTab();
+      case 'taskExport': return <TaskExportPanel user={user} />;
       case 'backup': return renderBackupTab();
       case 'logs': return renderLogsTab();
       case 'warehouses': return <WarehouseManagement user={user} />;
