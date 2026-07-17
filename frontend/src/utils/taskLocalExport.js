@@ -23,8 +23,10 @@ function getContractFileUrl(contractFile) {
 
 function getContractorFolderName(task) {
   const edrpou = String(task.edrpou || '').trim();
-  if (edrpou) return edrpou;
   const client = String(task.client || '').trim();
+  if (edrpou) {
+    return client ? `${edrpou} ${client}` : edrpou;
+  }
   return client || 'Без замовника';
 }
 
