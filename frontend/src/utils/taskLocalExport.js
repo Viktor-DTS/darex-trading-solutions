@@ -3,7 +3,9 @@ import { generateTaskPdfBlob } from './taskPdfExport';
 import {
   downloadUrlAsBlob,
   formatUkDate,
+  formatUkDateForFolder,
   getOrCreateSubdir,
+  sanitizeFolderNameForLocalSave,
   sanitizeNameForLocalSave,
   toDateOnlyMs,
   writeBlobToDir,
@@ -32,7 +34,7 @@ function getContractorFolderName(task) {
 
 function getTaskFolderName(task) {
   const num = String(task.requestNumber || task._id || 'заявка').trim();
-  const datePart = formatUkDate(task.requestDate) || 'без_дати';
+  const datePart = formatUkDateForFolder(task.requestDate);
   return `${num} ${datePart}`;
 }
 
@@ -206,9 +208,8 @@ export async function exportTasksToLocalFolder({
   exportedBy,
   signal,
 }) {
-  const exportFolderName = sanitizeNameForLocalSave(
-    `Експорт ${formatUkDate(serverDate.toISOString())}`,
-    { isFolder: true }
+  const exportFolderName = sanitizeFolderNameForLocalSave(
+    `Експорт ${formatUkDateForFolder(serverDate.toISOString())}`
   );
   const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
 
@@ -227,6 +228,7 @@ export async function exportTasksToLocalFolder({
 
   const regionDirs = new Map();
   const contractorDirs = new Map();
+  const folderNameUsage = new Map();
 
   let processed = 0;
   const total = tasks.length;
@@ -242,18 +244,18 @@ export async function exportTasksToLocalFolder({
     const regionName = String(task.serviceRegion || 'Без регіону').trim() || 'Без регіону';
     let regionDir = regionDirs.get(regionName);
     if (!regionDir) {
-      regionDir = await getOrCreateSubdir(exportDir, regionName);
+      regionDir = await getOrCreateSubdir(exportDir, regionName, folderNameUsage);
       regionDirs.set(regionName, regionDir);
     }
 
     const contractorKey = `${regionName}::${String(task.edrpou || '').trim() || String(task.client || '').trim()}`;
     let contractorDir = contractorDirs.get(contractorKey);
     if (!contractorDir) {
-      contractorDir = await getOrCreateSubdir(regionDir, getContractorFolderName(task));
+      contractorDir = await getOrCreateSubdir(regionDir, getContractorFolderName(task), folderNameUsage);
       contractorDirs.set(contractorKey, contractorDir);
     }
 
-    const taskDir = await getOrCreateSubdir(contractorDir, getTaskFolderName(task));
+    const taskDir = await getOrCreateSubdir(contractorDir, getTaskFolderName(task), folderNameUsage);
     const usedNames = new Map();
 
     const pdfBlob = await generateTaskPdfBlob(task);

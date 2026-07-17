@@ -45,8 +45,10 @@ export function sanitizeNameForLocalSave(name, { isFolder = false } = {}) {
   base = base.replace(/[\u200B-\u200D\uFEFF]/g, '');
 
   if (isFolder) {
-    base = base.replace(/\.+$/g, '').trim();
-    if (!base) base = 'папка';
+    base = base.trim().replace(/^[\s.]+/, '');
+    while (/[.\s\u00A0\u202F]$/.test(base)) base = base.slice(0, -1);
+    base = base.replace(/\s{2,}/g, ' ').trim();
+    if (!base || base === '.' || base === '..') base = 'папка';
   } else {
     const lastDot = base.lastIndexOf('.');
     const extCandidate = lastDot > 0 ? base.slice(lastDot + 1) : '';
@@ -86,9 +88,80 @@ export function sanitizeNameForLocalSave(name, { isFolder = false } = {}) {
   return base || (isFolder ? 'папка' : 'file');
 }
 
-export async function getOrCreateSubdir(parentHandle, folderName) {
-  const safe = sanitizeNameForLocalSave(folderName, { isFolder: true });
-  return parentHandle.getDirectoryHandle(safe, { create: true });
+function isGetDirectoryHandleNameRejected(err) {
+  const msg = String(err?.message || '');
+  return err instanceof TypeError && /Name is not allowed|getDirectoryHandle|getFileHandle/i.test(msg);
+}
+
+/** Додаткова очистка імен папок для Windows / File System Access API. */
+export function sanitizeFolderNameForLocalSave(name) {
+  let base = sanitizeNameForLocalSave(name, { isFolder: true });
+  base = base.replace(/[\u0000-\u001F]/g, '_').replace(UNICODE_FS_UNSAFE, '_');
+  base = base.trim().replace(/^[\s.]+/, '');
+  while (/[.\s\u00A0\u202F]$/.test(base)) base = base.slice(0, -1);
+  base = base.replace(/\s{2,}/g, ' ').trim();
+  if (!base || base === '.' || base === '..') base = 'папка';
+  if (base.length > 180) {
+    base = base.slice(0, 180).trim().replace(/[.\s\u00A0\u202F]+$/g, '');
+  }
+  const headToken = base.split(/[\s._-]/)[0]?.toUpperCase();
+  if (WINDOWS_RESERVED_NAMES.has(base.toUpperCase()) || (headToken && WINDOWS_RESERVED_NAMES.has(headToken))) {
+    base = `_${base}`;
+  }
+  return base || 'папка';
+}
+
+function buildFolderNameFallback(rawName, bump = 0) {
+  const slug = String(rawName || 'folder')
+    .replace(/[\u0000-\u001F\\/:*?"<>|]/g, '_')
+    .replace(/[^\w\u0400-\u04FF.-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 100);
+  const edrpou = String(rawName || '').match(/\d{8,10}/)?.[0];
+  if (edrpou) return bump ? `${edrpou}_${bump}` : edrpou;
+  const base = slug || 'folder';
+  return bump ? `${base}_${bump}` : base;
+}
+
+export async function getOrCreateSubdir(parentHandle, folderName, usedNames = new Map()) {
+  const primary = sanitizeFolderNameForLocalSave(folderName);
+  const candidates = [primary];
+  const edrpouOnly = String(folderName || '').trim().match(/^(\d{8,10})\b/)?.[1];
+  if (edrpouOnly && edrpouOnly !== primary) candidates.push(edrpouOnly);
+  const asciiFallback = buildFolderNameFallback(folderName);
+  if (!candidates.includes(asciiFallback)) candidates.push(asciiFallback);
+
+  let lastError = null;
+  for (const candidate of candidates) {
+    let name = candidate;
+    const seen = usedNames.get(name) || 0;
+    if (seen > 0) name = `${name}_${seen + 1}`;
+    try {
+      const handle = await parentHandle.getDirectoryHandle(name, { create: true });
+      usedNames.set(candidate, seen + 1);
+      return handle;
+    } catch (err) {
+      lastError = err;
+      if (!isGetDirectoryHandleNameRejected(err)) throw err;
+    }
+  }
+
+  for (let bump = 1; bump <= 5; bump += 1) {
+    const name = buildFolderNameFallback(folderName, bump);
+    try {
+      return await parentHandle.getDirectoryHandle(name, { create: true });
+    } catch (err) {
+      lastError = err;
+      if (!isGetDirectoryHandleNameRejected(err)) throw err;
+    }
+  }
+
+  const lastResort = `folder_${Date.now()}`;
+  try {
+    return await parentHandle.getDirectoryHandle(lastResort, { create: true });
+  } catch (err) {
+    throw lastError || err;
+  }
 }
 
 export async function writeBlobToDir(dirHandle, fileName, blob, usedNames = new Map()) {
@@ -128,6 +201,11 @@ export async function downloadUrlAsBlob(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.blob();
+}
+
+export function formatUkDateForFolder(value) {
+  const formatted = formatUkDate(value);
+  return formatted ? formatted.replace(/\./g, '-') : 'без_дати';
 }
 
 export function formatUkDate(value) {
