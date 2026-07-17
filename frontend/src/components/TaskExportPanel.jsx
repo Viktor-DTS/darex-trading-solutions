@@ -8,19 +8,66 @@ import {
 import './TaskExportPanel.css';
 
 const STATUS_OPTIONS = [
-  { value: '__ALL__', label: '— Усі статуси —' },
   { value: 'Заявка', label: 'Заявка' },
   { value: 'В роботі', label: 'В роботі' },
   { value: 'Виконано', label: 'Виконано' },
   { value: 'Заблоковано', label: 'Заблоковано' },
 ];
 
+function MultiCheckboxFilter({ label, options, selected, onChange, emptyLabel }) {
+  const allValues = options.map((o) => o.value);
+  const allSelected = selected.length === 0;
+
+  const isChecked = (value) => allSelected || selected.includes(value);
+
+  const toggleValue = (value) => {
+    if (allSelected) {
+      onChange(allValues.filter((v) => v !== value));
+      return;
+    }
+    if (selected.includes(value)) {
+      onChange(selected.filter((v) => v !== value));
+      return;
+    }
+    const next = [...selected, value];
+    onChange(next.length === allValues.length ? [] : next);
+  };
+
+  const selectAll = () => onChange([]);
+
+  return (
+    <div className="task-export-filter-group task-export-multiselect">
+      <div className="multiselect-header">
+        <label>{label}</label>
+        <div className="multiselect-actions">
+          <button type="button" onClick={selectAll} className="multiselect-link">Усі</button>
+        </div>
+      </div>
+      <div className="multiselect-summary">
+        {allSelected ? emptyLabel : `Обрано: ${selected.length} з ${allValues.length}`}
+      </div>
+      <div className="multiselect-list">
+        {options.map((opt) => (
+          <label key={opt.value} className="multiselect-item">
+            <input
+              type="checkbox"
+              checked={isChecked(opt.value)}
+              onChange={() => toggleValue(opt.value)}
+            />
+            <span>{opt.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TaskExportPanel({ user }) {
   const [regions, setRegions] = useState([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [region, setRegion] = useState('__ALL__');
-  const [status, setStatus] = useState('__ALL__');
+  const [selectedRegions, setSelectedRegions] = useState([]);
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [previewCount, setPreviewCount] = useState(null);
   const [progress, setProgress] = useState(null);
@@ -50,7 +97,12 @@ function TaskExportPanel({ user }) {
     try {
       const token = localStorage.getItem('token');
       const { tasks } = await fetchAllTasks(token);
-      const filtered = filterTasksForExport(tasks, { dateFrom, dateTo, region, status });
+      const filtered = filterTasksForExport(tasks, {
+        dateFrom,
+        dateTo,
+        regions: selectedRegions,
+        statuses: selectedStatuses,
+      });
       setPreviewCount(filtered.length);
       return filtered;
     } catch (err) {
@@ -84,7 +136,7 @@ function TaskExportPanel({ user }) {
           entityType: 'tasks',
           entityId: 'local',
           description: `Експорт заявок на локальне місце (${count} шт.)`,
-          details: { dateFrom, dateTo, region, status, count },
+          details: { dateFrom, dateTo, regions: selectedRegions, statuses: selectedStatuses, count },
         }),
       });
     } catch (logErr) {
@@ -105,7 +157,12 @@ function TaskExportPanel({ user }) {
     try {
       const token = localStorage.getItem('token');
       const { tasks, serverDate } = await fetchAllTasks(token);
-      const filtered = filterTasksForExport(tasks, { dateFrom, dateTo, region, status });
+      const filtered = filterTasksForExport(tasks, {
+        dateFrom,
+        dateTo,
+        regions: selectedRegions,
+        statuses: selectedStatuses,
+      });
 
       if (filtered.length === 0) {
         setError('За обраними фільтрами заявок не знайдено');
@@ -128,7 +185,7 @@ function TaskExportPanel({ user }) {
         serverDate,
         token,
         onProgress: setProgress,
-        filters: { dateFrom, dateTo, region, status },
+        filters: { dateFrom, dateTo, regions: selectedRegions, statuses: selectedStatuses },
         exportedBy: user?.name || user?.login || '',
       });
 
@@ -179,26 +236,23 @@ function TaskExportPanel({ user }) {
           />
         </div>
 
-        <div className="task-export-filter-group">
-          <label>Регіон</label>
-          <select value={region} onChange={(e) => { setRegion(e.target.value); setPreviewCount(null); }}>
-            <option value="__ALL__">— Усі регіони —</option>
-            {regions
-              .filter((r) => !String(r).includes(','))
-              .map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-          </select>
-        </div>
+        <MultiCheckboxFilter
+          label="Регіон"
+          emptyLabel="— Усі регіони —"
+          options={regions
+            .filter((r) => !String(r).includes(','))
+            .map((r) => ({ value: r, label: r }))}
+          selected={selectedRegions}
+          onChange={(vals) => { setSelectedRegions(vals); setPreviewCount(null); }}
+        />
 
-        <div className="task-export-filter-group">
-          <label>Статус заявки</label>
-          <select value={status} onChange={(e) => { setStatus(e.target.value); setPreviewCount(null); }}>
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
+        <MultiCheckboxFilter
+          label="Статус заявки"
+          emptyLabel="— Усі статуси —"
+          options={STATUS_OPTIONS}
+          selected={selectedStatuses}
+          onChange={(vals) => { setSelectedStatuses(vals); setPreviewCount(null); }}
+        />
       </div>
 
       {previewCount !== null && (

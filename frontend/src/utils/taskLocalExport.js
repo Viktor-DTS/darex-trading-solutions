@@ -35,14 +35,16 @@ function getTaskFolderName(task) {
   return `${num} ${datePart}`;
 }
 
-export function filterTasksForExport(tasks, { dateFrom, dateTo, region, status }) {
+export function filterTasksForExport(tasks, { dateFrom, dateTo, regions, statuses }) {
   const fromDate = parseFilterDateInput(dateFrom);
   const toDate = parseFilterDateInput(dateTo, true);
   const hasDateFilter = Boolean(dateFrom || dateTo);
+  const regionList = Array.isArray(regions) ? regions : (regions ? [regions] : []);
+  const statusList = Array.isArray(statuses) ? statuses : (statuses ? [statuses] : []);
 
   return tasks.filter((task) => {
-    if (status && status !== '__ALL__' && task.status !== status) return false;
-    if (region && region !== '__ALL__' && task.serviceRegion !== region) return false;
+    if (statusList.length > 0 && !statusList.includes(task.status)) return false;
+    if (regionList.length > 0 && !regionList.includes(task.serviceRegion)) return false;
 
     if (!hasDateFilter) return true;
 
@@ -142,8 +144,13 @@ function formatFilterDateLabel(value) {
   return formatUkDate(value) || value;
 }
 
+function formatMultiFilterLabel(values, allLabel, labelMap = {}) {
+  if (!Array.isArray(values) || values.length === 0) return allLabel;
+  return values.map((v) => labelMap[v] || v).join(', ');
+}
+
 export function buildExportCriteriaText({ filters, serverDate, count, exportedBy }) {
-  const { dateFrom, dateTo, region, status } = filters;
+  const { dateFrom, dateTo, regions, statuses } = filters;
   const exportTime = serverDate.toLocaleString('uk-UA', {
     day: '2-digit',
     month: '2-digit',
@@ -165,8 +172,8 @@ export function buildExportCriteriaText({ filters, serverDate, count, exportedBy
     '',
     `Дата заявки від:     ${formatFilterDateLabel(dateFrom)}`,
     `Дата заявки до:      ${formatFilterDateLabel(dateTo)}`,
-    `Регіон:              ${region && region !== '__ALL__' ? region : 'Усі регіони'}`,
-    `Статус заявки:       ${STATUS_LABELS[status] || status || 'Усі статуси'}`,
+    `Регіон:              ${formatMultiFilterLabel(regions, 'Усі регіони')}`,
+    `Статус заявки:       ${formatMultiFilterLabel(statuses, 'Усі статуси', STATUS_LABELS)}`,
     '',
     '─── Примітки ───',
     '',
