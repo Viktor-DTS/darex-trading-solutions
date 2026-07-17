@@ -231,7 +231,6 @@ export async function exportTasksToLocalFolder({
 
   const regionSegmentNames = new Map();
   const contractorSegmentNames = new Map();
-  const folderNameUsage = new Map();
 
   let processed = 0;
   const total = tasks.length;
@@ -239,7 +238,7 @@ export async function exportTasksToLocalFolder({
   const ensureRegionSegment = async (regionName) => {
     if (regionSegmentNames.has(regionName)) return regionSegmentNames.get(regionName);
     const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
-    const { resolvedName } = await getOrCreateSubdirResolved(exportDir, regionName, folderNameUsage);
+    const { resolvedName } = await getOrCreateSubdirResolved(exportDir, regionName);
     regionSegmentNames.set(regionName, resolvedName);
     return resolvedName;
   };
@@ -248,11 +247,10 @@ export async function exportTasksToLocalFolder({
     if (contractorSegmentNames.has(contractorKey)) return contractorSegmentNames.get(contractorKey);
     const regionSeg = await ensureRegionSegment(regionName);
     const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
-    const regionDir = await walkDirectoryPath(exportDir, [regionSeg], folderNameUsage);
+    const regionDir = await walkDirectoryPath(exportDir, [regionSeg]);
     const { resolvedName } = await getOrCreateSubdirResolved(
       regionDir,
-      getContractorFolderName(task),
-      folderNameUsage
+      getContractorFolderName(task)
     );
     contractorSegmentNames.set(contractorKey, resolvedName);
     return resolvedName;
@@ -275,8 +273,7 @@ export async function exportTasksToLocalFolder({
       const exportDir = await rootDirHandle.getDirectoryHandle(exportFolderName, { create: true });
       const taskDir = await walkDirectoryPath(
         exportDir,
-        [regionSeg, contractorSeg, getTaskFolderName(task)],
-        folderNameUsage
+        [regionSeg, contractorSeg, getTaskFolderName(task)]
       );
 
       const usedNames = new Map();
