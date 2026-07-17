@@ -156,6 +156,22 @@ function TaskExportPanel({ user }) {
     }
 
     setLoading(true);
+    let rootDirHandle;
+    try {
+      // Діалог папки — одразу після кліку (до довгого завантаження заявок)
+      rootDirHandle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+        startIn: 'documents',
+      });
+    } catch (err) {
+      setLoading(false);
+      if (err.name !== 'AbortError') {
+        setError(err.message || 'Помилка вибору папки');
+        alert('❌ Помилка вибору папки: ' + (err.message || 'невідома помилка'));
+      }
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const { tasks, serverDate } = await fetchAllTasks(token);
@@ -170,16 +186,11 @@ function TaskExportPanel({ user }) {
       if (filtered.length === 0) {
         setError('За обраними фільтрами заявок не знайдено');
         setPreviewCount(0);
+        alert('За обраними фільтрами заявок не знайдено. Експорт скасовано.');
         return;
       }
 
       setPreviewCount(filtered.length);
-
-      const rootDirHandle = await window.showDirectoryPicker({
-        mode: 'readwrite',
-        startIn: 'documents',
-      });
-
       setProgress({ processed: 0, total: filtered.length, task: '...' });
 
       const result = await exportTasksToLocalFolder({
@@ -200,11 +211,9 @@ function TaskExportPanel({ user }) {
         `Заявок: ${result.count}`
       );
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error('Помилка експорту:', err);
-        setError(err.message || 'Помилка експорту');
-        alert('❌ Помилка експорту: ' + (err.message || 'невідома помилка'));
-      }
+      console.error('Помилка експорту:', err);
+      setError(err.message || 'Помилка експорту');
+      alert('❌ Помилка експорту: ' + (err.message || 'невідома помилка'));
     } finally {
       setLoading(false);
       setProgress(null);
@@ -215,7 +224,8 @@ function TaskExportPanel({ user }) {
     <div className="admin-section task-export-panel">
       <h3>📤 Експорт заявок на локальне місце</h3>
       <p className="info-text task-export-desc">
-        Оберіть фільтри та натисніть «Експорт». Буде створено папку «Експорт [дата сервера]» з файлом критеріїв експорту,
+        Оберіть фільтри та натисніть «Експорт у папку» — спочатку відкриється вікно вибору місця збереження,
+        потім завантажаться заявки та створиться папка «Експорт [дата сервера]» з файлом критеріїв експорту,
         групуванням за регіоном → замовником (за ЄДРПОУ або назвою) → заявкою. У кожній папці заявки — PDF та прикріплені файли.
       </p>
 
