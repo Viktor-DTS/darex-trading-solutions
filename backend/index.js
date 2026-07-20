@@ -5169,6 +5169,23 @@ function canAccessInventoryShipmentRequests(user) {
   return ['warehouse', 'zavsklad', 'admin', 'administrator', 'mgradm'].includes(r);
 }
 
+/** Перегляд журналів руху з 1С (вкладки надходження/переміщення/відвантаження/списання). */
+function canViewOneCMovements(user) {
+  const r = String(user?.role || '').toLowerCase();
+  return [
+    'admin',
+    'administrator',
+    'warehouse',
+    'zavsklad',
+    'mgradm',
+    'accountant',
+    'buhgalteria',
+    'manager',
+    'regkerivn',
+    'regional',
+  ].includes(r);
+}
+
 async function notifyWarehouseUsersForShipmentRequest(sr) {
   const rows = await User.find({
     dismissed: { $ne: true },
@@ -11076,7 +11093,7 @@ app.put('/api/onec/warehouse-aliases/:id', async (req, res) => {
 // Журнал руху товару з 1С (OneCMovement)
 app.get('/api/onec/movements', async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!canViewOneCMovements(req.user)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const filter = {};

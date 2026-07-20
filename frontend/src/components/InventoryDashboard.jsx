@@ -13,7 +13,7 @@ import Reservations from './inventory/Reservations';
 import InventoryReports from './inventory/InventoryReports';
 import InventoryMovementJournal from './inventory/InventoryMovementJournal';
 import OneCReconciliation from './inventory/OneCReconciliation';
-import InventoryOneCStub from './inventory/InventoryOneCStub';
+import OneCMovementsJournal from './inventory/OneCMovementsJournal';
 import ReceiptApproval from './inventory/ReceiptApproval';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './InventoryDashboard.css';
@@ -36,9 +36,6 @@ const INVENTORY_TAB_IDS = new Set([
   'reports',
   'statistics',
 ]);
-
-/** Вкладки, де рух оформлюється в 1С — показуємо заглушку замість форм DTS. */
-const INVENTORY_ONEC_STUB_TABS = new Set(['receipt', 'movement', 'shipment', 'write-off', 'inventory']);
 
 function readStoredInventoryTab() {
   try {
@@ -181,7 +178,7 @@ function InventoryDashboard({ user }) {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'shipment' && !INVENTORY_ONEC_STUB_TABS.has('shipment')) loadPendingShipRequests();
+    if (activeTab === 'shipment') loadPendingShipRequests();
   }, [activeTab, loadPendingShipRequests]);
 
   const openShipmentFromNotification = useCallback((n) => {
@@ -308,13 +305,34 @@ function InventoryDashboard({ user }) {
         );
 
       case 'receipt':
-        return <InventoryOneCStub title="Надходження" icon="📥" />;
+        return (
+          <OneCMovementsJournal
+            title="Надходження"
+            docType="receipt"
+            warehouses={warehouses}
+            description="Журнал надходжень товару з 1С (документи «Поступление» зі звіту «Ведомость по товарам на складах»)."
+          />
+        );
 
       case 'movement':
-        return <InventoryOneCStub title="Переміщення" icon="🔄" />;
+        return (
+          <OneCMovementsJournal
+            title="Переміщення"
+            docType="move"
+            warehouses={warehouses}
+            description="Журнал переміщень між складами з 1С (документи «Перемещение» зі звіту «Ведомость»)."
+          />
+        );
 
       case 'shipment':
-        return <InventoryOneCStub title="Відвантаження" icon="🚚" />;
+        return (
+          <OneCMovementsJournal
+            title="Відвантаження"
+            docType="sale"
+            warehouses={warehouses}
+            description="Журнал відвантажень / реалізацій з 1С (документи «Реализация товаров и услуг» зі звіту «Ведомость»)."
+          />
+        );
 
       case 'notifications':
         return (
@@ -331,7 +349,14 @@ function InventoryDashboard({ user }) {
         );
 
       case 'write-off':
-        return <InventoryOneCStub title="Списання" icon="📝" />;
+        return (
+          <OneCMovementsJournal
+            title="Списання"
+            docType="writeoff"
+            warehouses={warehouses}
+            description="Журнал списань товару з 1С (документи «Списание» зі звіту «Ведомость»)."
+          />
+        );
 
       case 'approval':
         return (
@@ -345,7 +370,14 @@ function InventoryDashboard({ user }) {
         );
 
       case 'inventory':
-        return <InventoryOneCStub title="Інвентаризація" icon="📋" />;
+        return (
+          <OneCMovementsJournal
+            title="Інвентаризація"
+            docType="inventory"
+            warehouses={warehouses}
+            description="Журнал інвентаризації та коригувань з 1С (документи «Инвентаризация», «Оприходование», «Пересорт» зі звіту «Ведомость»)."
+          />
+        );
 
       case 'reservations':
         return <Reservations warehouses={warehouses} user={user} />;
