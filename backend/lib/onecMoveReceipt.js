@@ -193,61 +193,85 @@ function resolveReceiptVisibility(anchor, group, lookup, scope) {
   return { visible: false, canConfirm: false, receiptSide: null };
 }
 
-async function listPendingMoveReceipts(OneCMovement, scope) {
-  const { lookup, allowedDestIds, allowedDestOneCNames } = scope;
-  const rows = await OneCMovement.find({
-    docType: 'move',
-    $or: [{ receiptConfirmedAt: { $exists: false } }, { receiptConfirmedAt: null }],
-  })
-    .sort({ docDate: -1, _id: -1 })
-    .limit(5000)
-    .lean();
+function buildMoveReceiptItem(g, lookup, scope) {
+  const anchor = g.in || g.out;
+  if (!anchor) return null;
+  if (!isCrossRegionalMove(anchor, g, lookup)) return null;
 
-  const grouped = groupMoveRows(rows.filter((r) => !r.receiptConfirmedAt));
-  const pending = [];
+  const visibility = resolveReceiptVisibility(anchor, g, lookup, scope);
+  if (!visibility.visible) return null;
 
-  for (const g of grouped) {
-    const anchor = g.in || g.out;
-    if (!anchor) continue;
-    if (!isCrossRegionalMove(anchor, g, lookup)) continue;
+  const confirmedRow = g.rows.find((r) => r.receiptConfirmedAt) || null;
+  const isConfirmed = !!confirmedRow;
+  const regions = resolveMoveRegions(anchor, g, lookup);
+  const destResolved = regions.toResolved;
+  const srcResolved = regions.fromResolved;
 
-    const visibility = resolveReceiptVisibility(anchor, g, lookup, scope);
-    if (!visibility.visible) continue;
+  return {
+    moveKey: g.key,
+    docNumber: anchor.docNumber,
+    docDate: anchor.docDate,
+    docTypeName: anchor.docTypeName,
+    nomenclature: anchor.nomenclature,
+    qty: anchor.qty,
+    unit: anchor.unit,
+    serial: anchor.serial || null,
+    fromWarehouse1c: regions.fromName,
+    toWarehouse1c: regions.toName,
+    fromWarehouseRegion: regions.fromRegion,
+    fromWarehouseId: srcResolved?.id || null,
+    fromWarehouseName: srcResolved?.name || regions.fromName,
+    toWarehouseId: destResolved?.id || null,
+    toWarehouseName: destResolved?.name || anchor.toWarehouse1c || '',
+    toWarehouseRegion: regions.toRegion,
+    responsible: anchor.responsible || '',
+    comment: anchor.comment || '',
+    movementIds: g.rows.map((r) => String(r._id)),
+    hasInOutPair: !!(g.in && g.out),
+    receiptSide: visibility.receiptSide,
+    isConfirmed,
+    canConfirm: visibility.canConfirm && !isConfirmed,
+    receiptConfirmedAt: confirmedRow?.receiptConfirmedAt || null,
+    receiptConfirmedByName:
+      confirmedRow?.receiptConfirmedByName || confirmedRow?.receiptConfirmedByLogin || '',
+    receiptConfirmedByLogin: confirmedRow?.receiptConfirmedByLogin || '',
+    receiptReceivedQty: confirmedRow?.receiptReceivedQty ?? null,
+    receiptPartial: !!confirmedRow?.receiptPartial,
+  };
+}
 
-    const regions = resolveMoveRegions(anchor, g, lookup);
-    const destResolved = regions.toResolved;
-    const srcResolved = regions.fromResolved;
-    pending.push({
-      moveKey: g.key,
-      docNumber: anchor.docNumber,
-      docDate: anchor.docDate,
-      docTypeName: anchor.docTypeName,
-      nomenclature: anchor.nomenclature,
-      qty: anchor.qty,
-      unit: anchor.unit,
-      serial: anchor.serial || null,
-      fromWarehouse1c: regions.fromName,
-      toWarehouse1c: regions.toName,
-      fromWarehouseRegion: regions.fromRegion,
-      fromWarehouseId: srcResolved?.id || null,
-      fromWarehouseName: srcResolved?.name || regions.fromName,
-      toWarehouseId: destResolved?.id || null,
-      toWarehouseName: destResolved?.name || anchor.toWarehouse1c || '',
-      toWarehouseRegion: regions.toRegion,
-      responsible: anchor.responsible || '',
-      comment: anchor.comment || '',
-      movementIds: g.rows.map((r) => String(r._id)),
-      hasInOutPair: !!(g.in && g.out),
-      receiptSide: visibility.receiptSide,
-      canConfirm: visibility.canConfirm,
-    });
+async function listPendingMoveReceipts(OneCMovement, scope, { includeHistory = false } = {}) {
+  const { lookup } = scope;
+  const query = { docType: 'move' };
+  if (!includeHistory) {
+    query.$or = [{ receiptConfirmedAt: { $exists: false } }, { receiptConfirmedAt: null }];
   }
 
-  pending.sort((a, b) => {
+  const rows = await OneCMovement.find(query)
+    .sort({ docDate: -1, _id: -1 })
+    .limit(includeHistory ? 8000 : 5000)
+    .lean();
+
+  const rowsToGroup = includeHistory ? rows : rows.filter((r) => !r.receiptConfirmedAt);
+  const grouped = groupMoveRows(rowsToGroup);
+  const items = [];
+
+  for (const g of grouped) {
+    const item = buildMoveReceiptItem(g, lookup, scope);
+    if (!item) continue;
+    if (!includeHistory && item.isConfirmed) continue;
+    items.push(item);
+  }
+
+  items.sort((a, b) => {
+    if (a.isConfirmed !== b.isConfirmed) return a.isConfirmed ? 1 : -1;
+    if (a.isConfirmed && b.isConfirmed) {
+      return new Date(b.receiptConfirmedAt || 0) - new Date(a.receiptConfirmedAt || 0);
+    }
     if (a.canConfirm !== b.canConfirm) return a.canConfirm ? -1 : 1;
     return new Date(b.docDate || 0) - new Date(a.docDate || 0);
   });
-  return pending;
+  return items;
 }
 
 async function countPendingMoveReceipts(OneCMovement, scope) {

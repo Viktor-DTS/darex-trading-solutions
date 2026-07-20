@@ -15381,15 +15381,20 @@ app.get('/api/onec/pending-move-receipts', authenticateToken, async (req, res) =
       bypassesRegionalWarehouseInventoryLock,
       isRegionalWarehouseStaffRole,
     });
-    const items = await listPendingMoveReceipts(OneCMovement, scope);
-    const incomingCount = items.filter((i) => i.canConfirm).length;
-    const outgoingCount = items.filter((i) => i.receiptSide === 'outgoing').length;
+    const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
+    const items = await listPendingMoveReceipts(OneCMovement, scope, { includeHistory });
+    const activeItems = items.filter((i) => !i.isConfirmed);
+    const incomingCount = activeItems.filter((i) => i.canConfirm).length;
+    const outgoingCount = activeItems.filter((i) => i.receiptSide === 'outgoing').length;
     res.json({
       items,
       total: items.length,
+      activeCount: activeItems.length,
+      historyCount: items.length - activeItems.length,
       incomingCount,
       outgoingCount,
       regionalScope: scope.scopeToRegion,
+      includeHistory,
     });
   } catch (error) {
     console.error('[ERROR] GET /api/onec/pending-move-receipts:', error);

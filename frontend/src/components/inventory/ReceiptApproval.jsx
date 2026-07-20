@@ -56,6 +56,7 @@ function ReceiptApproval({
   const [movePage, setMovePage] = useState(0);
   const [moveRegionalScope, setMoveRegionalScope] = useState(false);
   const [moveReceiptDrafts, setMoveReceiptDrafts] = useState({});
+  const [showMoveHistory, setShowMoveHistory] = useState(false);
   const [procurementInbound, setProcurementInbound] = useState([]);
   const [procurementLoading, setProcurementLoading] = useState(true);
   const [receiptDrafts, setReceiptDrafts] = useState({});
@@ -104,7 +105,8 @@ function ReceiptApproval({
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/onec/pending-move-receipts`, {
+      const qs = showMoveHistory ? '?includeHistory=1' : '';
+      const res = await fetch(`${API_BASE_URL}/onec/pending-move-receipts${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -117,7 +119,7 @@ function ReceiptApproval({
       setMoveRegionalScope(Boolean(data.regionalScope));
       const drafts = {};
       for (const m of items) {
-        if (m.moveKey) {
+        if (m.moveKey && m.canConfirm) {
           drafts[m.moveKey] = m.qty != null ? String(m.qty) : '';
         }
       }
@@ -127,7 +129,7 @@ function ReceiptApproval({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showMoveHistory]);
 
   useEffect(() => {
     loadPendingMoves();
@@ -136,7 +138,7 @@ function ReceiptApproval({
 
   useEffect(() => {
     setMovePage(0);
-  }, [pendingMoves.length]);
+  }, [pendingMoves.length, showMoveHistory]);
 
   useEffect(() => {
     if (!focusProcurementId) return;
@@ -336,17 +338,25 @@ function ReceiptApproval({
     }
   };
 
-  const totalMovesCount = pendingMoves.length;
-  const confirmableMoves = pendingMoves.filter((m) => m.canConfirm);
-  const outgoingMoves = pendingMoves.filter((m) => m.receiptSide === 'outgoing');
+  const activeMoves = pendingMoves.filter((m) => !m.isConfirmed);
+  const totalMovesCount = activeMoves.length;
+  const confirmableMoves = activeMoves.filter((m) => m.canConfirm);
+  const outgoingMoves = activeMoves.filter((m) => m.receiptSide === 'outgoing');
   const confirmableCount = confirmableMoves.length;
   const outgoingCount = outgoingMoves.length;
+  const historyMovesCount = pendingMoves.length - activeMoves.length;
   const movePageCount = Math.max(1, Math.ceil(totalMovesCount / MOVE_PAGE_SIZE));
   const safeMovePage = Math.min(movePage, movePageCount - 1);
   const moveSkip = safeMovePage * MOVE_PAGE_SIZE;
-  const pageMoves = pendingMoves.slice(moveSkip, moveSkip + MOVE_PAGE_SIZE);
+  const pageMoves = activeMoves.slice(moveSkip, moveSkip + MOVE_PAGE_SIZE);
   const pageIncoming = pageMoves.filter((m) => m.canConfirm);
   const pageOutgoing = pageMoves.filter((m) => m.receiptSide === 'outgoing');
+  const historyIncoming = showMoveHistory
+    ? pendingMoves.filter((m) => m.isConfirmed && m.receiptSide === 'incoming')
+    : [];
+  const historyOutgoing = showMoveHistory
+    ? pendingMoves.filter((m) => m.isConfirmed && m.receiptSide === 'outgoing')
+    : [];
 
   const groupMovesByWarehouse = (moves, side) =>
     moves.reduce((acc, move) => {
@@ -365,28 +375,34 @@ function ReceiptApproval({
       return acc;
     }, {});
 
-  const renderMovesTable = (moves, side) => {
+  const renderMovesTable = (moves, side, { history = false } = {}) => {
     const grouped = groupMovesByWarehouse(moves, side);
     const isOutgoing = side === 'outgoing';
     return Object.values(grouped).map((group) => (
-      <div key={`${side}-${group.warehouseId}`} className="warehouse-group">
+      <div key={`${side}-${history ? 'history-' : ''}${group.warehouseId}`} className="warehouse-group">
         <div className="warehouse-group-header">
           <h4>{group.warehouseName}</h4>
           <span className="warehouse-count">
             {group.moves.length}
-            {totalMovesCount > MOVE_PAGE_SIZE ? ' на стор.' : ''}
+            {!history && totalMovesCount > MOVE_PAGE_SIZE ? ' на стор.' : ''}
           </span>
         </div>
         <div className="receipt-moves-table-wrap">
           <table className="receipt-moves-table">
             <thead>
               <tr>
-                {!isOutgoing ? <th style={{ width: 36 }} /> : null}
+                {!isOutgoing && !history ? <th style={{ width: 36 }} /> : null}
                 <th>Дата</th>
                 <th>Документ 1С</th>
                 <th>Номенклатура</th>
                 <th>К-сть</th>
-                {isOutgoing ? <th>Статус</th> : <th>Прийнято факт</th>}
+                {isOutgoing ? <th>Статус</th> : history ? <th>Прийнято факт</th> : <th>Прийнято факт</th>}
+                {history ? (
+                  <>
+                    <th>Затверджено</th>
+                    <th>Підтвердив</th>
+                  </>
+                ) : null}
                 <th>Зі складу</th>
                 <th>На склад</th>
                 <th>Регіон</th>
@@ -398,14 +414,16 @@ function ReceiptApproval({
                 <tr
                   key={move.moveKey}
                   className={
-                    isOutgoing
-                      ? 'receipt-move-outgoing'
-                      : selectedMoveKeys.has(move.moveKey)
-                        ? 'fully-selected'
-                        : ''
+                    history
+                      ? 'receipt-move-confirmed'
+                      : isOutgoing
+                        ? 'receipt-move-outgoing'
+                        : selectedMoveKeys.has(move.moveKey)
+                          ? 'fully-selected'
+                          : ''
                   }
                 >
-                  {!isOutgoing ? (
+                  {!isOutgoing && !history ? (
                     <td>
                       <input
                         type="checkbox"
@@ -428,7 +446,21 @@ function ReceiptApproval({
                   </td>
                   {isOutgoing ? (
                     <td>
-                      <span className="receipt-move-status-pending">Чекає підтвердження</span>
+                      {history || move.isConfirmed ? (
+                        <span className="receipt-move-status-confirmed">Підтверджено</span>
+                      ) : (
+                        <span className="receipt-move-status-pending">Чекає підтвердження</span>
+                      )}
+                    </td>
+                  ) : history ? (
+                    <td className="receipt-moves-cell-received">
+                      {move.receiptReceivedQty != null ? move.receiptReceivedQty : move.qty ?? '—'}{' '}
+                      {move.unit || ''}
+                      {move.receiptPartial ? (
+                        <span className="receipt-move-partial-tag" title="Частковий прийом">
+                          частково
+                        </span>
+                      ) : null}
                     </td>
                   ) : (
                     <td className="receipt-moves-cell-received">
@@ -443,6 +475,14 @@ function ReceiptApproval({
                       />
                     </td>
                   )}
+                  {history ? (
+                    <>
+                      <td className="receipt-moves-cell-date">
+                        {move.receiptConfirmedAt ? formatDate(move.receiptConfirmedAt) : '—'}
+                      </td>
+                      <td>{move.receiptConfirmedByName || move.receiptConfirmedByLogin || '—'}</td>
+                    </>
+                  ) : null}
                   <td>{move.fromWarehouse1c || '—'}</td>
                   <td>{move.toWarehouseName || move.toWarehouse1c || '—'}</td>
                   <td className="receipt-moves-cell-region">
@@ -691,12 +731,23 @@ function ReceiptApproval({
       <section className="receipt-approval-moves-section">
         {loading ? (
           <div className="receipt-inline-status">Завантаження переміщень…</div>
-        ) : pendingMoves.length === 0 ? (
+        ) : activeMoves.length === 0 && (!showMoveHistory || historyMovesCount === 0) ? (
           <div className="receipt-moves-topbar">
             <div className="receipt-moves-title-row">
               <h3>Переміщення з 1С</h3>
               <span className="receipt-moves-count">немає міжрегіональних</span>
             </div>
+            <label className="receipt-moves-history-toggle">
+              <input
+                type="checkbox"
+                checked={showMoveHistory}
+                onChange={(e) => {
+                  setShowMoveHistory(e.target.checked);
+                  setMovePage(0);
+                }}
+              />
+              Показати історію затвердження
+            </label>
           </div>
         ) : (
           <>
@@ -733,6 +784,18 @@ function ReceiptApproval({
                 </button>
               </div>
               ) : null}
+              <label className="receipt-moves-history-toggle">
+                <input
+                  type="checkbox"
+                  checked={showMoveHistory}
+                  onChange={(e) => {
+                    setShowMoveHistory(e.target.checked);
+                    setMovePage(0);
+                  }}
+                />
+                Показати історію затвердження
+                {showMoveHistory && historyMovesCount > 0 ? ` (${historyMovesCount})` : ''}
+              </label>
             </div>
 
             <div className="receipt-approval-moves-body">
@@ -749,6 +812,22 @@ function ReceiptApproval({
                       Відправлено з вашого регіону (чекає підтвердження)
                     </div>
                     {renderMovesTable(pageOutgoing, 'outgoing')}
+                  </>
+                ) : null}
+                {historyIncoming.length > 0 ? (
+                  <>
+                    <div className="receipt-moves-section-label receipt-moves-section-label--history">
+                      Історія прийому на склад
+                    </div>
+                    {renderMovesTable(historyIncoming, 'incoming', { history: true })}
+                  </>
+                ) : null}
+                {historyOutgoing.length > 0 ? (
+                  <>
+                    <div className="receipt-moves-section-label receipt-moves-section-label--history receipt-moves-section-label--outgoing">
+                      Історія відправок з вашого регіону
+                    </div>
+                    {renderMovesTable(historyOutgoing, 'outgoing', { history: true })}
                   </>
                 ) : null}
               </div>
