@@ -318,9 +318,9 @@ function summarizeMovements(movements) {
 
 const ONEC_MOVEMENT_BULK_BATCH = 500;
 
-/** Фільтр upsert — сумісний із старими записами без поля serial (null / відсутнє / ''). */
+/** Фільтр upsert — без serial у фільтрі, якщо серійника немає (legacy-записи в MongoDB). */
 function movementDedupFilter(doc) {
-  const base = {
+  const filter = {
     docType: doc.docType,
     docNumber: doc.docNumber || '',
     docDate: doc.docDate,
@@ -330,11 +330,56 @@ function movementDedupFilter(doc) {
     warehouse1c: doc.warehouse1c || '',
   };
   const serial = doc.serial ? String(doc.serial).trim() : '';
-  if (serial) return { ...base, serial };
+  if (serial) filter.serial = serial;
+  return filter;
+}
+
+function movementUpdatePayload(doc) {
   return {
-    ...base,
-    $or: [{ serial: { $exists: false } }, { serial: null }, { serial: '' }],
+    $set: {
+      fileHash: doc.fileHash,
+      importedByLogin: doc.importedByLogin,
+      docTypeName: doc.docTypeName,
+      registrarRaw: doc.registrarRaw,
+      posted: doc.posted,
+      unit: doc.unit,
+      serial: doc.serial,
+      incoming: doc.incoming,
+      outgoing: doc.outgoing,
+      warehouseId: doc.warehouseId,
+      fromWarehouse1c: doc.fromWarehouse1c,
+      toWarehouse1c: doc.toWarehouse1c,
+      warehouseMapped: doc.warehouseMapped,
+      contractor: doc.contractor,
+      responsible: doc.responsible,
+      department: doc.department,
+      manager: doc.manager,
+      comment: doc.comment,
+      docSum: doc.docSum,
+      currency: doc.currency,
+      paymentDate: doc.paymentDate,
+    },
+    $setOnInsert: {
+      importedAt: doc.importedAt,
+      docType: doc.docType,
+      docNumber: doc.docNumber || '',
+      docDate: doc.docDate,
+      nomenclature: doc.nomenclature,
+      qty: doc.qty,
+      direction: doc.direction,
+      warehouse1c: doc.warehouse1c || '',
+      serial: doc.serial || '',
+    },
   };
+}
+
+async function upsertOneMovement(doc, OneCMovement, summary) {
+  const res = await OneCMovement.updateOne(movementDedupFilter(doc), movementUpdatePayload(doc), {
+    upsert: true,
+  });
+  if (res.upsertedCount) summary.movements.inserted += res.upsertedCount;
+  else if (res.modifiedCount) summary.movements.updated = (summary.movements.updated || 0) + res.modifiedCount;
+  else if (res.matchedCount) summary.movements.duplicates += 1;
 }
 
 async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary) {
@@ -348,42 +393,7 @@ async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary)
   const ops = movementDocs.map((doc) => ({
     updateOne: {
       filter: movementDedupFilter(doc),
-      update: {
-        $set: {
-          fileHash: doc.fileHash,
-          importedByLogin: doc.importedByLogin,
-          docTypeName: doc.docTypeName,
-          registrarRaw: doc.registrarRaw,
-          posted: doc.posted,
-          unit: doc.unit,
-          serial: doc.serial,
-          incoming: doc.incoming,
-          outgoing: doc.outgoing,
-          warehouseId: doc.warehouseId,
-          fromWarehouse1c: doc.fromWarehouse1c,
-          toWarehouse1c: doc.toWarehouse1c,
-          warehouseMapped: doc.warehouseMapped,
-          contractor: doc.contractor,
-          responsible: doc.responsible,
-          department: doc.department,
-          manager: doc.manager,
-          comment: doc.comment,
-          docSum: doc.docSum,
-          currency: doc.currency,
-          paymentDate: doc.paymentDate,
-        },
-        $setOnInsert: {
-          importedAt: doc.importedAt,
-          docType: doc.docType,
-          docNumber: doc.docNumber || '',
-          docDate: doc.docDate,
-          nomenclature: doc.nomenclature,
-          qty: doc.qty,
-          direction: doc.direction,
-          warehouse1c: doc.warehouse1c || '',
-          serial: doc.serial || '',
-        },
-      },
+      update: movementUpdatePayload(doc),
       upsert: true,
     },
   }));
@@ -416,6 +426,24 @@ async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary)
   }
   if (summary.movements.writeErrors) {
     summary.warnings.push(`OneCMovement: загалом помилок запису ${summary.movements.writeErrors}`);
+  }
+
+  const written =
+    (summary.movements.inserted || 0) +
+    (summary.movements.updated || 0) +
+    (summary.movements.duplicates || 0);
+  if (movementDocs.length > 0 && written === 0) {
+    summary.warnings.push('bulkWrite не дав результату — запис рухів по одному документу');
+    for (const doc of movementDocs) {
+      try {
+        await upsertOneMovement(doc, OneCMovement, summary);
+      } catch (e) {
+        summary.movements.writeErrors += 1;
+        if (summary.movements.writeErrors <= 5) {
+          summary.warnings.push(`upsert руху: ${e.message}`);
+        }
+      }
+    }
   }
 }
 
@@ -983,12 +1011,14 @@ async function runVedomostImport({
           inserted: summary.movements.inserted,
           updated: summary.movements.updated || 0,
           duplicates: summary.movements.duplicates,
+          writeErrors: summary.movements.writeErrors || 0,
           parsed: summary.movementsParsed,
         },
         movementsByType: summary.movementsByType,
         maxDocDate: summary.maxDocDate || null,
         maxDocDateByType: summary.maxDocDateByType || {},
         parseStats: summary.parseStats || null,
+        warnings: (summary.warnings || []).slice(0, 10),
         unmappedWarehousesCount: summary.unmappedWarehouses.length,
         unmappedWarehouses: summary.unmappedWarehouses.slice(0, 30),
       });

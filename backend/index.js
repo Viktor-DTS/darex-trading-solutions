@@ -1563,13 +1563,16 @@ const oneCImportLogSchema = new mongoose.Schema({
   },
   movements: {
     inserted: { type: Number, default: 0 },
+    updated: { type: Number, default: 0 },
     duplicates: { type: Number, default: 0 },
+    writeErrors: { type: Number, default: 0 },
     parsed: { type: Number, default: 0 },
   },
   movementsByType: { type: Object, default: {} },
   maxDocDate: { type: Date, default: null },
   maxDocDateByType: { type: Object, default: {} },
   parseStats: { type: Object, default: null },
+  warnings: { type: [String], default: [] },
   unmappedWarehousesCount: { type: Number, default: 0 },
   unmappedWarehouses: { type: [String], default: [] },
 }, { timestamps: true });
