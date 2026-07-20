@@ -9641,19 +9641,25 @@ app.get('/api/warehouses', authenticateToken, async (req, res) => {
       !bypassesRegionalWarehouseInventoryLock(req.user.role)
     ) {
       const u = await User.findOne({ login: req.user.login }).select('region').lean();
-      const allowedIds = await loadActiveWarehouseIdsForUserRegion(u?.region);
-      if (!allowedIds.size) {
-        warehouses = [];
+      if (isNationalWarehouseRegion(u?.region)) {
+        warehouses = await Warehouse.find({ isActive: true }).sort({ name: 1 }).lean();
       } else {
-        const oidList = [...allowedIds].filter((id) => mongoose.isValidObjectId(id)).map((id) => new mongoose.Types.ObjectId(id));
-        warehouses = oidList.length
-          ? await Warehouse.find({
-              isActive: true,
-              _id: { $in: oidList }
-            })
-              .sort({ name: 1 })
-              .lean()
-          : [];
+        const allowedIds = await loadActiveWarehouseIdsForUserRegion(u?.region);
+        if (!allowedIds.size) {
+          warehouses = [];
+        } else {
+          const oidList = [...allowedIds]
+            .filter((id) => mongoose.isValidObjectId(id))
+            .map((id) => new mongoose.Types.ObjectId(id));
+          warehouses = oidList.length
+            ? await Warehouse.find({
+                isActive: true,
+                _id: { $in: oidList },
+              })
+                .sort({ name: 1 })
+                .lean()
+            : [];
+        }
       }
     } else {
       const includeInactive = ['1', 'true', 'yes'].includes(
@@ -10991,7 +10997,14 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
 // Інтеграція 1С: імпорт «Ведомости по товарам на складах» (залишки + рух) та мапінг складів
 // ============================================
 const { runVedomostImport } = require('./lib/vedomostImport');
-const { buildOneCWarehouseLookup, enrichOneCMovementsWithRegions } = require('./lib/onecWarehouseMap');
+const {
+  buildOneCWarehouseLookup,
+  enrichOneCMovementsWithRegions,
+  isNationalWarehouseRegion,
+  collectOneCNamesForWarehouseIds,
+  buildRegionalMovementMongoFilter,
+  mergeMongoFilters,
+} = require('./lib/onecWarehouseMap');
 const { decodeMultipartFilename } = require('./lib/multipartFilename');
 
 // Імпорт звіту «Ведомость по товарам на складах» (оновлює залишки + журнал руху OneCMovement)
@@ -11141,8 +11154,28 @@ app.get('/api/onec/movements', async (req, res) => {
     if (!canViewOneCMovements(req.user)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
-    const filter = {};
-    if (req.query.docType) filter.docType = String(req.query.docType);
+    const docType = req.query.docType ? String(req.query.docType) : '';
+    let filter = {};
+    if (docType) filter.docType = docType;
+
+    const dbUser =
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+        ? await User.findOne({ login: req.user.login }).select('region').lean()
+        : null;
+
+    const scopeToRegion =
+      dbUser &&
+      docType !== 'move' &&
+      !isNationalWarehouseRegion(dbUser.region);
+
+    if (scopeToRegion && req.query.warehouseId) {
+      const allowedIds = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+      if (!warehouseIdInRegionalSet(req.query.warehouseId, allowedIds)) {
+        return res.status(403).json({ error: 'Операція дозволена лише щодо складу вашого регіону.' });
+      }
+    }
+
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
     if (req.query.search) {
       const rx = new RegExp(escapeRegExpForRegion(String(req.query.search)), 'i');
@@ -11161,13 +11194,23 @@ app.get('/api/onec/movements', async (req, res) => {
         filter.docDate.$lte = toD;
       }
     }
+
+    const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
+    if (scopeToRegion) {
+      const allowedIds = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+      const allowedOneCNames = collectOneCNamesForWarehouseIds(lookup, allowedIds);
+      filter = mergeMongoFilters(
+        filter,
+        buildRegionalMovementMongoFilter(allowedIds, allowedOneCNames, mongoose)
+      );
+    }
+
     const limit = Math.min(2000, Math.max(1, parseInt(req.query.limit, 10) || 200));
     const skip = Math.max(0, parseInt(req.query.skip, 10) || 0);
     const [items, total] = await Promise.all([
       OneCMovement.find(filter).sort({ docDate: -1, _id: -1 }).skip(skip).limit(limit).lean(),
       OneCMovement.countDocuments(filter),
     ]);
-    const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
     const enrichedItems = enrichOneCMovementsWithRegions(items, lookup);
     res.json({ items: enrichedItems, total, limit, skip });
   } catch (error) {

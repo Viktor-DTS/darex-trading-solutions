@@ -3,6 +3,10 @@
  * Використовується при імпорті ведомості та збагаченні журналу OneCMovement.
  */
 
+function isNationalWarehouseRegion(regionRaw) {
+  return String(regionRaw || '').trim() === 'Україна';
+}
+
 async function buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias) {
   const warehouseMap = new Map();
   const whById = new Map();
@@ -61,8 +65,39 @@ function enrichOneCMovementsWithRegions(items, lookup) {
   }));
 }
 
+/** Назви складів 1С, прив'язані до дозволених складів DTS. */
+function collectOneCNamesForWarehouseIds(lookup, allowedIds) {
+  const names = new Set();
+  for (const [oneCName, entry] of lookup.warehouseMap) {
+    if (allowedIds.has(entry.id)) names.add(oneCName);
+  }
+  return [...names];
+}
+
+/** MongoDB-фільтр рухів лише по складах регіону (warehouseId або warehouse1c). */
+function buildRegionalMovementMongoFilter(allowedIds, allowedOneCNames, mongoose) {
+  const or = [];
+  const oids = [...allowedIds]
+    .filter((id) => mongoose.isValidObjectId(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (oids.length) or.push({ warehouseId: { $in: oids } });
+  if (allowedOneCNames.length) or.push({ warehouse1c: { $in: allowedOneCNames } });
+  if (!or.length) return { _id: { $in: [] } };
+  return or.length === 1 ? or[0] : { $or: or };
+}
+
+function mergeMongoFilters(base, extra) {
+  if (!extra) return base;
+  if (!base || !Object.keys(base).length) return extra;
+  return { $and: [base, extra] };
+}
+
 module.exports = {
+  isNationalWarehouseRegion,
   buildOneCWarehouseLookup,
   enrichOneCMovementsWithRegions,
   regionFromMovement,
+  collectOneCNamesForWarehouseIds,
+  buildRegionalMovementMongoFilter,
+  mergeMongoFilters,
 };
