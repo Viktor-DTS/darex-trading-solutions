@@ -7,6 +7,16 @@
   background: var(--background);
 }
 
+.inventory-dashboard-embedded {
+  height: 100%;
+  min-height: 0;
+}
+
+.inventory-dashboard-embedded .inventory-dashboard-main {
+  height: 100%;
+  min-height: 0;
+}
+
 .inventory-dashboard-main {
   display: flex;
   flex: 1;

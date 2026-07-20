@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import { authFetch } from '../utils/authFetch';
 import { listShipmentRequests } from '../utils/shipmentRequestAPI';
+import {
+  ACCOUNTING_INVENTORY_TAB_IDS,
+  buildAccountingTabs,
+  buildZavskladTabs,
+} from '../constants/inventoryTabs';
 import EquipmentList from './equipment/EquipmentList';
 import CategoryTree from './equipment/CategoryTree';
 import EquipmentEditModal from './equipment/EquipmentEditModal';
@@ -20,33 +25,43 @@ import './InventoryDashboard.css';
 
 const INVENTORY_ACTIVE_TAB_STORAGE_KEY = 'inventory_active_tab';
 
-/** Дозволені id вкладок бічної панелі (мають збігатися з полем id у масиві tabs). */
-const INVENTORY_TAB_IDS = new Set([
-  'stock',
-  'receipt',
-  'movement',
-  'shipment',
-  'movement-journal',
-  'onec-reconciliation',
-  'notifications',
-  'write-off',
-  'approval',
-  'inventory',
-  'reservations',
-  'reports',
-  'statistics',
-]);
+const INVENTORY_TAB_IDS = new Set(ACCOUNTING_INVENTORY_TAB_IDS);
 
-function readStoredInventoryTab() {
+function readStoredAccountingTab() {
   try {
     const raw = localStorage.getItem(INVENTORY_ACTIVE_TAB_STORAGE_KEY);
     if (raw && INVENTORY_TAB_IDS.has(raw)) return raw;
   } catch (_) {}
-  return 'stock';
+  return 'onec-reconciliation';
 }
 
-function InventoryDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState(readStoredInventoryTab);
+function InventoryDashboard({
+  user,
+  variant = 'accounting',
+  embedded = false,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
+  selectedCategoryId: controlledCategoryId,
+  onSelectedCategoryChange,
+}) {
+  const isControlled = embedded && controlledActiveTab != null;
+  const [internalActiveTab, setInternalActiveTab] = useState(readStoredAccountingTab);
+  const activeTab = isControlled ? controlledActiveTab : internalActiveTab;
+  const setActiveTab = useCallback(
+    (tabId) => {
+      onActiveTabChange?.(tabId);
+      if (!isControlled) {
+        setInternalActiveTab(tabId);
+        if (!embedded) {
+          try {
+            localStorage.setItem(INVENTORY_ACTIVE_TAB_STORAGE_KEY, tabId);
+          } catch (_) {}
+        }
+      }
+    },
+    [embedded, isControlled, onActiveTabChange]
+  );
+
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -55,34 +70,45 @@ function InventoryDashboard({ user }) {
   const [showShipModal, setShowShipModal] = useState(false);
   const [showWriteOffModal, setShowWriteOffModal] = useState(false);
   const [shipModalFromRequestId, setShipModalFromRequestId] = useState(null);
-  const [pendingShipRequests, setPendingShipRequests] = useState([]);
-  const [shipRequestsLoading, setShipRequestsLoading] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
   const [procurementPendingCount, setProcurementPendingCount] = useState(0);
   const [procurementReceiptFocusId, setProcurementReceiptFocusId] = useState(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [internalCategoryId, setInternalCategoryId] = useState(null);
+  const selectedCategoryId =
+    controlledCategoryId !== undefined ? controlledCategoryId : internalCategoryId;
+  const setSelectedCategoryId = useCallback(
+    (id) => {
+      onSelectedCategoryChange?.(id);
+      if (controlledCategoryId === undefined) setInternalCategoryId(id);
+    },
+    [controlledCategoryId, onSelectedCategoryChange]
+  );
   const [receiptPresetProductCard, setReceiptPresetProductCard] = useState(null);
   const [receiptAddModalKey, setReceiptAddModalKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('inventory_sidebar_collapsed') === 'true';
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   });
   const equipmentListRef = useRef(null);
-  /** null на першому рендері — щоб при збереженій вкладці «Переміщення» модалка все одно відкрилась один раз. */
   const prevActiveTabRef = useRef(null);
 
   useEffect(() => {
+    if (embedded) return;
     try {
       localStorage.setItem(INVENTORY_ACTIVE_TAB_STORAGE_KEY, activeTab);
     } catch (_) {}
-  }, [activeTab]);
+  }, [activeTab, embedded]);
 
   const toggleSidebar = () => {
-    setSidebarCollapsed(prev => {
+    setSidebarCollapsed((prev) => {
       const next = !prev;
-      try { localStorage.setItem('inventory_sidebar_collapsed', String(next)); } catch (_) {}
+      try {
+        localStorage.setItem('inventory_sidebar_collapsed', String(next));
+      } catch (_) {}
       return next;
     });
   };
@@ -91,17 +117,31 @@ function InventoryDashboard({ user }) {
     try {
       const token = localStorage.getItem('token');
       const response = await authFetch(`${API_BASE_URL}/procurement-requests/pending-warehouse-receipt/count`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (response.status === 401) {
-        return;
-      }
+      if (response.status === 401) return;
       if (response.ok) {
         const data = await response.json();
         setProcurementPendingCount(data.count || 0);
       }
     } catch (err) {
       console.error('Помилка лічильника надходжень від закупівель:', err);
+    }
+  }, []);
+
+  const loadInTransitCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await authFetch(`${API_BASE_URL}/equipment/in-transit/count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.status === 401) return;
+      if (response.ok) {
+        const data = await response.json();
+        setInTransitCount(data.count || 0);
+      }
+    } catch (err) {
+      console.error('Помилка завантаження лічильника товарів в дорозі:', err);
     }
   }, []);
 
@@ -114,7 +154,7 @@ function InventoryDashboard({ user }) {
       loadProcurementPendingCount();
     }, 30000);
     return () => clearInterval(interval);
-  }, [loadProcurementPendingCount]);
+  }, [loadInTransitCount, loadProcurementPendingCount]);
 
   useEffect(() => {
     if (!showMoveModal) return;
@@ -147,13 +187,9 @@ function InventoryDashboard({ user }) {
     try {
       const token = localStorage.getItem('token');
       const response = await authFetch(`${API_BASE_URL}/warehouses`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (response.status === 401) {
-        return;
-      }
-
+      if (response.status === 401) return;
       if (response.ok) {
         const data = await response.json();
         setWarehouses(data);
@@ -166,14 +202,10 @@ function InventoryDashboard({ user }) {
   };
 
   const loadPendingShipRequests = useCallback(async () => {
-    setShipRequestsLoading(true);
     try {
-      const data = await listShipmentRequests('pending');
-      setPendingShipRequests(Array.isArray(data) ? data : []);
+      await listShipmentRequests('pending');
     } catch {
-      setPendingShipRequests([]);
-    } finally {
-      setShipRequestsLoading(false);
+      /* ignore */
     }
   }, []);
 
@@ -181,60 +213,23 @@ function InventoryDashboard({ user }) {
     if (activeTab === 'shipment') loadPendingShipRequests();
   }, [activeTab, loadPendingShipRequests]);
 
-  const openShipmentFromNotification = useCallback((n) => {
-    const raw = n.shipmentRequestId;
-    const id = raw && typeof raw === 'object' && raw._id ? raw._id : raw;
-    if (!id) return;
-    setSelectedEquipment(null);
-    setShipModalFromRequestId(String(id));
-    setShowShipModal(true);
-    setActiveTab('shipment');
-  }, []);
-
-  const loadInTransitCount = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await authFetch(`${API_BASE_URL}/equipment/in-transit/count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.status === 401) {
-        return;
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        setInTransitCount(data.count || 0);
-      }
-    } catch (err) {
-      console.error('Помилка завантаження лічильника товарів в дорозі:', err);
-    }
-  };
-
-  // Управління складами доступне тільки в панелі Адміністратор
-  const zavskladTabs = [
-    { id: 'stock', label: 'Залишки на складах', icon: '📦' },
-    { id: 'receipt', label: 'Надходження', icon: '📥' },
-    { id: 'movement', label: 'Переміщення', icon: '🔄' },
-    { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
-    { id: 'movement-journal', label: 'Журнал руху товару', icon: '📒' },
-    { id: 'notifications', label: 'Сповіщення', icon: '🔔' },
-    { id: 'write-off', label: 'Списання', icon: '📝' },
-    {
-      id: 'approval',
-      label: 'Затвердження отримання товару',
-      icon: '✅',
-      badge: inTransitCount + procurementPendingCount,
+  const openShipmentFromNotification = useCallback(
+    (n) => {
+      const raw = n.shipmentRequestId;
+      const id = raw && typeof raw === 'object' && raw._id ? raw._id : raw;
+      if (!id) return;
+      setSelectedEquipment(null);
+      setShipModalFromRequestId(String(id));
+      setShowShipModal(true);
+      setActiveTab('shipment');
     },
-  ];
+    [setActiveTab]
+  );
 
-  const accountingTabs = [
-    { id: 'onec-reconciliation', label: 'Звірка з 1С', icon: '🔍' },
-    { id: 'inventory', label: 'Інвентаризація', icon: '📋' },
-    { id: 'reservations', label: 'Резервування', icon: '🔒' },
-    { id: 'reports', label: 'Звіти', icon: '📊' },
-    { id: 'statistics', label: 'Статистика', icon: '📈' },
-  ];
+  const visibleTabs =
+    variant === 'zavsklad'
+      ? buildZavskladTabs({ approvalBadge: inTransitCount + procurementPendingCount })
+      : buildAccountingTabs();
 
   const handleTabClick = (tabId) => {
     setActiveTab(tabId);
@@ -261,15 +256,11 @@ function InventoryDashboard({ user }) {
 
   const renderSidebarSections = ({ collapsed = false } = {}) => (
     <>
-      <div className="sidebar-section-title">Зав. склад</div>
-      {zavskladTabs.map((tab) => renderSidebarTabButton(tab, { collapsed }))}
-      <div className="sidebar-section-divider" aria-hidden="true" />
       <div className="sidebar-section-title">Складський облік</div>
-      {accountingTabs.map((tab) => renderSidebarTabButton(tab, { collapsed }))}
+      {visibleTabs.map((tab) => renderSidebarTabButton(tab, { collapsed }))}
     </>
   );
 
-  // Раніше: автовідкриття модалок переміщення/списання. Тимчасово вимкнено — рух в 1С.
   useEffect(() => {
     prevActiveTabRef.current = activeTab;
   }, [activeTab]);
@@ -278,9 +269,7 @@ function InventoryDashboard({ user }) {
     setShowAddModal(false);
     setReceiptPresetProductCard(null);
     setActiveTab('receipt');
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
+    equipmentListRef.current?.refresh();
   };
 
   const handleMove = (equipment) => {
@@ -297,9 +286,7 @@ function InventoryDashboard({ user }) {
   const handleMoveSuccess = () => {
     setShowMoveModal(false);
     setSelectedEquipment(null);
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
+    equipmentListRef.current?.refresh();
   };
 
   const handleShipSuccess = () => {
@@ -307,17 +294,13 @@ function InventoryDashboard({ user }) {
     setSelectedEquipment(null);
     setShipModalFromRequestId(null);
     loadPendingShipRequests();
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
+    equipmentListRef.current?.refresh();
   };
 
   const handleWriteOffSuccess = () => {
     setShowWriteOffModal(false);
     setSelectedEquipment(null);
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
+    equipmentListRef.current?.refresh();
   };
 
   const renderTabContent = () => {
@@ -339,7 +322,6 @@ function InventoryDashboard({ user }) {
             />
           </div>
         );
-
       case 'receipt':
         return (
           <OneCMovementsJournal
@@ -350,7 +332,6 @@ function InventoryDashboard({ user }) {
             description="Журнал надходжень товару з 1С (документи «Поступление» зі звіту «Ведомость по товарам на складах»)."
           />
         );
-
       case 'movement':
         return (
           <OneCMovementsJournal
@@ -361,7 +342,6 @@ function InventoryDashboard({ user }) {
             description="Журнал переміщень між складами з 1С (документи «Перемещение» зі звіту «Ведомость»)."
           />
         );
-
       case 'shipment':
         return (
           <OneCMovementsJournal
@@ -372,7 +352,6 @@ function InventoryDashboard({ user }) {
             description="Журнал відвантажень / реалізацій з 1С (документи «Реализация товаров и услуг» зі звіту «Ведомость»)."
           />
         );
-
       case 'notifications':
         return (
           <div className="inventory-tab-content">
@@ -386,7 +365,6 @@ function InventoryDashboard({ user }) {
             />
           </div>
         );
-
       case 'write-off':
         return (
           <OneCMovementsJournal
@@ -397,7 +375,6 @@ function InventoryDashboard({ user }) {
             description="Журнал списань товару з 1С (документи «Списание» зі звіту «Ведомость»)."
           />
         );
-
       case 'approval':
         return (
           <div className="inventory-tab-content receipt-approval-tab">
@@ -411,7 +388,6 @@ function InventoryDashboard({ user }) {
             />
           </div>
         );
-
       case 'inventory':
         return (
           <OneCMovementsJournal
@@ -422,34 +398,109 @@ function InventoryDashboard({ user }) {
             description="Журнал інвентаризації та коригувань з 1С (документи «Инвентаризация», «Оприходование», «Пересорт» зі звіту «Ведомость»)."
           />
         );
-
       case 'reservations':
         return <Reservations warehouses={warehouses} user={user} />;
-
       case 'reports':
         return <InventoryReports warehouses={warehouses} />;
-
       case 'statistics':
         return <EquipmentStatistics warehouses={warehouses} />;
-
       case 'movement-journal':
         return (
           <div className="inventory-tab-content">
             <InventoryMovementJournal />
           </div>
         );
-
       case 'onec-reconciliation':
         return (
           <div className="inventory-tab-content">
             <OneCReconciliation />
           </div>
         );
-
       default:
         return null;
     }
   };
+
+  const mainContent = (
+    <main className="inventory-main-content">
+      {loading ? (
+        <div className="loading-indicator">Завантаження...</div>
+      ) : (
+        <div className="inventory-scaled-wrapper">{renderTabContent()}</div>
+      )}
+    </main>
+  );
+
+  const modals = (
+    <>
+      {showAddModal && (
+        <EquipmentEditModal
+          key={`receipt-add-${receiptAddModalKey}`}
+          equipment={null}
+          warehouses={warehouses}
+          user={user}
+          presetProductCard={receiptPresetProductCard}
+          onClose={() => {
+            setShowAddModal(false);
+            setReceiptPresetProductCard(null);
+          }}
+          onSuccess={handleEquipmentAdded}
+        />
+      )}
+      {showMoveModal && (
+        <EquipmentMoveModal
+          equipment={selectedEquipment}
+          warehouses={warehouses}
+          destinationWarehouses={moveDestinationWarehouses}
+          user={user}
+          onClose={() => {
+            setShowMoveModal(false);
+            setMoveDestinationWarehouses(null);
+            setSelectedEquipment(null);
+          }}
+          onSuccess={handleMoveSuccess}
+        />
+      )}
+      {showShipModal && (
+        <EquipmentShipModal
+          equipment={selectedEquipment}
+          warehouses={warehouses}
+          user={user}
+          linkedShipmentRequestId={shipModalFromRequestId}
+          onClose={() => {
+            setShowShipModal(false);
+            setSelectedEquipment(null);
+            setShipModalFromRequestId(null);
+            if (activeTab === 'shipment') loadPendingShipRequests();
+          }}
+          onSuccess={handleShipSuccess}
+        />
+      )}
+      {showWriteOffModal && (
+        <EquipmentWriteOffModal
+          equipment={selectedEquipment}
+          warehouses={warehouses}
+          user={user}
+          onClose={() => {
+            setShowWriteOffModal(false);
+            setSelectedEquipment(null);
+          }}
+          onSuccess={handleWriteOffSuccess}
+        />
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="inventory-dashboard inventory-dashboard-embedded">
+          <div className="inventory-dashboard-main">{mainContent}</div>
+        </div>
+        {modals}
+      </>
+    );
+  }
 
   return (
     <div className="inventory-dashboard">
@@ -457,9 +508,7 @@ function InventoryDashboard({ user }) {
         <div className={`inventory-sidebar-wrap ${sidebarCollapsed ? 'inventory-sidebar-wrap-collapsed' : ''}`}>
           <aside className={`inventory-sidebar ${sidebarCollapsed ? 'inventory-sidebar-collapsed' : ''}`}>
             {sidebarCollapsed ? (
-              <>
-                <nav className="inventory-sidebar-nav">{renderSidebarSections({ collapsed: true })}</nav>
-              </>
+              <nav className="inventory-sidebar-nav">{renderSidebarSections({ collapsed: true })}</nav>
             ) : (
               <div className="inventory-sidebar-scale-outer">
                 <div className="inventory-sidebar-scaled">
@@ -486,82 +535,11 @@ function InventoryDashboard({ user }) {
             {sidebarCollapsed ? '▶' : '◀'}
           </button>
         </div>
-
-        <main className="inventory-main-content">
-          {loading ? (
-            <div className="loading-indicator">Завантаження...</div>
-          ) : (
-            <div className="inventory-scaled-wrapper">
-              {renderTabContent()}
-            </div>
-          )}
-        </main>
+        {mainContent}
       </div>
-
-      {/* Модальні вікна */}
-      {showAddModal && (
-        <EquipmentEditModal
-          key={`receipt-add-${receiptAddModalKey}`}
-          equipment={null}
-          warehouses={warehouses}
-          user={user}
-          presetProductCard={receiptPresetProductCard}
-          onClose={() => {
-            setShowAddModal(false);
-            setReceiptPresetProductCard(null);
-          }}
-          onSuccess={handleEquipmentAdded}
-        />
-      )}
-
-      {showMoveModal && (
-        <EquipmentMoveModal
-          equipment={selectedEquipment}
-          warehouses={warehouses}
-          destinationWarehouses={moveDestinationWarehouses}
-          user={user}
-          onClose={() => {
-            setShowMoveModal(false);
-            setMoveDestinationWarehouses(null);
-            setSelectedEquipment(null);
-          }}
-          onSuccess={handleMoveSuccess}
-        />
-      )}
-
-      {showShipModal && (
-        <EquipmentShipModal
-          equipment={selectedEquipment}
-          warehouses={warehouses}
-          user={user}
-          linkedShipmentRequestId={shipModalFromRequestId}
-          onClose={() => {
-            setShowShipModal(false);
-            setSelectedEquipment(null);
-            setShipModalFromRequestId(null);
-            if (activeTab === 'shipment') {
-              loadPendingShipRequests();
-            }
-          }}
-          onSuccess={handleShipSuccess}
-        />
-      )}
-
-      {showWriteOffModal && (
-        <EquipmentWriteOffModal
-          equipment={selectedEquipment}
-          warehouses={warehouses}
-          user={user}
-          onClose={() => {
-            setShowWriteOffModal(false);
-            setSelectedEquipment(null);
-          }}
-          onSuccess={handleWriteOffSuccess}
-        />
-      )}
+      {modals}
     </div>
   );
 }
 
 export default InventoryDashboard;
-

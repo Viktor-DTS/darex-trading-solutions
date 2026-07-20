@@ -100,6 +100,68 @@
   padding-left: 4px;
 }
 
+.sidebar-section-title:not(:first-child) {
+  margin-top: 10px;
+}
+
+.sidebar-section-divider {
+  height: 1px;
+  margin: 8px 4px;
+  background: var(--border, rgba(255, 255, 255, 0.12));
+}
+
+.sidebar-tab .sidebar-tab-badge {
+  background: #ff4444;
+  color: white;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  text-align: center;
+  margin-left: auto;
+}
+
+.sidebar-tab.active .sidebar-tab-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.warehouse-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.warehouse-sidebar-nomenclature {
+  flex: 1 1 0;
+  min-height: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.warehouse-inventory-area {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.warehouse-inventory-area .inventory-dashboard-embedded {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.warehouse-inventory-area .inventory-dashboard-main,
+.warehouse-inventory-area .inventory-main-content,
+.warehouse-inventory-area .inventory-scaled-wrapper {
+  height: 100%;
+  min-height: 0;
+}
+
 /* Sidebar Buttons */
 .sidebar-btn {
   width: 100%;
