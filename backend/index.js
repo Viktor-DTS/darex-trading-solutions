@@ -2062,7 +2062,7 @@ async function notifyWarehouseStaffProcurementIncoming(pr) {
         .lean();
       if (!users.length) continue;
       const title = `Надходження від закупівель: ${rn}`;
-      const body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Складський облік → Затвердження отримання товару.`;
+      const body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Зав. склад → Затвердження отримання товару.`;
       for (const u of users) {
         const login = u.login && String(u.login).trim();
         if (!login) continue;
