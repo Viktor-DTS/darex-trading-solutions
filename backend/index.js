@@ -48,6 +48,12 @@ const {
   mergeMongoFilters,
   enrichOneCMovementsWithRegions,
 } = require('./lib/onecWarehouseMap');
+const {
+  buildReceiptScope,
+  listPendingMoveReceipts,
+  countPendingMoveReceipts,
+  confirmMoveReceipts,
+} = require('./lib/onecMoveReceipt');
 const { connectAssistantMongoDB, getAssistantConnection } = require('./assistantMongo');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -1527,7 +1533,11 @@ const oneCMovementSchema = new mongoose.Schema({
   comment: String,
   docSum: { type: Number, default: null },
   currency: String,
-  paymentDate: { type: Date, default: null }
+  paymentDate: { type: Date, default: null },
+  // Підтвердження прийому переміщення на складі-отримувачі (вкладка «Затвердження отримання»)
+  receiptConfirmedAt: { type: Date, default: null, index: true },
+  receiptConfirmedByLogin: String,
+  receiptConfirmedByName: String,
 }, { timestamps: true });
 // Дедуп рядка руху між повторними/перекритими імпортами
 oneCMovementSchema.index(
@@ -15335,19 +15345,76 @@ app.post('/api/equipment/approve-receipt', authenticateToken, async (req, res) =
   }
 });
 
-// Отримання кількості товарів в дорозі (для лічильника)
+// Отримання кількості товарів в дорозі (для лічильника) — тепер очікувані прийоми переміщень 1С
 app.get('/api/equipment/in-transit/count', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const count = await Equipment.countDocuments({
-      status: 'in_transit',
-      isDeleted: { $ne: true }
+    const user = await User.findOne({ login: req.user.login }).lean();
+    if (!user) return res.status(401).json({ error: 'Користувач не знайдено' });
+    const scope = await buildReceiptScope(Warehouse, OneCWarehouseAlias, req.user, user, {
+      loadActiveWarehouseIdsForUserRegion,
+      bypassesRegionalWarehouseInventoryLock,
+      isRegionalWarehouseStaffRole,
     });
-    
+    const count = await countPendingMoveReceipts(OneCMovement, scope);
     logPerformance('GET /api/equipment/in-transit/count', startTime);
-    res.json({ count });
+    res.json({ count, source: 'onec_move' });
   } catch (error) {
     console.error('[ERROR] GET /api/equipment/in-transit/count:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Очікують підтвердження прийому: переміщення з 1С на склад отримувача
+app.get('/api/onec/pending-move-receipts', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessInventoryShipmentRequests(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const user = await User.findOne({ login: req.user.login }).lean();
+    if (!user) return res.status(401).json({ error: 'Користувач не знайдено' });
+    const scope = await buildReceiptScope(Warehouse, OneCWarehouseAlias, req.user, user, {
+      loadActiveWarehouseIdsForUserRegion,
+      bypassesRegionalWarehouseInventoryLock,
+      isRegionalWarehouseStaffRole,
+    });
+    const items = await listPendingMoveReceipts(OneCMovement, scope);
+    res.json({ items, total: items.length, regionalScope: scope.scopeToRegion });
+  } catch (error) {
+    console.error('[ERROR] GET /api/onec/pending-move-receipts:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Підтвердити прийом переміщення з 1С (запам'ятовується — повторний імпорт не показує знову)
+app.post('/api/onec/confirm-move-receipts', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessInventoryShipmentRequests(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const user = await User.findOne({ login: req.user.login }).lean();
+    if (!user) return res.status(401).json({ error: 'Користувач не знайдено' });
+    const moveKeys = Array.isArray(req.body?.moveKeys) ? req.body.moveKeys.map(String).filter(Boolean) : [];
+    if (!moveKeys.length) {
+      return res.status(400).json({ error: 'Вкажіть moveKeys для підтвердження' });
+    }
+    const scope = await buildReceiptScope(Warehouse, OneCWarehouseAlias, req.user, user, {
+      loadActiveWarehouseIdsForUserRegion,
+      bypassesRegionalWarehouseInventoryLock,
+      isRegionalWarehouseStaffRole,
+    });
+    const result = await confirmMoveReceipts(OneCMovement, moveKeys, user, scope, {
+      logInventoryMovement,
+      isRegionalWarehouseStaffRole,
+      bypassesRegionalWarehouseInventoryLock,
+      warehouseIdInRegionalSet,
+    });
+    if (!result.confirmedCount && result.errors.length) {
+      return res.status(400).json({ error: result.errors[0].error, ...result });
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('[ERROR] POST /api/onec/confirm-move-receipts:', error);
     res.status(500).json({ error: error.message });
   }
 });
