@@ -1,0 +1,119 @@
+.onec-req-view-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.onec-req-view-modal {
+  width: min(720px, 100%);
+  max-height: min(90vh, 900px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #1e1e1e);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.onec-req-view-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}
+
+.onec-req-view-header h3 {
+  margin: 0;
+  font-size: 16px;
+  flex: 1;
+}
+
+.onec-req-view-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  white-space: nowrap;
+}
+
+.onec-req-view-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.75;
+}
+
+.onec-req-view-close:hover {
+  opacity: 1;
+}
+
+.onec-req-view-body {
+  padding: 14px 16px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.onec-req-view-footer {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  justify-content: flex-end;
+}
+
+.onec-req-view-dl {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.onec-req-view-dl dt {
+  margin: 0;
+  color: var(--text-secondary, #9aa0a6);
+}
+
+.onec-req-view-dl dd {
+  margin: 0;
+}
+
+.onec-req-view-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+}
+
+.onec-req-view-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.onec-req-view-table th,
+.onec-req-view-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  text-align: left;
+}
+
+.onec-req-view-muted {
+  margin: 0;
+  color: var(--text-secondary, #9aa0a6);
+}
+
+.onec-req-view-error {
+  margin: 0;
+  color: #f87171;
+}

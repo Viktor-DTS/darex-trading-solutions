@@ -5186,6 +5186,12 @@ function canViewOneCMovements(user) {
   ].includes(r);
 }
 
+function requestNumberExactFilter(requestNumber) {
+  const rn = String(requestNumber || '').trim();
+  if (!rn) return null;
+  return { $regex: new RegExp(`^${escapeRegExpForRegion(rn)}$`, 'i') };
+}
+
 async function notifyWarehouseUsersForShipmentRequest(sr) {
   const rows = await User.find({
     dismissed: { $ne: true },
@@ -11117,6 +11123,46 @@ app.get('/api/onec/movements', async (req, res) => {
     res.json({ items, total, limit, skip });
   } catch (error) {
     console.error('[ERROR] GET /api/onec/movements:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Пошук заявки за номером (сервісна KV/DP…, відвантаження SV, закупівлі VZ) — для перегляду з журналу 1С
+app.get('/api/requests/by-number/:requestNumber', async (req, res) => {
+  try {
+    if (!canViewOneCMovements(req.user)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const rnFilter = requestNumberExactFilter(req.params.requestNumber);
+    if (!rnFilter) {
+      return res.status(400).json({ error: 'Номер заявки не вказано' });
+    }
+
+    const task = await Task.findOne({ requestNumber: rnFilter }).lean();
+    if (task) {
+      return res.json({ type: 'task', data: task });
+    }
+
+    const sr = await ShipmentRequest.findOne({ requestNumber: rnFilter }).lean();
+    if (sr) {
+      return res.json({ type: 'shipment_request', data: sr });
+    }
+
+    const pr = await ProcurementRequest.findOne({ requestNumber: rnFilter })
+      .select(PROCUREMENT_DOC_LIST_PROJECTION)
+      .lean();
+    if (pr) {
+      const dbUser = await User.findOne({ login: req.user.login }).lean();
+      if (!(await userCanReadProcurementRequest(req.user, dbUser, pr))) {
+        return res.status(403).json({ error: 'Немає доступу до заявки закупівель' });
+      }
+      stripProcurementLineBinaryFields(pr);
+      return res.json({ type: 'procurement_request', data: pr });
+    }
+
+    return res.status(404).json({ error: 'Заявку не знайдено в DTS' });
+  } catch (error) {
+    console.error('[ERROR] GET /api/requests/by-number:', error);
     res.status(500).json({ error: error.message });
   }
 });

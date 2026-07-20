@@ -310,6 +310,7 @@ function InventoryDashboard({ user }) {
             title="Надходження"
             docType="receipt"
             warehouses={warehouses}
+            user={user}
             description="Журнал надходжень товару з 1С (документи «Поступление» зі звіту «Ведомость по товарам на складах»)."
           />
         );
@@ -320,6 +321,7 @@ function InventoryDashboard({ user }) {
             title="Переміщення"
             docType="move"
             warehouses={warehouses}
+            user={user}
             description="Журнал переміщень між складами з 1С (документи «Перемещение» зі звіту «Ведомость»)."
           />
         );
@@ -330,6 +332,7 @@ function InventoryDashboard({ user }) {
             title="Відвантаження"
             docType="sale"
             warehouses={warehouses}
+            user={user}
             description="Журнал відвантажень / реалізацій з 1С (документи «Реализация товаров и услуг» зі звіту «Ведомость»)."
           />
         );
@@ -354,6 +357,7 @@ function InventoryDashboard({ user }) {
             title="Списання"
             docType="writeoff"
             warehouses={warehouses}
+            user={user}
             description="Журнал списань товару з 1С (документи «Списание» зі звіту «Ведомость»)."
           />
         );
@@ -375,6 +379,7 @@ function InventoryDashboard({ user }) {
             title="Інвентаризація"
             docType="inventory"
             warehouses={warehouses}
+            user={user}
             description="Журнал інвентаризації та коригувань з 1С (документи «Инвентаризация», «Оприходование», «Пересорт» зі звіту «Ведомость»)."
           />
         );

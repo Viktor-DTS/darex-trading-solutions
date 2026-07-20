@@ -247,14 +247,16 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 4px 8px 8px;
+  padding: 2px 6px 4px;
   width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .inventory-scaled-wrapper > .onec-movements-journal {
   max-width: none;
   margin: 0;
+  height: 100%;
 }
 
 .inventory-tab-content {
@@ -299,10 +301,22 @@
 }
 
 .inventory-tab-content > .documents-placeholder,
-.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-list-only):not(.receipt-product-cards-tab__filters) {
+.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-list-only):not(.receipt-product-cards-tab__filters):not(.onec-movements-journal):not(.onec-movements-journal-top):not(.onec-movements-journal-body):not(.onec-movements-journal-table-wrap):not(.onec-movements-journal-pager):not(.onec-movements-journal-error) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.inventory-tab-content.onec-movements-journal > .onec-movements-journal-top,
+.inventory-tab-content.onec-movements-journal > .onec-movements-journal-error {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.inventory-tab-content.onec-movements-journal > .onec-movements-journal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .inventory-header {
