@@ -173,7 +173,7 @@ const uploadEquipmentPhotoForOCR = multer({
 
 const uploadStockXlsx = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 }
+  limits: { fileSize: 50 * 1024 * 1024 }
 });
 
 const PROCUREMENT_FILE_RE = /\.(pdf|doc|docx|xls|xlsx|jpe?g)$/i;
@@ -1547,6 +1547,9 @@ const oneCImportLogSchema = new mongoose.Schema({
     parsed: { type: Number, default: 0 },
   },
   movementsByType: { type: Object, default: {} },
+  maxDocDate: { type: Date, default: null },
+  maxDocDateByType: { type: Object, default: {} },
+  parseStats: { type: Object, default: null },
   unmappedWarehousesCount: { type: Number, default: 0 },
   unmappedWarehouses: { type: [String], default: [] },
 }, { timestamps: true });
@@ -11131,6 +11134,47 @@ app.get('/api/onec/movements', async (req, res) => {
     res.json({ items, total, limit, skip });
   } catch (error) {
     console.error('[ERROR] GET /api/onec/movements:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Статистика журналу руху 1С (max дата по типах) — для контролю повноти імпорту
+app.get('/api/onec/movements/stats', async (req, res) => {
+  try {
+    if (!canViewOneCMovements(req.user)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const docTypes = ['sale', 'receipt', 'move', 'writeoff', 'inventory', 'assembly', 'return', 'other'];
+    const [total, nullDates, overallMax, byTypeRows, lastImport] = await Promise.all([
+      OneCMovement.countDocuments({}),
+      OneCMovement.countDocuments({ $or: [{ docDate: null }, { docDate: { $exists: false } }] }),
+      OneCMovement.findOne({ docDate: { $ne: null } }).sort({ docDate: -1 }).select('docDate docType docNumber').lean(),
+      Promise.all(
+        docTypes.map(async (docType) => {
+          const row = await OneCMovement.findOne({ docType, docDate: { $ne: null } })
+            .sort({ docDate: -1 })
+            .select('docDate docNumber')
+            .lean();
+          const count = await OneCMovement.countDocuments({ docType });
+          return { docType, count, maxDocDate: row?.docDate || null, latestDocNumber: row?.docNumber || null };
+        })
+      ),
+      OneCImportLog.findOne({ status: 'success', dryRun: false })
+        .sort({ importedAt: -1 })
+        .select('importedAt fileName maxDocDate maxDocDateByType parseStats movements movementsByType period')
+        .lean(),
+    ]);
+    res.json({
+      total,
+      nullDocDateCount: nullDates,
+      maxDocDate: overallMax?.docDate || null,
+      maxDocDateDocType: overallMax?.docType || null,
+      maxDocDateDocNumber: overallMax?.docNumber || null,
+      byType: byTypeRows,
+      lastImport: lastImport || null,
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/onec/movements/stats:', error);
     res.status(500).json({ error: error.message });
   }
 });

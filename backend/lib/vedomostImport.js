@@ -266,12 +266,54 @@ function hasAnyMeta(meta) {
   );
 }
 
-/** Проміжний або підсумковий рядок «Итог» у зведенні — пропускаємо, але НЕ обриваємо файл. */
+/** Проміжний або підсумковий рядок «Итог/Итого» у зведенні — пропускаємо, але НЕ обриваємо файл. */
+function isSubtotalMarker(text) {
+  const s = cellStr(text);
+  if (!s) return false;
+  return /^Итог(?:о)?[\s.:,]*$/i.test(s) || /^Всего[\s.:,]*$/i.test(s);
+}
+
 function isSubtotalRow(row, idx, c7) {
-  if (/^Итог$/i.test(c7)) return true;
-  if (/^Итог$/i.test(cellStr(row[idx.paymentDate]))) return true;
-  if (/^Итог$/i.test(cellStr(row[idx.registrar]))) return true;
+  if (isSubtotalMarker(c7)) return true;
+  if (isSubtotalMarker(row[idx.paymentDate])) return true;
+  if (isSubtotalMarker(row[idx.registrar])) return true;
+  // 1С інколи друкує «Итог» у будь-якій колонці підсумкового рядка
+  for (let ci = 0; ci < Math.min((row || []).length, 20); ci++) {
+    if (isSubtotalMarker(row[ci])) return true;
+  }
   return false;
+}
+
+/** Повторний рядок заголовка таблиці посеред файлу (після групування складів). */
+function isRepeatedHeaderRow(row) {
+  const joined = (row || []).map(cellStr);
+  return joined.includes('Начальный остаток') && joined.includes('Конечный остаток');
+}
+
+function summarizeMovements(movements) {
+  const stats = {
+    total: movements.length,
+    nullDocDate: 0,
+    maxDocDate: null,
+    maxDocDateByType: {},
+  };
+  for (const m of movements) {
+    if (!m.docDate) {
+      stats.nullDocDate++;
+      continue;
+    }
+    const d = m.docDate instanceof Date ? m.docDate : new Date(m.docDate);
+    if (Number.isNaN(d.getTime())) {
+      stats.nullDocDate++;
+      continue;
+    }
+    if (!stats.maxDocDate || d > stats.maxDocDate) stats.maxDocDate = d;
+    const t = m.docType || 'other';
+    if (!stats.maxDocDateByType[t] || d > stats.maxDocDateByType[t]) {
+      stats.maxDocDateByType[t] = d;
+    }
+  }
+  return stats;
 }
 
 function extractPeriod(rows) {
@@ -309,6 +351,8 @@ function parseVedomostRows(rows) {
   let currentUnit = '';
   let currentSerial = '';
   let lastRegistrarRaw = '';
+  let subtotalRowsSkipped = 0;
+  let repeatedHeaderRowsSkipped = 0;
 
   for (let i = hdrRow + 1; i < rows.length; i++) {
     const row = rows[i] || [];
@@ -319,7 +363,12 @@ function parseVedomostRows(rows) {
     const outgoing = num(row[idx.outgoing]);
     const hasQty = incoming > 0 || outgoing > 0;
 
+    if (isRepeatedHeaderRow(row)) {
+      repeatedHeaderRowsSkipped++;
+      continue;
+    }
     if (isSubtotalRow(row, idx, c7)) {
+      subtotalRowsSkipped++;
       continue;
     }
     if (meta.warehouse) warehouseInCol6.add(meta.warehouse);
@@ -429,10 +478,17 @@ function parseVedomostRows(rows) {
   const physical = new Set([...warehouseGrouping, ...warehouseInCol6]);
   const movementParties = new Set([...senders, ...receivers]);
   const onlyParties = [...movementParties].filter((n) => !physical.has(n));
+  const movementStats = summarizeMovements(movements);
 
   return {
     period,
     columns: idx,
+    sheetRows: rows.length,
+    parseStats: {
+      subtotalRowsSkipped,
+      repeatedHeaderRowsSkipped,
+      ...movementStats,
+    },
     warehouses: {
       grouping: [...warehouseGrouping].sort(),
       inCol6: [...warehouseInCol6].sort(),
@@ -516,6 +572,10 @@ async function runVedomostImport({
     period: parsed.period,
     fileHash,
     dryRun: !!dryRun,
+    sheetRows: parsed.sheetRows || 0,
+    parseStats: parsed.parseStats || null,
+    maxDocDate: parsed.parseStats?.maxDocDate || null,
+    maxDocDateByType: parsed.parseStats?.maxDocDateByType || {},
     warehouses: parsed.warehouses,
     balancesParsed: parsed.balances.length,
     movementsParsed: parsed.movements.length,
@@ -876,6 +936,9 @@ async function runVedomostImport({
           parsed: summary.movementsParsed,
         },
         movementsByType: summary.movementsByType,
+        maxDocDate: summary.maxDocDate || null,
+        maxDocDateByType: summary.maxDocDateByType || {},
+        parseStats: summary.parseStats || null,
         unmappedWarehousesCount: summary.unmappedWarehouses.length,
         unmappedWarehouses: summary.unmappedWarehouses.slice(0, 30),
       });
@@ -894,6 +957,8 @@ module.exports = {
   classifyOperation,
   parseRegistrar,
   parseDate,
+  summarizeMovements,
+  isSubtotalRow,
   runVedomostImport,
 };
 
@@ -917,6 +982,12 @@ if (require.main === module) {
   console.log('Тільки в русі (МОЛ?):', res.warehouses.movementOnly);
   console.log('Залишків (рядків номенклатури):', res.balances.length);
   console.log('Рухів (документів-рядків):', res.movements.length, 'по типах:', opSummary);
+  if (res.parseStats) {
+    console.log('Пропущено рядків Итог:', res.parseStats.subtotalRowsSkipped);
+    console.log('Пропущено повторних заголовків:', res.parseStats.repeatedHeaderRowsSkipped);
+    console.log('maxDocDate:', res.parseStats.maxDocDate);
+    console.log('maxDocDateByType:', res.parseStats.maxDocDateByType);
+  }
   console.log('--- Приклади залишків ---');
   console.log(res.balances.slice(0, 5));
   console.log('--- Приклади рухів ---');
