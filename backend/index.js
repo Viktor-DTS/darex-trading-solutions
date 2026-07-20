@@ -11111,8 +11111,16 @@ app.get('/api/onec/movements', async (req, res) => {
     }
     if (req.query.from || req.query.to) {
       filter.docDate = {};
-      if (req.query.from) filter.docDate.$gte = new Date(req.query.from);
-      if (req.query.to) filter.docDate.$lte = new Date(req.query.to);
+      if (req.query.from) {
+        const fromD = new Date(req.query.from);
+        fromD.setHours(0, 0, 0, 0);
+        filter.docDate.$gte = fromD;
+      }
+      if (req.query.to) {
+        const toD = new Date(req.query.to);
+        toD.setHours(23, 59, 59, 999);
+        filter.docDate.$lte = toD;
+      }
     }
     const limit = Math.min(2000, Math.max(1, parseInt(req.query.limit, 10) || 200));
     const skip = Math.max(0, parseInt(req.query.skip, 10) || 0);

@@ -266,6 +266,14 @@ function hasAnyMeta(meta) {
   );
 }
 
+/** Проміжний або підсумковий рядок «Итог» у зведенні — пропускаємо, але НЕ обриваємо файл. */
+function isSubtotalRow(row, idx, c7) {
+  if (/^Итог$/i.test(c7)) return true;
+  if (/^Итог$/i.test(cellStr(row[idx.paymentDate]))) return true;
+  if (/^Итог$/i.test(cellStr(row[idx.registrar]))) return true;
+  return false;
+}
+
 function extractPeriod(rows) {
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const r = rows[i] || [];
@@ -311,8 +319,8 @@ function parseVedomostRows(rows) {
     const outgoing = num(row[idx.outgoing]);
     const hasQty = incoming > 0 || outgoing > 0;
 
-    if (/^Итог$/i.test(c7) || /^Итог$/i.test(cellStr(row[idx.paymentDate]))) {
-      break; // фінальний підсумок
+    if (isSubtotalRow(row, idx, c7)) {
+      continue;
     }
     if (meta.warehouse) warehouseInCol6.add(meta.warehouse);
     if (meta.fromWarehouse) senders.add(meta.fromWarehouse);
