@@ -10991,6 +10991,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
 // Інтеграція 1С: імпорт «Ведомости по товарам на складах» (залишки + рух) та мапінг складів
 // ============================================
 const { runVedomostImport } = require('./lib/vedomostImport');
+const { buildOneCWarehouseLookup, enrichOneCMovementsWithRegions } = require('./lib/onecWarehouseMap');
 const { decodeMultipartFilename } = require('./lib/multipartFilename');
 
 // Імпорт звіту «Ведомость по товарам на складах» (оновлює залишки + журнал руху OneCMovement)
@@ -11166,7 +11167,9 @@ app.get('/api/onec/movements', async (req, res) => {
       OneCMovement.find(filter).sort({ docDate: -1, _id: -1 }).skip(skip).limit(limit).lean(),
       OneCMovement.countDocuments(filter),
     ]);
-    res.json({ items, total, limit, skip });
+    const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
+    const enrichedItems = enrichOneCMovementsWithRegions(items, lookup);
+    res.json({ items: enrichedItems, total, limit, skip });
   } catch (error) {
     console.error('[ERROR] GET /api/onec/movements:', error);
     res.status(500).json({ error: error.message });

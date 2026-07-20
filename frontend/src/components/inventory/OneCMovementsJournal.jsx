@@ -4,7 +4,7 @@ import { extractRequestNumberFromOneC } from '../../utils/onecRequestNumber';
 import OneCRequestViewModal from './OneCRequestViewModal';
 import './OneCMovementsJournal.css';
 
-const COL_COUNT = 13;
+const COL_COUNT = 14;
 
 function fmtDateTime(d) {
   if (!d) return '—';
@@ -29,7 +29,6 @@ function formatWarehouse(row) {
   return row.warehouse1c || '—';
 }
 
-/** Переміщення: видаток зі складу-джерела → прихід на склад-отримувач. */
 function formatMoveWarehouse(row) {
   const from = row.fromWarehouse1c || '—';
   const to = row.toWarehouse1c || '—';
@@ -40,6 +39,19 @@ function formatMoveWarehouse(row) {
       <span className="onec-movements-journal-badge-in">Прихід</span> {to}
     </span>
   );
+}
+
+function formatWarehouseRegion(row, docType) {
+  if (docType === 'move' && row._groupedMove) {
+    const from = row.fromWarehouseRegion || '';
+    const to = row.toWarehouseRegion || '';
+    if (from && to && from !== to) return `${from} → ${to}`;
+    return from || to || row.warehouseRegion || '—';
+  }
+  if (row.warehouseRegion) return row.warehouseRegion;
+  if (row.direction === 'out') return row.fromWarehouseRegion || row.warehouseRegion || '—';
+  if (row.direction === 'in') return row.toWarehouseRegion || row.warehouseRegion || '—';
+  return row.fromWarehouseRegion || row.toWarehouseRegion || '—';
 }
 
 function formatDirection(row, docType) {
@@ -83,6 +95,9 @@ function groupMoveItems(items) {
         _groupedMove: true,
         fromWarehouse1c: g.out.fromWarehouse1c || g.in.fromWarehouse1c,
         toWarehouse1c: g.out.toWarehouse1c || g.in.toWarehouse1c,
+        warehouseRegion: g.out.warehouseRegion || g.in.warehouseRegion,
+        fromWarehouseRegion: g.out.fromWarehouseRegion || g.in.fromWarehouseRegion,
+        toWarehouseRegion: g.out.toWarehouseRegion || g.in.toWarehouseRegion,
         comment: g.out.comment || g.in.comment,
         responsible: g.out.responsible || g.in.responsible,
         manager: g.out.manager || g.in.manager,
@@ -248,6 +263,7 @@ export default function OneCMovementsJournal({
                 <th>Од.</th>
                 <th>Напрям</th>
                 <th>Склад</th>
+                <th>Регіон складу</th>
                 <th>Контрагент</th>
                 <th>Відповідальний</th>
                 <th>Менеджер</th>
@@ -297,6 +313,7 @@ export default function OneCMovementsJournal({
                     <td>{row.unit || '—'}</td>
                     <td>{formatDirection(row, docType)}</td>
                     <td>{formatWarehouse(row)}</td>
+                    <td>{formatWarehouseRegion(row, docType)}</td>
                     <td>{row.contractor || '—'}</td>
                     <td>{row.responsible || '—'}</td>
                     <td>{row.manager || '—'}</td>
