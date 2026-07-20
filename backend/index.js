@@ -1519,7 +1519,7 @@ const oneCMovementSchema = new mongoose.Schema({
 }, { timestamps: true });
 // Дедуп рядка руху між повторними/перекритими імпортами
 oneCMovementSchema.index(
-  { docType: 1, docNumber: 1, docDate: 1, nomenclature: 1, qty: 1, direction: 1, warehouse1c: 1 },
+  { docType: 1, docNumber: 1, docDate: 1, nomenclature: 1, qty: 1, direction: 1, warehouse1c: 1, serial: 1 },
   { unique: true, partialFilterExpression: { docNumber: { $type: 'string' } } }
 );
 const OneCMovement = mongoose.model('OneCMovement', oneCMovementSchema);

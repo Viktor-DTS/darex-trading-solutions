@@ -33,6 +33,9 @@ const HEADER_LABELS = {
 
 /** Назва схожа на фізичний склад (а не серійний номер / підзвітну особу). */
 const WAREHOUSE_NAME_RE = /(склад|солюшн|дарекс|главн)/i;
+/** Підзвітна особа / МОЛ / ЗИП — окремий «склад» у зведенні 1С. */
+const SUB_WAREHOUSE_RE = /\(ЗИП\)|\(зип\)|подотч|МОЛ/i;
+const DOC_NUMBER_RE = /\b([A-ZА-ЯІЇЄ]{1,3}-?\d{3,})\b|\b(АП\d{6,})\b|\b(ПР-\d+)\b/i;
 const DATE_RE = /(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?/;
 /** Одиниці виміру з 1С (не плутати з серійним номером у колонці «Базовая единица»). */
 const KNOWN_UNITS = new Set([
@@ -119,6 +122,15 @@ function classifyOperation(registrar) {
  */
 function parseRegistrar(registrar) {
   const raw = cellStr(registrar);
+  if (!raw) {
+    return {
+      docType: 'other',
+      docTypeName: '',
+      docNumber: '',
+      docDateRaw: '',
+      docDate: null,
+    };
+  }
   const m = raw.match(/\sот\s+(\d{2}\.\d{2}\.\d{4}(?:\s+\d{1,2}:\d{2}:\d{2})?)/i);
   let docDateRaw = '';
   let left = raw;
@@ -135,6 +147,13 @@ function parseRegistrar(registrar) {
     docNumber = tokens[tokens.length - 1].replace(/[,]+$/g, '');
     typePhrase = tokens.slice(0, -1).join(' ');
   }
+  const numMatch = left.match(DOC_NUMBER_RE);
+  if (numMatch) {
+    docNumber = (numMatch[1] || numMatch[2] || numMatch[3] || docNumber).replace(/[,]+$/g, '');
+    if (numMatch.index != null && numMatch.index > 0) {
+      typePhrase = left.slice(0, numMatch.index).trim().replace(/[\s,]+$/g, '') || typePhrase;
+    }
+  }
   return {
     docType: classifyOperation(raw),
     docTypeName: typePhrase,
@@ -142,6 +161,19 @@ function parseRegistrar(registrar) {
     docDateRaw,
     docDate: parseDate(docDateRaw),
   };
+}
+
+/** Текст регістратора документа (повний рядок або дата). */
+function looksLikeRegistrarText(text) {
+  const s = cellStr(text);
+  if (!s) return false;
+  return /\sот\s+\d{2}\.\d{2}\.\d{4}/i.test(s) || classifyOperation(s) !== 'other';
+}
+
+function looksLikeSubWarehouse(text) {
+  const s = cellStr(text);
+  if (!s) return false;
+  return SUB_WAREHOUSE_RE.test(s) || WAREHOUSE_NAME_RE.test(s);
 }
 
 function parseDate(s) {
@@ -268,12 +300,16 @@ function parseVedomostRows(rows) {
   let currentNome = null;
   let currentUnit = '';
   let currentSerial = '';
+  let lastRegistrarRaw = '';
 
   for (let i = hdrRow + 1; i < rows.length; i++) {
     const row = rows[i] || [];
     const c7 = cellStr(row[REG]);
     const unit = idx.unit >= 0 ? cellStr(row[idx.unit]) : '';
     const meta = readMeta(row, idx);
+    const incoming = num(row[idx.incoming]);
+    const outgoing = num(row[idx.outgoing]);
+    const hasQty = incoming > 0 || outgoing > 0;
 
     if (/^Итог$/i.test(c7) || /^Итог$/i.test(cellStr(row[idx.paymentDate]))) {
       break; // фінальний підсумок
@@ -282,7 +318,15 @@ function parseVedomostRows(rows) {
     if (meta.fromWarehouse) senders.add(meta.fromWarehouse);
     if (meta.toWarehouse) receivers.add(meta.toWarehouse);
 
-    const isDocRow = DATE_RE.test(c7) || (hasAnyMeta(meta) && !unit);
+    if (c7 && looksLikeRegistrarText(c7)) {
+      lastRegistrarRaw = c7;
+    }
+
+    const isDocRow =
+      looksLikeRegistrarText(c7) ||
+      DATE_RE.test(c7) ||
+      (hasAnyMeta(meta) && hasQty) ||
+      (hasAnyMeta(meta) && !unit);
 
     if (unit) {
       if (isSerialBalanceRow(c7, unit, currentNome)) {
@@ -320,10 +364,9 @@ function parseVedomostRows(rows) {
     }
 
     if (isDocRow) {
-      // Рядок РУХУ по документу
-      const reg = parseRegistrar(c7);
-      const incoming = num(row[idx.incoming]);
-      const outgoing = num(row[idx.outgoing]);
+      const regSource =
+        c7 && (looksLikeRegistrarText(c7) || DATE_RE.test(c7)) ? c7 : lastRegistrarRaw;
+      const reg = parseRegistrar(regSource);
       const direction = outgoing > 0 ? 'out' : incoming > 0 ? 'in' : 'none';
       const qty = outgoing > 0 ? outgoing : incoming;
       movements.push({
@@ -332,7 +375,7 @@ function parseVedomostRows(rows) {
         unit: currentUnit,
         serial: currentSerial || null,
         ...reg,
-        registrarRaw: c7,
+        registrarRaw: regSource || c7,
         posted: meta.posted,
         contractor: meta.contractor,
         responsible: meta.responsible,
@@ -356,7 +399,10 @@ function parseVedomostRows(rows) {
       // Рядок з текстом, без од.виміру, без дати, без метаданих:
       // або заголовок СКЛАДУ (верхній рівень), або СЕРІЙНИЙ НОМЕР (під номенклатурою).
       const looksWarehouse =
-        currentNome === null || WAREHOUSE_NAME_RE.test(c7) || warehouseInCol6.has(c7);
+        currentNome === null ||
+        WAREHOUSE_NAME_RE.test(c7) ||
+        looksLikeSubWarehouse(c7) ||
+        warehouseInCol6.has(c7);
       if (looksWarehouse) {
         currentWarehouse = c7;
         currentNome = null;
@@ -719,6 +765,7 @@ async function runVedomostImport({
         qty: doc.qty,
         direction: doc.direction,
         warehouse1c: doc.warehouse1c || '',
+        serial: doc.serial || '',
       });
       const ops = movementDocs.map((doc) => ({
         updateOne: {
@@ -756,6 +803,7 @@ async function runVedomostImport({
               qty: doc.qty,
               direction: doc.direction,
               warehouse1c: doc.warehouse1c || '',
+              serial: doc.serial || '',
             },
           },
           upsert: true,
