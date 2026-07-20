@@ -343,7 +343,6 @@ function movementUpdatePayload(doc) {
       registrarRaw: doc.registrarRaw,
       posted: doc.posted,
       unit: doc.unit,
-      serial: doc.serial,
       incoming: doc.incoming,
       outgoing: doc.outgoing,
       warehouseId: doc.warehouseId,
@@ -358,6 +357,7 @@ function movementUpdatePayload(doc) {
       docSum: doc.docSum,
       currency: doc.currency,
       paymentDate: doc.paymentDate,
+      serial: doc.serial || null,
     },
     $setOnInsert: {
       importedAt: doc.importedAt,
@@ -368,7 +368,6 @@ function movementUpdatePayload(doc) {
       qty: doc.qty,
       direction: doc.direction,
       warehouse1c: doc.warehouse1c || '',
-      serial: doc.serial || '',
     },
   };
 }
