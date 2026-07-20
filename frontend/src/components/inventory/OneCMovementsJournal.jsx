@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getOneCMovements } from '../../utils/onecMovementsAPI';
+import { extractRequestNumberFromOneC } from '../../utils/onecRequestNumber';
 import './OneCMovementsJournal.css';
+
+const COL_COUNT = 12;
 
 function fmtDateTime(d) {
   if (!d) return '—';
@@ -94,62 +97,62 @@ export default function OneCMovementsJournal({
 
   return (
     <div className="inventory-tab-content onec-movements-journal">
-      <div className="onec-movements-journal-header">
-        <h2>{title}</h2>
-        <p className="onec-movements-journal-desc">
-          {description ||
-            'Журнал операцій зі звіту 1С «Ведомость по товарам на складах». Дані оновлюються при імпорті через агента 1С або адмінку.'}
-        </p>
-      </div>
+      <div className="onec-movements-journal-top">
+        <div className="onec-movements-journal-title-row">
+          <h2>{title}</h2>
+          {description ? (
+            <p className="onec-movements-journal-desc" title={description}>
+              {description}
+            </p>
+          ) : null}
+        </div>
 
-      <div className="onec-movements-journal-filters">
-        <label>
-          З
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label>
-          По
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
-        {warehouses.length > 0 ? (
+        <div className="onec-movements-journal-filters">
           <label>
-            Склад DTS
-            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">Усі склади</option>
-              {warehouses.map((w) => (
-                <option key={w._id || w.id} value={w._id || w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
+            З
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </label>
-        ) : null}
-        <label>
-          Пошук
-          <input
-            className="onec-movements-journal-search"
-            type="search"
-            placeholder="Номенклатура, № док., контрагент…"
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') applySearch();
-            }}
-          />
-        </label>
-        <button type="button" className="btn-secondary" onClick={applySearch} disabled={loading}>
-          Знайти
-        </button>
-      </div>
-
-      <div className="onec-movements-journal-toolbar">
-        <button type="button" className="btn-secondary" onClick={load} disabled={loading}>
-          Оновити
-        </button>
-        <span className="onec-movements-journal-count">
-          Записів: {data.total}
-          {loading ? ' …' : ''}
-        </span>
+          <label>
+            По
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          {warehouses.length > 0 ? (
+            <label>
+              Склад DTS
+              <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
+                <option value="">Усі склади</option>
+                {warehouses.map((w) => (
+                  <option key={w._id || w.id} value={w._id || w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label>
+            Пошук
+            <input
+              className="onec-movements-journal-search"
+              type="search"
+              placeholder="Номенклатура, № док., контрагент…"
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applySearch();
+              }}
+            />
+          </label>
+          <button type="button" className="btn-secondary onec-movements-journal-btn" onClick={applySearch} disabled={loading}>
+            Знайти
+          </button>
+          <button type="button" className="btn-secondary onec-movements-journal-btn" onClick={load} disabled={loading}>
+            Оновити
+          </button>
+          <span className="onec-movements-journal-count">
+            Записів: {data.total}
+            {loading ? ' …' : ''}
+          </span>
+        </div>
       </div>
 
       {error ? <div className="onec-movements-journal-error">{error}</div> : null}
@@ -160,6 +163,7 @@ export default function OneCMovementsJournal({
             <tr>
               <th>Дата</th>
               <th>Документ</th>
+              <th>№ заявки</th>
               <th>Номенклатура</th>
               <th>К-сть</th>
               <th>Од.</th>
@@ -174,35 +178,39 @@ export default function OneCMovementsJournal({
           <tbody>
             {loading && data.items.length === 0 ? (
               <tr>
-                <td colSpan={11} className="onec-movements-journal-empty">
+                <td colSpan={COL_COUNT} className="onec-movements-journal-empty">
                   Завантаження…
                 </td>
               </tr>
             ) : null}
             {!loading && data.items.length === 0 ? (
               <tr>
-                <td colSpan={11} className="onec-movements-journal-empty">
+                <td colSpan={COL_COUNT} className="onec-movements-journal-empty">
                   Записів за обраний період немає. Перевірте імпорт «Ведомости» з 1С.
                 </td>
               </tr>
             ) : null}
-            {data.items.map((row) => (
-              <tr key={row._id}>
-                <td>{fmtDateTime(row.docDate)}</td>
-                <td>
-                  {[row.docNumber, row.docTypeName].filter(Boolean).join(' · ') || '—'}
-                </td>
-                <td>{row.nomenclature || '—'}</td>
-                <td>{row.qty != null ? row.qty : '—'}</td>
-                <td>{row.unit || '—'}</td>
-                <td>{formatDirection(row)}</td>
-                <td>{formatWarehouse(row)}</td>
-                <td>{row.contractor || '—'}</td>
-                <td>{row.responsible || row.manager || '—'}</td>
-                <td>{formatSum(row)}</td>
-                <td className="onec-movements-journal-cell-notes">{row.comment || '—'}</td>
-              </tr>
-            ))}
+            {data.items.map((row) => {
+              const requestNumber = extractRequestNumberFromOneC(row);
+              return (
+                <tr key={row._id}>
+                  <td>{fmtDateTime(row.docDate)}</td>
+                  <td>
+                    {[row.docNumber, row.docTypeName].filter(Boolean).join(' · ') || '—'}
+                  </td>
+                  <td className="onec-movements-journal-cell-request">{requestNumber || '—'}</td>
+                  <td>{row.nomenclature || '—'}</td>
+                  <td>{row.qty != null ? row.qty : '—'}</td>
+                  <td>{row.unit || '—'}</td>
+                  <td>{formatDirection(row)}</td>
+                  <td>{formatWarehouse(row)}</td>
+                  <td>{row.contractor || '—'}</td>
+                  <td>{row.responsible || row.manager || '—'}</td>
+                  <td>{formatSum(row)}</td>
+                  <td className="onec-movements-journal-cell-notes">{row.comment || '—'}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
