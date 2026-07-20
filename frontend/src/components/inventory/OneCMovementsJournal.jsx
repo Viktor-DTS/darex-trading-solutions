@@ -90,6 +90,13 @@ export default function OneCMovementsJournal({
   }, [load]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchDraft.trim());
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [searchDraft]);
+
+  useEffect(() => {
     setSkip(0);
   }, [docType, from, to, warehouseId, search]);
 
@@ -145,7 +152,13 @@ export default function OneCMovementsJournal({
               }}
             />
           </label>
-          <button type="button" className="btn-secondary onec-movements-journal-btn" onClick={applySearch} disabled={loading}>
+          <button
+            type="button"
+            className="btn-secondary onec-movements-journal-btn"
+            onClick={applySearch}
+            disabled={loading}
+            title="Застосувати пошук одразу"
+          >
             Знайти
           </button>
           <button type="button" className="btn-secondary onec-movements-journal-btn" onClick={load} disabled={loading}>
