@@ -316,6 +316,144 @@ function summarizeMovements(movements) {
   return stats;
 }
 
+const ONEC_MOVEMENT_BULK_BATCH = 500;
+
+async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary) {
+  if (dryRun) {
+    summary.movements.inserted = movementDocs.length;
+    return;
+  }
+  if (!movementDocs.length || !OneCMovement) return;
+
+  const movementDedupFilter = (doc) => ({
+    docType: doc.docType,
+    docNumber: doc.docNumber || '',
+    docDate: doc.docDate,
+    nomenclature: doc.nomenclature,
+    qty: doc.qty,
+    direction: doc.direction,
+    warehouse1c: doc.warehouse1c || '',
+    serial: doc.serial || '',
+  });
+  const ops = movementDocs.map((doc) => ({
+    updateOne: {
+      filter: movementDedupFilter(doc),
+      update: {
+        $set: {
+          fileHash: doc.fileHash,
+          importedByLogin: doc.importedByLogin,
+          docTypeName: doc.docTypeName,
+          registrarRaw: doc.registrarRaw,
+          posted: doc.posted,
+          unit: doc.unit,
+          serial: doc.serial,
+          incoming: doc.incoming,
+          outgoing: doc.outgoing,
+          warehouseId: doc.warehouseId,
+          fromWarehouse1c: doc.fromWarehouse1c,
+          toWarehouse1c: doc.toWarehouse1c,
+          warehouseMapped: doc.warehouseMapped,
+          contractor: doc.contractor,
+          responsible: doc.responsible,
+          department: doc.department,
+          manager: doc.manager,
+          comment: doc.comment,
+          docSum: doc.docSum,
+          currency: doc.currency,
+          paymentDate: doc.paymentDate,
+        },
+        $setOnInsert: {
+          importedAt: doc.importedAt,
+          docType: doc.docType,
+          docNumber: doc.docNumber || '',
+          docDate: doc.docDate,
+          nomenclature: doc.nomenclature,
+          qty: doc.qty,
+          direction: doc.direction,
+          warehouse1c: doc.warehouse1c || '',
+          serial: doc.serial || '',
+        },
+      },
+      upsert: true,
+    },
+  }));
+
+  let writeErrors = 0;
+  for (let i = 0; i < ops.length; i += ONEC_MOVEMENT_BULK_BATCH) {
+    const chunk = ops.slice(i, i + ONEC_MOVEMENT_BULK_BATCH);
+    try {
+      const res = await OneCMovement.bulkWrite(chunk, { ordered: false });
+      summary.movements.inserted += res.upsertedCount || 0;
+      summary.movements.updated = (summary.movements.updated || 0) + (res.modifiedCount || 0);
+      summary.movements.duplicates += Math.max(0, (res.matchedCount || 0) - (res.modifiedCount || 0));
+    } catch (err) {
+      const partial = err.result || err;
+      if (partial?.nUpserted != null || partial?.upsertedCount != null) {
+        summary.movements.inserted += partial.nUpserted ?? partial.upsertedCount ?? 0;
+        summary.movements.updated =
+          (summary.movements.updated || 0) + (partial.nModified ?? partial.modifiedCount ?? 0);
+        summary.movements.duplicates += Math.max(
+          0,
+          (partial.nMatched ?? partial.matchedCount ?? 0) - (partial.nModified ?? partial.modifiedCount ?? 0)
+        );
+      }
+      const errs = err.writeErrors || [];
+      writeErrors += errs.length || 1;
+      const first = errs[0]?.errmsg || err.message;
+      summary.warnings.push(
+        `OneCMovement bulkWrite [${i}-${i + chunk.length}): ${errs.length || 1} помилок, перша: ${first}`
+      );
+    }
+  }
+  if (writeErrors) {
+    summary.warnings.push(`OneCMovement: загалом помилок запису ${writeErrors}`);
+  }
+}
+
+function buildMovementDocs(parsed, { fileHash, now, adminUser, resolveWh, summary, unmappedSeen }) {
+  const movementDocs = [];
+  for (const m of parsed.movements) {
+    if (m.qty <= 0 || m.direction === 'none') continue;
+    const wh = resolveWh(m.warehouse);
+    if (!wh) {
+      summary.movements.unmappedWarehouse++;
+      if (m.warehouse && !unmappedSeen.has(m.warehouse)) unmappedSeen.add(m.warehouse);
+    }
+    movementDocs.push({
+      fileHash,
+      importedAt: now,
+      importedByLogin: adminUser.login,
+      docType: m.docType,
+      docTypeName: m.docTypeName,
+      docNumber: m.docNumber || '',
+      docDate: m.docDate,
+      registrarRaw: m.registrarRaw,
+      posted: m.posted,
+      nomenclature: m.nomenclature,
+      unit: m.unit,
+      serial: m.serial,
+      incoming: m.incoming,
+      outgoing: m.outgoing,
+      direction: m.direction,
+      qty: m.qty,
+      warehouse1c: m.warehouse || '',
+      warehouseId: wh ? wh.id : null,
+      fromWarehouse1c: m.fromWarehouse,
+      toWarehouse1c: m.toWarehouse,
+      warehouseMapped: !!wh,
+      contractor: m.contractor,
+      responsible: m.responsible,
+      department: m.department,
+      manager: m.manager,
+      comment: m.comment,
+      docSum: m.docSum,
+      currency: m.currency,
+      paymentDate: m.paymentDate,
+    });
+  }
+  return movementDocs;
+}
+
 function extractPeriod(rows) {
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const r = rows[i] || [];
@@ -640,7 +778,18 @@ async function runVedomostImport({
   const resolveWh = (name) => (name ? warehouseMap.get(name) || null : null);
   const unmappedSeen = new Set();
 
-  // 3) Оновлення залишків (Equipment) по «Конечный остаток» для прив'язаних фізичних складів
+  // 3) Журнал руху OneCMovement — ПЕРШИМ, до повільного оновлення залишків (5511+ рядків)
+  const movementDocs = buildMovementDocs(parsed, {
+    fileHash,
+    now,
+    adminUser,
+    resolveWh,
+    summary,
+    unmappedSeen,
+  });
+  await persistOneCMovements(movementDocs, OneCMovement, dryRun, summary);
+
+  // 4) Оновлення залишків (Equipment) по «Конечный остаток» для прив'язаних фізичних складів
   const categories = await Category.find({}).lean();
   const categoryIndex = stock.buildCategoryIndex(categories);
   const rootCategoryByKind = stock.buildRootCategoryByKind(categories);
@@ -779,114 +928,6 @@ async function runVedomostImport({
       summary.stock.skipped++;
       summary.warnings.push(`Залишок «${nome}» (${wh.name}): ${e.message}`);
     }
-  }
-
-  // 4) Журнал руху OneCMovement (ідемпотентно)
-  const movementDocs = [];
-  for (const m of parsed.movements) {
-    if (m.qty <= 0 || m.direction === 'none') continue;
-    const wh = resolveWh(m.warehouse);
-    if (!wh) {
-      summary.movements.unmappedWarehouse++;
-      if (m.warehouse && !unmappedSeen.has(m.warehouse)) unmappedSeen.add(m.warehouse);
-    }
-    movementDocs.push({
-      fileHash,
-      importedAt: now,
-      importedByLogin: adminUser.login,
-      docType: m.docType,
-      docTypeName: m.docTypeName,
-      docNumber: m.docNumber || '',
-      docDate: m.docDate,
-      registrarRaw: m.registrarRaw,
-      posted: m.posted,
-      nomenclature: m.nomenclature,
-      unit: m.unit,
-      serial: m.serial,
-      incoming: m.incoming,
-      outgoing: m.outgoing,
-      direction: m.direction,
-      qty: m.qty,
-      warehouse1c: m.warehouse || '',
-      warehouseId: wh ? wh.id : null,
-      fromWarehouse1c: m.fromWarehouse,
-      toWarehouse1c: m.toWarehouse,
-      warehouseMapped: !!wh,
-      contractor: m.contractor,
-      responsible: m.responsible,
-      department: m.department,
-      manager: m.manager,
-      comment: m.comment,
-      docSum: m.docSum,
-      currency: m.currency,
-      paymentDate: m.paymentDate,
-    });
-  }
-
-  if (!dryRun && movementDocs.length) {
-    try {
-      const movementDedupFilter = (doc) => ({
-        docType: doc.docType,
-        docNumber: doc.docNumber || '',
-        docDate: doc.docDate,
-        nomenclature: doc.nomenclature,
-        qty: doc.qty,
-        direction: doc.direction,
-        warehouse1c: doc.warehouse1c || '',
-        serial: doc.serial || '',
-      });
-      const ops = movementDocs.map((doc) => ({
-        updateOne: {
-          filter: movementDedupFilter(doc),
-          update: {
-            $set: {
-              fileHash: doc.fileHash,
-              importedByLogin: doc.importedByLogin,
-              docTypeName: doc.docTypeName,
-              registrarRaw: doc.registrarRaw,
-              posted: doc.posted,
-              unit: doc.unit,
-              serial: doc.serial,
-              incoming: doc.incoming,
-              outgoing: doc.outgoing,
-              warehouseId: doc.warehouseId,
-              fromWarehouse1c: doc.fromWarehouse1c,
-              toWarehouse1c: doc.toWarehouse1c,
-              warehouseMapped: doc.warehouseMapped,
-              contractor: doc.contractor,
-              responsible: doc.responsible,
-              department: doc.department,
-              manager: doc.manager,
-              comment: doc.comment,
-              docSum: doc.docSum,
-              currency: doc.currency,
-              paymentDate: doc.paymentDate,
-            },
-            $setOnInsert: {
-              importedAt: doc.importedAt,
-              docType: doc.docType,
-              docNumber: doc.docNumber || '',
-              docDate: doc.docDate,
-              nomenclature: doc.nomenclature,
-              qty: doc.qty,
-              direction: doc.direction,
-              warehouse1c: doc.warehouse1c || '',
-              serial: doc.serial || '',
-            },
-          },
-          upsert: true,
-        },
-      }));
-      const res = await OneCMovement.bulkWrite(ops, { ordered: false });
-      summary.movements.inserted += res.upsertedCount || 0;
-      summary.movements.updated = (summary.movements.updated || 0) + (res.modifiedCount || 0);
-      // без змін (той самий коментар/поля) — не «дубль», а unchanged
-      summary.movements.duplicates += Math.max(0, (res.matchedCount || 0) - (res.modifiedCount || 0));
-    } catch (err) {
-      summary.warnings.push(`OneCMovement bulkWrite: ${err.message}`);
-    }
-  } else if (dryRun) {
-    summary.movements.inserted = movementDocs.length;
   }
 
   summary.unmappedWarehouses = [...unmappedSeen].sort();

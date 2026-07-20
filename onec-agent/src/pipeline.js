@@ -83,6 +83,9 @@ async function runPipeline(config, log, trigger = 'schedule') {
       `maxDocDate: ${summary.maxDocDate ? new Date(summary.maxDocDate).toISOString().slice(0, 10) : '—'} ` +
       `(move: ${summary.maxDocDateByType?.move ? new Date(summary.maxDocDateByType.move).toISOString().slice(0, 10) : '—'}).`
   );
+  if (summary.warnings?.length) {
+    log(`! Попередження імпорту (${summary.warnings.length}): ${summary.warnings.slice(0, 3).join(' | ')}`);
+  }
   return { fileName: path.basename(finalPath), filePath: finalPath, summary };
 }
 
