@@ -337,31 +337,23 @@ function unrealizedPnlUsd(trade, quote, commissionUsd = 0) {
  */
 
 function evaluateTestbotExit(trade, quote, cfg) {
-
   const bid = quote.bid ?? quote.mid;
-
   const ask = quote.ask ?? quote.mid;
-
   if (bid == null || ask == null) return { action: 'hold' };
 
-
-
   const exitPrice = trade.side === 'short' ? ask : bid;
-
   const ageMs = Date.now() - (trade.openedAt || 0);
-
   const comm = cfg.simCommissionUsd ?? 0.05;
-
   const pnl = unrealizedPnlUsd(trade, quote, 0);
-
   const netPnl = pnl != null ? pnl - comm : null;
-
   const maxNetStop = trade.maxNetStopUsd ?? maxNetStopLossUsd(cfg);
 
-
+  if (netPnl != null) {
+    trade.peakNetPnlUsd = Math.max(trade.peakNetPnlUsd ?? netPnl, netPnl);
+  }
 
   if (netPnl != null && netPnl <= -maxNetStop) {
-    // Не різати на 1-му тіку: short entry=bid, mark=ask → одразу −spread ≥ $3
+    // Не різати на 1-му тіку: short entry=bid, mark=ask → одразу −spread ≥ SL
     const rawGrace = cfg.stopGraceMs != null ? Number(cfg.stopGraceMs) : Number(process.env.FX_TESTBOT_STOP_GRACE_MS);
     const graceMs = Number.isFinite(rawGrace) ? rawGrace : 30000;
     if (ageMs < graceMs) {
@@ -370,60 +362,78 @@ function evaluateTestbotExit(trade, quote, cfg) {
     return { action: 'close', reason: 'stop_usd', exitPrice };
   }
 
-
-
   if (trade.side === 'short') {
-
     if (ask >= trade.stopLoss) {
-
       return { action: 'close', reason: 'stop', exitPrice: trade.stopLoss };
-
     }
-
   } else if (bid <= trade.stopLoss) {
-
     return { action: 'close', reason: 'stop', exitPrice: trade.stopLoss };
-
   }
 
-
-
-  const targetUsd = trade.targetUsd ?? cfg.targetUsd ?? 1;
-
-  const partialUsd = trade.partialUsd ?? cfg.partialUsd ?? 0.5;
-
+  const targetUsd = trade.targetUsd ?? cfg.targetUsd ?? 5;
+  const partialUsd = trade.partialUsd ?? cfg.partialUsd ?? 2.5;
   const partialAfterMs = trade.partialAfterMs ?? cfg.partialAfterMs ?? 600000;
-
+  const earlyPartialUsd = Number.isFinite(cfg.earlyPartialUsd)
+    ? cfg.earlyPartialUsd
+    : (Number(process.env.FX_TESTBOT_EARLY_PARTIAL_USD) || 1.5);
+  const earlyPartialMs = Number.isFinite(cfg.earlyPartialMs)
+    ? cfg.earlyPartialMs
+    : (Number(process.env.FX_TESTBOT_EARLY_PARTIAL_MS) || 180000);
+  const protectPeakUsd = Number.isFinite(cfg.protectPeakUsd)
+    ? cfg.protectPeakUsd
+    : (Number(process.env.FX_TESTBOT_PROTECT_PEAK_USD) || 1.5);
+  const protectFloorUsd = Number.isFinite(cfg.protectFloorUsd)
+    ? cfg.protectFloorUsd
+    : (Number(process.env.FX_TESTBOT_PROTECT_FLOOR_USD) || 0.5);
   const maxHoldMs = trade.maxHoldMs ?? cfg.maxHoldMs ?? 900000;
-
-
+  const extendMs = Number.isFinite(cfg.holdExtendMs)
+    ? cfg.holdExtendMs
+    : (Number(process.env.FX_TESTBOT_HOLD_EXTEND_MS) || 300000);
 
   if (netPnl != null && netPnl >= targetUsd) {
-
     return { action: 'close', reason: 'target_usd', exitPrice };
-
   }
 
-
+  // Early bank: small green after 3m (debate: don't wait 10m for full partial)
+  if (
+    ageMs >= earlyPartialMs
+    && netPnl != null
+    && netPnl >= earlyPartialUsd
+    && netPnl < targetUsd
+  ) {
+    return { action: 'close', reason: 'partial_usd', exitPrice };
+  }
 
   if (ageMs >= partialAfterMs && netPnl != null && netPnl >= partialUsd) {
-
     return { action: 'close', reason: 'partial_usd', exitPrice };
-
   }
 
+  // Protect green: був peak ≥ $1.5, відкат, але ще ≥ $0.5 → банк
+  const peak = trade.peakNetPnlUsd;
+  if (
+    peak != null
+    && peak >= protectPeakUsd
+    && netPnl != null
+    && netPnl >= protectFloorUsd
+    && netPnl <= peak - protectFloorUsd
+  ) {
+    return { action: 'close', reason: 'protect_green', exitPrice };
+  }
 
-
-  if (ageMs >= maxHoldMs) {
-
+  const holdLimit = maxHoldMs + (trade.holdExtended ? extendMs : 0);
+  if (ageMs >= holdLimit) {
+    if (netPnl != null && netPnl >= protectFloorUsd) {
+      return { action: 'close', reason: 'time_flat', exitPrice };
+    }
+    // Один раз продовжити, якщо майже flat (не глибокий мінус)
+    if (!trade.holdExtended && netPnl != null && netPnl > -1) {
+      trade.holdExtended = true;
+      return { action: 'hold' };
+    }
     return { action: 'close', reason: netPnl != null && netPnl >= 0 ? 'time_flat' : 'time_exit', exitPrice };
-
   }
-
-
 
   return { action: 'hold' };
-
 }
 
 

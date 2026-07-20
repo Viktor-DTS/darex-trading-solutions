@@ -116,17 +116,17 @@ services:
       - key: FX_MATH_THETA
         value: "1"
       - key: FX_MATH_MIN_PREACH
-        value: "0.52"
+        value: "0.48"
       - key: FX_MATH_MIN_EXPECTANCY_R
         value: "0.05"
       - key: FX_MATH_MIN_KAPPA
-        value: "0.55"
+        value: "0.48"
       - key: FX_MATH_MAX_JUMP
         value: "0.35"
       - key: FX_MATH_FRICTION_K
         value: "0.55"
       - key: FX_MATH_MICRO_BARS
-        value: "1.5"
+        value: "1.0"
       - key: FX_MATH_WINDOW_BARS
         value: "36"
       - key: FX_MATH_STRONG_PREACH
@@ -159,6 +159,14 @@ services:
         value: "1"
       - key: FX_POS_DYNAMIC_TP
         value: "1"
+      - key: FX_POS_TIME_SCRATCH_MS
+        value: "540000"
+      - key: FX_POS_TIME_SCRATCH_LOSS_MS
+        value: "360000"
+      - key: FX_POS_SCRATCH_MAX_LOSS_PIPS
+        value: "-1.0"
+      - key: FX_POS_PROGRESS_PIPS
+        value: "0.4"
       - key: FX_BREAKEVEN_PIPS
         value: "2"
       - key: FX_POS_TP_DECAY_CONV
@@ -237,6 +245,16 @@ services:
         value: "300000"
       - key: FX_TESTBOT_STOP_GRACE_MS
         value: "30000"
+      - key: FX_TESTBOT_EARLY_PARTIAL_USD
+        value: "1.5"
+      - key: FX_TESTBOT_EARLY_PARTIAL_MS
+        value: "180000"
+      - key: FX_TESTBOT_PROTECT_PEAK_USD
+        value: "1.5"
+      - key: FX_TESTBOT_PROTECT_FLOOR_USD
+        value: "0.5"
+      - key: FX_TESTBOT_HOLD_EXTEND_MS
+        value: "300000"
       - key: FX_TESTBOT_ALLOW_DRAFT
         value: "0"
       - key: FX_TESTBOT_QUALITY_LOCK

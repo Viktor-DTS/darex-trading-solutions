@@ -331,6 +331,12 @@ module.exports = {
     maxStopLossUsd: num('FX_TESTBOT_MAX_STOP_USD', 5),
     /** Не різати stop_usd на перших N мс (спред bid/ask). */
     stopGraceMs: num('FX_TESTBOT_STOP_GRACE_MS', 30000),
+    /** Early bank small green (debate DUAL_BOT_IMPROVE). */
+    earlyPartialUsd: num('FX_TESTBOT_EARLY_PARTIAL_USD', 1.5),
+    earlyPartialMs: num('FX_TESTBOT_EARLY_PARTIAL_MS', 180000),
+    protectPeakUsd: num('FX_TESTBOT_PROTECT_PEAK_USD', 1.5),
+    protectFloorUsd: num('FX_TESTBOT_PROTECT_FLOOR_USD', 0.5),
+    holdExtendMs: num('FX_TESTBOT_HOLD_EXTEND_MS', 300000),
     entryIntervalMs: num('FX_TESTBOT_ENTRY_INTERVAL_MS', 2000),
     /** Min wait before re-entry on same pair after exit; then fresh re-analyze. */
     pairCooldownMs: num('FX_TESTBOT_PAIR_COOLDOWN_MS', 300000),
