@@ -485,6 +485,23 @@
   white-space: nowrap;
 }
 
+.receipt-moves-cell-received {
+  min-width: 72px;
+}
+
+.receipt-moves-qty-input {
+  width: 100%;
+  min-width: 56px;
+  max-width: 88px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  font-size: 12px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.2));
+  border-radius: 4px;
+  background: var(--surface, transparent);
+  color: inherit;
+}
+
 .receipt-moves-cell-comment {
   max-width: 220px;
   word-break: break-word;

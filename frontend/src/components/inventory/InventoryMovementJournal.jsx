@@ -19,6 +19,7 @@ const EVENT_LABELS = {
   movement_document_cancelled: 'Скасування документа переміщення',
   movement_document_completed: 'Документ переміщення (завершено)',
   onec_move_receipt_confirmed: 'Підтвердження прийому (1С переміщення)',
+  onec_move_receipt_partial: 'Частковий прийом переміщення (1С)',
   testing_request_cancelled: 'Скасування заявки на тестування',
   testing_returned_for_retest: 'Повторне тестування',
   equipment_deleted: 'Видалення позиції',

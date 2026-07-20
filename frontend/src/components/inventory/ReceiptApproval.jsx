@@ -55,6 +55,7 @@ function ReceiptApproval({
   const [approving, setApproving] = useState(false);
   const [movePage, setMovePage] = useState(0);
   const [moveRegionalScope, setMoveRegionalScope] = useState(false);
+  const [moveReceiptDrafts, setMoveReceiptDrafts] = useState({});
   const [procurementInbound, setProcurementInbound] = useState([]);
   const [procurementLoading, setProcurementLoading] = useState(true);
   const [receiptDrafts, setReceiptDrafts] = useState({});
@@ -111,8 +112,16 @@ function ReceiptApproval({
         return;
       }
       const data = await res.json();
-      setPendingMoves(Array.isArray(data.items) ? data.items : []);
+      const items = Array.isArray(data.items) ? data.items : [];
+      setPendingMoves(items);
       setMoveRegionalScope(Boolean(data.regionalScope));
+      const drafts = {};
+      for (const m of items) {
+        if (m.moveKey) {
+          drafts[m.moveKey] = m.qty != null ? String(m.qty) : '';
+        }
+      }
+      setMoveReceiptDrafts(drafts);
     } catch {
       setPendingMoves([]);
     } finally {
@@ -168,14 +177,48 @@ function ReceiptApproval({
     }
   };
 
+  const updateMoveReceiptDraft = (moveKey, value) => {
+    setMoveReceiptDrafts((prev) => ({ ...prev, [moveKey]: value }));
+  };
+
   const handleConfirmMoves = async () => {
     if (selectedMoveKeys.size === 0) {
       alert('Виберіть хоча б одне переміщення для підтвердження');
       return;
     }
-    if (!confirm(`Підтвердити прийом ${selectedMoveKeys.size} переміщень з 1С?`)) {
+
+    const items = [];
+    for (const moveKey of selectedMoveKeys) {
+      const move = pendingMoves.find((m) => m.moveKey === moveKey);
+      if (!move) continue;
+      const raw = moveReceiptDrafts[moveKey];
+      const v = raw === '' || raw == null ? move.qty : Number(raw);
+      if (!Number.isFinite(v) || v < 0) {
+        alert(`Некоректна кількість для «${move.nomenclature || move.docNumber || moveKey}»`);
+        return;
+      }
+      items.push({ moveKey, receivedQuantity: v });
+    }
+
+    if (!items.length) {
+      alert('Немає рядків для підтвердження');
       return;
     }
+
+    const partialCount = items.filter((it) => {
+      const move = pendingMoves.find((m) => m.moveKey === it.moveKey);
+      const exp = move?.qty != null ? Number(move.qty) : null;
+      return exp != null && Number.isFinite(exp) && it.receivedQuantity < exp;
+    }).length;
+
+    const confirmMsg =
+      partialCount > 0
+        ? `Підтвердити ${items.length} переміщень? ${partialCount} з частковим прийомом — відправнику регіону буде надіслано сповіщення.`
+        : `Підтвердити прийом ${items.length} переміщень з 1С?`;
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
     setApproving(true);
     try {
       const token = localStorage.getItem('token');
@@ -185,11 +228,15 @@ function ReceiptApproval({
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ moveKeys: Array.from(selectedMoveKeys) }),
+        body: JSON.stringify({ items }),
       });
       const result = await response.json().catch(() => ({}));
       if (response.ok) {
-        alert(`Підтверджено: ${result.confirmedCount || 0} переміщень`);
+        const partialNote =
+          result.partialCount > 0
+            ? ` Часткових: ${result.partialCount} (сповіщення відправнику).`
+            : '';
+        alert(`Підтверджено: ${result.confirmedCount || 0} переміщень.${partialNote}`);
         setSelectedMoveKeys(new Set());
         loadPendingMoves();
         onMoveReceiptChanged?.();
@@ -545,7 +592,7 @@ function ReceiptApproval({
                 <h3>Переміщення з 1С</h3>
                 <span
                   className="receipt-moves-count"
-                  title="Лише переміщення між різними регіонами. Після підтвердження не з'являться повторно при імпорті ведомості."
+                  title="Лише міжрегіональні переміщення. Вкажіть фактичну кількість; при частковому прийомі відправнику регіону надійде сповіщення."
                 >
                   {totalMovesCount} між регіонами
                   {moveRegionalScope ? ' · ваш регіон' : ''}
@@ -591,6 +638,7 @@ function ReceiptApproval({
                             <th>Документ 1С</th>
                             <th>Номенклатура</th>
                             <th>К-сть</th>
+                            <th>Прийнято факт</th>
                             <th>Зі складу</th>
                             <th>На склад</th>
                             <th>Регіон</th>
@@ -621,6 +669,17 @@ function ReceiptApproval({
                               <td className="receipt-moves-cell-nomenclature">{move.nomenclature || '—'}</td>
                               <td className="receipt-moves-cell-qty">
                                 {move.qty != null ? move.qty : '—'} {move.unit || ''}
+                              </td>
+                              <td className="receipt-moves-cell-received">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  className="receipt-moves-qty-input"
+                                  value={moveReceiptDrafts[move.moveKey] ?? ''}
+                                  disabled={approving}
+                                  onChange={(e) => updateMoveReceiptDraft(move.moveKey, e.target.value)}
+                                  aria-label={`Прийнято факт: ${move.nomenclature || move.docNumber || ''}`}
+                                />
                               </td>
                               <td>{move.fromWarehouse1c || '—'}</td>
                               <td>{move.toWarehouseName || move.toWarehouse1c || '—'}</td>

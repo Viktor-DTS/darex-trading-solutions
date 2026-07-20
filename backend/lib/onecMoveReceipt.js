@@ -77,6 +77,54 @@ function resolveDestinationWarehouseId(row, lookup) {
   return null;
 }
 
+function parseReceivedQuantity(raw, expectedQty) {
+  if (raw === undefined || raw === null || raw === '') {
+    return expectedQty;
+  }
+  const v = Number(raw);
+  if (!Number.isFinite(v)) return null;
+  if (v < 0) return null;
+  return v;
+}
+
+async function notifySourceWarehousePartialMoveReceipt(helpers, fromRegion, info) {
+  const { User, createManagerNotificationDeduped, escapeRegExpForRegion } = helpers;
+  if (!fromRegion || !User || !createManagerNotificationDeduped || !escapeRegExpForRegion) return;
+  try {
+    const pattern = new RegExp(escapeRegExpForRegion(String(fromRegion).trim()), 'i');
+    const users = await User.find({
+      dismissed: { $ne: true },
+      role: { $in: ['warehouse', 'zavsklad'] },
+      region: pattern,
+    })
+      .select('login')
+      .lean();
+    if (!users.length) return;
+
+    const unit = info.unit ? ` ${info.unit}` : '';
+    const title = `Частковий прийом переміщення: ${info.docNumber || '—'}`;
+    const body =
+      `Склад «${info.toWarehouseName || info.toWarehouse1c || '—'}» прийняв не всю кількість по переміщенню 1С ${info.docNumber || '—'}. ` +
+      `${info.nomenclature || '—'}: очікувалось ${info.expectedQty}${unit}, фактично ${info.receivedQty}${unit}. ` +
+      `Відправлено зі складу «${info.fromWarehouse1c || '—'}». Перевірте відвантаження та доставку.`;
+
+    for (const u of users) {
+      const login = u.login && String(u.login).trim();
+      if (!login) continue;
+      await createManagerNotificationDeduped({
+        recipientLogin: login,
+        kind: 'onec_move_receipt_partial',
+        title,
+        body,
+        read: false,
+        dedupeKey: `onec_move_partial:${info.moveKey}:${login}:${Date.now()}`,
+      });
+    }
+  } catch (e) {
+    console.error('[onecMoveReceipt] notifySourceWarehousePartialMoveReceipt:', e.message);
+  }
+}
+
 async function buildReceiptScope(Warehouse, OneCWarehouseAlias, user, dbUser, helpers) {
   const { loadActiveWarehouseIdsForUserRegion, bypassesRegionalWarehouseInventoryLock, isRegionalWarehouseStaffRole } =
     helpers;
@@ -176,7 +224,7 @@ function buildGroupMongoFilter(parsed) {
   return filter;
 }
 
-async function confirmMoveReceipts(OneCMovement, moveKeys, user, scope, helpers) {
+async function confirmMoveReceipts(OneCMovement, items, user, scope, helpers) {
   const {
     logInventoryMovement,
     isRegionalWarehouseStaffRole,
@@ -187,8 +235,12 @@ async function confirmMoveReceipts(OneCMovement, moveKeys, user, scope, helpers)
   const now = new Date();
   const confirmed = [];
   const errors = [];
+  let partialCount = 0;
 
-  for (const key of moveKeys) {
+  for (const item of items) {
+    const key = String(item?.moveKey || '').trim();
+    if (!key) continue;
+
     const parsed = parseMoveGroupKey(key);
     if (!parsed) {
       errors.push({ moveKey: key, error: 'Некоректний ключ переміщення' });
@@ -231,13 +283,36 @@ async function confirmMoveReceipts(OneCMovement, moveKeys, user, scope, helpers)
       }
     }
 
+    const expectedQty = anchor.qty != null && Number.isFinite(Number(anchor.qty)) ? Number(anchor.qty) : 0;
+    const receivedQty = parseReceivedQuantity(item.receivedQuantity, expectedQty);
+    if (receivedQty === null) {
+      errors.push({ moveKey: key, error: 'Некоректна фактична кількість' });
+      continue;
+    }
+
+    const isPartial = receivedQty < expectedQty;
+    if (isPartial) partialCount += 1;
+
+    const regions = resolveMoveRegions(anchor, groupShape, lookup);
+
     await OneCMovement.updateMany(buildGroupMongoFilter(parsed), {
       $set: {
         receiptConfirmedAt: now,
         receiptConfirmedByLogin: user.login,
         receiptConfirmedByName: user.name || user.login,
+        receiptReceivedQty: receivedQty,
+        receiptPartial: isPartial,
       },
     });
+
+    const logNotes = [
+      `1С ${anchor.docNumber}`,
+      isPartial ? `частково: ${receivedQty}/${expectedQty}` : null,
+      anchor.docTypeName,
+      anchor.comment,
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
     await logInventoryMovement({
       eventType: 'onec_move_receipt_confirmed',
@@ -245,22 +320,38 @@ async function confirmMoveReceipts(OneCMovement, moveKeys, user, scope, helpers)
       performedByName: user.name || user.login,
       equipmentType: anchor.nomenclature || '',
       serialNumber: anchor.serial || '',
-      quantity: anchor.qty,
+      quantity: receivedQty,
       sourceWarehouseName: anchor.fromWarehouse1c || '',
       destinationWarehouseName: anchor.toWarehouse1c || anchor.warehouse1c || '',
-      notes: [`1С ${anchor.docNumber}`, anchor.docTypeName, anchor.comment].filter(Boolean).join(' · '),
+      notes: logNotes,
       occurredAt: now,
     });
+
+    if (isPartial) {
+      await notifySourceWarehousePartialMoveReceipt(helpers, regions.fromRegion, {
+        moveKey: key,
+        docNumber: anchor.docNumber,
+        nomenclature: anchor.nomenclature,
+        expectedQty,
+        receivedQty,
+        unit: anchor.unit || '',
+        fromWarehouse1c: regions.fromName,
+        toWarehouse1c: regions.toName,
+        toWarehouseName: regions.toResolved?.name || regions.toName,
+      });
+    }
 
     confirmed.push({
       moveKey: key,
       docNumber: anchor.docNumber,
       nomenclature: anchor.nomenclature,
-      qty: anchor.qty,
+      qty: expectedQty,
+      receivedQty,
+      partial: isPartial,
     });
   }
 
-  return { confirmed, errors, confirmedCount: confirmed.length };
+  return { confirmed, errors, confirmedCount: confirmed.length, partialCount };
 }
 
 module.exports = {

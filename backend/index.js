@@ -444,6 +444,7 @@ const MANAGER_NOTIFICATION_KINDS = [
   'shipment_request_new',
   'procurement_incoming_to_warehouse',
   'procurement_receipt_partial',
+  'onec_move_receipt_partial',
   'procurement_request_new',
   'procurement_request_completed',
   'task_cashless_no_invoice_pending',
@@ -1538,6 +1539,8 @@ const oneCMovementSchema = new mongoose.Schema({
   receiptConfirmedAt: { type: Date, default: null, index: true },
   receiptConfirmedByLogin: String,
   receiptConfirmedByName: String,
+  receiptReceivedQty: { type: Number, default: null },
+  receiptPartial: { type: Boolean, default: false },
 }, { timestamps: true });
 // Дедуп рядка руху між повторними/перекритими імпортами
 oneCMovementSchema.index(
@@ -15394,20 +15397,37 @@ app.post('/api/onec/confirm-move-receipts', authenticateToken, async (req, res) 
     }
     const user = await User.findOne({ login: req.user.login }).lean();
     if (!user) return res.status(401).json({ error: 'Користувач не знайдено' });
-    const moveKeys = Array.isArray(req.body?.moveKeys) ? req.body.moveKeys.map(String).filter(Boolean) : [];
-    if (!moveKeys.length) {
-      return res.status(400).json({ error: 'Вкажіть moveKeys для підтвердження' });
+
+    let items = [];
+    if (Array.isArray(req.body?.items) && req.body.items.length) {
+      items = req.body.items
+        .map((row) => ({
+          moveKey: String(row?.moveKey || '').trim(),
+          receivedQuantity: row?.receivedQuantity,
+        }))
+        .filter((row) => row.moveKey);
+    } else {
+      const moveKeys = Array.isArray(req.body?.moveKeys) ? req.body.moveKeys.map(String).filter(Boolean) : [];
+      items = moveKeys.map((moveKey) => ({ moveKey, receivedQuantity: null }));
     }
+
+    if (!items.length) {
+      return res.status(400).json({ error: 'Вкажіть items (moveKey, receivedQuantity) для підтвердження' });
+    }
+
     const scope = await buildReceiptScope(Warehouse, OneCWarehouseAlias, req.user, user, {
       loadActiveWarehouseIdsForUserRegion,
       bypassesRegionalWarehouseInventoryLock,
       isRegionalWarehouseStaffRole,
     });
-    const result = await confirmMoveReceipts(OneCMovement, moveKeys, user, scope, {
+    const result = await confirmMoveReceipts(OneCMovement, items, user, scope, {
       logInventoryMovement,
       isRegionalWarehouseStaffRole,
       bypassesRegionalWarehouseInventoryLock,
       warehouseIdInRegionalSet,
+      User,
+      createManagerNotificationDeduped,
+      escapeRegExpForRegion,
     });
     if (!result.confirmedCount && result.errors.length) {
       return res.status(400).json({ error: result.errors[0].error, ...result });

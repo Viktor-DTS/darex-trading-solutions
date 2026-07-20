@@ -19,6 +19,7 @@ const KIND_LABELS = {
   shipment_request_new: 'Запит на відвантаження',
   procurement_incoming_to_warehouse: 'Надходження на склад (закупівлі)',
   procurement_receipt_partial: 'Частковий прийом / заявка не повністю',
+  onec_move_receipt_partial: 'Частковий прийом переміщення (1С)',
   procurement_request_new: 'Нова заявка (для виконавців)',
   procurement_request_completed: 'Заявку виконано (для заявника)'
 };
