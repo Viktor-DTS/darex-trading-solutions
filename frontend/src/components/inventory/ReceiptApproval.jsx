@@ -39,6 +39,8 @@ function buildProcurementReceiptPayloadLine(m, raw) {
   return { receivedQuantity: Number.isFinite(v) ? v : exp };
 }
 
+const MOVE_PAGE_SIZE = 50;
+
 function ReceiptApproval({
   user,
   warehouses,
@@ -51,6 +53,7 @@ function ReceiptApproval({
   const [loading, setLoading] = useState(true);
   const [selectedMoveKeys, setSelectedMoveKeys] = useState(new Set());
   const [approving, setApproving] = useState(false);
+  const [movePage, setMovePage] = useState(0);
   const [moveRegionalScope, setMoveRegionalScope] = useState(false);
   const [procurementInbound, setProcurementInbound] = useState([]);
   const [procurementLoading, setProcurementLoading] = useState(true);
@@ -121,6 +124,10 @@ function ReceiptApproval({
     loadPendingMoves();
     loadProcurementInbound();
   }, [loadPendingMoves, loadProcurementInbound]);
+
+  useEffect(() => {
+    setMovePage(0);
+  }, [pendingMoves.length]);
 
   useEffect(() => {
     if (!focusProcurementId) return;
@@ -277,7 +284,13 @@ function ReceiptApproval({
     }
   };
 
-  const groupedByWarehouse = pendingMoves.reduce((acc, move) => {
+  const totalMovesCount = pendingMoves.length;
+  const movePageCount = Math.max(1, Math.ceil(totalMovesCount / MOVE_PAGE_SIZE));
+  const safeMovePage = Math.min(movePage, movePageCount - 1);
+  const moveSkip = safeMovePage * MOVE_PAGE_SIZE;
+  const pageMoves = pendingMoves.slice(moveSkip, moveSkip + MOVE_PAGE_SIZE);
+
+  const groupedByWarehouse = pageMoves.reduce((acc, move) => {
     const warehouseId = move.toWarehouseId || move.toWarehouseName || 'unknown';
     const warehouseName = move.toWarehouseName || getWarehouseName(warehouseId);
     if (!acc[warehouseId]) {
@@ -287,30 +300,38 @@ function ReceiptApproval({
     return acc;
   }, {});
 
-  const totalMovesCount = pendingMoves.length;
+  const procurementEmpty = !procurementLoading && procurementInbound.length === 0;
 
   return (
     <div className="receipt-approval">
-      <div className="receipt-approval-header">
+      <div className="receipt-approval-topbar">
         <h2>Затвердження отримання товару</h2>
-        <p className="receipt-approval-description">
-          Спочатку вкажіть фактичні кількості по заявці закупівель; натисніть «Підтвердити прийом на складі» — відкриється
-          вікно підтвердження (як при прийомі на вкладці «Надходження»). Нижче — підтвердження прийому переміщень з 1С на ваш склад.
-        </p>
       </div>
 
-      <div className="procurement-receipt-section" id="procurement-inbound-block">
-        <h3>Надходження від закупівель</h3>
-        <p className="procurement-receipt-hint">
-          Заявки у статусі «Чекає відвантаження на склад» для складів вашого регіону. У колонці «Прийнято факт» введіть
-          фактичну кількість; при розбіжностях відділ закупівель отримає сповіщення. Після підтвердження вашої частини
-          заявка зникне зі списку, доки інший регіон не завершить прийом (якщо заявка на кілька складів).
+      <details
+        id="procurement-inbound-block"
+        className={`receipt-procurement-block${procurementEmpty ? ' receipt-procurement-block--empty' : ''}`}
+        open={!procurementEmpty}
+      >
+        <summary className="receipt-procurement-summary">
+          <span className="receipt-procurement-summary-title">Надходження від закупівель</span>
+          {procurementLoading ? (
+            <span className="receipt-procurement-summary-meta">завантаження…</span>
+          ) : procurementEmpty ? (
+            <span className="receipt-procurement-summary-meta">немає очікуваних</span>
+          ) : (
+            <span className="receipt-procurement-summary-meta receipt-procurement-summary-meta--active">
+              {procurementInbound.length} заявок
+            </span>
+          )}
+        </summary>
+        <p className="receipt-procurement-hint">
+          Заявки «Чекає відвантаження на склад». У колонці «Прийнято факт» вкажіть кількість; при розбіжностях
+          закупівлі отримають сповіщення.
         </p>
         {procurementLoading ? (
-          <div className="loading-indicator">Завантаження…</div>
-        ) : procurementInbound.length === 0 ? (
-          <p className="receipt-approval-description">Немає очікуваних надходжень від відділу закупівель.</p>
-        ) : (
+          <div className="receipt-inline-status">Завантаження…</div>
+        ) : procurementEmpty ? null : (
           procurementInbound.map((pr) => (
             <div
               key={pr._id}
@@ -396,7 +417,7 @@ function ReceiptApproval({
             </div>
           ))
         )}
-      </div>
+      </details>
 
       {procurementConfirmModalPr && (
         <div
@@ -438,7 +459,7 @@ function ReceiptApproval({
               <p className="procurement-confirm-modal-lead">
                 Перевірте фактичні кількості та завершіть прийом — товар буде обліковано на зазначеному складі.
               </p>
-                <div className="procurement-receipt-table-wrap">
+              <div className="procurement-receipt-table-wrap">
                 <table className="procurement-receipt-table">
                   <thead>
                     <tr>
@@ -454,31 +475,31 @@ function ReceiptApproval({
                       .map((m, idx) => ({ m, idx }))
                       .filter(({ m }) => m.receiptLineEditable !== false)
                       .map(({ m, idx }, visIdx) => {
-                      const exp = expectedQtyForProcurementLine(m);
-                      const expLabel = m.rejected
-                        ? '0 (відхилено)'
-                        : exp === null
-                          ? '—'
-                          : String(exp);
-                      const lineWh =
-                        String(m.actualWarehouse || '').trim() ||
-                        String(procurementConfirmModalPr.actualWarehouse || '').trim() ||
-                        '—';
-                      const rowLabel = m.rejected
-                        ? `${m.name || '—'} (відхилено)`
-                        : [m.name, m.analogName && `Аналог: ${m.analogName}`].filter(Boolean).join(' · ');
-                      const draftRow = receiptDrafts[procurementConfirmModalPr._id] || [];
-                      const val = draftRow[idx] ?? '';
-                      return (
-                        <tr key={idx}>
-                          <td>{visIdx + 1}</td>
-                          <td className="procurement-receipt-line-warehouse">{lineWh}</td>
-                          <td>{rowLabel}</td>
-                          <td>{expLabel}</td>
-                          <td>{val === '' ? '—' : val}</td>
-                        </tr>
-                      );
-                    })}
+                        const exp = expectedQtyForProcurementLine(m);
+                        const expLabel = m.rejected
+                          ? '0 (відхилено)'
+                          : exp === null
+                            ? '—'
+                            : String(exp);
+                        const lineWh =
+                          String(m.actualWarehouse || '').trim() ||
+                          String(procurementConfirmModalPr.actualWarehouse || '').trim() ||
+                          '—';
+                        const rowLabel = m.rejected
+                          ? `${m.name || '—'} (відхилено)`
+                          : [m.name, m.analogName && `Аналог: ${m.analogName}`].filter(Boolean).join(' · ');
+                        const draftRow = receiptDrafts[procurementConfirmModalPr._id] || [];
+                        const val = draftRow[idx] ?? '';
+                        return (
+                          <tr key={idx}>
+                            <td>{visIdx + 1}</td>
+                            <td className="procurement-receipt-line-warehouse">{lineWh}</td>
+                            <td>{rowLabel}</td>
+                            <td>{expLabel}</td>
+                            <td>{val === '' ? '—' : val}</td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -507,110 +528,140 @@ function ReceiptApproval({
         </div>
       )}
 
-      <div className="receipt-approval-header" style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 20 }}>Переміщення з 1С (очікують прийому)</h2>
-        <p className="receipt-approval-description">
-          Оберіть рядки переміщення з 1С, які фактично отримані на склад. Після підтвердження вони не з&apos;являться
-          повторно при наступному імпорті ведомості.
-          {moveRegionalScope ? ' Показано переміщення на склади вашого регіону.' : ''}
-        </p>
-      </div>
-
-      {loading ? (
-        <div className="loading-indicator">Завантаження переміщень…</div>
-      ) : pendingMoves.length === 0 ? (
-        <div className="empty-state">
-          <p>Немає переміщень 1С, що очікують підтвердження прийому</p>
-        </div>
-      ) : (
-        <>
-          <div className="receipt-approval-toolbar">
-            <div className="toolbar-left">
-              <button type="button" className="btn-select-all" onClick={handleSelectAll}>
-                {selectedMoveKeys.size === totalMovesCount && totalMovesCount > 0
-                  ? 'Скасувати вибір'
-                  : 'Вибрати всі'}
-              </button>
-              <span className="selected-count">
-                Вибрано: {selectedMoveKeys.size} з {totalMovesCount}
-              </span>
-            </div>
-            <div className="toolbar-right">
-              <button
-                type="button"
-                className="btn-approve-receipt"
-                onClick={handleConfirmMoves}
-                disabled={selectedMoveKeys.size === 0 || approving}
-              >
-                {approving ? 'Підтвердження…' : `✅ Підтвердити прийом (${selectedMoveKeys.size})`}
-              </button>
+      <section className="receipt-approval-moves-section">
+        {loading ? (
+          <div className="receipt-inline-status">Завантаження переміщень…</div>
+        ) : pendingMoves.length === 0 ? (
+          <div className="receipt-moves-topbar">
+            <div className="receipt-moves-title-row">
+              <h3>Переміщення з 1С</h3>
+              <span className="receipt-moves-count">немає очікуваних</span>
             </div>
           </div>
-
-          <div className="receipt-approval-content">
-            {Object.values(groupedByWarehouse).map((group) => (
-              <div key={group.warehouseId} className="warehouse-group">
-                <div className="warehouse-group-header">
-                  <h3>📦 Склад: {group.warehouseName}</h3>
-                  <span className="warehouse-count">
-                    {group.moves.length}{' '}
-                    {group.moves.length === 1 ? 'переміщення' : 'переміщень'}
-                  </span>
-                </div>
-                <div className="equipment-table-wrapper">
-                  <table className="equipment-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 36 }} />
-                        <th>Дата</th>
-                        <th>Документ 1С</th>
-                        <th>Номенклатура</th>
-                        <th>К-сть</th>
-                        <th>Зі складу</th>
-                        <th>Регіон</th>
-                        <th>Коментар</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.moves.map((move) => (
-                        <tr
-                          key={move.moveKey}
-                          className={selectedMoveKeys.has(move.moveKey) ? 'fully-selected' : ''}
-                        >
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={selectedMoveKeys.has(move.moveKey)}
-                              onChange={() => handleToggleSelect(move.moveKey)}
-                              aria-label="Обрати переміщення"
-                            />
-                          </td>
-                          <td>{formatDate(move.docDate)}</td>
-                          <td>
-                            <strong>{move.docNumber || '—'}</strong>
-                            {move.docTypeName ? (
-                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                {move.docTypeName}
-                              </div>
-                            ) : null}
-                          </td>
-                          <td>{move.nomenclature || '—'}</td>
-                          <td>
-                            {move.qty != null ? move.qty : '—'} {move.unit || ''}
-                          </td>
-                          <td>{move.fromWarehouse1c || '—'}</td>
-                          <td>{move.toWarehouseRegion || '—'}</td>
-                          <td>{move.comment || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+        ) : (
+          <>
+            <div className="receipt-moves-topbar">
+              <div className="receipt-moves-title-row">
+                <h3>Переміщення з 1С</h3>
+                <span
+                  className="receipt-moves-count"
+                  title="Після підтвердження не з'являться повторно при імпорті ведомості"
+                >
+                  {totalMovesCount} очікують
+                  {moveRegionalScope ? ' · ваш регіон' : ''}
+                </span>
               </div>
-            ))}
-          </div>
-        </>
-      )}
+              <div className="receipt-moves-actions">
+                <button type="button" className="btn-select-all btn-select-all--compact" onClick={handleSelectAll}>
+                  {selectedMoveKeys.size === totalMovesCount && totalMovesCount > 0
+                    ? 'Скасувати'
+                    : `Всі (${totalMovesCount})`}
+                </button>
+                <span className="selected-count">
+                  {selectedMoveKeys.size}/{totalMovesCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn-approve-receipt btn-approve-receipt--compact"
+                  onClick={handleConfirmMoves}
+                  disabled={selectedMoveKeys.size === 0 || approving}
+                >
+                  {approving ? '…' : `✅ Підтвердити (${selectedMoveKeys.size})`}
+                </button>
+              </div>
+            </div>
+
+            <div className="receipt-approval-moves-body">
+              <div className="receipt-approval-content">
+                {Object.values(groupedByWarehouse).map((group) => (
+                  <div key={group.warehouseId} className="warehouse-group">
+                    <div className="warehouse-group-header">
+                      <h4>{group.warehouseName}</h4>
+                      <span className="warehouse-count">
+                        {group.moves.length}
+                        {totalMovesCount > MOVE_PAGE_SIZE ? ' на стор.' : ''}
+                      </span>
+                    </div>
+                    <div className="receipt-moves-table-wrap">
+                      <table className="receipt-moves-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 36 }} />
+                            <th>Дата</th>
+                            <th>Документ 1С</th>
+                            <th>Номенклатура</th>
+                            <th>К-сть</th>
+                            <th>Зі складу</th>
+                            <th>Регіон</th>
+                            <th>Коментар</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.moves.map((move) => (
+                            <tr
+                              key={move.moveKey}
+                              className={selectedMoveKeys.has(move.moveKey) ? 'fully-selected' : ''}
+                            >
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedMoveKeys.has(move.moveKey)}
+                                  onChange={() => handleToggleSelect(move.moveKey)}
+                                  aria-label="Обрати переміщення"
+                                />
+                              </td>
+                              <td className="receipt-moves-cell-date">{formatDate(move.docDate)}</td>
+                              <td className="receipt-moves-cell-doc">
+                                <strong>{move.docNumber || '—'}</strong>
+                                {move.docTypeName ? (
+                                  <div className="receipt-moves-doc-type">{move.docTypeName}</div>
+                                ) : null}
+                              </td>
+                              <td className="receipt-moves-cell-nomenclature">{move.nomenclature || '—'}</td>
+                              <td className="receipt-moves-cell-qty">
+                                {move.qty != null ? move.qty : '—'} {move.unit || ''}
+                              </td>
+                              <td>{move.fromWarehouse1c || '—'}</td>
+                              <td>{move.toWarehouseRegion || '—'}</td>
+                              <td className="receipt-moves-cell-comment">{move.comment || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {totalMovesCount > MOVE_PAGE_SIZE && (
+              <div className="receipt-moves-pager">
+                <button
+                  type="button"
+                  className="receipt-moves-pager-btn"
+                  disabled={safeMovePage <= 0}
+                  onClick={() => setMovePage((p) => Math.max(0, p - 1))}
+                >
+                  ←
+                </button>
+                <span className="receipt-moves-pager-info">
+                  {safeMovePage + 1}/{movePageCount}
+                  {' · '}
+                  {moveSkip + 1}–{Math.min(moveSkip + MOVE_PAGE_SIZE, totalMovesCount)} з {totalMovesCount}
+                </span>
+                <button
+                  type="button"
+                  className="receipt-moves-pager-btn"
+                  disabled={safeMovePage >= movePageCount - 1}
+                  onClick={() => setMovePage((p) => Math.min(movePageCount - 1, p + 1))}
+                >
+                  →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

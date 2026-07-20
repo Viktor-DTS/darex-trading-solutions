@@ -300,8 +300,22 @@
   flex-shrink: 0;
 }
 
+.inventory-tab-content.receipt-approval-tab {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+}
+
+.inventory-tab-content.receipt-approval-tab > .receipt-approval {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .inventory-tab-content > .documents-placeholder,
-.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-list-only):not(.receipt-product-cards-tab__filters):not(.onec-movements-journal):not(.onec-movements-journal-top):not(.onec-movements-journal-body):not(.onec-movements-journal-table-wrap):not(.onec-movements-journal-pager):not(.onec-movements-journal-error) {
+.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-list-only):not(.receipt-product-cards-tab__filters):not(.receipt-approval):not(.onec-movements-journal):not(.onec-movements-journal-top):not(.onec-movements-journal-body):not(.onec-movements-journal-table-wrap):not(.onec-movements-journal-pager):not(.onec-movements-journal-error) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;

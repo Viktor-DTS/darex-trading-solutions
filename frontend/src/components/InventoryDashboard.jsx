@@ -364,14 +364,16 @@ function InventoryDashboard({ user }) {
 
       case 'approval':
         return (
-          <ReceiptApproval
-            warehouses={warehouses}
-            user={user}
-            focusProcurementId={procurementReceiptFocusId}
-            onConsumedFocusProcurement={() => setProcurementReceiptFocusId(null)}
-            onProcurementReceiptChanged={loadProcurementPendingCount}
-            onMoveReceiptChanged={loadInTransitCount}
-          />
+          <div className="inventory-tab-content receipt-approval-tab">
+            <ReceiptApproval
+              warehouses={warehouses}
+              user={user}
+              focusProcurementId={procurementReceiptFocusId}
+              onConsumedFocusProcurement={() => setProcurementReceiptFocusId(null)}
+              onProcurementReceiptChanged={loadProcurementPendingCount}
+              onMoveReceiptChanged={loadInTransitCount}
+            />
+          </div>
         );
 
       case 'inventory':
