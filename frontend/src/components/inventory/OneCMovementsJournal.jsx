@@ -178,7 +178,16 @@ export default function OneCMovementsJournal({
   const canPrev = skip > 0;
   const canNext = skip + limit < data.total;
 
-  const applySearch = () => setSearch(searchDraft.trim());
+  const resetFilters = () => {
+    const t = new Date();
+    const ma = new Date(t.getTime() - 90 * 24 * 60 * 60 * 1000);
+    setFrom(toInputDate(ma));
+    setTo(toInputDate(t));
+    setWarehouseId('');
+    setSearchDraft('');
+    setSearch('');
+    setSkip(0);
+  };
 
   const displayItems = docType === 'move' ? groupMoveItems(data.items) : data.items;
 
@@ -224,19 +233,15 @@ export default function OneCMovementsJournal({
               placeholder="Номенклатура, № док., контрагент…"
               value={searchDraft}
               onChange={(e) => setSearchDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') applySearch();
-              }}
             />
           </label>
           <button
             type="button"
             className="btn-secondary onec-movements-journal-btn"
-            onClick={applySearch}
+            onClick={resetFilters}
             disabled={loading}
-            title="Застосувати пошук одразу"
           >
-            Знайти
+            Скинути фільтри
           </button>
           <button type="button" className="btn-secondary onec-movements-journal-btn" onClick={load} disabled={loading}>
             Оновити
