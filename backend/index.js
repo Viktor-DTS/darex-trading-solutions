@@ -350,6 +350,7 @@ connectAssistantMongoDB();
 // Обробники подій для моніторингу з'єднання MongoDB
 mongoose.connection.on('connected', () => {
   console.log('✅ MongoDB підключено');
+  ensureOneCMovementIndexes().catch((e) => console.warn('[OneCMovement] ensureIndexes on connect:', e.message));
 });
 
 mongoose.connection.on('error', (err) => {
@@ -1523,6 +1524,25 @@ oneCMovementSchema.index(
   { unique: true, partialFilterExpression: { docNumber: { $type: 'string' } } }
 );
 const OneCMovement = mongoose.model('OneCMovement', oneCMovementSchema);
+
+/** Прибрати застарілий unique-індекс без serial (ламає upsert після оновлення схеми). */
+async function ensureOneCMovementIndexes() {
+  try {
+    const coll = OneCMovement.collection;
+    const indexes = await coll.indexes();
+    for (const idx of indexes) {
+      if (!idx.key || idx.name === '_id_') continue;
+      const keys = Object.keys(idx.key);
+      if (keys.includes('docType') && keys.includes('docNumber') && !keys.includes('serial') && idx.unique) {
+        await coll.dropIndex(idx.name);
+        console.log('[OneCMovement] dropped legacy unique index:', idx.name);
+      }
+    }
+    await OneCMovement.syncIndexes();
+  } catch (e) {
+    console.warn('[OneCMovement] ensureIndexes:', e.message);
+  }
+}
 
 // Журнал імпортів звіту «Ведомость» (історія завантажень з агента / адмінки).
 const oneCImportLogSchema = new mongoose.Schema({
@@ -11004,6 +11024,18 @@ app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req
       trigger,
     });
     logPerformance('POST /api/onec/import-vedomost', startTime);
+    if (summary.warnings?.length) {
+      console.warn('[onec/import-vedomost] warnings:', summary.warnings.slice(0, 5));
+    }
+    console.log(
+      '[onec/import-vedomost] movements parsed=%s inserted=%s updated=%s dup=%s writeErrors=%s maxDocDate=%s',
+      summary.movementsParsed,
+      summary.movements?.inserted,
+      summary.movements?.updated,
+      summary.movements?.duplicates,
+      summary.movements?.writeErrors ?? 0,
+      summary.maxDocDate
+    );
     res.json(summary);
   } catch (error) {
     console.error('[ERROR] POST /api/onec/import-vedomost:', error);

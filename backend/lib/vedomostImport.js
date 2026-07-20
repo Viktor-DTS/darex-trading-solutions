@@ -318,14 +318,9 @@ function summarizeMovements(movements) {
 
 const ONEC_MOVEMENT_BULK_BATCH = 500;
 
-async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary) {
-  if (dryRun) {
-    summary.movements.inserted = movementDocs.length;
-    return;
-  }
-  if (!movementDocs.length || !OneCMovement) return;
-
-  const movementDedupFilter = (doc) => ({
+/** Фільтр upsert — сумісний із старими записами без поля serial (null / відсутнє / ''). */
+function movementDedupFilter(doc) {
+  const base = {
     docType: doc.docType,
     docNumber: doc.docNumber || '',
     docDate: doc.docDate,
@@ -333,8 +328,23 @@ async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary)
     qty: doc.qty,
     direction: doc.direction,
     warehouse1c: doc.warehouse1c || '',
-    serial: doc.serial || '',
-  });
+  };
+  const serial = doc.serial ? String(doc.serial).trim() : '';
+  if (serial) return { ...base, serial };
+  return {
+    ...base,
+    $or: [{ serial: { $exists: false } }, { serial: null }, { serial: '' }],
+  };
+}
+
+async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary) {
+  if (dryRun) {
+    summary.movements.inserted = movementDocs.length;
+    return;
+  }
+  if (!movementDocs.length || !OneCMovement) return;
+
+  summary.movements.writeErrors = 0;
   const ops = movementDocs.map((doc) => ({
     updateOne: {
       filter: movementDedupFilter(doc),
@@ -378,7 +388,6 @@ async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary)
     },
   }));
 
-  let writeErrors = 0;
   for (let i = 0; i < ops.length; i += ONEC_MOVEMENT_BULK_BATCH) {
     const chunk = ops.slice(i, i + ONEC_MOVEMENT_BULK_BATCH);
     try {
@@ -387,8 +396,8 @@ async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary)
       summary.movements.updated = (summary.movements.updated || 0) + (res.modifiedCount || 0);
       summary.movements.duplicates += Math.max(0, (res.matchedCount || 0) - (res.modifiedCount || 0));
     } catch (err) {
-      const partial = err.result || err;
-      if (partial?.nUpserted != null || partial?.upsertedCount != null) {
+      const partial = err.result;
+      if (partial) {
         summary.movements.inserted += partial.nUpserted ?? partial.upsertedCount ?? 0;
         summary.movements.updated =
           (summary.movements.updated || 0) + (partial.nModified ?? partial.modifiedCount ?? 0);
@@ -398,15 +407,15 @@ async function persistOneCMovements(movementDocs, OneCMovement, dryRun, summary)
         );
       }
       const errs = err.writeErrors || [];
-      writeErrors += errs.length || 1;
+      summary.movements.writeErrors += errs.length || (partial ? 0 : 1);
       const first = errs[0]?.errmsg || err.message;
       summary.warnings.push(
         `OneCMovement bulkWrite [${i}-${i + chunk.length}): ${errs.length || 1} помилок, перша: ${first}`
       );
     }
   }
-  if (writeErrors) {
-    summary.warnings.push(`OneCMovement: загалом помилок запису ${writeErrors}`);
+  if (summary.movements.writeErrors) {
+    summary.warnings.push(`OneCMovement: загалом помилок запису ${summary.movements.writeErrors}`);
   }
 }
 
