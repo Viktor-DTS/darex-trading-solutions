@@ -592,6 +592,7 @@ function ReceiptApproval({
                             <th>Номенклатура</th>
                             <th>К-сть</th>
                             <th>Зі складу</th>
+                            <th>На склад</th>
                             <th>Регіон</th>
                             <th>Коментар</th>
                           </tr>
@@ -622,6 +623,7 @@ function ReceiptApproval({
                                 {move.qty != null ? move.qty : '—'} {move.unit || ''}
                               </td>
                               <td>{move.fromWarehouse1c || '—'}</td>
+                              <td>{move.toWarehouseName || move.toWarehouse1c || '—'}</td>
                               <td className="receipt-moves-cell-region">
                                 {move.fromWarehouseRegion && move.toWarehouseRegion
                                   ? `${move.fromWarehouseRegion} → ${move.toWarehouseRegion}`
