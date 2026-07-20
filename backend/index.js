@@ -15382,7 +15382,15 @@ app.get('/api/onec/pending-move-receipts', authenticateToken, async (req, res) =
       isRegionalWarehouseStaffRole,
     });
     const items = await listPendingMoveReceipts(OneCMovement, scope);
-    res.json({ items, total: items.length, regionalScope: scope.scopeToRegion });
+    const incomingCount = items.filter((i) => i.canConfirm).length;
+    const outgoingCount = items.filter((i) => i.receiptSide === 'outgoing').length;
+    res.json({
+      items,
+      total: items.length,
+      incomingCount,
+      outgoingCount,
+      regionalScope: scope.scopeToRegion,
+    });
   } catch (error) {
     console.error('[ERROR] GET /api/onec/pending-move-receipts:', error);
     res.status(500).json({ error: error.message });

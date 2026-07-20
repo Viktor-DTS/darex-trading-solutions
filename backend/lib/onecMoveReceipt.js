@@ -77,6 +77,14 @@ function resolveDestinationWarehouseId(row, lookup) {
   return null;
 }
 
+function resolveSourceWarehouseId(row, lookup) {
+  const fromName = row.fromWarehouse1c || (row.direction === 'out' ? row.warehouse1c : '') || '';
+  const resolved = lookup.resolve(fromName);
+  if (resolved) return resolved.id;
+  if (row.direction === 'out' && row.warehouseId) return String(row.warehouseId);
+  return null;
+}
+
 function parseReceivedQuantity(raw, expectedQty) {
   if (raw === undefined || raw === null || raw === '') {
     return expectedQty;
@@ -158,6 +166,33 @@ function destinationInScope(row, lookup, allowedDestIds, allowedDestOneCNames) {
   return false;
 }
 
+function sourceInScope(row, lookup, allowedSourceIds, allowedSourceOneCNames) {
+  if (!allowedSourceIds) return false;
+  const srcId = resolveSourceWarehouseId(row, lookup);
+  if (srcId && allowedSourceIds.has(srcId)) return true;
+  const fromName = row.fromWarehouse1c || (row.direction === 'out' ? row.warehouse1c : '') || '';
+  if (fromName && allowedSourceOneCNames && allowedSourceOneCNames.includes(fromName)) return true;
+  return false;
+}
+
+/** Видимість рядка: прийом (можна підтвердити) або відправка (лише контроль). */
+function resolveReceiptVisibility(anchor, group, lookup, scope) {
+  const { allowedDestIds, allowedDestOneCNames } = scope;
+  const destOk = destinationInScope(anchor, lookup, allowedDestIds, allowedDestOneCNames);
+  const srcOk = sourceInScope(anchor, lookup, allowedDestIds, allowedDestOneCNames);
+
+  if (!allowedDestIds) {
+    return { visible: true, canConfirm: true, receiptSide: 'incoming' };
+  }
+  if (destOk) {
+    return { visible: true, canConfirm: true, receiptSide: 'incoming' };
+  }
+  if (srcOk) {
+    return { visible: true, canConfirm: false, receiptSide: 'outgoing' };
+  }
+  return { visible: false, canConfirm: false, receiptSide: null };
+}
+
 async function listPendingMoveReceipts(OneCMovement, scope) {
   const { lookup, allowedDestIds, allowedDestOneCNames } = scope;
   const rows = await OneCMovement.find({
@@ -175,10 +210,13 @@ async function listPendingMoveReceipts(OneCMovement, scope) {
     const anchor = g.in || g.out;
     if (!anchor) continue;
     if (!isCrossRegionalMove(anchor, g, lookup)) continue;
-    if (!destinationInScope(anchor, lookup, allowedDestIds, allowedDestOneCNames)) continue;
+
+    const visibility = resolveReceiptVisibility(anchor, g, lookup, scope);
+    if (!visibility.visible) continue;
 
     const regions = resolveMoveRegions(anchor, g, lookup);
     const destResolved = regions.toResolved;
+    const srcResolved = regions.fromResolved;
     pending.push({
       moveKey: g.key,
       docNumber: anchor.docNumber,
@@ -191,6 +229,8 @@ async function listPendingMoveReceipts(OneCMovement, scope) {
       fromWarehouse1c: regions.fromName,
       toWarehouse1c: regions.toName,
       fromWarehouseRegion: regions.fromRegion,
+      fromWarehouseId: srcResolved?.id || null,
+      fromWarehouseName: srcResolved?.name || regions.fromName,
       toWarehouseId: destResolved?.id || null,
       toWarehouseName: destResolved?.name || anchor.toWarehouse1c || '',
       toWarehouseRegion: regions.toRegion,
@@ -198,10 +238,15 @@ async function listPendingMoveReceipts(OneCMovement, scope) {
       comment: anchor.comment || '',
       movementIds: g.rows.map((r) => String(r._id)),
       hasInOutPair: !!(g.in && g.out),
+      receiptSide: visibility.receiptSide,
+      canConfirm: visibility.canConfirm,
     });
   }
 
-  pending.sort((a, b) => new Date(b.docDate || 0) - new Date(a.docDate || 0));
+  pending.sort((a, b) => {
+    if (a.canConfirm !== b.canConfirm) return a.canConfirm ? -1 : 1;
+    return new Date(b.docDate || 0) - new Date(a.docDate || 0);
+  });
   return pending;
 }
 
