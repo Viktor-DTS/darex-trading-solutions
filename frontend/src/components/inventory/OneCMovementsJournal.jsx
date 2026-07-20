@@ -20,16 +20,76 @@ function toInputDate(d) {
 }
 
 function formatWarehouse(row) {
+  if (row._groupedMove) {
+    return formatMoveWarehouse(row);
+  }
   if (row.fromWarehouse1c || row.toWarehouse1c) {
     return [row.fromWarehouse1c, row.toWarehouse1c].filter(Boolean).join(' → ');
   }
   return row.warehouse1c || '—';
 }
 
-function formatDirection(row) {
+/** Переміщення: видаток зі складу-джерела → прихід на склад-отримувач. */
+function formatMoveWarehouse(row) {
+  const from = row.fromWarehouse1c || '—';
+  const to = row.toWarehouse1c || '—';
+  return (
+    <span className="onec-movements-journal-move-flow">
+      <span className="onec-movements-journal-badge-out">Видаток</span> {from}
+      <span className="onec-movements-journal-move-arrow"> → </span>
+      <span className="onec-movements-journal-badge-in">Прихід</span> {to}
+    </span>
+  );
+}
+
+function formatDirection(row, docType) {
+  if (docType === 'move' && row._groupedMove) {
+    return <span className="onec-movements-journal-move-label">Переміщення</span>;
+  }
   if (row.direction === 'in') return <span className="onec-movements-journal-badge-in">Прихід</span>;
   if (row.direction === 'out') return <span className="onec-movements-journal-badge-out">Видаток</span>;
   return '—';
+}
+
+/** Об'єднати пару in/out одного рядка переміщення в один запис таблиці. */
+function groupMoveItems(items) {
+  if (!items.length) return [];
+  const groups = new Map();
+  const order = [];
+
+  for (const row of items) {
+    const from = row.fromWarehouse1c || '';
+    const to = row.toWarehouse1c || '';
+    const t = row.docDate ? new Date(row.docDate).getTime() : 0;
+    const key = `${row.docNumber}|${t}|${row.nomenclature}|${row.qty}|${from}|${to}|${row.serial || ''}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, { out: null, in: null });
+      order.push(key);
+    }
+    const g = groups.get(key);
+    if (row.direction === 'out') g.out = row;
+    else if (row.direction === 'in') g.in = row;
+    else if (!g.out) g.out = row;
+    else if (!g.in) g.in = row;
+  }
+
+  return order.map((key) => {
+    const g = groups.get(key);
+    if (g.out && g.in) {
+      return {
+        ...g.out,
+        _id: `move:${g.out._id}:${g.in._id}`,
+        _groupedMove: true,
+        fromWarehouse1c: g.out.fromWarehouse1c || g.in.fromWarehouse1c,
+        toWarehouse1c: g.out.toWarehouse1c || g.in.toWarehouse1c,
+        comment: g.out.comment || g.in.comment,
+        responsible: g.out.responsible || g.in.responsible,
+        manager: g.out.manager || g.in.manager,
+      };
+    }
+    return g.out || g.in;
+  });
 }
 
 function formatSum(row) {
@@ -104,6 +164,8 @@ export default function OneCMovementsJournal({
   const canNext = skip + limit < data.total;
 
   const applySearch = () => setSearch(searchDraft.trim());
+
+  const displayItems = docType === 'move' ? groupMoveItems(data.items) : data.items;
 
   return (
     <div className="inventory-tab-content onec-movements-journal">
@@ -207,7 +269,7 @@ export default function OneCMovementsJournal({
                   </td>
                 </tr>
               ) : null}
-              {data.items.map((row) => {
+              {displayItems.map((row) => {
                 const requestNumber = extractRequestNumberFromOneC(row);
                 return (
                   <tr key={row._id}>
@@ -232,7 +294,7 @@ export default function OneCMovementsJournal({
                     <td>{row.nomenclature || '—'}</td>
                     <td>{row.qty != null ? row.qty : '—'}</td>
                     <td>{row.unit || '—'}</td>
-                    <td>{formatDirection(row)}</td>
+                    <td>{formatDirection(row, docType)}</td>
                     <td>{formatWarehouse(row)}</td>
                     <td>{row.contractor || '—'}</td>
                     <td>{row.responsible || row.manager || '—'}</td>

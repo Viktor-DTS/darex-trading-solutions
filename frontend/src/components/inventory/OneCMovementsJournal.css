@@ -192,3 +192,17 @@
 .onec-movements-journal-badge-out {
   color: #f87171;
 }
+
+.onec-movements-journal-move-label {
+  color: var(--text-secondary, #9aa0a6);
+  font-weight: 500;
+}
+
+.onec-movements-journal-move-flow {
+  display: inline;
+  line-height: 1.45;
+}
+
+.onec-movements-journal-move-arrow {
+  color: var(--text-secondary, #9aa0a6);
+}
