@@ -535,7 +535,7 @@ function ReceiptApproval({
           <div className="receipt-moves-topbar">
             <div className="receipt-moves-title-row">
               <h3>Переміщення з 1С</h3>
-              <span className="receipt-moves-count">немає очікуваних</span>
+              <span className="receipt-moves-count">немає міжрегіональних</span>
             </div>
           </div>
         ) : (
@@ -545,9 +545,9 @@ function ReceiptApproval({
                 <h3>Переміщення з 1С</h3>
                 <span
                   className="receipt-moves-count"
-                  title="Після підтвердження не з'являться повторно при імпорті ведомості"
+                  title="Лише переміщення між різними регіонами. Після підтвердження не з'являться повторно при імпорті ведомості."
                 >
-                  {totalMovesCount} очікують
+                  {totalMovesCount} між регіонами
                   {moveRegionalScope ? ' · ваш регіон' : ''}
                 </span>
               </div>
@@ -622,7 +622,11 @@ function ReceiptApproval({
                                 {move.qty != null ? move.qty : '—'} {move.unit || ''}
                               </td>
                               <td>{move.fromWarehouse1c || '—'}</td>
-                              <td>{move.toWarehouseRegion || '—'}</td>
+                              <td className="receipt-moves-cell-region">
+                                {move.fromWarehouseRegion && move.toWarehouseRegion
+                                  ? `${move.fromWarehouseRegion} → ${move.toWarehouseRegion}`
+                                  : move.toWarehouseRegion || move.fromWarehouseRegion || '—'}
+                              </td>
                               <td className="receipt-moves-cell-comment">{move.comment || '—'}</td>
                             </tr>
                           ))}

@@ -47,6 +47,28 @@ function groupMoveRows(rows) {
   return order.map((key) => ({ key, ...groups.get(key) }));
 }
 
+function resolveMoveRegions(anchor, group, lookup) {
+  const fromName = anchor.fromWarehouse1c || group.out?.warehouse1c || '';
+  const toName = anchor.toWarehouse1c || group.in?.warehouse1c || '';
+  const fromResolved = lookup.resolve(fromName);
+  const toResolved = lookup.resolve(toName);
+  return {
+    fromName,
+    toName,
+    fromRegion: fromResolved?.region || '',
+    toRegion: toResolved?.region || '',
+    fromResolved,
+    toResolved,
+  };
+}
+
+/** Підтвердження потрібне лише для переміщень між різними регіональними складами. */
+function isCrossRegionalMove(anchor, group, lookup) {
+  const { fromRegion, toRegion } = resolveMoveRegions(anchor, group, lookup);
+  if (!fromRegion || !toRegion) return false;
+  return fromRegion !== toRegion;
+}
+
 function resolveDestinationWarehouseId(row, lookup) {
   const toName = row.toWarehouse1c || (row.direction === 'in' ? row.warehouse1c : '') || '';
   const resolved = lookup.resolve(toName);
@@ -104,9 +126,11 @@ async function listPendingMoveReceipts(OneCMovement, scope) {
   for (const g of grouped) {
     const anchor = g.in || g.out;
     if (!anchor) continue;
+    if (!isCrossRegionalMove(anchor, g, lookup)) continue;
     if (!destinationInScope(anchor, lookup, allowedDestIds, allowedDestOneCNames)) continue;
 
-    const destResolved = lookup.resolve(anchor.toWarehouse1c || anchor.warehouse1c || '');
+    const regions = resolveMoveRegions(anchor, g, lookup);
+    const destResolved = regions.toResolved;
     pending.push({
       moveKey: g.key,
       docNumber: anchor.docNumber,
@@ -116,11 +140,12 @@ async function listPendingMoveReceipts(OneCMovement, scope) {
       qty: anchor.qty,
       unit: anchor.unit,
       serial: anchor.serial || null,
-      fromWarehouse1c: anchor.fromWarehouse1c || g.out?.warehouse1c || '',
-      toWarehouse1c: anchor.toWarehouse1c || g.in?.warehouse1c || '',
+      fromWarehouse1c: regions.fromName,
+      toWarehouse1c: regions.toName,
+      fromWarehouseRegion: regions.fromRegion,
       toWarehouseId: destResolved?.id || null,
       toWarehouseName: destResolved?.name || anchor.toWarehouse1c || '',
-      toWarehouseRegion: destResolved?.region || '',
+      toWarehouseRegion: regions.toRegion,
       responsible: anchor.responsible || '',
       comment: anchor.comment || '',
       movementIds: g.rows.map((r) => String(r._id)),
@@ -181,6 +206,14 @@ async function confirmMoveReceipts(OneCMovement, moveKeys, user, scope, helpers)
     }
 
     const anchor = rows.find((r) => r.direction === 'in') || rows[0];
+    const groupShape = {
+      out: rows.find((r) => r.direction === 'out') || null,
+      in: rows.find((r) => r.direction === 'in') || null,
+    };
+    if (!isCrossRegionalMove(anchor, groupShape, lookup)) {
+      errors.push({ moveKey: key, error: 'Підтвердження не потрібне для переміщень в межах одного регіону' });
+      continue;
+    }
     if (!destinationInScope(anchor, lookup, allowedDestIds, scope.allowedDestOneCNames)) {
       errors.push({ moveKey: key, error: 'Склад призначення не у вашому регіоні' });
       continue;
@@ -235,6 +268,8 @@ module.exports = {
   parseMoveGroupKey,
   groupMoveRows,
   buildReceiptScope,
+  resolveMoveRegions,
+  isCrossRegionalMove,
   listPendingMoveReceipts,
   countPendingMoveReceipts,
   confirmMoveReceipts,
