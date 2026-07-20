@@ -92,12 +92,64 @@ function mergeMongoFilters(base, extra) {
   return { $and: [base, extra] };
 }
 
+/** Внутрішні події переміщення в журналі DTS — видимі по всій мережі. */
+const INTERNAL_MOVE_LOG_EVENT_TYPES = [
+  'warehouse_move',
+  'movement_document_completed',
+  'movement_document_cancelled',
+];
+
+async function collectAllowedWarehouseNames(Warehouse, allowedIds, mongoose) {
+  const oids = [...allowedIds]
+    .filter((id) => mongoose.isValidObjectId(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (!oids.length) return [];
+  const whs = await Warehouse.find({ _id: { $in: oids } }).select('name oneCNames').lean();
+  const names = new Set();
+  for (const w of whs) {
+    const n = String(w.name || '').trim();
+    if (n) names.add(n);
+    for (const nm of w.oneCNames || []) {
+      const s = String(nm || '').trim();
+      if (s) names.add(s);
+    }
+  }
+  return [...names];
+}
+
+function buildRegionalInternalLogFilter(allowedWarehouseNames) {
+  const moveClause = { eventType: { $in: INTERNAL_MOVE_LOG_EVENT_TYPES } };
+  if (!allowedWarehouseNames.length) return moveClause;
+  return {
+    $or: [
+      moveClause,
+      { sourceWarehouseName: { $in: allowedWarehouseNames } },
+      { destinationWarehouseName: { $in: allowedWarehouseNames } },
+    ],
+  };
+}
+
+/** Журнал руху: переміщення 1С — по всій мережі, решта — лише регіон. */
+function buildJournalOneCMovementFilter(allowedIds, allowedOneCNames, mongoose) {
+  const or = [{ docType: 'move' }];
+  const oids = [...allowedIds]
+    .filter((id) => mongoose.isValidObjectId(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (oids.length) or.push({ warehouseId: { $in: oids } });
+  if (allowedOneCNames.length) or.push({ warehouse1c: { $in: allowedOneCNames } });
+  return or.length === 1 ? or[0] : { $or: or };
+}
+
 module.exports = {
   isNationalWarehouseRegion,
   buildOneCWarehouseLookup,
   enrichOneCMovementsWithRegions,
   regionFromMovement,
   collectOneCNamesForWarehouseIds,
+  collectAllowedWarehouseNames,
   buildRegionalMovementMongoFilter,
+  buildRegionalInternalLogFilter,
+  buildJournalOneCMovementFilter,
   mergeMongoFilters,
+  INTERNAL_MOVE_LOG_EVENT_TYPES,
 };

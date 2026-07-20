@@ -62,7 +62,7 @@ function formatMovementStatusValue(s) {
 
 export default function InventoryMovementJournal() {
   const [data, setData] = useState({ rows: [], total: 0 });
-  const [journalReadOnly, setJournalReadOnly] = useState(false);
+  const [journalRegionalScope, setJournalRegionalScope] = useState(false);
   const [skip, setSkip] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -74,11 +74,11 @@ export default function InventoryMovementJournal() {
     try {
       const res = await getInventoryMovementLog({ skip, limit });
       setData({ rows: res.rows || [], total: res.total || 0 });
-      setJournalReadOnly(Boolean(res.journalReadOnly));
+      setJournalRegionalScope(Boolean(res.journalRegionalScope));
     } catch (e) {
       setError(e.message || 'Помилка завантаження');
       setData({ rows: [], total: 0 });
-      setJournalReadOnly(false);
+      setJournalRegionalScope(false);
     } finally {
       setLoading(false);
     }
@@ -115,10 +115,9 @@ export default function InventoryMovementJournal() {
 
       {error ? <div className="error-message">{error}</div> : null}
 
-      {journalReadOnly ? (
+      {journalRegionalScope ? (
         <p className="inventory-movement-journal-readonly" role="status">
-          Повний журнал доступний лише для перегляду (усі регіони). Операції з товаром — лише на складах
-          вашого регіону в інших розділах обліку.
+          Показано рухи вашого регіону; переміщення — по всій мережі складів.
         </p>
       ) : null}
 

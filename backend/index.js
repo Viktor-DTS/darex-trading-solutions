@@ -37,6 +37,17 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const {
+  buildOneCWarehouseLookup,
+  isNationalWarehouseRegion,
+  collectOneCNamesForWarehouseIds,
+  collectAllowedWarehouseNames,
+  buildRegionalMovementMongoFilter,
+  buildRegionalInternalLogFilter,
+  buildJournalOneCMovementFilter,
+  mergeMongoFilters,
+  enrichOneCMovementsWithRegions,
+} = require('./lib/onecWarehouseMap');
 const { connectAssistantMongoDB, getAssistantConnection } = require('./assistantMongo');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -5704,33 +5715,52 @@ app.get('/api/inventory-movement-log', authenticateToken, async (req, res) => {
     }
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 150, 1), 500);
     const skip = Math.max(parseInt(req.query.skip, 10) || 0, 0);
-    // Чи включати рух товару з 1С (OneCMovement). За замовчуванням — так.
     const includeOneC = req.query.includeOneC !== '0' && req.query.includeOneC !== 'false';
-    // Для коректної пагінації об'єднаного списку достатньо взяти топ (skip+limit)
-    // з кожного джерела за датою (використовує індекси), злити та відрізати сторінку.
+
+    let internalFilter = {};
+    let onecFilter = {};
+    let journalRegionalScope = false;
+
+    if (
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const dbUser = await User.findOne({ login: req.user.login }).select('region').lean();
+      if (dbUser && !isNationalWarehouseRegion(dbUser.region)) {
+        journalRegionalScope = true;
+        const allowedIds = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+        const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
+        const allowedOneCNames = collectOneCNamesForWarehouseIds(lookup, allowedIds);
+        const allowedWarehouseNames = await collectAllowedWarehouseNames(
+          Warehouse,
+          allowedIds,
+          mongoose
+        );
+        internalFilter = buildRegionalInternalLogFilter(allowedWarehouseNames);
+        onecFilter = buildJournalOneCMovementFilter(allowedIds, allowedOneCNames, mongoose);
+      }
+    }
+
     const need = skip + limit;
     const [internalRows, onecRows, internalTotal, onecTotal] = await Promise.all([
-      InventoryMovementLog.find({}).sort({ occurredAt: -1 }).limit(need).lean(),
+      InventoryMovementLog.find(internalFilter).sort({ occurredAt: -1 }).limit(need).lean(),
       includeOneC
-        ? OneCMovement.find({}).sort({ docDate: -1, _id: -1 }).limit(need).lean()
+        ? OneCMovement.find(onecFilter).sort({ docDate: -1, _id: -1 }).limit(need).lean()
         : Promise.resolve([]),
-      InventoryMovementLog.countDocuments({}),
-      includeOneC ? OneCMovement.countDocuments({}) : Promise.resolve(0),
+      InventoryMovementLog.countDocuments(internalFilter),
+      includeOneC ? OneCMovement.countDocuments(onecFilter) : Promise.resolve(0),
     ]);
     const mappedInternal = internalRows.map((r) => ({ ...r, source: 'internal' }));
     const mappedOneC = onecRows.map(mapOneCMovementToJournalRow);
     const merged = [...mappedInternal, ...mappedOneC]
       .sort((a, b) => new Date(b.occurredAt || 0) - new Date(a.occurredAt || 0))
       .slice(skip, skip + limit);
-    const journalReadOnly =
-      isRegionalWarehouseStaffRole(req.user.role) &&
-      !bypassesRegionalWarehouseInventoryLock(req.user.role);
     res.json({
       rows: merged,
       total: internalTotal + onecTotal,
       skip,
       limit,
-      journalReadOnly,
+      journalRegionalScope,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -10997,14 +11027,6 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
 // Інтеграція 1С: імпорт «Ведомости по товарам на складах» (залишки + рух) та мапінг складів
 // ============================================
 const { runVedomostImport } = require('./lib/vedomostImport');
-const {
-  buildOneCWarehouseLookup,
-  enrichOneCMovementsWithRegions,
-  isNationalWarehouseRegion,
-  collectOneCNamesForWarehouseIds,
-  buildRegionalMovementMongoFilter,
-  mergeMongoFilters,
-} = require('./lib/onecWarehouseMap');
 const { decodeMultipartFilename } = require('./lib/multipartFilename');
 
 // Імпорт звіту «Ведомость по товарам на складах» (оновлює залишки + журнал руху OneCMovement)
