@@ -4,7 +4,7 @@ import { extractRequestNumberFromOneC } from '../../utils/onecRequestNumber';
 import OneCRequestViewModal from './OneCRequestViewModal';
 import './OneCMovementsJournal.css';
 
-const COL_COUNT = 12;
+const COL_COUNT = 13;
 
 function fmtDateTime(d) {
   if (!d) return '—';
@@ -250,6 +250,7 @@ export default function OneCMovementsJournal({
                 <th>Склад</th>
                 <th>Контрагент</th>
                 <th>Відповідальний</th>
+                <th>Менеджер</th>
                 <th>Сума</th>
                 <th>Коментар</th>
               </tr>
@@ -297,7 +298,8 @@ export default function OneCMovementsJournal({
                     <td>{formatDirection(row, docType)}</td>
                     <td>{formatWarehouse(row)}</td>
                     <td>{row.contractor || '—'}</td>
-                    <td>{row.responsible || row.manager || '—'}</td>
+                    <td>{row.responsible || '—'}</td>
+                    <td>{row.manager || '—'}</td>
                     <td>{formatSum(row)}</td>
                     <td className="onec-movements-journal-cell-notes">{row.comment || '—'}</td>
                   </tr>
