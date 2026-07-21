@@ -13,6 +13,7 @@ import { buildTaskPatchFromEstimate, buildValidation } from '../utils/estimate/e
 import {
   buildTransportDistanceCheck,
   buildTransportDistancePatch,
+  buildGoogleMapsDirectionsUrl,
   fetchDrivingDistanceKm,
   getTransportLine,
 } from '../utils/estimate/estimateTransportDistance';
@@ -80,6 +81,11 @@ function EstimateBuilderModal({
   );
 
   const regionBaseAddress = regionBase?.address || '';
+
+  const transportRouteUrl = useMemo(
+    () => buildGoogleMapsDirectionsUrl(regionBaseAddress, task?.address),
+    [regionBaseAddress, task?.address]
+  );
 
   const validation = useMemo(
     () => buildValidation(task, workLines, lowerLines, calculations),
@@ -393,6 +399,20 @@ function EstimateBuilderModal({
                 {distanceCheck.ok
                   ? ' ✅'
                   : ` ⚠️ (${distanceCheck.diff > 0 ? '+' : ''}${distanceCheck.diff}; маршрут Google Maps ${distanceCheck.expectedKm} км)`}
+                {transportRouteUrl && (
+                  <>
+                    {' '}
+                    <a
+                      href={transportRouteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="estimate-maps-route-link"
+                      title={`${regionBaseAddress} → ${task?.address || ''}`}
+                    >
+                      🗺️ Маршрут на Google Maps
+                    </a>
+                  </>
+                )}
                 {!distanceCheck.ok && (
                   <div className="estimate-distance-actions">
                     <button

@@ -85,3 +85,16 @@ export function buildTransportDistancePatch(transportLine, expectedKm) {
     total: roundMoney(qty * price),
   };
 }
+
+export function buildGoogleMapsDirectionsUrl(origin, destination) {
+  const from = String(origin || '').trim();
+  const to = String(destination || '').trim();
+  if (!from || !to) return '';
+  const params = new URLSearchParams({
+    api: '1',
+    origin: from,
+    destination: to,
+    travelmode: 'driving',
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
