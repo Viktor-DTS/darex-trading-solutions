@@ -5,16 +5,32 @@ function normalizeRegion(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-export function resolveRegionBaseAddress(serviceRegion, warehouses = []) {
+function filterWarehousesByRegion(serviceRegion, warehouses = []) {
   const target = normalizeRegion(serviceRegion);
-  if (!target) return regionBasesFallback['Україна'] || '';
+  if (!target) return [];
 
-  const matched = (warehouses || []).filter((wh) => {
+  return (warehouses || []).filter((wh) => {
     if (wh?.isActive === false) return false;
     const whRegion = normalizeRegion(wh.region);
     if (!whRegion) return false;
     return whRegion === target || whRegion.includes(target) || target.includes(whRegion);
   });
+}
+
+export function resolveRegionBaseWarehouse(serviceRegion, warehouses = []) {
+  const matched = filterWarehousesByRegion(serviceRegion, warehouses);
+
+  const designated = matched.find(
+    (wh) => wh.isRegionBase === true && String(wh.address || '').trim()
+  );
+  if (designated) {
+    return {
+      id: designated._id || designated.id,
+      name: String(designated.name || '').trim(),
+      address: String(designated.address).trim(),
+      source: 'designated',
+    };
+  }
 
   const withAddress = matched
     .filter((wh) => String(wh.address || '').trim())
@@ -28,9 +44,25 @@ export function resolveRegionBaseAddress(serviceRegion, warehouses = []) {
       return String(a.name || '').localeCompare(String(b.name || ''), 'uk');
     });
 
-  if (withAddress.length) return String(withAddress[0].address).trim();
+  if (withAddress.length) {
+    return {
+      id: withAddress[0]._id || withAddress[0].id,
+      name: String(withAddress[0].name || '').trim(),
+      address: String(withAddress[0].address).trim(),
+      source: 'fallback',
+    };
+  }
 
-  return regionBasesFallback[serviceRegion] || regionBasesFallback['Україна'] || '';
+  const fallbackAddress = regionBasesFallback[serviceRegion] || regionBasesFallback['Україна'] || '';
+  if (fallbackAddress) {
+    return { id: null, name: '', address: fallbackAddress, source: 'static' };
+  }
+
+  return null;
+}
+
+export function resolveRegionBaseAddress(serviceRegion, warehouses = []) {
+  return resolveRegionBaseWarehouse(serviceRegion, warehouses)?.address || '';
 }
 
 export async function fetchActiveWarehouses() {

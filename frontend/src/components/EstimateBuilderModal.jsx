@@ -6,10 +6,9 @@ import {
   buildWorkLineFromSpec,
   createEstimateLine,
   getEstimateFileName,
-  getRegionBaseAddress,
   recalcLine,
 } from '../utils/estimate/estimatePrefill';
-import { fetchActiveWarehouses } from '../utils/estimate/regionBaseAddress';
+import { fetchActiveWarehouses, resolveRegionBaseWarehouse } from '../utils/estimate/regionBaseAddress';
 import { buildTaskPatchFromEstimate, buildValidation } from '../utils/estimate/estimateValidation';
 import {
   buildTransportDistanceCheck,
@@ -75,10 +74,12 @@ function EstimateBuilderModal({
     });
   }, [open, warehouses, task, spec]);
 
-  const regionBaseAddress = useMemo(
-    () => getRegionBaseAddress(task?.serviceRegion, warehouses),
+  const regionBase = useMemo(
+    () => resolveRegionBaseWarehouse(task?.serviceRegion, warehouses),
     [task?.serviceRegion, warehouses]
   );
+
+  const regionBaseAddress = regionBase?.address || '';
 
   const validation = useMemo(
     () => buildValidation(task, workLines, lowerLines, calculations),
@@ -367,7 +368,10 @@ function EstimateBuilderModal({
             </div>
             {regionBaseAddress && (
               <div className="estimate-region-base-hint">
-                База регіону ({task?.serviceRegion || '—'}): {regionBaseAddress}
+                База регіону ({task?.serviceRegion || '—'})
+                {regionBase?.name ? `: ${regionBase.name}` : ''}
+                {regionBase?.source === 'fallback' ? ' (автовибір — призначте базу в адмінці)' : ''}
+                {' — '}{regionBaseAddress}
               </div>
             )}
             <EstimateLinesEditor lines={lowerLines} onChange={updateLowerLine} onRemove={removeLowerLine} />

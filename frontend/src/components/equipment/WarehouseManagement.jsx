@@ -14,7 +14,8 @@ function WarehouseManagement({ user }) {
     address: '',
     oneCNames: '',
     isStockSource: true,
-    visibleToManagers: true
+    visibleToManagers: true,
+    isRegionBase: false,
   });
   const [errors, setErrors] = useState([]);
   // Черга мапінгу складів 1С
@@ -171,11 +172,12 @@ function WarehouseManagement({ user }) {
         address: warehouse.address || '',
         oneCNames: Array.isArray(warehouse.oneCNames) ? warehouse.oneCNames.join('\n') : '',
         isStockSource: warehouse.isStockSource !== false,
-        visibleToManagers: warehouse.visibleToManagers !== false
+        visibleToManagers: warehouse.visibleToManagers !== false,
+        isRegionBase: warehouse.isRegionBase === true,
       });
     } else {
       setEditingWarehouse(null);
-      setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true, visibleToManagers: true });
+      setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true, visibleToManagers: true, isRegionBase: false });
     }
     setErrors([]);
     setShowModal(true);
@@ -184,7 +186,7 @@ function WarehouseManagement({ user }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingWarehouse(null);
-    setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true, visibleToManagers: true });
+    setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true, visibleToManagers: true, isRegionBase: false });
     setErrors([]);
   };
 
@@ -219,7 +221,8 @@ function WarehouseManagement({ user }) {
         address: formData.address,
         oneCNames: oneCNamesArr,
         isStockSource: formData.isStockSource !== false,
-        visibleToManagers: formData.visibleToManagers !== false
+        visibleToManagers: formData.visibleToManagers !== false,
+        isRegionBase: formData.isRegionBase === true,
       };
 
       const response = await fetch(url, {
@@ -241,6 +244,41 @@ function WarehouseManagement({ user }) {
     } catch (error) {
       console.error('Помилка збереження:', error);
       setErrors(['Помилка збереження складу']);
+    }
+  };
+
+  const handleToggleRegionBase = async (warehouse, nextChecked) => {
+    if (!isAdmin) return;
+    if (nextChecked && !String(warehouse.region || '').trim()) {
+      alert('Спочатку вкажіть регіон складу');
+      return;
+    }
+    if (nextChecked && !String(warehouse.address || '').trim()) {
+      alert('Для бази регіону потрібна адреса складу');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/warehouses/${warehouse._id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isRegionBase: nextChecked === true }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || 'Не вдалося оновити базу регіону');
+        return;
+      }
+
+      await loadWarehouses({ includeInactive: true, silent: true });
+    } catch (error) {
+      console.error('Помилка оновлення бази регіону:', error);
+      alert('Помилка оновлення бази регіону');
     }
   };
 
@@ -572,6 +610,24 @@ function WarehouseManagement({ user }) {
                   <span className="info-label">Видно менеджерам:</span>
                   <span className="info-value">{warehouse.visibleToManagers === false ? 'ні' : 'так'}</span>
                 </div>
+                {isAdmin && (
+                  <div className="warehouse-info warehouse-region-base-row">
+                    <label className="warehouse-region-base-label">
+                      <input
+                        type="checkbox"
+                        checked={warehouse.isRegionBase === true}
+                        onChange={(e) => handleToggleRegionBase(warehouse, e.target.checked)}
+                      />
+                      <span>База регіону (кошторис / транспорт)</span>
+                    </label>
+                  </div>
+                )}
+                {!isAdmin && warehouse.isRegionBase === true && (
+                  <div className="warehouse-info">
+                    <span className="info-label">База регіону:</span>
+                    <span className="info-value region-base-badge">так</span>
+                  </div>
+                )}
                 <div className="warehouse-info">
                   <span className="info-label">Створено:</span>
                   <span className="info-value">
@@ -1139,6 +1195,19 @@ function WarehouseManagement({ user }) {
                   Показувати менеджерам (склад видно в панелі менеджера)
                 </label>
               </div>
+
+              {isAdmin && (
+                <div className="form-group">
+                  <label className="import-dry-run">
+                    <input
+                      type="checkbox"
+                      checked={formData.isRegionBase === true}
+                      onChange={(e) => handleInputChange('isRegionBase', e.target.checked)}
+                    />
+                    База регіону (для кошторису та розрахунку транспорту; один склад на регіон)
+                  </label>
+                </div>
+              )}
 
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={handleCloseModal}>

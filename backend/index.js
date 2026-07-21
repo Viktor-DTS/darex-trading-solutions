@@ -1475,7 +1475,9 @@ const warehouseSchema = new mongoose.Schema({
   // Чи є цей склад джерелом залишків при імпорті «Ведомости» (фізичний склад).
   isStockSource: { type: Boolean, default: true },
   // Чи показувати цей склад у панелі менеджера (вибір складів для менеджерів).
-  visibleToManagers: { type: Boolean, default: true }
+  visibleToManagers: { type: Boolean, default: true },
+  // База регіону для кошторису / розрахунку транспорту (лише один склад на регіон).
+  isRegionBase: { type: Boolean, default: false }
 }, { timestamps: true });
 
 warehouseSchema.index({ name: 1 }, { unique: true });
@@ -2483,6 +2485,21 @@ function isRegionalWarehouseStaffRole(role) {
 
 function bypassesRegionalWarehouseInventoryLock(role) {
   return ['admin', 'administrator', 'mgradm'].includes(String(role || '').toLowerCase());
+}
+
+function warehouseRegionEqualsFilter(region) {
+  const r = String(region || '').trim();
+  if (!r) return null;
+  return { region: { $regex: new RegExp(`^${escapeRegExpForRegion(r)}$`, 'i') } };
+}
+
+async function clearOtherRegionBases(warehouseId, region) {
+  const regionFilter = warehouseRegionEqualsFilter(region);
+  if (!regionFilter) return;
+  await Warehouse.updateMany(
+    { ...regionFilter, _id: { $ne: warehouseId }, isRegionBase: true },
+    { $set: { isRegionBase: false } }
+  );
 }
 
 async function loadActiveWarehouseIdsForUserRegion(regionRaw) {
@@ -9742,7 +9759,7 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
 
-    const { name, region, address, oneCNames, oneCRef, isStockSource, visibleToManagers } = req.body;
+    const { name, region, address, oneCNames, oneCRef, isStockSource, visibleToManagers, isRegionBase } = req.body;
     if (
       isRegionalWarehouseStaffRole(req.user.role) &&
       !bypassesRegionalWarehouseInventoryLock(req.user.role)
@@ -9758,6 +9775,9 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
     const normNames = Array.isArray(oneCNames)
       ? [...new Set(oneCNames.map((n) => String(n).trim()).filter(Boolean))]
       : [];
+    if (isRegionBase === true && !['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Лище адміністратор може призначати базу регіону' });
+    }
     const warehouse = await Warehouse.create({
       name,
       region,
@@ -9766,7 +9786,11 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
       oneCRef: oneCRef ? String(oneCRef).trim() : '',
       isStockSource: isStockSource !== false,
       visibleToManagers: visibleToManagers !== false,
+      isRegionBase: isRegionBase === true,
     });
+    if (warehouse.isRegionBase) {
+      await clearOtherRegionBases(warehouse._id, region);
+    }
     logPerformance('POST /api/warehouses', startTime);
     res.status(201).json(warehouse);
   } catch (error) {
@@ -9800,8 +9824,12 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
       if (!okWh) return;
     }
 
-    const { name, region, address, isActive, oneCNames, oneCRef, isStockSource, visibleToManagers } = req.body;
-    const update = { name, region, address, isActive };
+    const { name, region, address, isActive, oneCNames, oneCRef, isStockSource, visibleToManagers, isRegionBase } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (region !== undefined) update.region = region;
+    if (address !== undefined) update.address = address;
+    if (isActive !== undefined) update.isActive = isActive;
     if (oneCNames !== undefined) {
       update.oneCNames = Array.isArray(oneCNames)
         ? [...new Set(oneCNames.map((n) => String(n).trim()).filter(Boolean))]
@@ -9810,6 +9838,12 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
     if (oneCRef !== undefined) update.oneCRef = oneCRef ? String(oneCRef).trim() : '';
     if (isStockSource !== undefined) update.isStockSource = isStockSource !== false;
     if (visibleToManagers !== undefined) update.visibleToManagers = visibleToManagers !== false;
+    if (isRegionBase !== undefined) {
+      if (!['admin', 'administrator'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Лише адміністратор може призначати базу регіону' });
+      }
+      update.isRegionBase = isRegionBase === true;
+    }
     const warehouse = await Warehouse.findByIdAndUpdate(
       req.params.id,
       update,
@@ -9818,6 +9852,10 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
     
     if (!warehouse) {
       return res.status(404).json({ error: 'Склад не знайдено' });
+    }
+
+    if (warehouse.isRegionBase) {
+      await clearOtherRegionBases(warehouse._id, warehouse.region);
     }
     
     logPerformance('PUT /api/warehouses/:id', startTime);

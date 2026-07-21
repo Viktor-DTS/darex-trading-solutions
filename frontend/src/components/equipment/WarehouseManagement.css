@@ -423,6 +423,28 @@
   font-weight: 500;
 }
 
+.warehouse-region-base-row {
+  margin-top: 4px;
+}
+
+.warehouse-region-base-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  color: var(--text-primary, #fff);
+  font-size: 14px;
+}
+
+.warehouse-region-base-label input {
+  accent-color: #10b981;
+}
+
+.region-base-badge {
+  color: #34d399;
+}
+
 .warehouse-card-actions {
   display: flex;
   gap: 8px;
