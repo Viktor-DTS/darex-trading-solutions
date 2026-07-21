@@ -1353,9 +1353,29 @@
   color: var(--text-primary);
   font-weight: 500;
   font-size: 11px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.contract-selector-filename > span:first-child,
+.contract-selector-filename {
+  min-width: 0;
+}
+
+.contract-estimate-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: #6ee7b7;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .contract-selector-client {

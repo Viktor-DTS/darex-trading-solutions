@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import { getPdfUniqueKey, extractContractMetaFromFile, analyzeContractFileByUrl, isContractFileSupported, openContractFilePreview } from '../utils/pdfUtils';
+import { isActiveEstimateContract } from '../utils/estimate/estimateSpecRegistry';
 import { getEdrpouList, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
@@ -2560,6 +2561,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                                         <span className="contract-files-count">
                                           ({contract.filesCount} однакових)
                                         </span>
+                                      )}
+                                      {isActiveEstimateContract(contract, formData, selectedContractUrl) && (
+                                        <span className="contract-estimate-badge">використовується для кошторису</span>
                                       )}
                                     </div>
                                     <div className="contract-selector-client">

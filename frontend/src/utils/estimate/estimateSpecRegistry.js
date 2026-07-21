@@ -36,6 +36,61 @@ export function isEstimateGenerationAvailable(task) {
   return !!getEstimateSpecForTask(task);
 }
 
+export function getContractFileUrl(task) {
+  const contractFile = task?.contractFile;
+  if (!contractFile) return '';
+  if (typeof contractFile === 'string') return contractFile.trim();
+  return String(
+    contractFile.url || contractFile.href || contractFile.secure_url || contractFile.publicUrl || ''
+  ).trim();
+}
+
+export function getContractFileLabel(url) {
+  if (!url) return 'Договір';
+  try {
+    const path = String(url).split('?')[0];
+    const name = path.split('/').pop();
+    return name ? decodeURIComponent(name) : 'Договір';
+  } catch {
+    return 'Договір';
+  }
+}
+
+export function getEstimateContractSummary(task, spec) {
+  if (!task || !spec) return null;
+  const contractFileUrl = getContractFileUrl(task);
+  return {
+    client: String(task.client || '').trim(),
+    edrpou: normalizeEdrpou(task.edrpou),
+    contractNumber: String(task.contractNumber || spec.contractNumber || '').trim(),
+    contractDate: String(task.contractDate || '').trim(),
+    specTitle: String(spec.title || '').trim(),
+    requestNumber: String(task.requestNumber || '').trim(),
+    contractFileUrl,
+    contractFileLabel: getContractFileLabel(contractFileUrl),
+  };
+}
+
+export function contractSupportsEstimate(contract, task = {}) {
+  if (!contract || task.worksWithoutContract) return false;
+  const contractNumber = String(task.contractNumber || contract.parsedContractNumber || '').trim();
+  if (!contractNumber) return false;
+  const contractFile = getContractFileUrl(task) || String(contract.url || '').trim();
+  if (!contractFile) return false;
+  return !!getEstimateSpecForTask({
+    edrpou: task.edrpou || contract.edrpou,
+    contractNumber,
+    contractFile,
+  });
+}
+
+export function isActiveEstimateContract(contract, task, selectedContractUrl) {
+  const url = String(contract?.url || '').trim();
+  const selected = String(selectedContractUrl || '').trim();
+  if (!url || !selected || url !== selected) return false;
+  return contractSupportsEstimate(contract, task);
+}
+
 export function getSpecItemPrice(item, powerTierId) {
   if (!item?.prices || item.prices.unavailable) return null;
   const price = item.prices[powerTierId];
