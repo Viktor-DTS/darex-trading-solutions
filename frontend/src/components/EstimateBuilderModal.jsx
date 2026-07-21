@@ -236,7 +236,7 @@ function EstimateBuilderModal({
 
   const applyGoogleTransportKm = () => {
     if (!transportLine || !distanceCheck || distanceCheck.ok) return;
-    const patch = buildTransportDistancePatch(transportLine, distanceCheck.expectedRoundTripKm);
+    const patch = buildTransportDistancePatch(transportLine, distanceCheck.expectedKm);
     updateLowerLine(transportLine.id, patch);
     if (onTaskUpdated) {
       onTaskUpdated({
@@ -385,10 +385,10 @@ function EstimateBuilderModal({
             )}
             {transportLine && distanceCheck && !distanceState.loading && !distanceState.error && (
               <div className={`estimate-validation-distance ${distanceCheck.ok ? 'ok' : 'warn'}`}>
-                Перевірка «Транспорт, км (туди-назад)»: {distanceCheck.actualKm} / {distanceCheck.expectedRoundTripKm} км
+                Перевірка «Транспорт, км»: {distanceCheck.actualKm} / {distanceCheck.expectedKm} км
                 {distanceCheck.ok
                   ? ' ✅'
-                  : ` ⚠️ (${distanceCheck.diff > 0 ? '+' : ''}${distanceCheck.diff}; маршрут ${distanceCheck.oneWayKm}×2 км)`}
+                  : ` ⚠️ (${distanceCheck.diff > 0 ? '+' : ''}${distanceCheck.diff}; маршрут Google Maps ${distanceCheck.expectedKm} км)`}
                 {!distanceCheck.ok && (
                   <div className="estimate-distance-actions">
                     <button
@@ -397,7 +397,7 @@ function EstimateBuilderModal({
                       onClick={applyGoogleTransportKm}
                       disabled={busy}
                     >
-                      Застосувати {distanceCheck.expectedRoundTripKm} км у заявку
+                      Застосувати {distanceCheck.expectedKm} км у заявку
                     </button>
                   </div>
                 )}

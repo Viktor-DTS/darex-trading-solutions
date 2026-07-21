@@ -60,10 +60,10 @@ export async function fetchDrivingDistanceKm(origin, destination) {
 }
 
 export function buildTransportDistanceCheck({ oneWayKm, transportKm }) {
-  const expectedRoundTripKm = Math.max(0, parseNumber(oneWayKm) * 2);
+  const expectedKm = Math.max(0, parseNumber(oneWayKm));
   const actualKm = parseNumber(transportKm);
-  const diff = actualKm - expectedRoundTripKm;
-  const ok = expectedRoundTripKm <= 0
+  const diff = actualKm - expectedKm;
+  const ok = expectedKm <= 0
     ? true
     : actualKm <= 0
       ? false
@@ -71,15 +71,14 @@ export function buildTransportDistanceCheck({ oneWayKm, transportKm }) {
 
   return {
     ok,
-    oneWayKm: parseNumber(oneWayKm),
-    expectedRoundTripKm,
+    expectedKm,
     actualKm,
     diff,
   };
 }
 
-export function buildTransportDistancePatch(transportLine, expectedRoundTripKm) {
-  const qty = parseNumber(expectedRoundTripKm);
+export function buildTransportDistancePatch(transportLine, expectedKm) {
+  const qty = parseNumber(expectedKm);
   const price = parseNumber(transportLine?.unitPrice);
   return {
     quantity: qty,
