@@ -23,6 +23,12 @@ export function getRegionBaseAddress(serviceRegion, warehouses = []) {
 export function buildDefaultTransportLabel(task, warehouses = []) {
   const address = String(task.address || '').trim();
   const base = getRegionBaseAddress(task.serviceRegion, warehouses);
+  return buildTransportLabelFromAddresses(address, base);
+}
+
+export function buildTransportLabelFromAddresses(destination, origin) {
+  const address = String(destination || '').trim();
+  const base = String(origin || '').trim();
   if (address && base) return `Транспортні витрати (${address} - ${base})`;
   if (address) return `Транспортні витрати (${address})`;
   return 'Транспортні витрати';

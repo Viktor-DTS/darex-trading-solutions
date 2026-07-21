@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE_URL from '../config';
 import { getSpecItemPrice } from '../utils/estimate/estimateSpecRegistry';
 import {
   buildLowerTableLinesFromTask,
   buildWorkLineFromSpec,
+  buildTransportLabelFromAddresses,
   createEstimateLine,
   getEstimateFileName,
   recalcLine,
@@ -44,6 +45,10 @@ function EstimateBuilderModal({
     error: '',
     oneWayKm: null,
   });
+  const [transportOriginAddress, setTransportOriginAddress] = useState('');
+  const originInputRef = useRef(null);
+  const originAutocompleteRef = useRef(null);
+  const originCustomizedRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +62,8 @@ function EstimateBuilderModal({
     setError('');
     setWarehouses([]);
     setDistanceState({ loading: false, error: '', oneWayKm: null });
+    originCustomizedRef.current = false;
+    setTransportOriginAddress('');
     fetchActiveWarehouses()
       .then((list) => setWarehouses(Array.isArray(list) ? list : []))
       .catch(() => setWarehouses([]));
@@ -82,9 +89,59 @@ function EstimateBuilderModal({
 
   const regionBaseAddress = regionBase?.address || '';
 
+  useEffect(() => {
+    if (!open || originCustomizedRef.current || !regionBaseAddress) return;
+    setTransportOriginAddress(regionBaseAddress);
+  }, [open, regionBaseAddress]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    let timeoutId;
+    const initAutocomplete = () => {
+      if (typeof google === 'undefined' || !google.maps?.places) {
+        timeoutId = setTimeout(initAutocomplete, 100);
+        return;
+      }
+      if (!originInputRef.current) return;
+
+      if (originAutocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(originAutocompleteRef.current);
+      }
+
+      const autocomplete = new google.maps.places.Autocomplete(originInputRef.current, {
+        componentRestrictions: { country: 'ua' },
+        fields: ['formatted_address'],
+        types: ['address'],
+      });
+
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (place?.formatted_address) {
+          originCustomizedRef.current = true;
+          setTransportOriginAddress(place.formatted_address);
+        }
+      });
+
+      originAutocompleteRef.current = autocomplete;
+    };
+
+    initAutocomplete();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (originAutocompleteRef.current && typeof google !== 'undefined' && google.maps?.event) {
+        google.maps.event.clearInstanceListeners(originAutocompleteRef.current);
+        originAutocompleteRef.current = null;
+      }
+    };
+  }, [open]);
+
+  const effectiveOriginAddress = String(transportOriginAddress || regionBaseAddress || '').trim();
+
   const transportRouteUrl = useMemo(
-    () => buildGoogleMapsDirectionsUrl(regionBaseAddress, task?.address),
-    [regionBaseAddress, task?.address]
+    () => buildGoogleMapsDirectionsUrl(effectiveOriginAddress, task?.address),
+    [effectiveOriginAddress, task?.address]
   );
 
   const validation = useMemo(
@@ -105,7 +162,7 @@ function EstimateBuilderModal({
   useEffect(() => {
     if (!open) return undefined;
 
-    const origin = regionBaseAddress;
+    const origin = effectiveOriginAddress;
     const destination = String(task?.address || '').trim();
     if (!origin || !destination || !transportLine) {
       setDistanceState({ loading: false, error: '', oneWayKm: null });
@@ -134,7 +191,18 @@ function EstimateBuilderModal({
     return () => {
       cancelled = true;
     };
-  }, [open, regionBaseAddress, task?.address, transportLine?.id]);
+  }, [open, effectiveOriginAddress, task?.address, transportLine?.id]);
+
+  useEffect(() => {
+    if (!open || !transportLine) return;
+    const name = buildTransportLabelFromAddresses(task?.address, effectiveOriginAddress);
+    setLowerLines((prev) =>
+      prev.map((line) => {
+        if (line.id !== 'transport' && line.source !== 'task-transport') return line;
+        return { ...line, name };
+      })
+    );
+  }, [open, effectiveOriginAddress, task?.address, transportLine?.id]);
 
   const selectableItems = useMemo(() => {
     return (spec?.categories || []).flatMap((category) =>
@@ -239,6 +307,11 @@ function EstimateBuilderModal({
       throw new Error(data.error || data.details || 'Не вдалося зберегти файл кошторису');
     }
     return response.json();
+  };
+
+  const resetTransportOrigin = () => {
+    originCustomizedRef.current = false;
+    setTransportOriginAddress(regionBaseAddress || '');
   };
 
   const applyGoogleTransportKm = () => {
@@ -372,14 +445,41 @@ function EstimateBuilderModal({
               <h4>Матеріали, транспорт та витрати</h4>
               <button type="button" className="estimate-mini-btn" onClick={addManualLowerLine}>+ Додати рядок</button>
             </div>
-            {regionBaseAddress && (
-              <div className="estimate-region-base-hint">
-                База регіону ({task?.serviceRegion || '—'})
-                {regionBase?.name ? `: ${regionBase.name}` : ''}
-                {regionBase?.source === 'fallback' ? ' (автовибір — призначте базу в адмінці)' : ''}
-                {' — '}{regionBaseAddress}
+            <div className="estimate-origin-field">
+              <div className="estimate-origin-field-head">
+                <label htmlFor="estimate-transport-origin">
+                  Початок маршруту — база регіону ({task?.serviceRegion || '—'})
+                </label>
+                {regionBase?.name && (
+                  <span className="estimate-origin-default-name">{regionBase.name}</span>
+                )}
               </div>
-            )}
+              <input
+                id="estimate-transport-origin"
+                ref={originInputRef}
+                type="text"
+                className="estimate-origin-input"
+                value={transportOriginAddress}
+                onChange={(e) => {
+                  originCustomizedRef.current = true;
+                  setTransportOriginAddress(e.target.value);
+                }}
+                placeholder="Адреса початку маршруту (Google Maps)"
+              />
+              <div className="estimate-origin-actions">
+                <button
+                  type="button"
+                  className="estimate-mini-btn"
+                  onClick={resetTransportOrigin}
+                  disabled={!regionBaseAddress || transportOriginAddress === regionBaseAddress}
+                >
+                  Скинути до бази регіону
+                </button>
+                {regionBase?.source === 'fallback' && (
+                  <span className="estimate-origin-note">Призначте базу регіону в адмінці</span>
+                )}
+              </div>
+            </div>
             <EstimateLinesEditor lines={lowerLines} onChange={updateLowerLine} onRemove={removeLowerLine} />
             <div className="estimate-subtotal">Разом нижня таблиця: <strong>{validation.lowerTotal.toFixed(2)} грн</strong></div>
           </div>
@@ -407,7 +507,7 @@ function EstimateBuilderModal({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="estimate-maps-route-link"
-                      title={`${regionBaseAddress} → ${task?.address || ''}`}
+                      title={`${effectiveOriginAddress} → ${task?.address || ''}`}
                     >
                       🗺️ Маршрут на Google Maps
                     </a>
