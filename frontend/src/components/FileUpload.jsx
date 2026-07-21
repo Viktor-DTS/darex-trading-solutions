@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../config';
 import EstimateBuilderModal from './EstimateBuilderModal';
 import { getEstimateSpecForTask, isEstimateGenerationAvailable } from '../utils/estimate/estimateSpecRegistry';
+import { openFilePreview } from '../utils/pdfUtils';
 import './FileUpload.css';
 
 const WINDOWS_RESERVED_NAMES = new Set([
@@ -231,38 +232,7 @@ const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated
       const imageIndex = imageFiles.findIndex(f => getFileId(f) === getFileId(file));
       openGalleryInNewWindow(imageFiles, imageIndex >= 0 ? imageIndex : 0);
     } else {
-      // Для не-зображень: PDF відкриваємо напряму, Excel/Word — скачуємо
-      const url = file.cloudinaryUrl;
-      const originalName = file.originalName || '';
-      const ext = originalName.includes('.') ? originalName.split('.').pop().toLowerCase() : '';
-
-      const mimetype = file.mimetype || '';
-      const isPdf = mimetype.includes('pdf') || ext === 'pdf';
-      const isOfficeDoc =
-        mimetype.includes('spreadsheet') ||
-        mimetype.includes('excel') ||
-        mimetype.includes('word') ||
-        mimetype.includes('document') ||
-        ['xls', 'xlsx', 'doc', 'docx'].includes(ext);
-
-      if (isPdf) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-        return;
-      }
-
-      if (isOfficeDoc) {
-        // Для Excel/Word просто скачуємо — користувач відкриє файл сам
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = originalName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return;
-      }
-
-      // fallback для інших типів
-      window.open(url, '_blank', 'noopener,noreferrer');
+      openFilePreview(file.cloudinaryUrl, file.mimetype, file.originalName);
     }
   };
 

@@ -8,6 +8,37 @@ let mammothLib = null;
 
 const CONTRACT_DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const CONTRACT_DOC_MIME = 'application/msword';
+const EXCEL_XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const EXCEL_XLS_MIME = 'application/vnd.ms-excel';
+
+export function getFilePreviewKind(nameOrUrl = '', mime = '') {
+  const contractKind = getContractFileKind(nameOrUrl, mime);
+  if (contractKind !== 'unknown') return contractKind;
+
+  const lower = String(nameOrUrl || '').toLowerCase().split('?')[0];
+  const mt = String(mime || '').toLowerCase();
+  if (mt === EXCEL_XLSX_MIME || mt.includes('spreadsheet') || lower.endsWith('.xlsx')) return 'xlsx';
+  if (mt === EXCEL_XLS_MIME || mt.includes('excel') || lower.endsWith('.xls')) return 'xls';
+  return 'unknown';
+}
+
+export function getFilePreviewUrl(url, mime = '', name = '') {
+  const fileUrl = String(url || '').trim();
+  if (!fileUrl) return '';
+
+  const kind = getFilePreviewKind(name || fileUrl, mime);
+  if (kind === 'docx' || kind === 'doc' || kind === 'xlsx' || kind === 'xls') {
+    return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`;
+  }
+  return fileUrl;
+}
+
+export function openFilePreview(url, mime = '', name = '') {
+  const previewUrl = getFilePreviewUrl(url, mime, name);
+  if (previewUrl) {
+    window.open(previewUrl, '_blank', 'noopener,noreferrer');
+  }
+}
 
 export function getContractFileKind(nameOrUrl = '', mime = '') {
   const lower = String(nameOrUrl || '').toLowerCase().split('?')[0];
@@ -23,22 +54,13 @@ export function isContractFileSupported(nameOrUrl = '', mime = '') {
   return kind === 'pdf' || kind === 'docx' || kind === 'doc';
 }
 
-/** URL для перегляду в браузері: PDF напряму, Word — через Office Online. */
+/** URL для перегляду в браузері: PDF напряму, Word/Excel — через Office Online. */
 export function getContractFilePreviewUrl(url) {
-  const fileUrl = String(url || '').trim();
-  if (!fileUrl) return '';
-  const kind = getContractFileKind(fileUrl);
-  if (kind === 'docx' || kind === 'doc') {
-    return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`;
-  }
-  return fileUrl;
+  return getFilePreviewUrl(url);
 }
 
 export function openContractFilePreview(url) {
-  const previewUrl = getContractFilePreviewUrl(url);
-  if (previewUrl) {
-    window.open(previewUrl, '_blank', 'noopener,noreferrer');
-  }
+  openFilePreview(url);
 }
 
 /**
