@@ -73,22 +73,15 @@ export function getEstimateContractSummary(task, spec) {
 
 export function contractSupportsEstimate(contract, task = {}) {
   if (!contract || task.worksWithoutContract) return false;
-  const contractNumber = String(task.contractNumber || contract.parsedContractNumber || '').trim();
+  const contractNumber = String(contract.parsedContractNumber || task.contractNumber || '').trim();
   if (!contractNumber) return false;
-  const contractFile = getContractFileUrl(task) || String(contract.url || '').trim();
+  const contractFile = String(contract.url || '').trim() || getContractFileUrl(task);
   if (!contractFile) return false;
   return !!getEstimateSpecForTask({
     edrpou: task.edrpou || contract.edrpou,
     contractNumber,
     contractFile,
   });
-}
-
-export function isActiveEstimateContract(contract, task, selectedContractUrl) {
-  const url = String(contract?.url || '').trim();
-  const selected = String(selectedContractUrl || '').trim();
-  if (!url || !selected || url !== selected) return false;
-  return contractSupportsEstimate(contract, task);
 }
 
 export function getSpecItemPrice(item, powerTierId) {
