@@ -76,7 +76,7 @@ function EstimateBuilderModal({
   const selectableItems = useMemo(() => {
     return (spec?.categories || []).flatMap((category) =>
       (category.items || [])
-        .filter((item) => !item.prices?.unavailable)
+        .filter((item) => !item.includedInPackage && !item.prices?.unavailable)
         .map((item) => ({ category, item }))
     );
   }, [spec]);
@@ -245,22 +245,35 @@ function EstimateBuilderModal({
                   </button>
                   {expandedCategories[category.id] && (
                     <div className="estimate-spec-items">
-                      {(category.items || []).map((item) => {
+                      {(category.items || [])
+                        .filter((item) => !item.includedInPackage)
+                        .map((item) => {
                         const unavailable = item.prices?.unavailable;
                         const price = powerTier ? getSpecItemPrice(item, powerTier) : null;
                         return (
-                          <label key={item.id} className={`estimate-spec-item ${unavailable ? 'disabled' : ''}`}>
-                            <input
-                              type="checkbox"
-                              disabled={unavailable || !powerTier}
-                              checked={selectedSpecIds.includes(item.id)}
-                              onChange={() => toggleSpecItem(item.id)}
-                            />
-                            <span className="estimate-spec-item-text">
-                              <strong>{item.code}</strong> {item.label}
-                              {unavailable ? ' — не надається' : powerTier && price != null ? ` — ${price} грн` : ''}
-                            </span>
-                          </label>
+                          <div key={item.id} className={`estimate-spec-item-wrap ${unavailable ? 'disabled' : ''}`}>
+                            <label className="estimate-spec-item">
+                              <input
+                                type="checkbox"
+                                disabled={unavailable || !powerTier}
+                                checked={selectedSpecIds.includes(item.id)}
+                                onChange={() => toggleSpecItem(item.id)}
+                              />
+                              <span className="estimate-spec-item-text">
+                                <strong>{item.code}</strong> {item.label}
+                                {unavailable ? ' — не надається' : powerTier && price != null ? ` — ${price} грн` : ''}
+                              </span>
+                            </label>
+                            {item.subItems?.length > 0 && (
+                              <ul className="estimate-spec-subitems">
+                                {item.subItems.map((sub) => (
+                                  <li key={sub.code}>
+                                    <strong>{sub.code}</strong> {sub.label}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

@@ -174,6 +174,26 @@ for (const cat of categories) {
   }
 }
 
+function mergeCategoryOnePackages(categories) {
+  for (const cat of categories) {
+    if (!/^Категорія ТО:\s*1\./i.test(cat.title || '')) continue;
+    const subItems = cat.items.filter((item) => /^1\.\d+$/.test(item.code));
+    if (subItems.length < 2) continue;
+    const priced = subItems.find((item) => !item.prices?.unavailable && item.prices?.le_50kw != null);
+    if (!priced) continue;
+    cat.items = [{
+      id: `${cat.id}-package`,
+      code: '1',
+      label: "Технічний огляд (раз на квартал обов'язково)",
+      unit: priced.unit || 'послуга',
+      prices: { ...priced.prices },
+      subItems: subItems.map(({ code, label }) => ({ code, label })),
+    }];
+  }
+}
+
+mergeCategoryOnePackages(categories);
+
 const spec = {
   id: 'privatbank-p0156625',
   edrpou: '14360570',
