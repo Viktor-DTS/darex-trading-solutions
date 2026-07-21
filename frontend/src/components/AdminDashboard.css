@@ -85,14 +85,14 @@
   margin-bottom: 16px;
 }
 
-.form-row {
+.user-form .form-row {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
-.form-row:last-child {
+.user-form .form-row:last-child {
   margin-bottom: 0;
 }
 
@@ -1302,7 +1302,7 @@
     padding: 12px;
   }
   
-  .form-row {
+  .user-form .form-row {
     flex-direction: column;
   }
   

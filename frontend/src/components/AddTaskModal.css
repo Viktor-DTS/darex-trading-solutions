@@ -182,58 +182,63 @@
   color: #b45309;
 }
 
-.form-row {
+.task-form .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  width: 100%;
 }
 
-.form-row.four-cols {
+.task-form .form-group {
+  min-width: 0;
+}
+
+.task-form .form-row.four-cols {
   grid-template-columns: repeat(4, 1fr);
 }
 
-.form-row.three-cols {
+.task-form .form-row.three-cols {
   grid-template-columns: repeat(3, 1fr);
 }
 
-.form-row.three-cols .form-group.request-desc-wide {
+.task-form .form-row.three-cols .form-group.request-desc-wide {
   grid-column: span 2;
 }
 
-.form-row .form-group.request-desc-full-width,
-.form-row .form-group.address-full-width {
+.task-form .form-row .form-group.request-desc-full-width,
+.task-form .form-row .form-group.address-full-width {
   width: 100%;
   grid-column: 1 / -1;
 }
 
-.form-row.two-cols {
+.task-form .form-row.two-cols {
   grid-template-columns: 2fr 1fr;
 }
 
-.form-row.five-cols {
+.task-form .form-row.five-cols {
   grid-template-columns: repeat(5, 1fr);
 }
 
-.form-row.six-cols {
+.task-form .form-row.six-cols {
   grid-template-columns: repeat(6, 1fr);
 }
 
 /* Додаткові матеріали (позиції): розширюємо "Примітка", звужуємо "Видалити" */
-.form-row.other-material-line-row {
+.task-form .form-row.other-material-line-row {
   grid-template-columns: 1.3fr 0.7fr 0.9fr 0.9fr 2fr auto;
 }
 
 /* Бухгалтерський режим: ширше "Назва", вужчі кількість/ціна/сума */
-.accountant-mode .form-row.other-material-line-row {
-  /* перебиваємо .accountant-mode .form-row.six-cols { ... !important } */
+.accountant-mode .task-form .form-row.other-material-line-row {
+  /* перебиваємо .accountant-mode .task-form .form-row.six-cols { ... !important } */
   grid-template-columns: 2.6fr 0.35fr 0.45fr 0.45fr 2fr auto !important;
 }
 
-.accountant-mode .form-row.other-material-line-row .form-group {
+.accountant-mode .task-form .form-row.other-material-line-row .form-group {
   min-width: 0;
 }
 
-.accountant-mode .form-row.other-material-line-row textarea.other-material-name {
+.accountant-mode .task-form .form-row.other-material-line-row textarea.other-material-name {
   min-height: 22px;
   height: auto;
   resize: vertical;
@@ -242,11 +247,11 @@
   overflow-wrap: anywhere;
 }
 
-.form-row.other-material-line-row .other-material-line-actions {
+.task-form .form-row.other-material-line-row .other-material-line-actions {
   justify-content: flex-end;
 }
 
-.form-row.other-material-line-row .other-material-line-actions .btn-secondary {
+.task-form .form-row.other-material-line-row .other-material-line-actions .btn-secondary {
   width: fit-content;
   padding-left: 12px;
   padding-right: 12px;
@@ -276,6 +281,13 @@
   font-size: 11px;
   font-family: inherit;
   transition: border-color 0.2s;
+}
+
+.task-form .form-group input,
+.task-form .form-group select,
+.task-form .form-group textarea {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .read-only-mode .form-group input,
@@ -735,7 +747,7 @@
 }
 
 /* Зменшуємо відступи в формах */
-.accountant-mode .form-row {
+.accountant-mode .task-form .form-row {
   gap: 4px;
   margin-bottom: 2px;
 }
@@ -764,39 +776,39 @@
 }
 
 /* Більше колонок для оптимізації простору - за замовчуванням 4 колонки, але специфічні класи мають пріоритет */
-.accountant-mode .form-row:not(.two-cols):not(.three-cols):not(.four-cols):not(.five-cols):not(.six-cols):not(.seven-cols) {
+.accountant-mode .task-form .form-row:not(.two-cols):not(.three-cols):not(.four-cols):not(.five-cols):not(.six-cols):not(.seven-cols) {
   grid-template-columns: repeat(4, 1fr);
 }
 
 /* Спеціальні рядки для accountant-mode - мають вищий пріоритет */
-.accountant-mode .form-row.two-cols {
+.accountant-mode .task-form .form-row.two-cols {
   grid-template-columns: 2fr 1fr !important;
 }
 
-.accountant-mode .form-row.three-cols {
+.accountant-mode .task-form .form-row.three-cols {
   grid-template-columns: repeat(3, 1fr) !important;
 }
 
-.accountant-mode .form-row.four-cols {
+.accountant-mode .task-form .form-row.four-cols {
   grid-template-columns: repeat(4, 1fr) !important;
 }
 
-.accountant-mode .form-row.five-cols {
+.accountant-mode .task-form .form-row.five-cols {
   grid-template-columns: repeat(5, 1fr) !important;
 }
 
-.accountant-mode .form-row.six-cols {
+.accountant-mode .task-form .form-row.six-cols {
   grid-template-columns: repeat(6, 1fr) !important;
 }
 
-.accountant-mode .form-row.seven-cols {
+.accountant-mode .task-form .form-row.seven-cols {
   grid-template-columns: repeat(7, 1fr) !important;
 }
 
-.accountant-mode .form-row.seven-cols .form-group,
-.accountant-mode .form-row.six-cols .form-group,
-.accountant-mode .form-row.five-cols .form-group,
-.accountant-mode .form-row.two-cols .form-group {
+.accountant-mode .task-form .form-row.seven-cols .form-group,
+.accountant-mode .task-form .form-row.six-cols .form-group,
+.accountant-mode .task-form .form-row.five-cols .form-group,
+.accountant-mode .task-form .form-row.two-cols .form-group {
   min-width: 0; /* Дозволяємо стискання */
 }
 
@@ -810,7 +822,7 @@
 }
 
 /* Додаткові матеріали (позиції): компактніша "Примітка" та кнопка "Видалити" */
-.accountant-mode .form-row.other-material-line-row .form-group textarea {
+.accountant-mode .task-form .form-row.other-material-line-row .form-group textarea {
   min-height: 22px !important; /* перебиваємо inline minHeight: 60px */
   padding-top: 2px;
   padding-bottom: 2px;
@@ -818,7 +830,7 @@
   overflow: auto;
 }
 
-.accountant-mode .form-row.other-material-line-row .form-group.other-material-line-actions .btn-secondary {
+.accountant-mode .task-form .form-row.other-material-line-row .form-group.other-material-line-actions .btn-secondary {
   min-height: 22px !important; /* перебиваємо inline minHeight: 38px */
   height: 22px;
   padding: 2px 8px;
@@ -1368,17 +1380,17 @@
 
 /* Адаптивність */
 @media (max-width: 992px) {
-  .form-row.four-cols {
+  .task-form .form-row.four-cols {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 768px) {
-  .form-row,
-  .form-row.four-cols,
-  .form-row.three-cols,
-  .form-row.five-cols,
-  .form-row.six-cols {
+  .task-form .form-row,
+  .task-form .form-row.four-cols,
+  .task-form .form-row.three-cols,
+  .task-form .form-row.five-cols,
+  .task-form .form-row.six-cols {
     grid-template-columns: 1fr;
   }
   
@@ -1391,11 +1403,11 @@
 
 /* Для середніх екранів - зменшуємо кількість колонок */
 @media (min-width: 769px) and (max-width: 1400px) {
-  .form-row.five-cols {
+  .task-form .form-row.five-cols {
     grid-template-columns: repeat(4, 1fr);
   }
   
-  .form-row.six-cols {
+  .task-form .form-row.six-cols {
     grid-template-columns: repeat(5, 1fr);
   }
 }
