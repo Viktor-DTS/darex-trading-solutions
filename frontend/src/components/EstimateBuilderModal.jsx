@@ -11,6 +11,12 @@ import {
 } from '../utils/estimate/estimatePrefill';
 import { fetchActiveWarehouses } from '../utils/estimate/regionBaseAddress';
 import { buildTaskPatchFromEstimate, buildValidation } from '../utils/estimate/estimateValidation';
+import {
+  buildTransportDistanceCheck,
+  buildTransportDistancePatch,
+  fetchDrivingDistanceKm,
+  getTransportLine,
+} from '../utils/estimate/estimateTransportDistance';
 import { generateEstimateExcel } from '../utils/estimate/generateEstimateExcel';
 import './EstimateBuilderModal.css';
 
@@ -33,6 +39,11 @@ function EstimateBuilderModal({
   const [warehouses, setWarehouses] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [distanceState, setDistanceState] = useState({
+    loading: false,
+    error: '',
+    oneWayKm: null,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +56,7 @@ function EstimateBuilderModal({
     setExpandedCategories(expanded);
     setError('');
     setWarehouses([]);
+    setDistanceState({ loading: false, error: '', oneWayKm: null });
     fetchActiveWarehouses()
       .then((list) => setWarehouses(Array.isArray(list) ? list : []))
       .catch(() => setWarehouses([]));
@@ -72,6 +84,50 @@ function EstimateBuilderModal({
     () => buildValidation(task, workLines, lowerLines, calculations),
     [task, workLines, lowerLines, calculations]
   );
+
+  const transportLine = useMemo(() => getTransportLine(lowerLines), [lowerLines]);
+
+  const distanceCheck = useMemo(() => {
+    if (distanceState.oneWayKm == null) return null;
+    return buildTransportDistanceCheck({
+      oneWayKm: distanceState.oneWayKm,
+      transportKm: transportLine?.quantity,
+    });
+  }, [distanceState.oneWayKm, transportLine?.quantity]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const origin = regionBaseAddress;
+    const destination = String(task?.address || '').trim();
+    if (!origin || !destination || !transportLine) {
+      setDistanceState({ loading: false, error: '', oneWayKm: null });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDistanceState({ loading: true, error: '', oneWayKm: null });
+
+    fetchDrivingDistanceKm(origin, destination)
+      .then((oneWayKm) => {
+        if (!cancelled) {
+          setDistanceState({ loading: false, error: '', oneWayKm });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setDistanceState({
+            loading: false,
+            error: err.message || 'Не вдалося розрахувати відстань',
+            oneWayKm: null,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, regionBaseAddress, task?.address, transportLine?.id]);
 
   const selectableItems = useMemo(() => {
     return (spec?.categories || []).flatMap((category) =>
@@ -126,9 +182,9 @@ function EstimateBuilderModal({
     if (specItem) setSelectedSpecIds((prev) => prev.filter((x) => x !== id));
   };
 
-  const syncTaskFields = async () => {
+  const syncTaskFields = async (extraPatch = {}) => {
     const token = localStorage.getItem('token');
-    const patch = buildTaskPatchFromEstimate(workLines, lowerLines, validation);
+    const patch = { ...buildTaskPatchFromEstimate(workLines, lowerLines, validation), ...extraPatch };
     const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
       method: 'PUT',
       headers: {
@@ -176,6 +232,18 @@ function EstimateBuilderModal({
       throw new Error(data.error || data.details || 'Не вдалося зберегти файл кошторису');
     }
     return response.json();
+  };
+
+  const applyGoogleTransportKm = () => {
+    if (!transportLine || !distanceCheck || distanceCheck.ok) return;
+    const patch = buildTransportDistancePatch(transportLine, distanceCheck.expectedRoundTripKm);
+    updateLowerLine(transportLine.id, patch);
+    if (onTaskUpdated) {
+      onTaskUpdated({
+        transportKm: patch.quantity,
+        transportSum: patch.total,
+      });
+    }
   };
 
   const handleGenerate = async ({ syncTask = false } = {}) => {
@@ -309,6 +377,32 @@ function EstimateBuilderModal({
           <div className={`estimate-validation ${validation.ok ? 'ok' : 'warn'}`}>
             <div>Перевірка «Вартість робіт»: {validation.worksTotal.toFixed(2)} / {validation.expectedWorkPrice.toFixed(2)} грн {validation.workOk ? '✅' : `⚠️ (${validation.workDiff > 0 ? '+' : ''}${validation.workDiff.toFixed(2)})`}</div>
             <div>Перевірка «Загальна сума послуги»: {validation.grandTotal.toFixed(2)} / {validation.expectedServiceTotal.toFixed(2)} грн {validation.totalOk ? '✅' : `⚠️ (${validation.totalDiff > 0 ? '+' : ''}${validation.totalDiff.toFixed(2)})`}</div>
+            {transportLine && distanceState.loading && (
+              <div className="estimate-validation-distance">Перевірка «Транспорт, км»: розрахунок маршруту Google Maps...</div>
+            )}
+            {transportLine && !distanceState.loading && distanceState.error && (
+              <div className="estimate-validation-distance">Перевірка «Транспорт, км»: {distanceState.error}</div>
+            )}
+            {transportLine && distanceCheck && !distanceState.loading && !distanceState.error && (
+              <div className={`estimate-validation-distance ${distanceCheck.ok ? 'ok' : 'warn'}`}>
+                Перевірка «Транспорт, км (туди-назад)»: {distanceCheck.actualKm} / {distanceCheck.expectedRoundTripKm} км
+                {distanceCheck.ok
+                  ? ' ✅'
+                  : ` ⚠️ (${distanceCheck.diff > 0 ? '+' : ''}${distanceCheck.diff}; маршрут ${distanceCheck.oneWayKm}×2 км)`}
+                {!distanceCheck.ok && (
+                  <div className="estimate-distance-actions">
+                    <button
+                      type="button"
+                      className="estimate-mini-btn estimate-distance-apply-btn"
+                      onClick={applyGoogleTransportKm}
+                      disabled={busy}
+                    >
+                      Застосувати {distanceCheck.expectedRoundTripKm} км у заявку
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {error && <div className="estimate-error">{error}</div>}
