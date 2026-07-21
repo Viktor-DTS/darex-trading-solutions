@@ -37,6 +37,46 @@ function filterNamedLines(lines) {
   return (lines || []).filter((line) => String(line?.name || '').trim());
 }
 
+function parseMergeRef(mergeRef) {
+  const match = String(mergeRef || '').match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+  if (!match) return null;
+  const colToNum = (letters) =>
+    letters.split('').reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0);
+  return {
+    top: Number(match[2]),
+    left: colToNum(match[1]),
+    bottom: Number(match[4]),
+    right: colToNum(match[3]),
+  };
+}
+
+function unmergeOverlappingRow(ws, rowNumber, colStart, colEnd) {
+  for (const mergeRef of [...(ws.model.merges || [])]) {
+    const range = parseMergeRef(mergeRef);
+    if (!range) continue;
+    const overlapsRow = rowNumber >= range.top && rowNumber <= range.bottom;
+    const overlapsCol = !(colEnd < range.left || colStart > range.right);
+    if (overlapsRow && overlapsCol) ws.unMergeCells(mergeRef);
+  }
+}
+
+function setMergedLabelRow(ws, rowNumber, colStart, colEnd, label) {
+  unmergeOverlappingRow(ws, rowNumber, colStart, colEnd);
+  const row = ws.getRow(rowNumber);
+  for (let col = colStart; col <= colEnd; col += 1) {
+    row.getCell(col).value = null;
+  }
+  row.getCell(colStart).value = label;
+  if (colEnd > colStart) ws.mergeCells(rowNumber, colStart, rowNumber, colEnd);
+}
+
+function repairFooterLabels(ws, { workFooterRow, lowerFooterRow }) {
+  setMergedLabelRow(ws, workFooterRow + 1, 4, 6, 'Разом з ПДВ, загальна сума, грн. :');
+  setMergedLabelRow(ws, lowerFooterRow, 4, 4, 'Разом матеріали та запасні части  з ПДВ.:');
+  setMergedLabelRow(ws, lowerFooterRow + 1, 4, 6, 'Загальная сума ПДВ, грн. :');
+  setMergedLabelRow(ws, lowerFooterRow + 2, 3, 6, 'Разом,  роботи та матеріали з ПДВ,грн. : ');
+}
+
 function adjustTableRows(ws, { startRow, defaultRows, footerRowInitial, lines }) {
   const rowDelta = lines.length - defaultRows;
   if (rowDelta > 0) {
@@ -106,6 +146,8 @@ export async function generateEstimateExcel({ task, workLines, lowerLines }) {
   setCell(ws.getRow(workFooterRow + 1), 7, worksTotal);
 
   validLowerLines.forEach((line, idx) => fillLineRow(ws, lowerStart + idx, idx + 1, line));
+
+  repairFooterLabels(ws, { workFooterRow, lowerFooterRow });
 
   const lowerTotal = roundMoney(validLowerLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const grandTotal = roundMoney(worksTotal + lowerTotal);
