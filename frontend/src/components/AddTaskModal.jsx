@@ -3363,8 +3363,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
               {showSections.files && (
                 <div className="section-content">
                   <FileUpload 
-                    taskId={initialData?._id || initialData?.id} 
+                    taskId={initialData?._id || initialData?.id}
+                    task={formData}
+                    calculations={calculations}
                     readOnly={isReadOnly}
+                    onTaskUpdated={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
                     onFilesUploaded={(files) => {
                       console.log('[DEBUG] Завантажено файли:', files);
                     }}

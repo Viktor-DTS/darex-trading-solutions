@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../config';
+import EstimateBuilderModal from './EstimateBuilderModal';
+import { getEstimateSpecForTask, isEstimateGenerationAvailable } from '../utils/estimate/estimateSpecRegistry';
 import './FileUpload.css';
 
 const WINDOWS_RESERVED_NAMES = new Set([
@@ -106,7 +108,7 @@ function sanitizeFileNameForLocalSave(name) {
   return base || 'file';
 }
 
-const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
+const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated, readOnly = false }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [description, setDescription] = useState('');
   const [descriptionAuto, setDescriptionAuto] = useState(true);
@@ -115,6 +117,13 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [estimateOpen, setEstimateOpen] = useState(false);
+
+  const estimateSpec = useMemo(() => getEstimateSpecForTask(task), [task]);
+  const canGenerateEstimate = useMemo(
+    () => !!taskId && !readOnly && isEstimateGenerationAvailable(task),
+    [taskId, readOnly, task]
+  );
 
   // Завантаження існуючих файлів
   useEffect(() => {
@@ -586,6 +595,29 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
   return (
     <div className="file-upload-container">
       <h3>📁 Файли виконаних робіт</h3>
+
+      {!readOnly && (
+        <div className="estimate-generate-section">
+          <button
+            type="button"
+            className="estimate-generate-button"
+            disabled={!canGenerateEstimate}
+            onClick={() => setEstimateOpen(true)}
+            title={
+              canGenerateEstimate
+                ? 'Сформувати кошторис за специфікацією договору'
+                : 'Потрібні збережена заявка, ЄДРПОУ 14360570, договір П-0156625 та файл договору'
+            }
+          >
+            📊 Сформувати кошторис
+          </button>
+          {!canGenerateEstimate && (
+            <div className="estimate-generate-hint">
+              Кнопка доступна для заявок ПриватБанку (ЄДРПОУ 14360570) з договором П-0156625 після збереження заявки.
+            </div>
+          )}
+        </div>
+      )}
       
       {!readOnly && (
         <div className="upload-section">
@@ -797,6 +829,18 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
           </div>
         )}
       </div>
+
+      <EstimateBuilderModal
+        open={estimateOpen}
+        onClose={() => setEstimateOpen(false)}
+        task={task}
+        spec={estimateSpec}
+        calculations={calculations}
+        taskId={taskId}
+        existingFiles={uploadedFiles}
+        onTaskUpdated={onTaskUpdated}
+        onFilesChanged={loadFiles}
+      />
     </div>
   );
 };
