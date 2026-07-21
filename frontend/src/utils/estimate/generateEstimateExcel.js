@@ -33,6 +33,23 @@ function fillLineRow(ws, rowNumber, index, line) {
   row.commit?.();
 }
 
+function filterNamedLines(lines) {
+  return (lines || []).filter((line) => String(line?.name || '').trim());
+}
+
+function adjustTableRows(ws, { startRow, defaultRows, footerRowInitial, lines }) {
+  const rowDelta = lines.length - defaultRows;
+  if (rowDelta > 0) {
+    ws.spliceRows(footerRowInitial, 0, ...Array.from({ length: rowDelta }, () => []));
+    for (let i = 0; i < rowDelta; i++) {
+      cloneRowStyle(ws, startRow, footerRowInitial + i);
+    }
+  } else if (rowDelta < 0) {
+    ws.spliceRows(startRow + lines.length, -rowDelta);
+  }
+  return footerRowInitial + rowDelta;
+}
+
 export async function generateEstimateExcel({ task, workLines, lowerLines }) {
   const ExcelJS = (await import('exceljs')).default;
   const response = await fetch(TEMPLATE_URL);
@@ -42,6 +59,9 @@ export async function generateEstimateExcel({ task, workLines, lowerLines }) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const ws = workbook.worksheets[0];
+
+  const validWorkLines = filterNamedLines(workLines);
+  const validLowerLines = filterNamedLines(lowerLines);
 
   const requestNumber = String(task.requestNumber || '').trim();
   const estimateDate = formatUkDateFromIso(task.date || task.requestDate || new Date().toISOString().slice(0, 10));
@@ -60,56 +80,34 @@ export async function generateEstimateExcel({ task, workLines, lowerLines }) {
   const defaultWorkRows = 7;
   const workStart = 15;
   const workFooterRowInitial = 22;
-  const extraWorkRows = Math.max(0, workLines.length - defaultWorkRows);
-  if (extraWorkRows > 0) {
-    ws.spliceRows(workFooterRowInitial, 0, ...Array.from({ length: extraWorkRows }, () => []));
-    for (let i = 0; i < extraWorkRows; i++) {
-      cloneRowStyle(ws, workStart, workFooterRowInitial + i);
-    }
-  }
+  const workFooterRow = adjustTableRows(ws, {
+    startRow: workStart,
+    defaultRows: defaultWorkRows,
+    footerRowInitial: workFooterRowInitial,
+    lines: validWorkLines,
+  });
 
-  const workFooterRow = workFooterRowInitial + extraWorkRows;
   const lowerHeaderRow = workFooterRow + 3;
   const lowerStart = lowerHeaderRow + 1;
   const defaultLowerRows = 4;
   const lowerFooterRowInitial = lowerStart + defaultLowerRows;
-  const extraLowerRows = Math.max(0, lowerLines.length - defaultLowerRows);
-  if (extraLowerRows > 0) {
-    ws.spliceRows(lowerFooterRowInitial, 0, ...Array.from({ length: extraLowerRows }, () => []));
-    for (let i = 0; i < extraLowerRows; i++) {
-      cloneRowStyle(ws, lowerStart, lowerFooterRowInitial + i);
-    }
-  }
+  const lowerFooterRow = adjustTableRows(ws, {
+    startRow: lowerStart,
+    defaultRows: defaultLowerRows,
+    footerRowInitial: lowerFooterRowInitial,
+    lines: validLowerLines,
+  });
 
-  workLines.forEach((line, idx) => fillLineRow(ws, workStart + idx, idx + 1, line));
-  for (let i = workLines.length; i < defaultWorkRows + extraWorkRows; i++) {
-    fillLineRow(ws, workStart + i, i + 1, {
-      name: '',
-      quantity: 1,
-      unit: 'послуга',
-      unitPrice: 0,
-      total: 0,
-    });
-  }
+  validWorkLines.forEach((line, idx) => fillLineRow(ws, workStart + idx, idx + 1, line));
 
-  const worksTotal = roundMoney(workLines.reduce((s, l) => s + Number(l.total || 0), 0));
+  const worksTotal = roundMoney(validWorkLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const worksVat = roundMoney(worksTotal / 6);
   setCell(ws.getRow(workFooterRow), 7, worksVat);
   setCell(ws.getRow(workFooterRow + 1), 7, worksTotal);
 
-  const lowerFooterRow = lowerFooterRowInitial + extraLowerRows;
-  lowerLines.forEach((line, idx) => fillLineRow(ws, lowerStart + idx, idx + 1, line));
-  for (let i = lowerLines.length; i < defaultLowerRows + extraLowerRows; i++) {
-    fillLineRow(ws, lowerStart + i, i + 1, {
-      name: '',
-      quantity: '',
-      unit: '',
-      unitPrice: '',
-      total: 0,
-    });
-  }
+  validLowerLines.forEach((line, idx) => fillLineRow(ws, lowerStart + idx, idx + 1, line));
 
-  const lowerTotal = roundMoney(lowerLines.reduce((s, l) => s + Number(l.total || 0), 0));
+  const lowerTotal = roundMoney(validLowerLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const grandTotal = roundMoney(worksTotal + lowerTotal);
   const grandVat = roundMoney(grandTotal / 6);
 
