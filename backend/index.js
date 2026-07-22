@@ -63,6 +63,7 @@ const {
   SOURCE_LABELS: MARKETING_SOURCE_LABELS,
   STATUS_LABELS: MARKETING_STATUS_LABELS,
 } = require('./lib/marketingLeads');
+const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
 const {
   buildReceiptScope,
   listPendingMoveReceipts,
@@ -79,6 +80,7 @@ const {
   suggest: productCardAssistantSuggest,
   importImageFromUrl: productCardAssistantImportImage,
 } = require('./productCardAssistant');
+const { registerMarketingIntegrationRoutes } = require('./marketingIntegrationRoutes');
 const { registerAssistantChatRoutes } = require('./assistantChatRoutes');
 const {
   initAssistantCashlessPending,
@@ -280,7 +282,14 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, res, buf) => {
+    if ((req.originalUrl || '').includes('/api/marketing/webhooks/meta')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Логування продуктивності
@@ -294,7 +303,14 @@ function logPerformance(endpoint, startTime, resultCount = null) {
 // Автентифікація
 function authenticateToken(req, res, next) {
   // Використовуємо originalUrl для правильного визначення шляху
-  const publicPaths = ['/api/auth', '/api/ping', '/api/system-status', '/api/trading/cron'];
+  const publicPaths = [
+    '/api/auth',
+    '/api/ping',
+    '/api/system-status',
+    '/api/trading/cron',
+    '/api/marketing/leads/inbound',
+    '/api/marketing/webhooks',
+  ];
   const requestPath = req.originalUrl || req.path;
   const isPublicPath = publicPaths.some(path => requestPath.startsWith(path));
   
@@ -536,6 +552,7 @@ const marketingLeadSchema = new mongoose.Schema({
   priority: { type: String, enum: ['low', 'normal', 'high', 'urgent'], default: 'normal' },
   clientName: String,
   contactPhone: { type: String, index: true },
+  phoneNormalized: { type: String, index: true },
   contactEmail: String,
   city: String,
   region: String,
@@ -587,7 +604,17 @@ const marketingLeadSchema = new mongoose.Schema({
 }, { timestamps: true });
 marketingLeadSchema.index({ status: 1, createdAt: -1 });
 marketingLeadSchema.index({ assignedManagerLogin: 1, status: 1 });
+marketingLeadSchema.index({ phoneNormalized: 1, createdAt: -1 });
 const MarketingLead = mongoose.model('MarketingLead', marketingLeadSchema);
+
+const marketingBotSessionSchema = new mongoose.Schema({
+  platform: { type: String, enum: ['telegram', 'viber'], required: true },
+  chatId: { type: String, required: true },
+  step: String,
+  data: mongoose.Schema.Types.Mixed,
+}, { timestamps: true });
+marketingBotSessionSchema.index({ platform: 1, chatId: 1 }, { unique: true });
+const MarketingBotSession = mongoose.model('MarketingBotSession', marketingBotSessionSchema);
 
 // Схема для ролей
 const roleSchema = new mongoose.Schema({
@@ -17600,6 +17627,7 @@ app.post('/api/marketing/leads', authenticateToken, async (req, res) => {
     }
     const lead = new MarketingLead({
       ...payload,
+      phoneNormalized: phoneNormalized(payload.contactPhone),
       requestNumber: await getNextMarketingLeadNumber(),
       status: 'new',
       createdByLogin: req.user.login,
@@ -17630,30 +17658,42 @@ app.post('/api/marketing/leads/inbound', async (req, res) => {
     if (!expected || key !== expected) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const payload = sanitizeLeadPayload(req.body, { isInbound: true });
-    if (!payload.contactPhone && !payload.contactEmail) {
-      return res.status(400).json({ error: 'contactPhone or contactEmail required' });
+    const result = await createMarketingLeadFromInbound(
+      { MarketingLead, getNextMarketingLeadNumber },
+      req.body,
+      {
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || '',
+        historyNote: String(req.body?.source || 'inbound'),
+      }
+    );
+    if (!result.ok && result.mode === 'block') {
+      return res.status(409).json({
+        ok: false,
+        duplicate: true,
+        reason: result.reason,
+        requestNumber: result.requestNumber,
+        existingId: result.existingLead?._id,
+      });
     }
-    const lead = new MarketingLead({
-      ...payload,
-      requestNumber: await getNextMarketingLeadNumber(),
-      status: 'new',
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent') || '',
-      statusHistory: [{
-        from: null,
-        to: 'new',
-        date: new Date(),
-        userLogin: 'inbound',
-        userName: 'Зовнішнє джерело',
-        note: payload.source,
-      }],
+    res.status(result.duplicate && result.merged ? 200 : 201).json({
+      ok: true,
+      requestNumber: result.requestNumber,
+      id: result.id,
+      duplicate: result.duplicate,
+      merged: result.merged || false,
+      duplicateReason: result.reason,
     });
-    await lead.save();
-    res.status(201).json({ ok: true, requestNumber: lead.requestNumber, id: lead._id });
   } catch (e) {
-    res.status(400).json({ error: e.message });
+    res.status(e.statusCode || 400).json({ error: e.message });
   }
+});
+
+registerMarketingIntegrationRoutes(app, {
+  MarketingLead,
+  MarketingBotSession,
+  getNextMarketingLeadNumber,
+  authenticateToken,
 });
 
 app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {

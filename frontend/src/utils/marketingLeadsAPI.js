@@ -73,3 +73,27 @@ export async function transmitMarketingLead(id, note = '') {
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
   return res.json();
 }
+
+export async function getMarketingIntegrationsStatus() {
+  const res = await fetch(`${API_BASE_URL}/marketing/integrations/status`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function setupTelegramWebhook() {
+  const res = await fetch(`${API_BASE_URL}/marketing/integrations/telegram/setup`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function setupViberWebhook() {
+  const res = await fetch(`${API_BASE_URL}/marketing/integrations/viber/setup`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  return res.json();
+}
