@@ -420,6 +420,23 @@ function evaluateTestbotExit(trade, quote, cfg) {
     return { action: 'close', reason: 'protect_green', exitPrice };
   }
 
+  // CUT_STALE: довго в мінусі без early-bank peak → ріжемо до повного −$5 / time_exit −$4
+  const cutStaleMs = Number.isFinite(cfg.cutStaleMs)
+    ? cfg.cutStaleMs
+    : (Number(process.env.FX_TESTBOT_CUT_STALE_MS) || 480000);
+  const cutStaleUsd = Number.isFinite(cfg.cutStaleUsd)
+    ? cfg.cutStaleUsd
+    : (Number(process.env.FX_TESTBOT_CUT_STALE_USD) || 1.5);
+  if (
+    cutStaleMs > 0
+    && ageMs >= cutStaleMs
+    && netPnl != null
+    && netPnl <= -cutStaleUsd
+    && (peak == null || peak < earlyPartialUsd)
+  ) {
+    return { action: 'close', reason: 'cut_stale', exitPrice };
+  }
+
   const holdLimit = maxHoldMs + (trade.holdExtended ? extendMs : 0);
   if (ageMs >= holdLimit) {
     if (netPnl != null && netPnl >= protectFloorUsd) {

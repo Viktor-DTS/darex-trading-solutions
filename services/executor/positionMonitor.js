@@ -131,7 +131,14 @@ function evaluatePositionAction(trade, liveAnalysis, quote, cfg = {}) {
     };
   }
 
-  if (ageMs >= scratchLossMs && fav <= scratchMaxLossPips) {
+  // SCRATCH_PEAK_GUARD: був хоч якийсь прогрес → не ріжемо мікро-мінус time_scratch
+  const peakFav = trade.peakFavPips ?? 0;
+  const scratchPeakGuard = cfg.posScratchPeakGuard !== false;
+  if (
+    ageMs >= scratchLossMs
+    && fav <= scratchMaxLossPips
+    && !(scratchPeakGuard && peakFav >= progressPips)
+  ) {
     return {
       action: 'close',
       reason: 'time_scratch',
@@ -173,11 +180,11 @@ function evaluatePositionAction(trade, liveAnalysis, quote, cfg = {}) {
     };
   }
 
-  if (ageMs >= scratchMs && (trade.peakFavPips ?? 0) < progressPips) {
+  if (ageMs >= scratchMs && peakFav < progressPips) {
     return {
       action: 'close',
       reason: 'time_scratch',
-      detail: `${Math.round(ageMs / 60000)}хв без прогресу (peak ${trade.peakFavPips ?? 0}p)`,
+      detail: `${Math.round(ageMs / 60000)}хв без прогресу (peak ${peakFav}p)`,
       metrics,
     };
   }
