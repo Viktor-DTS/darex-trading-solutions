@@ -643,6 +643,130 @@ const globalCalculationCoefficientsSchema = new mongoose.Schema({
 }, { strict: false });
 const GlobalCalculationCoefficients = mongoose.model('GlobalCalculationCoefficients', globalCalculationCoefficientsSchema);
 
+/** Специфікації робіт згідно договорів (кошторис) */
+const estimateContractSpecSchema = new mongoose.Schema(
+  {
+    specId: { type: String, required: true, unique: true, index: true },
+    clientName: { type: String, default: '' },
+    edrpou: { type: String, default: '' },
+    contractNumber: { type: String, default: '' },
+    contractNumberAliases: { type: [String], default: [] },
+    title: { type: String, default: '' },
+    powerTiers: { type: Array, default: [] },
+    transportRatePerKm: { type: Number, default: 0 },
+    categories: { type: Array, default: [] },
+    itemCount: { type: Number, default: 0 },
+    updatedAt: { type: Date },
+    updatedByLogin: { type: String, default: '' },
+  },
+  { strict: false, collection: 'estimatecontractspecs' }
+);
+const EstimateContractSpec = mongoose.model('EstimateContractSpec', estimateContractSpecSchema);
+
+const DEFAULT_ESTIMATE_SPEC_FILES = [
+  path.join(__dirname, 'data', 'estimateSpecs', 'privatbank-p0156625.json'),
+];
+
+function countEstimateSpecItems(categories) {
+  return (categories || []).reduce((sum, cat) => sum + (Array.isArray(cat.items) ? cat.items.length : 0), 0);
+}
+
+function normalizeEstimateSpecPayload(raw = {}) {
+  const categories = Array.isArray(raw.categories) ? raw.categories : [];
+  return {
+    specId: String(raw.id || raw.specId || '').trim(),
+    clientName: String(raw.clientName || '').trim(),
+    edrpou: String(raw.edrpou || '').replace(/\D/g, '').trim(),
+    contractNumber: String(raw.contractNumber || '').trim(),
+    contractNumberAliases: Array.isArray(raw.contractNumberAliases)
+      ? raw.contractNumberAliases.map((x) => String(x).trim()).filter(Boolean)
+      : [],
+    title: String(raw.title || '').trim(),
+    powerTiers: Array.isArray(raw.powerTiers) ? raw.powerTiers : [],
+    transportRatePerKm: Number(raw.transportRatePerKm) || 0,
+    categories,
+    itemCount: countEstimateSpecItems(categories),
+  };
+}
+
+function estimateSpecDocToApi(doc) {
+  if (!doc) return null;
+  const d = doc.toObject ? doc.toObject() : doc;
+  return {
+    id: d.specId,
+    clientName: d.clientName || '',
+    edrpou: d.edrpou || '',
+    contractNumber: d.contractNumber || '',
+    contractNumberAliases: d.contractNumberAliases || [],
+    title: d.title || '',
+    powerTiers: d.powerTiers || [],
+    transportRatePerKm: d.transportRatePerKm || 0,
+    categories: d.categories || [],
+    itemCount: d.itemCount || countEstimateSpecItems(d.categories),
+    updatedAt: d.updatedAt,
+    updatedByLogin: d.updatedByLogin || '',
+  };
+}
+
+function estimateSpecDocToListItem(doc) {
+  const full = estimateSpecDocToApi(doc);
+  if (!full) return null;
+  return {
+    id: full.id,
+    clientName: full.clientName,
+    edrpou: full.edrpou,
+    contractNumber: full.contractNumber,
+    title: full.title,
+    itemCount: full.itemCount,
+    updatedAt: full.updatedAt,
+    updatedByLogin: full.updatedByLogin,
+  };
+}
+
+async function loadDefaultEstimateSpecsFromDisk() {
+  const specs = [];
+  for (const filePath of DEFAULT_ESTIMATE_SPEC_FILES) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const normalized = normalizeEstimateSpecPayload(raw);
+      if (!normalized.specId) continue;
+      if (!normalized.clientName && normalized.title.includes('—')) {
+        normalized.clientName = normalized.title.split('—')[0].trim();
+      }
+      if (!normalized.clientName && normalized.title.includes('-')) {
+        normalized.clientName = normalized.title.split('-')[0].trim();
+      }
+      specs.push(normalized);
+    } catch (e) {
+      console.error('[WARN] loadDefaultEstimateSpecsFromDisk:', filePath, e.message);
+    }
+  }
+  return specs;
+}
+
+async function ensureEstimateContractSpecsSeeded() {
+  const count = await EstimateContractSpec.countDocuments();
+  if (count > 0) return;
+  const defaults = await loadDefaultEstimateSpecsFromDisk();
+  if (!defaults.length) return;
+  const now = new Date();
+  await EstimateContractSpec.insertMany(
+    defaults.map((spec) => ({
+      ...spec,
+      updatedAt: now,
+      updatedByLogin: 'system',
+    }))
+  );
+}
+
+function canEditEstimateContractSpecs(role) {
+  const r = String(role || '').toLowerCase();
+  if (['admin', 'administrator', 'finance', 'buhgalteria'].includes(r)) return true;
+  if (isGolovnKervServRole(r)) return true;
+  return false;
+}
+
 /** Довідник одиниць виміру (закупівлі, картки продукту, надходження на склад) — редагується в адмінці */
 const DEFAULT_UNITS_OF_MEASURE = ['шт.', 'уп.', 'комплект', 'метр', 'літр', 'км', 'кв.м'];
 const systemUnitsOfMeasureSchema = new mongoose.Schema(
@@ -7939,6 +8063,80 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
   } catch (error) {
     logPerformance('POST /api/global-calculation-coefficients', startTime);
     console.error('[ERROR] POST /api/global-calculation-coefficients:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// API СПЕЦИФІКАЦІЙ ЗГІДНО ДОГОВОРІВ (кошторис)
+// ============================================
+app.get('/api/estimate-contract-specs', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    await ensureEstimateContractSpecsSeeded();
+    const docs = await EstimateContractSpec.find().sort({ clientName: 1, contractNumber: 1 }).lean();
+    const full = String(req.query.full || '') === '1';
+    logPerformance('GET /api/estimate-contract-specs', startTime, docs.length);
+    if (full) {
+      return res.json({ specs: docs.map(estimateSpecDocToApi) });
+    }
+    res.json({ specs: docs.map(estimateSpecDocToListItem).filter(Boolean) });
+  } catch (error) {
+    logPerformance('GET /api/estimate-contract-specs', startTime);
+    console.error('[ERROR] GET /api/estimate-contract-specs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/estimate-contract-specs/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    await ensureEstimateContractSpecsSeeded();
+    const specId = String(req.params.id || '').trim();
+    const doc = await EstimateContractSpec.findOne({ specId }).lean();
+    if (!doc) {
+      return res.status(404).json({ error: 'Специфікацію не знайдено' });
+    }
+    logPerformance('GET /api/estimate-contract-specs/:id', startTime);
+    res.json(estimateSpecDocToApi(doc));
+  } catch (error) {
+    logPerformance('GET /api/estimate-contract-specs/:id', startTime);
+    console.error('[ERROR] GET /api/estimate-contract-specs/:id:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/estimate-contract-specs/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!canEditEstimateContractSpecs(req.user.role)) {
+      return res.status(403).json({ error: 'Немає прав на зміну специфікацій' });
+    }
+    const specId = String(req.params.id || '').trim();
+    const body = req.body || {};
+    const normalized = normalizeEstimateSpecPayload({ ...body, id: specId, specId });
+    if (!normalized.specId) {
+      return res.status(400).json({ error: 'Невірний ідентифікатор специфікації' });
+    }
+    if (!Array.isArray(normalized.categories) || !normalized.categories.length) {
+      return res.status(400).json({ error: 'Специфікація має містити категорії' });
+    }
+    const updated = await EstimateContractSpec.findOneAndUpdate(
+      { specId },
+      {
+        $set: {
+          ...normalized,
+          updatedAt: new Date(),
+          updatedByLogin: String(req.user?.login || req.user?.username || '').trim(),
+        },
+      },
+      { new: true, upsert: true }
+    ).lean();
+    logPerformance('PUT /api/estimate-contract-specs/:id', startTime);
+    res.json(estimateSpecDocToApi(updated));
+  } catch (error) {
+    logPerformance('PUT /api/estimate-contract-specs/:id', startTime);
+    console.error('[ERROR] PUT /api/estimate-contract-specs/:id:', error);
     res.status(500).json({ error: error.message });
   }
 });

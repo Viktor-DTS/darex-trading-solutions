@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../config';
 import EstimateBuilderModal from './EstimateBuilderModal';
-import { getEstimateSpecForTask, isEstimateGenerationAvailable } from '../utils/estimate/estimateSpecRegistry';
+import { getEstimateSpecForTask, isEstimateGenerationAvailable, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
 import { openFilePreview } from '../utils/pdfUtils';
 import './FileUpload.css';
 
@@ -119,11 +119,23 @@ const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [estimateOpen, setEstimateOpen] = useState(false);
+  const [specsReady, setSpecsReady] = useState(false);
 
-  const estimateSpec = useMemo(() => getEstimateSpecForTask(task), [task]);
+  useEffect(() => {
+    let cancelled = false;
+    loadEstimateSpecs()
+      .then(() => { if (!cancelled) setSpecsReady(true); })
+      .catch(() => { if (!cancelled) setSpecsReady(true); });
+    return () => { cancelled = true; };
+  }, [taskId]);
+
+  const estimateSpec = useMemo(
+    () => (specsReady ? getEstimateSpecForTask(task) : null),
+    [specsReady, task]
+  );
   const canGenerateEstimate = useMemo(
-    () => !!taskId && !readOnly && isEstimateGenerationAvailable(task),
-    [taskId, readOnly, task]
+    () => specsReady && !!taskId && !readOnly && isEstimateGenerationAvailable(task),
+    [specsReady, taskId, readOnly, task]
   );
 
   // Завантаження існуючих файлів

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import GlobalCalculationCoefficientsEditor from './GlobalCalculationCoefficientsEditor';
+import ContractEstimateSpecsEditor from './ContractEstimateSpecsEditor';
 import './FinancialDashboard.css';
 
 /** Бічне меню фінвідділу: для ролі GolovnKervServ показуємо лише whitelisted пункти (нові пункти за замовчуванням приховані). */
@@ -37,7 +38,9 @@ function FinancialDashboard({ user }) {
     return FINANCE_SIDEBAR_ITEMS;
   }, [isGolovnKervServ]);
 
-  const effectiveCoeffScope = isGolovnKervServ ? 'service' : coeffScope;
+  const effectiveCoeffScope = isGolovnKervServ
+    ? (coeffScope === 'contractSpecs' ? 'contractSpecs' : 'service')
+    : coeffScope;
 
   return (
     <div className="finance-dashboard">
@@ -63,7 +66,9 @@ function FinancialDashboard({ user }) {
         <main className="finance-main-content">
           {activeTab === 'coefficients' && (
             <div className="finance-coefficients-wrap">
-              <h1 className="finance-coefficients-main-title">Коефіцієнти розрахунку</h1>
+              <h1 className="finance-coefficients-main-title">
+                {coeffScope === 'contractSpecs' ? 'Специфікації згідно договорів' : 'Коефіцієнти розрахунку'}
+              </h1>
               {!isGolovnKervServ && (
                 <div className="finance-subtabs" role="tablist" aria-label="Напрямок коефіцієнтів">
                   <button
@@ -84,15 +89,50 @@ function FinancialDashboard({ user }) {
                   >
                     Для сервісного відділу
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={coeffScope === 'contractSpecs'}
+                    className={`finance-subtab ${coeffScope === 'contractSpecs' ? 'active' : ''}`}
+                    onClick={() => setCoeffScope('contractSpecs')}
+                  >
+                    Специфікації згідно договорів
+                  </button>
+                </div>
+              )}
+              {isGolovnKervServ && (
+                <div className="finance-subtabs" role="tablist" aria-label="Сервісні налаштування">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={coeffScope === 'service'}
+                    className={`finance-subtab ${coeffScope === 'service' ? 'active' : ''}`}
+                    onClick={() => setCoeffScope('service')}
+                  >
+                    Для сервісного відділу
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={coeffScope === 'contractSpecs'}
+                    className={`finance-subtab ${coeffScope === 'contractSpecs' ? 'active' : ''}`}
+                    onClick={() => setCoeffScope('contractSpecs')}
+                  >
+                    Специфікації згідно договорів
+                  </button>
                 </div>
               )}
               <div className="finance-subtab-panel" role="tabpanel">
-                <GlobalCalculationCoefficientsEditor
-                  key={effectiveCoeffScope}
-                  user={user}
-                  scope={effectiveCoeffScope}
-                  description={COEFF_SCOPE_COPY[effectiveCoeffScope].description}
-                />
+                {coeffScope === 'contractSpecs' ? (
+                  <ContractEstimateSpecsEditor user={user} />
+                ) : (
+                  <GlobalCalculationCoefficientsEditor
+                    key={effectiveCoeffScope}
+                    user={user}
+                    scope={effectiveCoeffScope}
+                    description={COEFF_SCOPE_COPY[effectiveCoeffScope].description}
+                  />
+                )}
               </div>
             </div>
           )}

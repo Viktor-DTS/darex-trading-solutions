@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import { getPdfUniqueKey, extractContractMetaFromFile, analyzeContractFileByUrl, isContractFileSupported, openContractFilePreview } from '../utils/pdfUtils';
-import { contractSupportsEstimate } from '../utils/estimate/estimateSpecRegistry';
+import { contractSupportsEstimate, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
 import { getEdrpouList, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
@@ -383,6 +383,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   useEffect(() => {
     formDataRef.current = formData;
   }, [formData]);
+
+  useEffect(() => {
+    if (!open) return;
+    loadEstimateSpecs().catch(() => {});
+  }, [open]);
   
   // ========== АВТОЗАПОВНЕННЯ ==========
   // Стан для автозаповнення ЄДРПОУ

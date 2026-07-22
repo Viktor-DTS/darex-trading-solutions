@@ -1,6 +1,44 @@
-import privatbankSpec from '../../data/estimateSpecs/privatbank-p0156625.json';
+import defaultPrivatbankSpec from '../../data/estimateSpecs/privatbank-p0156625.json';
+import { fetchEstimateContractSpecsFull } from './estimateSpecsAPI';
 
-const SPECS = [privatbankSpec];
+const FALLBACK_SPECS = [defaultPrivatbankSpec];
+
+let specsCache = null;
+let loadPromise = null;
+
+export function getEstimateSpecsSync() {
+  return specsCache || FALLBACK_SPECS;
+}
+
+export function invalidateEstimateSpecsCache() {
+  specsCache = null;
+  loadPromise = null;
+}
+
+export async function loadEstimateSpecs(force = false) {
+  if (specsCache && !force) return specsCache;
+  if (loadPromise && !force) return loadPromise;
+
+  loadPromise = (async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        specsCache = [...FALLBACK_SPECS];
+        return specsCache;
+      }
+      const list = await fetchEstimateContractSpecsFull();
+      specsCache = list.length ? list : [...FALLBACK_SPECS];
+    } catch (e) {
+      console.warn('[estimateSpecRegistry] API fallback:', e.message);
+      specsCache = [...FALLBACK_SPECS];
+    } finally {
+      loadPromise = null;
+    }
+    return specsCache;
+  })();
+
+  return loadPromise;
+}
 
 export function normalizeEdrpou(value) {
   return String(value || '').replace(/\D/g, '').trim();
@@ -25,7 +63,9 @@ export function getEstimateSpecForTask(task) {
   if (!task) return null;
   const edrpou = normalizeEdrpou(task.edrpou);
   if (!edrpou) return null;
-  return SPECS.find((spec) => normalizeEdrpou(spec.edrpou) === edrpou && contractMatches(spec, task.contractNumber)) || null;
+  return getEstimateSpecsSync().find(
+    (spec) => normalizeEdrpou(spec.edrpou) === edrpou && contractMatches(spec, task.contractNumber)
+  ) || null;
 }
 
 export function isEstimateGenerationAvailable(task) {
