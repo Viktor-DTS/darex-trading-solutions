@@ -80,7 +80,7 @@ function canLinkProductCardsByName(role) {
 
 const ALL_COLUMNS = [
   { key: 'itemKind', label: 'Тип номенклатури', width: 140 },
-  { key: 'status', label: 'Статус на складі', width: 140 },
+  { key: 'status', label: 'Статус на складі', width: 240 },
   { key: 'reservationStatus', label: 'Статус Резерву', width: 140 },
   { key: 'manufacturer', label: 'Виробник', width: 150 },
   { key: 'type', label: 'Тип обладнання', width: 180 },
@@ -1103,10 +1103,11 @@ const EquipmentList = forwardRef(({
                   key={col.key}
                   style={{ 
                     width: `${col.width}px`,
-                    minWidth: '80px'
+                    minWidth: `${col.width}px`,
+                    maxWidth: col.key === 'status' ? `${col.width}px` : undefined,
                   }}
                   onClick={() => handleSort(col.key)}
-                  className={`sortable ${sortField === col.key ? `sort-${sortDirection}` : ''}`}
+                  className={`sortable ${sortField === col.key ? `sort-${sortDirection}` : ''}${col.key === 'status' ? ' col-warehouse-status' : ''}`}
                 >
                   <div className="th-content">
                     {col.label}
@@ -1222,7 +1223,7 @@ const EquipmentList = forwardRef(({
                   {!managerCategoryContext && (
                     <td>{item.itemKind === 'parts' ? 'Деталі' : 'Товари'}</td>
                   )}
-                  <td>
+                  <td className="cell-warehouse-status">
                     <span
                       className={`status-badge ${getWarehouseStatusClass(item)}${getWarehouseStatusLabel(item).includes('переміщення') ? ' status-badge--transit-detail' : ''}`}
                       title={getWarehouseStatusLabel(item)}
