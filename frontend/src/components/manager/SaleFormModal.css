@@ -14,6 +14,17 @@
   padding: 20px;
 }
 
+.sale-form-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.sale-form-modal--view-only .sale-form-fieldset:disabled {
+  opacity: 0.95;
+}
+
 .sale-form-modal .form-row {
   display: flex;
   gap: 16px;

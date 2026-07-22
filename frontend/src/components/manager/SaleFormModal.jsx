@@ -36,7 +36,7 @@ const PAYMENT_METHOD_OPTIONS = [
 const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', in_negotiation: 'В процесі домовленості', in_realization: 'Реалізація угоди', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
 const statusLabel = (v) => SALE_STATUS_OPTIONS.find(o => o.value === v)?.label || STATUS_LABELS_LEGACY[v] || v || '—';
 
-function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = null, initialClient = null, user }) {
+function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = null, initialClient = null, user, viewOnly = false }) {
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -427,6 +427,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (viewOnly) return;
     if (!form.clientId) {
       alert('Оберіть клієнта');
       return;
@@ -517,15 +518,18 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
 
   if (!open) return null;
 
+  const isViewOnly = !!viewOnly;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content sale-form-modal" onClick={e => e.stopPropagation()}>
+      <div className={`modal-content sale-form-modal${isViewOnly ? ' sale-form-modal--view-only' : ''}`} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{editSale ? '✏️ Редагувати продаж' : '💰 Новий продаж'}</h3>
+          <h3>{isViewOnly ? '👁️ Перегляд угоди' : editSale ? '✏️ Редагувати продаж' : '💰 Новий продаж'}</h3>
           <button className="btn-close" onClick={onClose}>×</button>
         </div>
 
         <form onSubmit={handleSubmit}>
+          <fieldset className="sale-form-fieldset" disabled={isViewOnly}>
           <div className="modal-body sale-form-body">
             <div className="form-group sale-deal-number-field">
               <label>Номер угоди</label>
@@ -968,12 +972,19 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
               </div>
             </div>
           </div>
+          </fieldset>
 
           <div className="modal-footer">
-            <button type="button" className="btn-cancel" onClick={onClose} disabled={loading}>Скасувати</button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Збереження...' : (editSale ? 'Зберегти' : '💰 Створити продаж')}
-            </button>
+            {isViewOnly ? (
+              <button type="button" className="btn-primary" onClick={onClose}>Закрити</button>
+            ) : (
+              <>
+                <button type="button" className="btn-cancel" onClick={onClose} disabled={loading}>Скасувати</button>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Збереження...' : (editSale ? 'Зберегти' : '💰 Створити продаж')}
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>

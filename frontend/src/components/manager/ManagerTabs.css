@@ -382,3 +382,32 @@
   width: 100%;
   min-width: 900px;
 }
+
+.my-deals-filters {
+  margin-top: 0;
+}
+
+.my-deals-checkbox-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.my-deals-checkbox-filter input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.my-deals-summary-hint {
+  color: var(--text-secondary);
+  font-weight: normal;
+}
+
+.sale-row-closed {
+  opacity: 0.92;
+}

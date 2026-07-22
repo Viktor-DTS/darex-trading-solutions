@@ -5,6 +5,7 @@ import CategoryTree from './equipment/CategoryTree';
 import ClientsTab from './manager/ClientsTab';
 import SalesTab from './manager/SalesTab';
 import SalesReportTab from './manager/SalesReportTab';
+import MyDealsTab from './manager/MyDealsTab';
 import IncomingCallTab from './manager/IncomingCallTab';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import { getClients } from '../utils/clientsAPI';
@@ -382,6 +383,13 @@ function ManagerDashboard({ user }) {
                 <span className="tab-icon">💰</span>
                 <span className="tab-label">Продажі</span>
               </button>
+              <button
+                className={`manager-sidebar-tab ${activeTab === 'myDeals' ? 'active' : ''}`}
+                onClick={() => setActiveTab('myDeals')}
+              >
+                <span className="tab-icon">📋</span>
+                <span className="tab-label">Мої угоди</span>
+              </button>
               <button 
                 className={`manager-sidebar-tab ${activeTab === 'report' ? 'active' : ''}`}
                 onClick={() => setActiveTab('report')}
@@ -452,6 +460,10 @@ function ManagerDashboard({ user }) {
           ) : activeTab === 'sales' ? (
             <div className="manager-scaled-inner">
               <SalesTab user={user} />
+            </div>
+          ) : activeTab === 'myDeals' ? (
+            <div className="manager-scaled-inner">
+              <MyDealsTab user={user} />
             </div>
           ) : activeTab === 'incoming' ? (
             <div className="manager-scaled-inner">

@@ -5067,7 +5067,13 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
       regionFilter = (dbUser?.region || '').trim();
     }
     const conditions = [];
-    if (req.user?.role === 'manager' && forClientCheck !== 'true') {
+    const isUkraineWideManagerAccess =
+      regionFilter === 'Україна' || regionFilter.includes('Загальний');
+    if (
+      req.user?.role === 'manager' &&
+      forClientCheck !== 'true' &&
+      !isUkraineWideManagerAccess
+    ) {
       conditions.push({
         $or: [
           { managerLogin: req.user.login },
@@ -5329,6 +5335,9 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
     if (req.user?.role === 'manager') {
       const isOwner = existing.managerLogin === req.user.login || existing.managerLogin2 === req.user.login;
       if (!isOwner) return res.status(403).json({ error: 'Немає доступу до редагування цього продажу' });
+      if (['success', 'confirmed', 'cancelled'].includes(existing.status)) {
+        return res.status(403).json({ error: 'Закриту угоду не можна редагувати' });
+      }
     } else if (!canAssignSaleManager(req.user)) {
       return res.status(403).json({ error: 'Немає доступу до редагування цього продажу' });
     }
