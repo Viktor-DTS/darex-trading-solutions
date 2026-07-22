@@ -1,4 +1,5 @@
 import { formatUkDateFromIso, roundMoney, splitLowerLinesForExport } from './estimatePrefill';
+import { formatSpecItemDisplayName } from './estimateSpecRegistry';
 
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/estimate-template.xlsx`;
 
@@ -191,7 +192,26 @@ function buildSectionBlock({
   return { nextRow: row, footerRow, dataStart, dataRows };
 }
 
-export async function generateEstimateExcel({ task, workLines, lowerLines }) {
+function enrichWorkLinesFromSpec(workLines, spec) {
+  if (!spec?.categories?.length) return workLines || [];
+  const byItemId = new Map();
+  for (const category of spec.categories) {
+    for (const item of category.items || []) {
+      byItemId.set(item.id, { category, item });
+    }
+  }
+  return (workLines || []).map((line) => {
+    const key = line.specItemId || line.id;
+    const found = key ? byItemId.get(key) : null;
+    if (!found) return line;
+    return {
+      ...line,
+      name: formatSpecItemDisplayName(found.category.title, found.item),
+    };
+  });
+}
+
+export async function generateEstimateExcel({ task, workLines, lowerLines, spec }) {
   const ExcelJS = (await import('exceljs')).default;
   const response = await fetch(TEMPLATE_URL);
   if (!response.ok) throw new Error('Не вдалося завантажити шаблон кошторису');
@@ -201,7 +221,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines }) {
   await workbook.xlsx.load(buffer);
   const ws = workbook.worksheets[0];
 
-  const validWorkLines = filterNamedLines(workLines);
+  const validWorkLines = filterNamedLines(enrichWorkLinesFromSpec(workLines, spec));
   const { materialLines, transportLines } = splitLowerLinesForExport(lowerLines);
 
   const requestNumber = String(task.requestNumber || '').trim();

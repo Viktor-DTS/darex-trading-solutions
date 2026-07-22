@@ -21,16 +21,23 @@ export function getRegionBaseAddress(serviceRegion, warehouses = []) {
 }
 
 export function buildDefaultTransportLabel(task, warehouses = []) {
-  const address = String(task.address || '').trim();
-  const base = getRegionBaseAddress(task.serviceRegion, warehouses);
-  return buildTransportLabelFromAddresses(address, base);
+  const destination = String(task.address || '').trim();
+  const origin = getRegionBaseAddress(task.serviceRegion, warehouses);
+  return buildTransportLabelFromAddresses(origin, destination);
 }
 
-export function buildTransportLabelFromAddresses(destination, origin) {
-  const address = String(destination || '').trim();
-  const base = String(origin || '').trim();
-  if (address && base) return `Транспортні витрати (${address} - ${base})`;
-  if (address) return `Транспортні витрати (${address})`;
+export function buildTransportLabelFromAddresses(origin, destination, options = {}) {
+  const from = String(origin || '').trim();
+  const to = String(destination || '').trim();
+  const includeReturnToBase = !!options.includeReturnToBase;
+  const returnAddress = String(options.returnAddress || origin || '').trim();
+
+  if (includeReturnToBase && from && to && returnAddress) {
+    return `Транспортні витрати (${from} - ${to} - ${returnAddress})`;
+  }
+  if (from && to) return `Транспортні витрати (${from} - ${to})`;
+  if (to) return `Транспортні витрати (${to})`;
+  if (from) return `Транспортні витрати (${from})`;
   return 'Транспортні витрати';
 }
 

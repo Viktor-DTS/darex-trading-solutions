@@ -46,6 +46,7 @@ function EstimateBuilderModal({
     oneWayKm: null,
   });
   const [transportOriginAddress, setTransportOriginAddress] = useState('');
+  const [includeReturnToBaseInLabel, setIncludeReturnToBaseInLabel] = useState(false);
   const originInputRef = useRef(null);
   const originAutocompleteRef = useRef(null);
   const originCustomizedRef = useRef(false);
@@ -64,6 +65,7 @@ function EstimateBuilderModal({
     setDistanceState({ loading: false, error: '', oneWayKm: null });
     originCustomizedRef.current = false;
     setTransportOriginAddress('');
+    setIncludeReturnToBaseInLabel(false);
     fetchActiveWarehouses()
       .then((list) => setWarehouses(Array.isArray(list) ? list : []))
       .catch(() => setWarehouses([]));
@@ -195,14 +197,17 @@ function EstimateBuilderModal({
 
   useEffect(() => {
     if (!open || !transportLine) return;
-    const name = buildTransportLabelFromAddresses(task?.address, effectiveOriginAddress);
+    const name = buildTransportLabelFromAddresses(effectiveOriginAddress, task?.address, {
+      includeReturnToBase: includeReturnToBaseInLabel,
+      returnAddress: regionBaseAddress || effectiveOriginAddress,
+    });
     setLowerLines((prev) =>
       prev.map((line) => {
         if (line.id !== 'transport' && line.source !== 'task-transport') return line;
         return { ...line, name };
       })
     );
-  }, [open, effectiveOriginAddress, task?.address, transportLine?.id]);
+  }, [open, effectiveOriginAddress, task?.address, transportLine?.id, includeReturnToBaseInLabel, regionBaseAddress]);
 
   const selectableItems = useMemo(() => {
     return (spec?.categories || []).flatMap((category) =>
@@ -340,7 +345,7 @@ function EstimateBuilderModal({
     try {
       if (syncTask) await syncTaskFields();
       await deleteExistingGeneratedFile();
-      const blob = await generateEstimateExcel({ task, workLines, lowerLines });
+      const blob = await generateEstimateExcel({ task, workLines, lowerLines, spec });
       await uploadGeneratedFile(blob);
       if (onFilesChanged) await onFilesChanged();
       alert('Кошторис збережено у «Файли виконаних робіт».');
@@ -453,6 +458,14 @@ function EstimateBuilderModal({
                 {regionBase?.name && (
                   <span className="estimate-origin-default-name">{regionBase.name}</span>
                 )}
+                <label className="estimate-return-base-check">
+                  <input
+                    type="checkbox"
+                    checked={includeReturnToBaseInLabel}
+                    onChange={(e) => setIncludeReturnToBaseInLabel(e.target.checked)}
+                  />
+                  Відображати в кошторисі адресу повернення до бази регіону
+                </label>
               </div>
               <input
                 id="estimate-transport-origin"

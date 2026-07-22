@@ -132,6 +132,8 @@ export function getSpecItemPrice(item, powerTierId) {
 
 export function formatSpecItemDisplayName(categoryTitle, item) {
   const cat = String(categoryTitle || '').trim();
-  const shortCat = cat.includes(':') ? cat.split(':')[0].trim() : cat;
-  return `${shortCat}, п. ${item.code} ${item.label}`.replace(/\s+/g, ' ').trim();
+  const code = String(item?.code || '').trim();
+  const label = String(item?.label || '').trim();
+  if (!cat) return `п. ${code} ${label}`.replace(/\s+/g, ' ').trim();
+  return `${cat}, п. ${code} ${label}`.replace(/\s+/g, ' ').trim();
 }

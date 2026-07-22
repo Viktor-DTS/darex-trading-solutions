@@ -294,6 +294,22 @@
   color: var(--text-secondary);
 }
 
+.estimate-return-base-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.estimate-return-base-check input {
+  margin: 0;
+  cursor: pointer;
+}
+
 .estimate-origin-input {
   width: 100%;
   padding: 8px 10px;
