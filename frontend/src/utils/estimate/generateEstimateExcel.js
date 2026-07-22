@@ -159,6 +159,20 @@ function autoFitTableRows(ws, rowNumbers) {
   rowNumbers.forEach((rowNumber) => autoFitRowHeight(ws, rowNumber));
 }
 
+function trimWorksheetAfterRow(ws, lastRow) {
+  const merges = [...(ws.model.merges || [])];
+  for (const mergeRef of merges) {
+    const range = parseMergeRef(mergeRef);
+    if (range && range.top > lastRow) {
+      ws.unMergeCells(mergeRef);
+    }
+  }
+  const rowsToRemove = ws.rowCount - lastRow;
+  if (rowsToRemove > 0) {
+    ws.spliceRows(lastRow + 1, rowsToRemove);
+  }
+}
+
 function setSectionSubtotalRows(ws, templates, { vatRow, totalRow, totalWithVat }) {
   const total = roundMoney(totalWithVat);
   const vat = roundMoney(total / 6);
@@ -327,7 +341,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   );
 
   applyRowTemplate(ws, grandTotalRow, templates.summaryRow);
-  setMergedLabelRow(ws, grandTotalRow, 3, 6, 'Разом, роботи, матеріали та транспорт з ПДВ, грн.:');
+  setMergedLabelRow(ws, grandTotalRow, 3, 6, 'Разом по кошторису, роботи, матеріали та транспорт з ПДВ, грн.:');
 
   applyRowTemplate(ws, grandVatRow, templates.summaryRow);
   setMergedLabelRow(ws, grandVatRow, 4, 6, 'ПДВ 20% за кошторисом:');
@@ -361,6 +375,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
     ...transportBlock.dataRows,
   ];
   autoFitTableRows(ws, fitRows);
+  trimWorksheetAfterRow(ws, signatureRow);
 
   const outBuffer = await workbook.xlsx.writeBuffer();
   return new Blob([outBuffer], {
