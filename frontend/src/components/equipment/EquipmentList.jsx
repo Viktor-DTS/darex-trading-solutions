@@ -1224,12 +1224,21 @@ const EquipmentList = forwardRef(({
                     <td>{item.itemKind === 'parts' ? 'Деталі' : 'Товари'}</td>
                   )}
                   <td className="cell-warehouse-status">
-                    <span
-                      className={`status-badge ${getWarehouseStatusClass(item)}${getWarehouseStatusLabel(item).includes('переміщення') ? ' status-badge--transit-detail' : ''}`}
-                      title={getWarehouseStatusLabel(item)}
-                    >
-                      {getWarehouseStatusLabel(item)}
-                    </span>
+                    {(() => {
+                      const warehouseStatusLabel = getWarehouseStatusLabel(item);
+                      const warehouseStatusClass = getWarehouseStatusClass(item);
+                      const isTransitDetail =
+                        warehouseStatusClass === 'status-in_transit' ||
+                        !!item?.transitFromWarehouseName;
+                      return (
+                        <span
+                          className={`status-badge ${warehouseStatusClass}${isTransitDetail ? ' status-badge--transit-detail' : ''}`}
+                          title={warehouseStatusLabel}
+                        >
+                          {warehouseStatusLabel}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td>
                     <span className={`status-badge ${getReservationStatusLabel(item) === 'Зарезервовано' ? 'status-reserved' : 'status-in_stock'}`}>
