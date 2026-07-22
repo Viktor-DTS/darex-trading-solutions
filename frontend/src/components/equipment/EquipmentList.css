@@ -19,6 +19,13 @@
   color: #212529 !important;
 }
 
+.status-badge--transit-detail {
+  white-space: normal;
+  max-width: 220px;
+  line-height: 1.25;
+  text-align: left;
+}
+
 .status-reserved {
   background-color: #6f42c1 !important;
   color: white !important;

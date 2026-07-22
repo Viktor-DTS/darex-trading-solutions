@@ -28,6 +28,26 @@ const getStatusLabel = (status) => {
   return labels[status] || status || 'На складі';
 };
 
+/** Підпис колонки «Статус на складі» з урахуванням переміщення 1С / внутрішнього in_transit. */
+const getWarehouseStatusLabel = (item) => {
+  const effectiveStatus = item?.warehouseDisplayStatus || item?.status || 'in_stock';
+  const from = item?.transitFromWarehouseName;
+  const to = item?.transitToWarehouseName || item?.currentWarehouseName;
+  if (effectiveStatus === 'in_transit' || from) {
+    if (from && to) return `В дорозі переміщення з ${from} на ${to}`;
+    return 'В дорозі';
+  }
+  return getStatusLabel(effectiveStatus);
+};
+
+const getWarehouseStatusClass = (item) => {
+  const effectiveStatus = item?.warehouseDisplayStatus || item?.status || 'in_stock';
+  if (effectiveStatus === 'in_transit' || item?.transitFromWarehouseName) {
+    return 'status-in_transit';
+  }
+  return `status-${effectiveStatus}`;
+};
+
 const getReservationStatusLabel = (item) => {
   // Перевіряємо, чи є резервування
   if (item.status === 'reserved' || item.reservedByName || item.reservationClientName) {
@@ -1203,8 +1223,11 @@ const EquipmentList = forwardRef(({
                     <td>{item.itemKind === 'parts' ? 'Деталі' : 'Товари'}</td>
                   )}
                   <td>
-                    <span className={`status-badge ${getStatusClass(item.status || 'in_stock')}`}>
-                      {getStatusLabel(item.status || 'in_stock')}
+                    <span
+                      className={`status-badge ${getWarehouseStatusClass(item)}${getWarehouseStatusLabel(item).includes('переміщення') ? ' status-badge--transit-detail' : ''}`}
+                      title={getWarehouseStatusLabel(item)}
+                    >
+                      {getWarehouseStatusLabel(item)}
                     </span>
                   </td>
                   <td>

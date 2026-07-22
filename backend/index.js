@@ -49,6 +49,11 @@ const {
   enrichOneCMovementsWithRegions,
 } = require('./lib/onecWarehouseMap');
 const {
+  enrichEquipmentListTransitStatus,
+  markEquipmentInStockAfterOneCMoveConfirm,
+  syncEquipmentTransitFromPendingOneCMoves,
+} = require('./lib/equipmentTransitEnrichment');
+const {
   buildReceiptScope,
   listPendingMoveReceipts,
   countPendingMoveReceipts,
@@ -11135,6 +11140,20 @@ app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req
       summary.movements?.writeErrors ?? 0,
       summary.maxDocDate
     );
+    if (!dryRun) {
+      try {
+        const transitSync = await syncEquipmentTransitFromPendingOneCMoves({
+          Equipment,
+          OneCMovement,
+          Warehouse,
+          OneCWarehouseAlias,
+        });
+        summary.transitSync = transitSync;
+      } catch (syncErr) {
+        console.error('[onec/import-vedomost] transitSync:', syncErr.message);
+        summary.transitSyncError = syncErr.message;
+      }
+    }
     res.json(summary);
   } catch (error) {
     console.error('[ERROR] POST /api/onec/import-vedomost:', error);
@@ -11983,6 +12002,12 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
         baseQ.skip(skip).limit(limit),
         Equipment.countDocuments(query),
       ]);
+      await enrichEquipmentListTransitStatus(items, {
+        OneCMovement,
+        Warehouse,
+        OneCWarehouseAlias,
+        Equipment,
+      });
       logPerformance('GET /api/equipment (paged)', startTime, items.length);
       return res.json({
         items,
@@ -11994,6 +12019,12 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
     }
 
     const equipment = await baseQ;
+    await enrichEquipmentListTransitStatus(equipment, {
+      OneCMovement,
+      Warehouse,
+      OneCWarehouseAlias,
+      Equipment,
+    });
     logPerformance('GET /api/equipment', startTime, equipment.length);
     res.json(equipment);
   } catch (error) {
@@ -15491,6 +15522,16 @@ app.post('/api/onec/confirm-move-receipts', authenticateToken, async (req, res) 
     });
     if (!result.confirmedCount && result.errors.length) {
       return res.status(400).json({ error: result.errors[0].error, ...result });
+    }
+    try {
+      await markEquipmentInStockAfterOneCMoveConfirm(result.confirmed || [], {
+        Equipment,
+        OneCMovement,
+        Warehouse,
+        OneCWarehouseAlias,
+      });
+    } catch (syncErr) {
+      console.error('[confirm-move-receipts] markEquipmentInStock:', syncErr.message);
     }
     res.json(result);
   } catch (error) {
