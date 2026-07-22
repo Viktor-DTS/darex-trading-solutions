@@ -63,6 +63,23 @@ export function buildWorkLineFromSpec(category, item, powerTierId) {
   });
 }
 
+export function splitLowerLinesForExport(lines) {
+  const materialLines = [];
+  const transportLines = [];
+  for (const line of lines || []) {
+    if (!String(line?.name || '').trim()) continue;
+    if (isTransportSectionLine(line)) transportLines.push(line);
+    else materialLines.push(line);
+  }
+  return { materialLines, transportLines };
+}
+
+function isTransportSectionLine(line) {
+  const source = String(line?.source || '');
+  if (line?.id === 'transport' || source === 'task-transport') return true;
+  return ['task-per-diem', 'task-living', 'task-other-exp'].includes(source);
+}
+
 export function buildLowerTableLinesFromTask(task, spec, warehouses = []) {
   const lines = [];
   const pushIfPositive = (name, quantity, unit, unitPrice, source) => {

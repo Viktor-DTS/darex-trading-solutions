@@ -1,25 +1,66 @@
-import { formatUkDateFromIso, roundMoney } from './estimatePrefill';
+import { formatUkDateFromIso, roundMoney, splitLowerLinesForExport } from './estimatePrefill';
 
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/estimate-template.xlsx`;
+
+const TEMPLATE_ROWS = {
+  sectionTitle: 13,
+  tableHeader: 14,
+  dataRow: 15,
+  lowerTableHeader: 25,
+  lowerDataRow: 26,
+  lowerFooter: 30,
+  grandVat: 31,
+  grandTotal: 32,
+  signature: 33,
+};
 
 function setCell(row, col, value) {
   row.getCell(col).value = value;
 }
 
-function cloneRowStyle(ws, sourceRowNumber, targetRowNumber) {
-  const source = ws.getRow(sourceRowNumber);
-  const target = ws.getRow(targetRowNumber);
-  target.height = source.height;
-  for (let c = 1; c <= 8; c++) {
-    const srcCell = source.getCell(c);
-    const dstCell = target.getCell(c);
-    dstCell.style = { ...srcCell.style };
-    if (srcCell.numFmt) dstCell.numFmt = srcCell.numFmt;
-    if (srcCell.alignment) dstCell.alignment = { ...srcCell.alignment };
-    if (srcCell.border) dstCell.border = { ...srcCell.border };
-    if (srcCell.fill) dstCell.fill = { ...srcCell.fill };
-    if (srcCell.font) dstCell.font = { ...srcCell.font };
+function captureRowTemplate(ws, rowNumber) {
+  const row = ws.getRow(rowNumber);
+  const cells = [];
+  for (let c = 1; c <= 8; c += 1) {
+    const cell = row.getCell(c);
+    cells.push({
+      value: cell.value,
+      style: cell.style ? { ...cell.style } : undefined,
+      numFmt: cell.numFmt,
+      alignment: cell.alignment ? { ...cell.alignment } : undefined,
+      border: cell.border ? { ...cell.border } : undefined,
+      fill: cell.fill ? { ...cell.fill } : undefined,
+      font: cell.font ? { ...cell.font } : undefined,
+    });
   }
+  return { height: row.height, cells };
+}
+
+function applyRowTemplate(ws, rowNumber, template, valueOverrides = {}) {
+  const row = ws.getRow(rowNumber);
+  if (template.height != null) row.height = template.height;
+  template.cells.forEach((tpl, idx) => {
+    const col = idx + 1;
+    const cell = row.getCell(col);
+    if (tpl.style) cell.style = { ...tpl.style };
+    if (tpl.numFmt) cell.numFmt = tpl.numFmt;
+    if (tpl.alignment) cell.alignment = { ...tpl.alignment };
+    if (tpl.border) cell.border = { ...tpl.border };
+    if (tpl.fill) cell.fill = { ...tpl.fill };
+    if (tpl.font) cell.font = { ...tpl.font };
+    if (Object.prototype.hasOwnProperty.call(valueOverrides, col)) {
+      cell.value = valueOverrides[col];
+    } else if (typeof tpl.value === 'string' || typeof tpl.value === 'number' || tpl.value == null) {
+      cell.value = tpl.value;
+    } else {
+      cell.value = null;
+    }
+  });
+  row.commit?.();
+}
+
+function cloneRowStyle(ws, sourceRowNumber, targetRowNumber) {
+  applyRowTemplate(ws, targetRowNumber, captureRowTemplate(ws, sourceRowNumber));
 }
 
 function fillLineRow(ws, rowNumber, index, line) {
@@ -70,24 +111,84 @@ function setMergedLabelRow(ws, rowNumber, colStart, colEnd, label) {
   if (colEnd > colStart) ws.mergeCells(rowNumber, colStart, rowNumber, colEnd);
 }
 
-function repairFooterLabels(ws, { workFooterRow, lowerFooterRow }) {
-  setMergedLabelRow(ws, workFooterRow + 1, 4, 6, 'Разом з ПДВ, загальна сума, грн. :');
-  setMergedLabelRow(ws, lowerFooterRow, 4, 4, 'Разом матеріали та запасні части  з ПДВ.:');
-  setMergedLabelRow(ws, lowerFooterRow + 1, 4, 6, 'Загальная сума ПДВ, грн. :');
-  setMergedLabelRow(ws, lowerFooterRow + 2, 3, 6, 'Разом,  роботи та матеріали з ПДВ,грн. : ');
-}
-
 function adjustTableRows(ws, { startRow, defaultRows, footerRowInitial, lines }) {
   const rowDelta = lines.length - defaultRows;
   if (rowDelta > 0) {
     ws.spliceRows(footerRowInitial, 0, ...Array.from({ length: rowDelta }, () => []));
-    for (let i = 0; i < rowDelta; i++) {
+    for (let i = 0; i < rowDelta; i += 1) {
       cloneRowStyle(ws, startRow, footerRowInitial + i);
     }
   } else if (rowDelta < 0) {
     ws.spliceRows(startRow + lines.length, -rowDelta);
   }
   return footerRowInitial + rowDelta;
+}
+
+function fillInventoryRow(ws, inventoryNumber) {
+  const row = ws.getRow(10);
+  row.getCell(2).value = 'Інвентарний №';
+  unmergeOverlappingRow(ws, 10, 4, 7);
+  for (let col = 4; col <= 7; col += 1) row.getCell(col).value = null;
+  row.getCell(4).value = String(inventoryNumber || '').trim();
+  ws.mergeCells(10, 4, 10, 7);
+}
+
+function estimateWrappedLines(text, charsPerLine = 58) {
+  return String(text || '')
+    .split('\n')
+    .reduce((sum, part) => sum + Math.max(1, Math.ceil(part.length / charsPerLine)), 0);
+}
+
+function autoFitRowHeight(ws, rowNumber, { textCol = 3, minHeight = 15, lineHeight = 15 } = {}) {
+  const row = ws.getRow(rowNumber);
+  const cell = row.getCell(textCol);
+  const text = cell.value == null ? '' : String(cell.value);
+  cell.alignment = {
+    ...(cell.alignment || {}),
+    wrapText: true,
+    vertical: 'top',
+  };
+  const lines = estimateWrappedLines(text);
+  row.height = Math.max(minHeight, lines * lineHeight);
+  row.commit?.();
+}
+
+function autoFitTableRows(ws, rowNumbers) {
+  rowNumbers.forEach((rowNumber) => autoFitRowHeight(ws, rowNumber));
+}
+
+function buildSectionBlock({
+  ws,
+  startRow,
+  templates,
+  sectionTitle,
+  lines,
+  footerLabel,
+}) {
+  let row = startRow;
+
+  applyRowTemplate(ws, row, templates.sectionTitle);
+  setMergedLabelRow(ws, row, 3, 6, sectionTitle);
+  row += 1;
+
+  applyRowTemplate(ws, row, templates.tableHeader);
+  row += 1;
+
+  const dataStart = row;
+  const dataRows = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    applyRowTemplate(ws, row, templates.dataRow);
+    fillLineRow(ws, row, i + 1, lines[i]);
+    dataRows.push(row);
+    row += 1;
+  }
+
+  applyRowTemplate(ws, row, templates.sectionFooter);
+  setMergedLabelRow(ws, row, 4, 4, footerLabel);
+  const footerRow = row;
+  row += 1;
+
+  return { nextRow: row, footerRow, dataStart, dataRows };
 }
 
 export async function generateEstimateExcel({ task, workLines, lowerLines }) {
@@ -101,24 +202,22 @@ export async function generateEstimateExcel({ task, workLines, lowerLines }) {
   const ws = workbook.worksheets[0];
 
   const validWorkLines = filterNamedLines(workLines);
-  const validLowerLines = filterNamedLines(lowerLines);
+  const { materialLines, transportLines } = splitLowerLinesForExport(lowerLines);
 
   const requestNumber = String(task.requestNumber || '').trim();
   const estimateDate = formatUkDateFromIso(task.date || task.requestDate || new Date().toISOString().slice(0, 10));
   const equipment = String(task.equipment || '').trim();
   const inv = String(task.customerEquipmentNumber || '').trim();
-  const serial = String(task.equipmentSerial || task.engineSerial || '').trim();
 
   setCell(ws.getRow(7), 6, requestNumber);
   setCell(ws.getRow(8), 6, estimateDate);
   setCell(ws.getRow(9), 4, equipment);
-  setCell(ws.getRow(10), 4, inv);
-  setCell(ws.getRow(10), 6, serial);
+  fillInventoryRow(ws, inv);
   setCell(ws.getRow(11), 4, String(task.client || '').trim());
   setCell(ws.getRow(12), 4, String(task.address || '').trim());
 
   const defaultWorkRows = 7;
-  const workStart = 15;
+  const workStart = TEMPLATE_ROWS.dataRow;
   const workFooterRowInitial = 22;
   const workFooterRow = adjustTableRows(ws, {
     startRow: workStart,
@@ -127,35 +226,80 @@ export async function generateEstimateExcel({ task, workLines, lowerLines }) {
     lines: validWorkLines,
   });
 
-  const lowerHeaderRow = workFooterRow + 3;
-  const lowerStart = lowerHeaderRow + 1;
-  const defaultLowerRows = 4;
-  const lowerFooterRowInitial = lowerStart + defaultLowerRows;
-  const lowerFooterRow = adjustTableRows(ws, {
-    startRow: lowerStart,
-    defaultRows: defaultLowerRows,
-    footerRowInitial: lowerFooterRowInitial,
-    lines: validLowerLines,
-  });
-
   validWorkLines.forEach((line, idx) => fillLineRow(ws, workStart + idx, idx + 1, line));
 
   const worksTotal = roundMoney(validWorkLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const worksVat = roundMoney(worksTotal / 6);
   setCell(ws.getRow(workFooterRow), 7, worksVat);
   setCell(ws.getRow(workFooterRow + 1), 7, worksTotal);
+  setMergedLabelRow(ws, workFooterRow + 1, 4, 6, 'Разом з ПДВ, загальна сума, грн. :');
 
-  validLowerLines.forEach((line, idx) => fillLineRow(ws, lowerStart + idx, idx + 1, line));
+  const lowerBlockStart = workFooterRow + 3;
+  const lowerBlockRows = 9;
+  const templates = {
+    sectionTitle: captureRowTemplate(ws, TEMPLATE_ROWS.sectionTitle),
+    tableHeader: captureRowTemplate(ws, lowerBlockStart),
+    dataRow: captureRowTemplate(ws, lowerBlockStart + 1),
+    sectionFooter: captureRowTemplate(ws, lowerBlockStart + 5),
+    grandVat: captureRowTemplate(ws, lowerBlockStart + 6),
+    grandTotal: captureRowTemplate(ws, lowerBlockStart + 7),
+    signature: captureRowTemplate(ws, lowerBlockStart + 8),
+  };
 
-  repairFooterLabels(ws, { workFooterRow, lowerFooterRow });
+  ws.spliceRows(lowerBlockStart, lowerBlockRows);
 
-  const lowerTotal = roundMoney(validLowerLines.reduce((s, l) => s + Number(l.total || 0), 0));
-  const grandTotal = roundMoney(worksTotal + lowerTotal);
+  const newRowCount = 9 + materialLines.length + transportLines.length;
+  ws.spliceRows(lowerBlockStart, 0, ...Array.from({ length: newRowCount }, () => []));
+
+  let cursor = lowerBlockStart;
+  const materialsBlock = buildSectionBlock({
+    ws,
+    startRow: cursor,
+    templates,
+    sectionTitle: '2. Матеріали та запасні частини',
+    lines: materialLines,
+    footerLabel: 'Разом матеріали та запасні частини з ПДВ.:',
+  });
+  cursor = materialsBlock.nextRow;
+
+  const transportBlock = buildSectionBlock({
+    ws,
+    startRow: cursor,
+    templates,
+    sectionTitle: '3. Транспортні послуги',
+    lines: transportLines,
+    footerLabel: 'Разом транспортні послуги з ПДВ, грн.:',
+  });
+  cursor = transportBlock.nextRow;
+
+  applyRowTemplate(ws, cursor, templates.grandVat);
+  setMergedLabelRow(ws, cursor, 4, 6, 'Загальна сума ПДВ, грн.:');
+  const grandVatRow = cursor;
+  cursor += 1;
+
+  applyRowTemplate(ws, cursor, templates.grandTotal);
+  setMergedLabelRow(ws, cursor, 3, 6, 'Разом, роботи, матеріали та транспорт з ПДВ, грн.:');
+  const grandTotalRow = cursor;
+  cursor += 1;
+
+  applyRowTemplate(ws, cursor, templates.signature);
+
+  const materialsTotal = roundMoney(materialLines.reduce((s, l) => s + Number(l.total || 0), 0));
+  const transportTotal = roundMoney(transportLines.reduce((s, l) => s + Number(l.total || 0), 0));
+  const grandTotal = roundMoney(worksTotal + materialsTotal + transportTotal);
   const grandVat = roundMoney(grandTotal / 6);
 
-  setCell(ws.getRow(lowerFooterRow), 7, lowerTotal);
-  setCell(ws.getRow(lowerFooterRow + 1), 7, grandVat);
-  setCell(ws.getRow(lowerFooterRow + 2), 7, grandTotal);
+  setCell(ws.getRow(materialsBlock.footerRow), 7, materialsTotal);
+  setCell(ws.getRow(transportBlock.footerRow), 7, transportTotal);
+  setCell(ws.getRow(grandVatRow), 7, grandVat);
+  setCell(ws.getRow(grandTotalRow), 7, grandTotal);
+
+  const fitRows = [
+    ...validWorkLines.map((_, idx) => workStart + idx),
+    ...materialsBlock.dataRows,
+    ...transportBlock.dataRows,
+  ];
+  autoFitTableRows(ws, fitRows);
 
   const outBuffer = await workbook.xlsx.writeBuffer();
   return new Blob([outBuffer], {
