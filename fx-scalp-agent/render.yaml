@@ -127,6 +127,8 @@ services:
         value: "0.55"
       - key: FX_MATH_MICRO_BARS
         value: "1.0"
+      - key: FX_MATH_MICRO_M1
+        value: "1.0"
       - key: FX_MATH_WINDOW_BARS
         value: "36"
       - key: FX_MATH_STRONG_PREACH
@@ -160,11 +162,13 @@ services:
       - key: FX_POS_DYNAMIC_TP
         value: "1"
       - key: FX_POS_TIME_SCRATCH_MS
-        value: "540000"
+        value: "720000"
       - key: FX_POS_TIME_SCRATCH_LOSS_MS
-        value: "360000"
+        value: "480000"
       - key: FX_POS_SCRATCH_MAX_LOSS_PIPS
-        value: "-1.0"
+        value: "-1.5"
+      - key: FX_POS_SCRATCH_PEAK_GUARD
+        value: "1"
       - key: FX_POS_PROGRESS_PIPS
         value: "0.4"
       - key: FX_BREAKEVEN_PIPS
@@ -255,6 +259,10 @@ services:
         value: "0.5"
       - key: FX_TESTBOT_HOLD_EXTEND_MS
         value: "300000"
+      - key: FX_TESTBOT_CUT_STALE_MS
+        value: "480000"
+      - key: FX_TESTBOT_CUT_STALE_USD
+        value: "1.5"
       - key: FX_TESTBOT_ALLOW_DRAFT
         value: "0"
       - key: FX_TESTBOT_QUALITY_LOCK
@@ -274,19 +282,23 @@ services:
       - key: FX_ORACLE_RESPECT_INVERT
         value: "1"
       - key: FX_ORACLE_TOXIC_WR
-        value: "0.40"
+        value: "0.38"
       - key: FX_ORACLE_TOXIC_MIN_TRADES
-        value: "10"
+        value: "6"
       - key: FX_ORACLE_MIN_DIRECTION_HIT
         value: "0.52"
+      - key: FX_ORACLE_MIN_PAIR_HIT
+        value: "0.48"
       - key: FX_ORACLE_MICRO_BARS
         value: "1.5"
       - key: FX_TESTBOT_ORACLE_MICRO_BARS
         value: "0"
       - key: FX_TESTBOT_ORACLE_MIN_P_UP
-        value: "0.55"
+        value: "0.58"
       - key: FX_TESTBOT_ORACLE_MIN_KAPPA
-        value: "0.45"
+        value: "0.50"
+      - key: FX_LEARN_MAX_CONSEC_LOSSES
+        value: "8"
       - key: FX_TESTBOT_ORACLE_MIN_P_TP
         value: "0"
       - key: FX_TESTBOT_ORACLE_SOFT_DIR

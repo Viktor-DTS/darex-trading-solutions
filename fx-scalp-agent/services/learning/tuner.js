@@ -44,7 +44,8 @@ function tuneParams(current, metrics, trades, options = {}) {
     notes.push('AUTO PAUSE — edge слабкий, потрібен review');
   }
 
-  if (pauseEval.maxConsecutiveLosses >= 4) {
+  const maxConsecLoss = Number(process.env.FX_LEARN_MAX_CONSEC_LOSSES) || 8;
+  if (pauseEval.maxConsecutiveLosses >= maxConsecLoss) {
     next.tradingPaused = true;
     next.pauseReason = `learning: ${pauseEval.maxConsecutiveLosses} losses in row`;
     notes.push('AUTO PAUSE — серія збиткових угод');
