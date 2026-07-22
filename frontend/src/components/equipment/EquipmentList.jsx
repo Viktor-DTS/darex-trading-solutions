@@ -187,6 +187,9 @@ const EquipmentList = forwardRef(({
 }, ref) => {
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
   const mayLinkProductCards = canLinkProductCardsByName(user?.role);
+  /** Номенклатурне обслуговування — лише склад / адмін поза контекстом панелі «Менеджери». */
+  const showNomenclatureMaintenanceTools = mayLinkProductCards && !managerCategoryContext;
+  const showWithoutProductCardFilter = !managerCategoryContext;
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
   const visibleColumns = useMemo(
     () =>
@@ -277,6 +280,12 @@ const EquipmentList = forwardRef(({
   const columnFiltersKey = useMemo(() => JSON.stringify(debouncedColumnFilters), [debouncedColumnFilters]);
 
   useEffect(() => {
+    if (managerCategoryContext && showWithoutProductCardOnly) {
+      setShowWithoutProductCardOnly(false);
+    }
+  }, [managerCategoryContext, showWithoutProductCardOnly]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [
     categoryId,
@@ -303,7 +312,9 @@ const EquipmentList = forwardRef(({
       }
       if (managerCategoryContext) params.set('managerCategoryContext', '1');
       if (debouncedFilter.trim()) params.set('search', debouncedFilter.trim());
-      if (showWithoutProductCardOnly) params.set('withoutProductCard', '1');
+      if (showWithoutProductCardOnly && showWithoutProductCardFilter) {
+        params.set('withoutProductCard', '1');
+      }
       if (showDeleted) params.set('includeDeleted', '1');
       const activeCf = Object.fromEntries(
         Object.entries(debouncedColumnFilters).filter(([, v]) => isActiveColumnFilterValue(v))
@@ -599,7 +610,7 @@ const EquipmentList = forwardRef(({
   const hasActiveFilters =
     Object.values(columnFilters).some((v) => isActiveColumnFilterValue(v)) ||
     filter.trim() !== '' ||
-    showWithoutProductCardOnly;
+    (showWithoutProductCardOnly && showWithoutProductCardFilter);
 
   const getFilterType = (columnKey) => {
     if (columnKey === 'manufactureDate' || columnKey === 'reservationEndDate') return 'date';
@@ -957,15 +968,17 @@ const EquipmentList = forwardRef(({
             className="search-input"
           />
         </div>
-        <label className="equipment-toolbar-no-card-filter">
-          <input
-            type="checkbox"
-            checked={showWithoutProductCardOnly}
-            onChange={(e) => setShowWithoutProductCardOnly(e.target.checked)}
-          />
-          <span>Показати обладнання без картки</span>
-        </label>
-        {mayLinkProductCards && (
+        {showWithoutProductCardFilter && (
+          <label className="equipment-toolbar-no-card-filter">
+            <input
+              type="checkbox"
+              checked={showWithoutProductCardOnly}
+              onChange={(e) => setShowWithoutProductCardOnly(e.target.checked)}
+            />
+            <span>Показати обладнання без картки</span>
+          </label>
+        )}
+        {showNomenclatureMaintenanceTools && (
           <button
             type="button"
             className="btn-link-product-cards"
@@ -976,7 +989,7 @@ const EquipmentList = forwardRef(({
             {linkingProductCards ? 'Прив’язка…' : '🔗 Прив’язати за назвою'}
           </button>
         )}
-        {mayLinkProductCards && (
+        {showNomenclatureMaintenanceTools && (
           <button
             type="button"
             className="btn-link-product-cards"
