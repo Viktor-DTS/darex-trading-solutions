@@ -113,16 +113,16 @@ function setMergedLabelRow(ws, rowNumber, colStart, colEnd, label) {
   if (colEnd > colStart) ws.mergeCells(rowNumber, colStart, rowNumber, colEnd);
 }
 
-function setMergedSectionTotalLabelRow(ws, rowNumber, label) {
-  unmergeOverlappingRow(ws, rowNumber, 4, 6);
+function setMergedSectionTotalLabelRow(ws, rowNumber, label, colStart = 4, colEnd = 6) {
+  unmergeOverlappingRow(ws, rowNumber, colStart, colEnd);
   const row = ws.getRow(rowNumber);
-  for (let col = 4; col <= 6; col += 1) {
+  for (let col = colStart; col <= colEnd; col += 1) {
     row.getCell(col).value = null;
   }
-  const cell = row.getCell(4);
+  const cell = row.getCell(colStart);
   cell.value = label;
-  ws.mergeCells(rowNumber, 4, rowNumber, 6);
-  cell.alignment = { horizontal: 'right', vertical: 'middle' };
+  if (colEnd > colStart) ws.mergeCells(rowNumber, colStart, rowNumber, colEnd);
+  cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: true };
   cell.font = { bold: true, size: 11, name: 'Calibri', family: 2 };
   row.commit?.();
 }
@@ -155,7 +155,7 @@ function estimateWrappedLines(text, charsPerLine = 58) {
     .reduce((sum, part) => sum + Math.max(1, Math.ceil(part.length / charsPerLine)), 0);
 }
 
-function autoFitRowHeight(ws, rowNumber, { textCol = 3, minHeight = 15, lineHeight = 15 } = {}) {
+function autoFitRowHeight(ws, rowNumber, { textCol = 3, minHeight = 15, lineHeight = 15, charsPerLine = 58 } = {}) {
   const row = ws.getRow(rowNumber);
   const cell = row.getCell(textCol);
   const text = cell.value == null ? '' : String(cell.value);
@@ -164,7 +164,7 @@ function autoFitRowHeight(ws, rowNumber, { textCol = 3, minHeight = 15, lineHeig
     wrapText: true,
     vertical: 'top',
   };
-  const lines = estimateWrappedLines(text);
+  const lines = estimateWrappedLines(text, charsPerLine);
   row.height = Math.max(minHeight, lines * lineHeight);
   row.commit?.();
 }
@@ -365,7 +365,9 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   setMergedSectionTotalLabelRow(
     ws,
     worksMaterialsRow,
-    'Разом Виконані роботи та Матеріали та запасні частини з ПДВ, грн.:'
+    'Разом Виконані роботи та Матеріали та запасні частини з ПДВ, грн.:',
+    2,
+    6
   );
 
   applyRowTemplate(ws, worksMaterialsVatRow, templates.summaryRow);
@@ -377,7 +379,9 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   setMergedSectionTotalLabelRow(
     ws,
     grandTotalRow,
-    'Разом по кошторису, роботи, матеріали та транспорт з ПДВ, грн.:'
+    'Разом по кошторису, роботи, матеріали та транспорт з ПДВ, грн.:',
+    2,
+    6
   );
 
   applyRowTemplate(ws, grandVatRow, templates.summaryRow);
@@ -416,6 +420,8 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
     ...transportBlock.dataRows,
   ];
   autoFitTableRows(ws, fitRows);
+  autoFitRowHeight(ws, worksMaterialsRow, { textCol: 2, charsPerLine: 72, minHeight: 15, lineHeight: 15 });
+  autoFitRowHeight(ws, grandTotalRow, { textCol: 2, charsPerLine: 72, minHeight: 15, lineHeight: 15 });
   trimWorksheetAfterRow(ws, signatureRow);
 
   const outBuffer = await workbook.xlsx.writeBuffer();
