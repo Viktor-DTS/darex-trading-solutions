@@ -113,6 +113,20 @@ function setMergedLabelRow(ws, rowNumber, colStart, colEnd, label) {
   if (colEnd > colStart) ws.mergeCells(rowNumber, colStart, rowNumber, colEnd);
 }
 
+function setMergedSectionTotalLabelRow(ws, rowNumber, label) {
+  unmergeOverlappingRow(ws, rowNumber, 4, 6);
+  const row = ws.getRow(rowNumber);
+  for (let col = 4; col <= 6; col += 1) {
+    row.getCell(col).value = null;
+  }
+  const cell = row.getCell(4);
+  cell.value = label;
+  ws.mergeCells(rowNumber, 4, rowNumber, 6);
+  cell.alignment = { horizontal: 'right', vertical: 'middle' };
+  cell.font = { bold: true, size: 11, name: 'Calibri', family: 2 };
+  row.commit?.();
+}
+
 function adjustTableRows(ws, { startRow, defaultRows, footerRowInitial, lines }) {
   const rowDelta = lines.length - defaultRows;
   if (rowDelta > 0) {
@@ -185,8 +199,9 @@ function setSectionSubtotalRows(ws, templates, { vatRow, totalRow, totalWithVat 
   setCell(ws.getRow(vatRow), 6, VAT_LABEL);
   setCell(ws.getRow(vatRow), 7, vat);
   applyRowTemplate(ws, totalRow, templates.sectionTotal);
-  setMergedLabelRow(ws, totalRow, 4, 6, SECTION_TOTAL_LABEL);
+  setMergedSectionTotalLabelRow(ws, totalRow, SECTION_TOTAL_LABEL);
   setCell(ws.getRow(totalRow), 7, total);
+  ws.getRow(totalRow).getCell(7).font = { bold: true, size: 11, name: 'Calibri', family: 2 };
 }
 
 function buildSectionBlock({
@@ -275,19 +290,22 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
     lines: validWorkLines,
   });
 
+  const sectionVatTemplate = captureRowTemplate(ws, workFooterRow);
+  const sectionTotalTemplate = captureRowTemplate(ws, workFooterRow + 1);
+
   validWorkLines.forEach((line, idx) => fillLineRow(ws, workStart + idx, idx + 1, line));
 
   const worksTotal = roundMoney(validWorkLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const worksVat = roundMoney(worksTotal / 6);
+  applyRowTemplate(ws, workFooterRow, sectionVatTemplate);
   setCell(ws.getRow(workFooterRow), 6, VAT_LABEL);
   setCell(ws.getRow(workFooterRow), 7, worksVat);
+  applyRowTemplate(ws, workFooterRow + 1, sectionTotalTemplate);
+  setMergedSectionTotalLabelRow(ws, workFooterRow + 1, SECTION_TOTAL_LABEL);
   setCell(ws.getRow(workFooterRow + 1), 7, worksTotal);
-  setMergedLabelRow(ws, workFooterRow + 1, 4, 6, SECTION_TOTAL_LABEL);
+  ws.getRow(workFooterRow + 1).getCell(7).font = { bold: true, size: 11, name: 'Calibri', family: 2 };
 
   const lowerBlockStart = workFooterRow + 3;
-
-  const sectionVatTemplate = captureRowTemplate(ws, workFooterRow);
-  const sectionTotalTemplate = captureRowTemplate(ws, workFooterRow + 1);
 
   const templates = {
     sectionTitle: captureRowTemplate(ws, TEMPLATE_ROWS.sectionTitle),
@@ -302,7 +320,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   removeRowsFrom(ws, lowerBlockStart);
 
   const sectionOverhead = 4;
-  const grandSummaryRows = 6;
+  const grandSummaryRows = 7;
   const newRowCount = sectionOverhead + materialLines.length
     + sectionOverhead + transportLines.length
     + grandSummaryRows;
@@ -327,6 +345,8 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   });
   cursor = transportBlock.nextRow;
 
+  const summaryTopGapRow = cursor;
+  cursor += 1;
   const worksMaterialsRow = cursor;
   cursor += 1;
   const worksMaterialsVatRow = cursor;
@@ -339,12 +359,12 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   cursor += 1;
   const signatureRow = cursor;
 
-  applyRowTemplate(ws, worksMaterialsRow, templates.summaryRow);
-  setMergedLabelRow(
+  ws.getRow(summaryTopGapRow).height = 8;
+
+  applyRowTemplate(ws, worksMaterialsRow, templates.sectionTotal);
+  setMergedSectionTotalLabelRow(
     ws,
     worksMaterialsRow,
-    3,
-    6,
     'Разом Виконані роботи та Матеріали та запасні частини з ПДВ, грн.:'
   );
 
@@ -353,8 +373,12 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
 
   ws.getRow(summaryGapRow).height = 8;
 
-  applyRowTemplate(ws, grandTotalRow, templates.summaryRow);
-  setMergedLabelRow(ws, grandTotalRow, 3, 6, 'Разом по кошторису, роботи, матеріали та транспорт з ПДВ, грн.:');
+  applyRowTemplate(ws, grandTotalRow, templates.sectionTotal);
+  setMergedSectionTotalLabelRow(
+    ws,
+    grandTotalRow,
+    'Разом по кошторису, роботи, матеріали та транспорт з ПДВ, грн.:'
+  );
 
   applyRowTemplate(ws, grandVatRow, templates.summaryRow);
   setMergedLabelRow(ws, grandVatRow, 4, 6, 'ПДВ 20% за кошторисом:');
@@ -380,8 +404,10 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   });
 
   setCell(ws.getRow(worksMaterialsRow), 7, worksAndMaterialsTotal);
+  ws.getRow(worksMaterialsRow).getCell(7).font = { bold: true, size: 11, name: 'Calibri', family: 2 };
   setCell(ws.getRow(worksMaterialsVatRow), 7, worksAndMaterialsVat);
   setCell(ws.getRow(grandTotalRow), 7, grandTotal);
+  ws.getRow(grandTotalRow).getCell(7).font = { bold: true, size: 11, name: 'Calibri', family: 2 };
   setCell(ws.getRow(grandVatRow), 7, grandVat);
 
   const fitRows = [
