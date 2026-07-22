@@ -302,7 +302,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   removeRowsFrom(ws, lowerBlockStart);
 
   const sectionOverhead = 4;
-  const grandSummaryRows = 4;
+  const grandSummaryRows = 6;
   const newRowCount = sectionOverhead + materialLines.length
     + sectionOverhead + transportLines.length
     + grandSummaryRows;
@@ -329,6 +329,10 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
 
   const worksMaterialsRow = cursor;
   cursor += 1;
+  const worksMaterialsVatRow = cursor;
+  cursor += 1;
+  const summaryGapRow = cursor;
+  cursor += 1;
   const grandTotalRow = cursor;
   cursor += 1;
   const grandVatRow = cursor;
@@ -344,6 +348,11 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
     'Разом Виконані роботи та Матеріали та запасні частини з ПДВ, грн.:'
   );
 
+  applyRowTemplate(ws, worksMaterialsVatRow, templates.summaryRow);
+  setMergedLabelRow(ws, worksMaterialsVatRow, 4, 6, 'ПДВ 20% за кошторисом:');
+
+  ws.getRow(summaryGapRow).height = 8;
+
   applyRowTemplate(ws, grandTotalRow, templates.summaryRow);
   setMergedLabelRow(ws, grandTotalRow, 3, 6, 'Разом по кошторису, роботи, матеріали та транспорт з ПДВ, грн.:');
 
@@ -355,6 +364,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   const materialsTotal = roundMoney(materialLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const transportTotal = roundMoney(transportLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const worksAndMaterialsTotal = roundMoney(worksTotal + materialsTotal);
+  const worksAndMaterialsVat = roundMoney(worksAndMaterialsTotal / 6);
   const grandTotal = roundMoney(worksTotal + materialsTotal + transportTotal);
   const grandVat = roundMoney(grandTotal / 6);
 
@@ -370,6 +380,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   });
 
   setCell(ws.getRow(worksMaterialsRow), 7, worksAndMaterialsTotal);
+  setCell(ws.getRow(worksMaterialsVatRow), 7, worksAndMaterialsVat);
   setCell(ws.getRow(grandTotalRow), 7, grandTotal);
   setCell(ws.getRow(grandVatRow), 7, grandVat);
 
