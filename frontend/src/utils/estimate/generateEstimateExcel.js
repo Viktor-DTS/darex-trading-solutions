@@ -167,9 +167,14 @@ function trimWorksheetAfterRow(ws, lastRow) {
       ws.unMergeCells(mergeRef);
     }
   }
-  const rowsToRemove = ws.rowCount - lastRow;
-  if (rowsToRemove > 0) {
-    ws.spliceRows(lastRow + 1, rowsToRemove);
+  while (ws.rowCount > lastRow) {
+    ws.spliceRows(lastRow + 1, 1);
+  }
+}
+
+function removeRowsFrom(ws, startRow) {
+  while (ws.rowCount >= startRow) {
+    ws.spliceRows(startRow, 1);
   }
 }
 
@@ -280,7 +285,6 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
   setMergedLabelRow(ws, workFooterRow + 1, 4, 6, SECTION_TOTAL_LABEL);
 
   const lowerBlockStart = workFooterRow + 3;
-  const lowerBlockRows = 9;
 
   const sectionVatTemplate = captureRowTemplate(ws, workFooterRow);
   const sectionTotalTemplate = captureRowTemplate(ws, workFooterRow + 1);
@@ -295,7 +299,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
     signature: captureRowTemplate(ws, lowerBlockStart + 8),
   };
 
-  ws.spliceRows(lowerBlockStart, lowerBlockRows);
+  removeRowsFrom(ws, lowerBlockStart);
 
   const sectionOverhead = 4;
   const grandSummaryRows = 4;
