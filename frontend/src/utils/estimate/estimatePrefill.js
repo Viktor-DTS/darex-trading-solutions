@@ -93,8 +93,7 @@ export function buildLowerTableLinesFromTask(task, spec, warehouses = []) {
     const qty = parseNumber(quantity);
     const price = parseNumber(unitPrice);
     const total = roundMoney(qty * price);
-    if (total <= 0 && !name) return;
-    if (total <= 0 && qty <= 0) return;
+    if (total <= 0) return;
     lines.push(createEstimateLine({
       name,
       quantity: qty || 1,

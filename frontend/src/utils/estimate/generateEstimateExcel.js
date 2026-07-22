@@ -5,15 +5,16 @@ const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/estimate-template.xls
 
 const TEMPLATE_ROWS = {
   sectionTitle: 13,
-  tableHeader: 14,
   dataRow: 15,
+  workVatRow: 22,
+  workTotalRow: 23,
   lowerTableHeader: 25,
   lowerDataRow: 26,
-  lowerFooter: 30,
-  grandVat: 31,
-  grandTotal: 32,
   signature: 33,
 };
+
+const SECTION_TOTAL_LABEL = 'Разом з ПДВ, загальна сума, грн. :';
+const VAT_LABEL = 'ПДВ 20%';
 
 function setCell(row, col, value) {
   row.getCell(col).value = value;
@@ -158,13 +159,23 @@ function autoFitTableRows(ws, rowNumbers) {
   rowNumbers.forEach((rowNumber) => autoFitRowHeight(ws, rowNumber));
 }
 
+function setSectionSubtotalRows(ws, templates, { vatRow, totalRow, totalWithVat }) {
+  const total = roundMoney(totalWithVat);
+  const vat = roundMoney(total / 6);
+  applyRowTemplate(ws, vatRow, templates.sectionVat);
+  setCell(ws.getRow(vatRow), 6, VAT_LABEL);
+  setCell(ws.getRow(vatRow), 7, vat);
+  applyRowTemplate(ws, totalRow, templates.sectionTotal);
+  setMergedLabelRow(ws, totalRow, 4, 6, SECTION_TOTAL_LABEL);
+  setCell(ws.getRow(totalRow), 7, total);
+}
+
 function buildSectionBlock({
   ws,
   startRow,
   templates,
   sectionTitle,
   lines,
-  footerLabel,
 }) {
   let row = startRow;
 
@@ -175,7 +186,6 @@ function buildSectionBlock({
   applyRowTemplate(ws, row, templates.tableHeader);
   row += 1;
 
-  const dataStart = row;
   const dataRows = [];
   for (let i = 0; i < lines.length; i += 1) {
     applyRowTemplate(ws, row, templates.dataRow);
@@ -184,12 +194,12 @@ function buildSectionBlock({
     row += 1;
   }
 
-  applyRowTemplate(ws, row, templates.sectionFooter);
-  setMergedLabelRow(ws, row, 4, 4, footerLabel);
-  const footerRow = row;
+  const vatRow = row;
+  row += 1;
+  const totalRow = row;
   row += 1;
 
-  return { nextRow: row, footerRow, dataStart, dataRows };
+  return { nextRow: row, vatRow, totalRow, dataRows };
 }
 
 function enrichWorkLinesFromSpec(workLines, spec) {
@@ -238,7 +248,7 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
 
   const defaultWorkRows = 7;
   const workStart = TEMPLATE_ROWS.dataRow;
-  const workFooterRowInitial = 22;
+  const workFooterRowInitial = TEMPLATE_ROWS.workVatRow;
   const workFooterRow = adjustTableRows(ws, {
     startRow: workStart,
     defaultRows: defaultWorkRows,
@@ -250,25 +260,34 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
 
   const worksTotal = roundMoney(validWorkLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const worksVat = roundMoney(worksTotal / 6);
+  setCell(ws.getRow(workFooterRow), 6, VAT_LABEL);
   setCell(ws.getRow(workFooterRow), 7, worksVat);
   setCell(ws.getRow(workFooterRow + 1), 7, worksTotal);
-  setMergedLabelRow(ws, workFooterRow + 1, 4, 6, 'Разом з ПДВ, загальна сума, грн. :');
+  setMergedLabelRow(ws, workFooterRow + 1, 4, 6, SECTION_TOTAL_LABEL);
 
   const lowerBlockStart = workFooterRow + 3;
   const lowerBlockRows = 9;
+
+  const sectionVatTemplate = captureRowTemplate(ws, workFooterRow);
+  const sectionTotalTemplate = captureRowTemplate(ws, workFooterRow + 1);
+
   const templates = {
     sectionTitle: captureRowTemplate(ws, TEMPLATE_ROWS.sectionTitle),
     tableHeader: captureRowTemplate(ws, lowerBlockStart),
     dataRow: captureRowTemplate(ws, lowerBlockStart + 1),
-    sectionFooter: captureRowTemplate(ws, lowerBlockStart + 5),
-    grandVat: captureRowTemplate(ws, lowerBlockStart + 6),
-    grandTotal: captureRowTemplate(ws, lowerBlockStart + 7),
+    sectionVat: sectionVatTemplate,
+    sectionTotal: sectionTotalTemplate,
+    summaryRow: sectionTotalTemplate,
     signature: captureRowTemplate(ws, lowerBlockStart + 8),
   };
 
   ws.spliceRows(lowerBlockStart, lowerBlockRows);
 
-  const newRowCount = 9 + materialLines.length + transportLines.length;
+  const sectionOverhead = 4;
+  const grandSummaryRows = 4;
+  const newRowCount = sectionOverhead + materialLines.length
+    + sectionOverhead + transportLines.length
+    + grandSummaryRows;
   ws.spliceRows(lowerBlockStart, 0, ...Array.from({ length: newRowCount }, () => []));
 
   let cursor = lowerBlockStart;
@@ -278,7 +297,6 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
     templates,
     sectionTitle: '2. Матеріали та запасні частини',
     lines: materialLines,
-    footerLabel: 'Разом матеріали та запасні частини з ПДВ.:',
   });
   cursor = materialsBlock.nextRow;
 
@@ -288,31 +306,54 @@ export async function generateEstimateExcel({ task, workLines, lowerLines, spec 
     templates,
     sectionTitle: '3. Транспортні послуги',
     lines: transportLines,
-    footerLabel: 'Разом транспортні послуги з ПДВ, грн.:',
   });
   cursor = transportBlock.nextRow;
 
-  applyRowTemplate(ws, cursor, templates.grandVat);
-  setMergedLabelRow(ws, cursor, 4, 6, 'Загальна сума ПДВ, грн.:');
-  const grandVatRow = cursor;
+  const worksMaterialsRow = cursor;
   cursor += 1;
-
-  applyRowTemplate(ws, cursor, templates.grandTotal);
-  setMergedLabelRow(ws, cursor, 3, 6, 'Разом, роботи, матеріали та транспорт з ПДВ, грн.:');
   const grandTotalRow = cursor;
   cursor += 1;
+  const grandVatRow = cursor;
+  cursor += 1;
+  const signatureRow = cursor;
 
-  applyRowTemplate(ws, cursor, templates.signature);
+  applyRowTemplate(ws, worksMaterialsRow, templates.summaryRow);
+  setMergedLabelRow(
+    ws,
+    worksMaterialsRow,
+    3,
+    6,
+    'Разом Виконані роботи та Матеріали та запасні частини з ПДВ, грн.:'
+  );
+
+  applyRowTemplate(ws, grandTotalRow, templates.summaryRow);
+  setMergedLabelRow(ws, grandTotalRow, 3, 6, 'Разом, роботи, матеріали та транспорт з ПДВ, грн.:');
+
+  applyRowTemplate(ws, grandVatRow, templates.summaryRow);
+  setMergedLabelRow(ws, grandVatRow, 4, 6, 'ПДВ 20% за кошторисом:');
+
+  applyRowTemplate(ws, signatureRow, templates.signature);
 
   const materialsTotal = roundMoney(materialLines.reduce((s, l) => s + Number(l.total || 0), 0));
   const transportTotal = roundMoney(transportLines.reduce((s, l) => s + Number(l.total || 0), 0));
+  const worksAndMaterialsTotal = roundMoney(worksTotal + materialsTotal);
   const grandTotal = roundMoney(worksTotal + materialsTotal + transportTotal);
   const grandVat = roundMoney(grandTotal / 6);
 
-  setCell(ws.getRow(materialsBlock.footerRow), 7, materialsTotal);
-  setCell(ws.getRow(transportBlock.footerRow), 7, transportTotal);
-  setCell(ws.getRow(grandVatRow), 7, grandVat);
+  setSectionSubtotalRows(ws, templates, {
+    vatRow: materialsBlock.vatRow,
+    totalRow: materialsBlock.totalRow,
+    totalWithVat: materialsTotal,
+  });
+  setSectionSubtotalRows(ws, templates, {
+    vatRow: transportBlock.vatRow,
+    totalRow: transportBlock.totalRow,
+    totalWithVat: transportTotal,
+  });
+
+  setCell(ws.getRow(worksMaterialsRow), 7, worksAndMaterialsTotal);
   setCell(ws.getRow(grandTotalRow), 7, grandTotal);
+  setCell(ws.getRow(grandVatRow), 7, grandVat);
 
   const fitRows = [
     ...validWorkLines.map((_, idx) => workStart + idx),
