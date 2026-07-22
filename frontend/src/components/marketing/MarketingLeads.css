@@ -1,0 +1,245 @@
+.marketing-leads-tab {
+  color: #f4f4f5;
+}
+
+.marketing-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.marketing-stat-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.marketing-stat-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(244, 244, 245, 0.55);
+  margin-bottom: 6px;
+}
+
+.marketing-stat-card strong {
+  font-size: 22px;
+  color: #f5ecd6;
+}
+
+.marketing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.marketing-input,
+.marketing-select {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: #f4f4f5;
+  font-size: 14px;
+}
+
+.marketing-input {
+  min-width: 220px;
+  flex: 1;
+}
+
+.marketing-select {
+  min-width: 150px;
+}
+
+.marketing-btn {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: opacity 0.15s;
+}
+
+.marketing-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.marketing-btn-primary {
+  background: linear-gradient(135deg, #d4af37, #b8941f);
+  color: #030303;
+  font-weight: 600;
+}
+
+.marketing-btn-secondary {
+  background: rgba(212, 175, 55, 0.12);
+  color: #f5ecd6;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+.marketing-btn-ghost {
+  background: transparent;
+  color: rgba(244, 244, 245, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.marketing-leads-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .marketing-leads-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.marketing-leads-list-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 340px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.marketing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.marketing-table th,
+.marketing-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.marketing-table th {
+  position: sticky;
+  top: 0;
+  background: rgba(12, 12, 12, 0.98);
+  color: rgba(245, 236, 214, 0.8);
+  font-weight: 600;
+}
+
+.marketing-table tbody tr {
+  cursor: pointer;
+}
+
+.marketing-table tbody tr:hover {
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.marketing-table tbody tr.selected {
+  background: rgba(212, 175, 55, 0.12);
+}
+
+.marketing-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.marketing-status--new { background: rgba(33, 150, 243, 0.15); color: #64b5f6; }
+.marketing-status--assigned,
+.marketing-status--transmitted { background: rgba(255, 152, 0, 0.15); color: #ffb74d; }
+.marketing-status--in_progress { background: rgba(156, 39, 176, 0.15); color: #ce93d8; }
+.marketing-status--converted { background: rgba(76, 175, 80, 0.15); color: #81c784; }
+.marketing-status--rejected,
+.marketing-status--spam { background: rgba(244, 67, 54, 0.12); color: #e57373; }
+
+.marketing-lead-detail h3 {
+  margin: 0 0 12px;
+  color: #f5ecd6;
+  font-size: 16px;
+}
+
+.marketing-lead-detail p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: rgba(244, 244, 245, 0.8);
+}
+
+.marketing-utm-block {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(212, 175, 55, 0.06);
+  font-size: 12px;
+}
+
+.marketing-assign-row {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.marketing-assign-row .marketing-select {
+  flex: 1;
+}
+
+.marketing-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.marketing-loading,
+.marketing-empty {
+  padding: 40px;
+  text-align: center;
+  color: rgba(244, 244, 245, 0.5);
+}
+
+.marketing-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.marketing-modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.marketing-modal h3 {
+  margin: 0 0 16px;
+  color: #f5ecd6;
+}
+
+.marketing-form label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: rgba(244, 244, 245, 0.75);
+}
+
+.marketing-form label .marketing-input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  box-sizing: border-box;
+}
+
+.marketing-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}

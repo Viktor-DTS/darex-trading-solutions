@@ -1,0 +1,179 @@
+.marketing-dashboard {
+  --vip-gold: #d4af37;
+  --vip-champagne: #f5ecd6;
+  --vip-bg: #030303;
+  --vip-surface: rgba(18, 18, 18, 0.92);
+  --vip-border: rgba(212, 175, 55, 0.22);
+  min-height: calc(100vh - 56px);
+  background: var(--vip-bg);
+  color: #f4f4f5;
+  position: relative;
+  overflow: hidden;
+}
+
+.marketing-dashboard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+}
+
+.marketing-dashboard-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px 28px 40px;
+}
+
+.marketing-hero {
+  margin-bottom: 28px;
+  padding: 28px 32px;
+  border: 1px solid var(--vip-border);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(3, 3, 3, 0.6) 55%);
+  box-shadow: 0 0 40px rgba(212, 175, 55, 0.06);
+}
+
+.marketing-hero h1 {
+  margin: 0 0 8px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--vip-champagne);
+  letter-spacing: 0.02em;
+}
+
+.marketing-hero p {
+  margin: 0;
+  color: rgba(244, 244, 245, 0.72);
+  max-width: 720px;
+  line-height: 1.55;
+}
+
+.marketing-hero-badge {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: var(--vip-gold);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.marketing-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.marketing-tab-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(244, 244, 245, 0.75);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.marketing-tab-btn:hover {
+  border-color: var(--vip-border);
+  color: var(--vip-champagne);
+}
+
+.marketing-tab-btn.active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.06));
+  border-color: rgba(212, 175, 55, 0.45);
+  color: var(--vip-champagne);
+}
+
+.marketing-content-panel {
+  border: 1px solid var(--vip-border);
+  border-radius: 14px;
+  background: var(--vip-surface);
+  padding: 20px;
+  backdrop-filter: blur(8px);
+}
+
+.card-vip {
+  border: 1px solid var(--vip-border);
+  border-radius: 12px;
+  background: rgba(12, 12, 12, 0.85);
+  padding: 18px;
+}
+
+.marketing-integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.marketing-integration-card {
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.marketing-integration-card h4 {
+  margin: 0 0 8px;
+  color: var(--vip-champagne);
+}
+
+.marketing-integration-card p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: rgba(244, 244, 245, 0.65);
+  line-height: 1.5;
+}
+
+.marketing-integration-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.marketing-integration-status--ready {
+  background: rgba(76, 175, 80, 0.15);
+  color: #81c784;
+  border: 1px solid rgba(76, 175, 80, 0.35);
+}
+
+.marketing-integration-status--planned {
+  background: rgba(255, 152, 0, 0.12);
+  color: #ffb74d;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.marketing-roadmap-list {
+  margin: 16px 0 0;
+  padding-left: 20px;
+  color: rgba(244, 244, 245, 0.75);
+  line-height: 1.7;
+}
+
+.marketing-roadmap-list li {
+  margin-bottom: 6px;
+}
+
+.marketing-api-hint {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(212, 175, 55, 0.06);
+  border: 1px dashed rgba(212, 175, 55, 0.3);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: rgba(245, 236, 214, 0.85);
+  word-break: break-all;
+}

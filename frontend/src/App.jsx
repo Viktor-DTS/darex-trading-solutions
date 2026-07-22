@@ -20,6 +20,7 @@ import TestingDashboard from './components/TestingDashboard';
 import FinancialDashboard from './components/FinancialDashboard';
 import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import ProcurementDashboard from './components/ProcurementDashboard';
+import MarketingDashboard from './components/MarketingDashboard';
 import AssistantChatWidget from './components/AssistantChatWidget';
 import TaskExportOverlay from './components/TaskExportOverlay';
 import API_BASE_URL from './config';
@@ -29,8 +30,8 @@ import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './u
 // Права доступу за замовчуванням (резервні, якщо база недоступна).
 // Перелік панелей (`PANELS`) — constants/panelsCatalog.js.
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
   operator: ['operator'],
   accountant: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
@@ -47,6 +48,9 @@ const DEFAULT_ACCESS_RULES = {
   golovnkervserv: ['finance'],
   /** Відділ закупівель (виконавець заявок — роль VidZakupok у бекенді: vidzakupok). */
   vidzakupok: ['procurement'],
+  /** Маркетинговий відділ — ліди та зовнішня реклама. */
+  marketing: ['marketing'],
+  mgradm: ['manager', 'marketing', 'inventory'],
 };
 
 // Функція для конвертації правил з бази { role: { panel: 'full'|'read'|'none' } } в масив панелей
@@ -388,6 +392,8 @@ function App() {
         return <InventoryDashboard user={user} />;
       case 'manager':
         return <ManagerDashboard user={user} />;
+      case 'marketing':
+        return <MarketingDashboard user={user} />;
       case 'salesAccounting':
         return <SalesAccountingDashboard />;
       case 'finance':
@@ -459,12 +465,12 @@ function App() {
                     </div>
                   </nav>
                   {/* Основний вміст */}
-                  <div className={`panel-content with-selector ${!['manager', 'inventory'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
+                  <div className={`panel-content with-selector ${!['manager', 'inventory', 'marketing'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
                     {renderPanel()}
                   </div>
                   
                   {/* Панель статистики заявок — приховано лише в Менеджери та Складський облік */}
-                  {!['manager', 'inventory'].includes(currentPanel) && (
+                  {!['manager', 'inventory', 'marketing'].includes(currentPanel) && (
                     <TasksStatisticsBar user={user} />
                   )}
                   <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />

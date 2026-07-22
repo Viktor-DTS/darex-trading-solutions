@@ -7,6 +7,7 @@ import SalesTab from './manager/SalesTab';
 import SalesReportTab from './manager/SalesReportTab';
 import MyDealsTab from './manager/MyDealsTab';
 import IncomingCallTab from './manager/IncomingCallTab';
+import ExternalAdRequestsTab from './manager/ExternalAdRequestsTab';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import { getClients } from '../utils/clientsAPI';
 import './ManagerDashboard.css';
@@ -434,6 +435,13 @@ function ManagerDashboard({ user }) {
                 <span className="tab-icon">📞</span>
                 <span className="tab-label">Перевірка клієнта</span>
               </button>
+              <button
+                className={`manager-sidebar-tab ${activeTab === 'externalAds' ? 'active' : ''}`}
+                onClick={() => setActiveTab('externalAds')}
+              >
+                <span className="tab-icon">📣</span>
+                <span className="tab-label">Запити з зовнішньої реклами</span>
+              </button>
             </nav>
             {activeTab === 'stock' && (
               <div className="manager-sidebar-nomenclature">
@@ -468,6 +476,10 @@ function ManagerDashboard({ user }) {
           ) : activeTab === 'incoming' ? (
             <div className="manager-scaled-inner">
               <IncomingCallTab user={user} />
+            </div>
+          ) : activeTab === 'externalAds' ? (
+            <div className="manager-scaled-inner">
+              <ExternalAdRequestsTab user={user} />
             </div>
           ) : activeTab === 'report' ? (
             <div className="manager-scaled-inner">

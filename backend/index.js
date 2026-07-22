@@ -54,6 +54,16 @@ const {
   syncEquipmentTransitFromPendingOneCMoves,
 } = require('./lib/equipmentTransitEnrichment');
 const {
+  canAccessMarketingPanel,
+  canManageAllMarketingLeads,
+  canViewManagerExternalLeads,
+  pushStatusHistory,
+  sanitizeLeadPayload,
+  buildListQuery: buildMarketingLeadListQuery,
+  SOURCE_LABELS: MARKETING_SOURCE_LABELS,
+  STATUS_LABELS: MARKETING_STATUS_LABELS,
+} = require('./lib/marketingLeads');
+const {
   buildReceiptScope,
   listPendingMoveReceipts,
   countPendingMoveReceipts,
@@ -454,7 +464,9 @@ const MANAGER_NOTIFICATION_KINDS = [
   'procurement_request_completed',
   'task_cashless_no_invoice_pending',
   'assistant_accountant_relay',
-  'assistant_accountant_relay_reply'
+  'assistant_accountant_relay_reply',
+  'external_ad_lead_new',
+  'external_ad_lead_assigned'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -505,6 +517,77 @@ const managerUserNotificationSchema = new mongoose.Schema({
 managerUserNotificationSchema.index({ recipientLogin: 1, createdAt: -1 });
 managerUserNotificationSchema.index({ recipientLogin: 1, read: 1 });
 const ManagerUserNotification = mongoose.model('ManagerUserNotification', managerUserNotificationSchema);
+
+const marketingLeadSchema = new mongoose.Schema({
+  requestNumber: { type: String, unique: true, index: true },
+  source: {
+    type: String,
+    enum: ['manual', 'website', 'facebook', 'instagram', 'google', 'telegram', 'viber', 'email', 'referral', 'other'],
+    default: 'manual',
+    index: true,
+  },
+  sourceDetail: String,
+  status: {
+    type: String,
+    enum: ['new', 'in_review', 'assigned', 'transmitted', 'in_progress', 'converted', 'rejected', 'spam'],
+    default: 'new',
+    index: true,
+  },
+  priority: { type: String, enum: ['low', 'normal', 'high', 'urgent'], default: 'normal' },
+  clientName: String,
+  contactPhone: { type: String, index: true },
+  contactEmail: String,
+  city: String,
+  region: String,
+  productInterest: String,
+  productSlug: String,
+  equipmentType: String,
+  powerRequired: String,
+  budget: String,
+  comment: String,
+  preferredContact: { type: String, default: 'phone' },
+  utmSource: String,
+  utmMedium: String,
+  utmCampaign: String,
+  utmContent: String,
+  utmTerm: String,
+  metaLeadId: String,
+  metaFormId: String,
+  metaAdId: String,
+  metaAdsetId: String,
+  metaCampaignId: String,
+  landingPage: String,
+  referrer: String,
+  ipAddress: String,
+  userAgent: String,
+  rawPayload: mongoose.Schema.Types.Mixed,
+  createdByLogin: String,
+  createdByName: String,
+  marketingOwnerLogin: String,
+  marketingOwnerName: String,
+  assignedManagerLogin: { type: String, index: true },
+  assignedManagerName: String,
+  assignedAt: Date,
+  assignedByLogin: String,
+  assignedByName: String,
+  transmittedToManagerAt: Date,
+  marketingNotes: String,
+  managerNotes: String,
+  rejectionReason: String,
+  convertedClientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
+  convertedSaleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
+  statusHistory: [{
+    from: String,
+    to: String,
+    date: Date,
+    userLogin: String,
+    userName: String,
+    note: String,
+  }],
+}, { timestamps: true });
+marketingLeadSchema.index({ status: 1, createdAt: -1 });
+marketingLeadSchema.index({ assignedManagerLogin: 1, status: 1 });
+const MarketingLead = mongoose.model('MarketingLead', marketingLeadSchema);
 
 // Схема для ролей
 const roleSchema = new mongoose.Schema({
@@ -2929,6 +3012,16 @@ async function getNextSaleNuNumber() {
   );
   const n = c.seq || 1;
   return `NU-${String(n).padStart(5, '0')}`;
+}
+
+async function getNextMarketingLeadNumber() {
+  const c = await Counter.findOneAndUpdate(
+    { _id: 'marketingLead' },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  const n = c.seq || 1;
+  return `ML-${String(n).padStart(5, '0')}`;
 }
 
 /** Завжди повертає рядок, ніколи не кидає (прев’ю номера не має ламати UI). */
@@ -17403,6 +17496,258 @@ app.post('/api/notifications/send-system-message', authenticateToken, async (req
   } catch (error) {
     console.error('[TELEGRAM] Помилка відправки системного повідомлення:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// МАРКЕТИНГ — ліди / запити з зовнішньої реклами
+// ============================================
+
+async function notifyManagerExternalAdLead(lead, managerLogin, title, kind) {
+  if (!managerLogin) return;
+  const body = [
+    lead.clientName ? `Клієнт: ${lead.clientName}` : null,
+    lead.contactPhone ? `Тел: ${lead.contactPhone}` : null,
+    lead.productInterest ? `Інтерес: ${lead.productInterest}` : null,
+    lead.city ? `Місто: ${lead.city}` : null,
+    lead.comment ? `Коментар: ${lead.comment}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  await createManagerNotificationDeduped({
+    recipientLogin: managerLogin,
+    kind,
+    title,
+    body,
+    requestNumber: lead.requestNumber || '',
+    read: false,
+    dedupeKey: `${kind}:${String(lead._id)}:${managerLogin}`,
+  });
+}
+
+app.get('/api/marketing/leads/meta', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user) && !canViewManagerExternalLeads(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    res.json({
+      sources: MARKETING_SOURCE_LABELS,
+      statuses: MARKETING_STATUS_LABELS,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/marketing/leads/stats', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const base = {};
+    const statuses = ['new', 'in_review', 'assigned', 'transmitted', 'in_progress', 'converted', 'rejected'];
+    const byStatus = {};
+    for (const st of statuses) {
+      byStatus[st] = await MarketingLead.countDocuments({ ...base, status: st });
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayCount = await MarketingLead.countDocuments({ ...base, createdAt: { $gte: today } });
+    res.json({ byStatus, todayCount, total: await MarketingLead.countDocuments(base) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/marketing/leads', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user) && !canViewManagerExternalLeads(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const q = buildMarketingLeadListQuery(req, req.user);
+    const list = await MarketingLead.find(q).sort({ createdAt: -1 }).limit(500).lean();
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
+  try {
+    const lead = await MarketingLead.findById(req.params.id).lean();
+    if (!lead) return res.status(404).json({ error: 'Заявку не знайдено' });
+    const isManagerView =
+      String(req.user?.role || '').toLowerCase() === 'manager' &&
+      lead.assignedManagerLogin === req.user.login;
+    if (!canAccessMarketingPanel(req.user) && !isManagerView) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    res.json(lead);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/marketing/leads', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const payload = sanitizeLeadPayload(req.body);
+    if (!payload.clientName && !payload.contactPhone) {
+      return res.status(400).json({ error: 'Вкажіть ім’я клієнта або телефон' });
+    }
+    const lead = new MarketingLead({
+      ...payload,
+      requestNumber: await getNextMarketingLeadNumber(),
+      status: 'new',
+      createdByLogin: req.user.login,
+      createdByName: dbUser?.name || req.user.login,
+      marketingOwnerLogin: req.user.login,
+      marketingOwnerName: dbUser?.name || req.user.login,
+      statusHistory: [{
+        from: null,
+        to: 'new',
+        date: new Date(),
+        userLogin: req.user.login,
+        userName: dbUser?.name || req.user.login,
+        note: 'Створено вручну',
+      }],
+    });
+    await lead.save();
+    res.status(201).json(lead);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/** Публічний прийом лідів з сайту / Meta (X-Marketing-Api-Key або MARKETING_INBOUND_API_KEY). */
+app.post('/api/marketing/leads/inbound', async (req, res) => {
+  try {
+    const expected = process.env.MARKETING_INBOUND_API_KEY || '';
+    const key = String(req.get('x-marketing-api-key') || req.body?.apiKey || '').trim();
+    if (!expected || key !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const payload = sanitizeLeadPayload(req.body, { isInbound: true });
+    if (!payload.contactPhone && !payload.contactEmail) {
+      return res.status(400).json({ error: 'contactPhone or contactEmail required' });
+    }
+    const lead = new MarketingLead({
+      ...payload,
+      requestNumber: await getNextMarketingLeadNumber(),
+      status: 'new',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || '',
+      statusHistory: [{
+        from: null,
+        to: 'new',
+        date: new Date(),
+        userLogin: 'inbound',
+        userName: 'Зовнішнє джерело',
+        note: payload.source,
+      }],
+    });
+    await lead.save();
+    res.status(201).json({ ok: true, requestNumber: lead.requestNumber, id: lead._id });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
+  try {
+    const lead = await MarketingLead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Заявку не знайдено' });
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const role = String(req.user?.role || '').toLowerCase();
+    const isAssignedManager = role === 'manager' && lead.assignedManagerLogin === req.user.login;
+
+    if (!canAccessMarketingPanel(req.user) && !isAssignedManager) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+
+    const body = req.body || {};
+
+    if (canAccessMarketingPanel(req.user)) {
+      const fields = [
+        'clientName', 'contactPhone', 'contactEmail', 'city', 'region', 'productInterest',
+        'equipmentType', 'powerRequired', 'budget', 'comment', 'marketingNotes', 'priority', 'source', 'sourceDetail',
+      ];
+      fields.forEach((f) => {
+        if (body[f] !== undefined) lead[f] = body[f];
+      });
+      if (body.status && body.status !== lead.status) {
+        pushStatusHistory(lead, body.status, dbUser || req.user, body.statusNote || '');
+      }
+    }
+
+    if (isAssignedManager && body.managerNotes !== undefined) {
+      lead.managerNotes = String(body.managerNotes || '');
+    }
+    if (isAssignedManager && body.status === 'in_progress' && lead.status !== 'in_progress') {
+      pushStatusHistory(lead, 'in_progress', dbUser || req.user, 'Менеджер взяв у роботу');
+    }
+    if (isAssignedManager && body.status === 'converted') {
+      pushStatusHistory(lead, 'converted', dbUser || req.user, body.statusNote || 'Конвертовано');
+    }
+
+    await lead.save();
+    res.json(lead);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/marketing/leads/:id/assign', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const lead = await MarketingLead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Заявку не знайдено' });
+    const managerLogin = String(req.body?.managerLogin || '').trim();
+    if (!managerLogin) return res.status(400).json({ error: 'Вкажіть managerLogin' });
+    const manager = await User.findOne({ login: managerLogin, dismissed: { $ne: true } }).lean();
+    if (!manager) return res.status(404).json({ error: 'Менеджера не знайдено' });
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    lead.assignedManagerLogin = manager.login;
+    lead.assignedManagerName = manager.name || manager.login;
+    lead.assignedAt = new Date();
+    lead.assignedByLogin = req.user.login;
+    lead.assignedByName = dbUser?.name || req.user.login;
+    pushStatusHistory(lead, 'assigned', dbUser || req.user, `Призначено: ${lead.assignedManagerName}`);
+    await lead.save();
+    res.json(lead);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/marketing/leads/:id/transmit', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const lead = await MarketingLead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (!lead.assignedManagerLogin) {
+      return res.status(400).json({ error: 'Спочатку призначте менеджера' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    lead.transmittedToManagerAt = new Date();
+    pushStatusHistory(lead, 'transmitted', dbUser || req.user, req.body?.note || 'Передано менеджеру');
+    await lead.save();
+    await notifyManagerExternalAdLead(
+      lead,
+      lead.assignedManagerLogin,
+      `Новий запит з реклами ${lead.requestNumber || ''}`.trim(),
+      'external_ad_lead_assigned'
+    );
+    res.json(lead);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
 });
 
