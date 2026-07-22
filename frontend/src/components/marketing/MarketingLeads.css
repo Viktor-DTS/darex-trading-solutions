@@ -104,9 +104,10 @@
 
 .marketing-leads-list-wrap {
   overflow: auto;
-  max-height: calc(100vh - 340px);
+  max-height: min(560px, calc(100vh - 320px));
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-overflow-scrolling: touch;
 }
 
 .marketing-table {
@@ -205,17 +206,20 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.72);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 10000;
-  padding: 20px;
+  padding: 24px 20px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .marketing-modal {
   width: 100%;
   max-width: 520px;
-  max-height: 90vh;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
+  margin: auto 0;
 }
 
 .marketing-modal h3 {

@@ -4,11 +4,14 @@
   --vip-bg: #030303;
   --vip-surface: rgba(18, 18, 18, 0.92);
   --vip-border: rgba(212, 175, 55, 0.22);
-  min-height: calc(100vh - 56px);
+  height: 100%;
+  min-height: 0;
   background: var(--vip-bg);
   color: #f4f4f5;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .marketing-dashboard::before {
@@ -25,7 +28,8 @@
   z-index: 1;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 24px 28px 40px;
+  padding: 24px 28px 48px;
+  min-height: min-content;
 }
 
 .marketing-hero {
