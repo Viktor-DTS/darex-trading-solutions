@@ -16,7 +16,7 @@ import {
   normalizeEdrpouDigits,
 } from '../utils/estimate/contractLookup';
 import { parseEstimateSpecFromDocumentText } from '../utils/estimate/parseEstimateSpecFromText';
-import { extractFullDocumentTextFromUrl } from '../utils/pdfUtils';
+import { extractFullDocumentTextFromUrl, openContractFilePreview } from '../utils/pdfUtils';
 import './ContractEstimateSpecsEditor.css';
 
 function canEditSpecs(role) {
@@ -545,6 +545,15 @@ function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
     ? '__manual__'
     : (selectedContractUrl || contracts.find((c) => c.contractNumber === contractNumber)?.url || contractNumber);
 
+  const selectedContract = contracts.find((c) => c.url === selectedContractUrl)
+    || contracts.find((c) => c.contractNumber === contractNumber);
+
+  const handlePreviewContract = (url) => {
+    const target = url || selectedContractUrl;
+    if (!target) return;
+    openContractFilePreview(target);
+  };
+
   return (
     <div className="ces-modal-overlay" onClick={onClose}>
       <div className="ces-modal ces-modal-wide" onClick={(e) => e.stopPropagation()}>
@@ -594,20 +603,72 @@ function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
           <label className="ces-field">
             <span>Номер договору *</span>
             {normalizeEdrpouDigits(edrpou).length >= 8 && contracts.length > 0 && !contractManual ? (
-              <select
-                value={contractSelectValue}
-                onChange={(e) => handleContractSelect(e.target.value)}
-                required
-              >
-                <option value="">— Оберіть договір —</option>
-                {contracts.map((c) => (
-                  <option key={c.url || c.contractNumber} value={c.url}>
-                    {c.contractNumber || c.fileName}
-                    {c.contractDate ? ` (${formatUkDateFromIso(c.contractDate)})` : ''}
-                  </option>
-                ))}
-                <option value="__manual__">✏️ Ввести номер вручну</option>
-              </select>
+              <>
+                <div className="ces-contract-picker-row">
+                  <select
+                    className="ces-contract-select"
+                    value={contractSelectValue}
+                    onChange={(e) => handleContractSelect(e.target.value)}
+                    required
+                  >
+                    <option value="">— Оберіть договір —</option>
+                    {contracts.map((c) => (
+                      <option key={c.url || c.contractNumber} value={c.url}>
+                        {c.contractNumber || c.fileName}
+                        {c.contractDate ? ` (${formatUkDateFromIso(c.contractDate)})` : ''}
+                      </option>
+                    ))}
+                    <option value="__manual__">✏️ Ввести номер вручну</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="ces-contract-preview-btn"
+                    title="Переглянути обраний договір"
+                    disabled={!selectedContractUrl}
+                    onClick={() => handlePreviewContract()}
+                  >
+                    👁️ Переглянути
+                  </button>
+                </div>
+                {contracts.length > 1 && (
+                  <div className="ces-contract-mini-list">
+                    {contracts.map((c) => {
+                      const isActive = c.url === selectedContractUrl;
+                      return (
+                        <div
+                          key={c.url || c.contractNumber}
+                          className={`ces-contract-mini-item${isActive ? ' active' : ''}`}
+                        >
+                          <button
+                            type="button"
+                            className="ces-contract-mini-pick"
+                            onClick={() => handleContractSelect(c.url)}
+                          >
+                            <span className="ces-contract-mini-num">{c.contractNumber || '—'}</span>
+                            <span className="ces-contract-mini-meta">
+                              {c.fileName}
+                              {c.contractDate ? ` · ${formatUkDateFromIso(c.contractDate)}` : ''}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="ces-contract-mini-eye"
+                            title="Відкрити документ"
+                            onClick={() => handlePreviewContract(c.url)}
+                          >
+                            👁️
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedContract?.fileName && (
+                  <p className="ces-modal-hint ces-contract-file-hint">
+                    Файл: {selectedContract.fileName}
+                  </p>
+                )}
+              </>
             ) : (
               <input
                 type="text"
