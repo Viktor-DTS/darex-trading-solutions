@@ -131,11 +131,13 @@ function evaluatePositionAction(trade, liveAnalysis, quote, cfg = {}) {
     };
   }
 
+  // Loss scratch (optional): FX_POS_TIME_SCRATCH_LOSS_MS=0 disables
   // SCRATCH_PEAK_GUARD: був хоч якийсь прогрес → не ріжемо мікро-мінус time_scratch
   const peakFav = trade.peakFavPips ?? 0;
   const scratchPeakGuard = cfg.posScratchPeakGuard !== false;
   if (
-    ageMs >= scratchLossMs
+    scratchLossMs > 0
+    && ageMs >= scratchLossMs
     && fav <= scratchMaxLossPips
     && !(scratchPeakGuard && peakFav >= progressPips)
   ) {

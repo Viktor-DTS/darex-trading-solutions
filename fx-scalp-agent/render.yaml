@@ -126,7 +126,7 @@ services:
       - key: FX_MATH_FRICTION_K
         value: "0.55"
       - key: FX_MATH_MICRO_BARS
-        value: "1.0"
+        value: "0.35"
       - key: FX_MATH_MICRO_M1
         value: "1.0"
       - key: FX_MATH_WINDOW_BARS
@@ -162,15 +162,21 @@ services:
       - key: FX_POS_DYNAMIC_TP
         value: "1"
       - key: FX_POS_TIME_SCRATCH_MS
-        value: "720000"
+        value: "900000"
       - key: FX_POS_TIME_SCRATCH_LOSS_MS
-        value: "480000"
+        value: "0"
       - key: FX_POS_SCRATCH_MAX_LOSS_PIPS
         value: "-1.5"
       - key: FX_POS_SCRATCH_PEAK_GUARD
         value: "1"
       - key: FX_POS_PROGRESS_PIPS
         value: "0.4"
+      - key: FX_POS_CONV_DECAY_LOSS
+        value: "18"
+      - key: FX_PAIR_DAY_LOSS_CAP
+        value: "2"
+      - key: FX_PAIR_BLACKLIST
+        value: "USDCHF,AUDUSD,NZDUSD,EURCAD"
       - key: FX_BREAKEVEN_PIPS
         value: "2"
       - key: FX_POS_TP_DECAY_CONV
@@ -179,8 +185,6 @@ services:
         value: "0"
       - key: FX_MIN_BUY_SCORE
         value: "72"
-      - key: FX_PAIR_BLACKLIST
-        value: ""
       - key: FX_MIN_LAYERS_ALIGNED
         value: "3"
       - key: FX_PAIR_TIER2_MIN_BUY_SCORE
@@ -250,19 +254,23 @@ services:
       - key: FX_TESTBOT_STOP_GRACE_MS
         value: "30000"
       - key: FX_TESTBOT_EARLY_PARTIAL_USD
-        value: "1.5"
+        value: "2.2"
       - key: FX_TESTBOT_EARLY_PARTIAL_MS
-        value: "180000"
+        value: "240000"
       - key: FX_TESTBOT_PROTECT_PEAK_USD
-        value: "1.5"
+        value: "2"
       - key: FX_TESTBOT_PROTECT_FLOOR_USD
-        value: "0.5"
+        value: "1"
       - key: FX_TESTBOT_HOLD_EXTEND_MS
         value: "300000"
       - key: FX_TESTBOT_CUT_STALE_MS
-        value: "480000"
+        value: "720000"
       - key: FX_TESTBOT_CUT_STALE_USD
-        value: "1.5"
+        value: "2.5"
+      - key: FX_TESTBOT_PAIR_DAY_LOSS_CAP
+        value: "2"
+      - key: FX_TESTBOT_PAIR_BLACKLIST
+        value: "USDCHF,AUDUSD,NZDUSD,EURCAD"
       - key: FX_TESTBOT_ALLOW_DRAFT
         value: "0"
       - key: FX_TESTBOT_QUALITY_LOCK
@@ -282,21 +290,21 @@ services:
       - key: FX_ORACLE_RESPECT_INVERT
         value: "1"
       - key: FX_ORACLE_TOXIC_WR
-        value: "0.38"
+        value: "0.35"
       - key: FX_ORACLE_TOXIC_MIN_TRADES
-        value: "6"
+        value: "5"
       - key: FX_ORACLE_MIN_DIRECTION_HIT
         value: "0.52"
       - key: FX_ORACLE_MIN_PAIR_HIT
-        value: "0.48"
+        value: "0.55"
       - key: FX_ORACLE_MICRO_BARS
         value: "1.5"
       - key: FX_TESTBOT_ORACLE_MICRO_BARS
         value: "0"
       - key: FX_TESTBOT_ORACLE_MIN_P_UP
-        value: "0.58"
+        value: "0.60"
       - key: FX_TESTBOT_ORACLE_MIN_KAPPA
-        value: "0.50"
+        value: "0.52"
       - key: FX_LEARN_MAX_CONSEC_LOSSES
         value: "8"
       - key: FX_TESTBOT_ORACLE_MIN_P_TP
