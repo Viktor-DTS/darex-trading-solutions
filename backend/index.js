@@ -259,6 +259,46 @@ const shipmentTtnStorage = new CloudinaryStorage({
 });
 const uploadShipmentTtn = multer({ storage: shipmentTtnStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
+const estimateTemplateStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : 'xlsx';
+    const specId = String(req.params.id || 'spec').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const uid = `estimate_tpl_${specId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      folder: 'newservicegidra/estimate-templates',
+      resource_type: 'raw',
+      overwrite: false,
+      invalidate: true,
+      public_id: uid,
+      allowed_formats: ['xls', 'xlsx'],
+      format: ext === 'xls' ? 'xls' : 'xlsx',
+      filename_override: originalName || 'estimate-template.xlsx',
+    };
+  },
+});
+
+function estimateTemplateFileFilter(req, file, cb) {
+  const name = String(file.originalname || '').toLowerCase();
+  const mt = String(file.mimetype || '').toLowerCase();
+  if (/\.xlsx?$/i.test(name)) return cb(null, true);
+  if (
+    mt === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    || mt === 'application/vnd.ms-excel'
+  ) {
+    return cb(null, true);
+  }
+  cb(new Error('Дозволені лише файли Excel (.xlsx, .xls)'));
+}
+
+const uploadEstimateTemplate = multer({
+  storage: estimateTemplateStorage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: estimateTemplateFileFilter,
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -656,6 +696,9 @@ const estimateContractSpecSchema = new mongoose.Schema(
     transportRatePerKm: { type: Number, default: 0 },
     categories: { type: Array, default: [] },
     itemCount: { type: Number, default: 0 },
+    estimateTemplateUrl: { type: String, default: '' },
+    estimateTemplateName: { type: String, default: '' },
+    estimateTemplateCloudinaryId: { type: String, default: '' },
     updatedAt: { type: Date },
     updatedByLogin: { type: String, default: '' },
   },
@@ -666,6 +709,7 @@ const EstimateContractSpec = mongoose.model('EstimateContractSpec', estimateCont
 const DEFAULT_ESTIMATE_SPEC_FILES = [
   path.join(__dirname, 'data', 'estimateSpecs', 'privatbank-p0156625.json'),
 ];
+const DEFAULT_ESTIMATE_TEMPLATE_FILE = path.join(__dirname, 'data', 'estimateTemplates', 'default.xlsx');
 
 function countEstimateSpecItems(categories) {
   return (categories || []).reduce((sum, cat) => sum + (Array.isArray(cat.items) ? cat.items.length : 0), 0);
@@ -703,6 +747,8 @@ function estimateSpecDocToApi(doc) {
     transportRatePerKm: d.transportRatePerKm || 0,
     categories: d.categories || [],
     itemCount: d.itemCount || countEstimateSpecItems(d.categories),
+    estimateTemplateUrl: d.estimateTemplateUrl || '',
+    estimateTemplateName: d.estimateTemplateName || '',
     updatedAt: d.updatedAt,
     updatedByLogin: d.updatedByLogin || '',
   };
@@ -718,6 +764,7 @@ function estimateSpecDocToListItem(doc) {
     contractNumber: full.contractNumber,
     title: full.title,
     itemCount: full.itemCount,
+    hasCustomTemplate: !!String(full.estimateTemplateUrl || '').trim(),
     updatedAt: full.updatedAt,
     updatedByLogin: full.updatedByLogin,
   };
@@ -765,6 +812,37 @@ function canEditEstimateContractSpecs(role) {
   if (['admin', 'administrator', 'finance', 'buhgalteria'].includes(r)) return true;
   if (isGolovnKervServRole(r)) return true;
   return false;
+}
+
+const DEFAULT_ESTIMATE_POWER_TIERS = [
+  { id: 'le_50kw', label: 'до 50 кВт (рідинне охолодження)' },
+  { id: 'gt_50kw', label: '50 кВт та більше (рідинне охолодження)' },
+];
+
+function buildEstimateSpecId(edrpou, contractNumber) {
+  const ed = String(edrpou || '').replace(/\D/g, '');
+  const cn = String(contractNumber || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[–—−]/g, '-')
+    .replace(/[^A-Z0-9А-ЯІЇЄҐ\-]/gi, '')
+    .slice(0, 40);
+  const raw = `spec-${ed}-${cn}`.toLowerCase();
+  return raw.replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || `spec-${Date.now()}`;
+}
+
+function buildContractNumberAliases(contractNumber) {
+  const norm = String(contractNumber || '').trim();
+  if (!norm) return [];
+  const upper = norm.toUpperCase().replace(/\s+/g, '').replace(/[–—−]/g, '-');
+  const latinP = upper.replace(/^П-/i, 'P-');
+  const cyrillicP = upper.replace(/^P-/i, 'П-');
+  return [...new Set([norm, upper, latinP, cyrillicP].filter(Boolean))];
+}
+
+function cloneEstimateSpecCategories(categories) {
+  return JSON.parse(JSON.stringify(Array.isArray(categories) ? categories : []));
 }
 
 /** Довідник одиниць виміру (закупівлі, картки продукту, надходження на склад) — редагується в адмінці */
@@ -8088,6 +8166,18 @@ app.get('/api/estimate-contract-specs', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/estimate-contract-specs/default-template', authenticateToken, async (req, res) => {
+  try {
+    if (!fs.existsSync(DEFAULT_ESTIMATE_TEMPLATE_FILE)) {
+      return res.status(404).json({ error: 'Типовий шаблон не знайдено на сервері' });
+    }
+    res.download(DEFAULT_ESTIMATE_TEMPLATE_FILE, 'estimate-template.xlsx');
+  } catch (error) {
+    console.error('[ERROR] GET /api/estimate-contract-specs/default-template:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/estimate-contract-specs/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
@@ -8137,6 +8227,190 @@ app.put('/api/estimate-contract-specs/:id', authenticateToken, async (req, res) 
   } catch (error) {
     logPerformance('PUT /api/estimate-contract-specs/:id', startTime);
     console.error('[ERROR] PUT /api/estimate-contract-specs/:id:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/estimate-contract-specs', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!canEditEstimateContractSpecs(req.user.role)) {
+      return res.status(403).json({ error: 'Немає прав на створення специфікацій' });
+    }
+    await ensureEstimateContractSpecsSeeded();
+
+    const body = req.body || {};
+    const clientName = String(body.clientName || '').trim();
+    const edrpou = String(body.edrpou || '').replace(/\D/g, '').trim();
+    const contractNumber = String(body.contractNumber || '').trim();
+
+    if (!clientName) {
+      return res.status(400).json({ error: 'Вкажіть назву контрагента' });
+    }
+    if (!edrpou) {
+      return res.status(400).json({ error: 'Вкажіть ЄДРПОУ' });
+    }
+    if (!contractNumber) {
+      return res.status(400).json({ error: 'Вкажіть номер договору' });
+    }
+
+    const duplicate = await EstimateContractSpec.findOne({ edrpou, contractNumber }).lean();
+    if (duplicate) {
+      return res.status(409).json({
+        error: `Специфікація для ЄДРПОУ ${edrpou} та договору ${contractNumber} вже існує`,
+      });
+    }
+
+    let specId = String(body.id || body.specId || '').trim() || buildEstimateSpecId(edrpou, contractNumber);
+    const existingId = await EstimateContractSpec.findOne({ specId }).lean();
+    if (existingId) {
+      specId = `${specId}-${Date.now()}`;
+    }
+
+    let powerTiers = DEFAULT_ESTIMATE_POWER_TIERS;
+    let transportRatePerKm = 0;
+    let categories = [];
+    let estimateTemplateUrl = '';
+    let estimateTemplateName = '';
+    let estimateTemplateCloudinaryId = '';
+
+    const sourceSpecId = String(body.sourceSpecId || '').trim();
+    if (sourceSpecId) {
+      const source = await EstimateContractSpec.findOne({ specId: sourceSpecId }).lean();
+      if (source) {
+        powerTiers = Array.isArray(source.powerTiers) && source.powerTiers.length
+          ? cloneEstimateSpecCategories(source.powerTiers)
+          : DEFAULT_ESTIMATE_POWER_TIERS;
+        transportRatePerKm = Number(source.transportRatePerKm) || 0;
+        categories = cloneEstimateSpecCategories(source.categories);
+        if (body.copyTemplate !== false) {
+          estimateTemplateUrl = String(source.estimateTemplateUrl || '').trim();
+          estimateTemplateName = String(source.estimateTemplateName || '').trim();
+          estimateTemplateCloudinaryId = String(source.estimateTemplateCloudinaryId || '').trim();
+        }
+      }
+    }
+
+    if (!categories.length) {
+      categories = [{
+        id: 'cat-1',
+        title: 'Категорія 1',
+        items: [{
+          id: 'cat-1-1',
+          code: '1',
+          label: '',
+          unit: 'послуга',
+          prices: { le_50kw: null, gt_50kw: null, unavailable: false },
+        }],
+      }];
+    }
+
+    const title = String(body.title || '').trim()
+      || `${clientName} — специфікація робіт (${contractNumber})`;
+
+    const payload = normalizeEstimateSpecPayload({
+      id: specId,
+      clientName,
+      edrpou,
+      contractNumber,
+      contractNumberAliases: buildContractNumberAliases(contractNumber),
+      title,
+      powerTiers,
+      transportRatePerKm,
+      categories,
+    });
+
+    const created = await EstimateContractSpec.create({
+      ...payload,
+      estimateTemplateUrl,
+      estimateTemplateName,
+      estimateTemplateCloudinaryId,
+      updatedAt: new Date(),
+      updatedByLogin: String(req.user?.login || req.user?.username || '').trim(),
+    });
+
+    logPerformance('POST /api/estimate-contract-specs', startTime);
+    res.status(201).json(estimateSpecDocToApi(created));
+  } catch (error) {
+    logPerformance('POST /api/estimate-contract-specs', startTime);
+    console.error('[ERROR] POST /api/estimate-contract-specs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/estimate-contract-specs/:id/template', authenticateToken, uploadEstimateTemplate.single('file'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!canEditEstimateContractSpecs(req.user.role)) {
+      return res.status(403).json({ error: 'Немає прав на зміну шаблонів' });
+    }
+    const specId = String(req.params.id || '').trim();
+    if (!req.file) {
+      return res.status(400).json({ error: 'Оберіть файл Excel (.xlsx)' });
+    }
+    const doc = await EstimateContractSpec.findOne({ specId });
+    if (!doc) {
+      return res.status(404).json({ error: 'Специфікацію не знайдено' });
+    }
+
+    const oldCloudinaryId = String(doc.estimateTemplateCloudinaryId || '').trim();
+    const fileUrl = req.file.path || req.file.secure_url || req.file.url || '';
+    const cloudinaryId = req.file.filename || req.file.public_id || '';
+    const originalName = req.file.originalname || 'estimate-template.xlsx';
+
+    doc.estimateTemplateUrl = fileUrl;
+    doc.estimateTemplateName = originalName;
+    doc.estimateTemplateCloudinaryId = cloudinaryId;
+    doc.updatedAt = new Date();
+    doc.updatedByLogin = String(req.user?.login || req.user?.username || '').trim();
+    await doc.save();
+
+    if (oldCloudinaryId && oldCloudinaryId !== cloudinaryId) {
+      cloudinary.uploader.destroy(oldCloudinaryId, { resource_type: 'raw' }).catch((e) => {
+        console.warn('[WARN] estimate template delete old:', e.message);
+      });
+    }
+
+    logPerformance('POST /api/estimate-contract-specs/:id/template', startTime);
+    res.json(estimateSpecDocToApi(doc));
+  } catch (error) {
+    logPerformance('POST /api/estimate-contract-specs/:id/template', startTime);
+    console.error('[ERROR] POST /api/estimate-contract-specs/:id/template:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/estimate-contract-specs/:id/template', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!canEditEstimateContractSpecs(req.user.role)) {
+      return res.status(403).json({ error: 'Немає прав на зміну шаблонів' });
+    }
+    const specId = String(req.params.id || '').trim();
+    const doc = await EstimateContractSpec.findOne({ specId });
+    if (!doc) {
+      return res.status(404).json({ error: 'Специфікацію не знайдено' });
+    }
+
+    const oldCloudinaryId = String(doc.estimateTemplateCloudinaryId || '').trim();
+    doc.estimateTemplateUrl = '';
+    doc.estimateTemplateName = '';
+    doc.estimateTemplateCloudinaryId = '';
+    doc.updatedAt = new Date();
+    doc.updatedByLogin = String(req.user?.login || req.user?.username || '').trim();
+    await doc.save();
+
+    if (oldCloudinaryId) {
+      cloudinary.uploader.destroy(oldCloudinaryId, { resource_type: 'raw' }).catch((e) => {
+        console.warn('[WARN] estimate template delete:', e.message);
+      });
+    }
+
+    logPerformance('DELETE /api/estimate-contract-specs/:id/template', startTime);
+    res.json(estimateSpecDocToApi(doc));
+  } catch (error) {
+    logPerformance('DELETE /api/estimate-contract-specs/:id/template', startTime);
+    console.error('[ERROR] DELETE /api/estimate-contract-specs/:id/template:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,7 +1,12 @@
 import { formatUkDateFromIso, roundMoney, splitLowerLinesForExport } from './estimatePrefill';
 import { formatSpecItemDisplayName } from './estimateSpecRegistry';
 
-const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/estimate-template.xlsx`;
+const DEFAULT_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/estimate-template.xlsx`;
+
+export function getEstimateTemplateUrl(spec) {
+  const custom = String(spec?.estimateTemplateUrl || '').trim();
+  return custom || DEFAULT_TEMPLATE_URL;
+}
 
 const TEMPLATE_ROWS = {
   sectionTitle: 13,
@@ -257,7 +262,8 @@ function enrichWorkLinesFromSpec(workLines, spec) {
 
 export async function generateEstimateExcel({ task, workLines, lowerLines, spec }) {
   const ExcelJS = (await import('exceljs')).default;
-  const response = await fetch(TEMPLATE_URL);
+  const templateUrl = getEstimateTemplateUrl(spec);
+  const response = await fetch(templateUrl);
   if (!response.ok) throw new Error('Не вдалося завантажити шаблон кошторису');
   const buffer = await response.arrayBuffer();
 

@@ -1,8 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchEstimateContractSpecsList,
   fetchEstimateContractSpecById,
   saveEstimateContractSpec,
+  createEstimateContractSpec,
+  uploadEstimateTemplate,
+  deleteEstimateTemplate,
+  downloadDefaultEstimateTemplate,
+  downloadEstimateTemplate,
 } from '../utils/estimate/estimateSpecsAPI';
 import { invalidateEstimateSpecsCache, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
 import './ContractEstimateSpecsEditor.css';
@@ -32,7 +37,109 @@ function parsePriceInput(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-function ContractEstimateSpecEditor({ spec, editable, saving, onChange, onSave, onBack }) {
+function EstimateTemplatePanel({ spec, editable, onTemplateUpdated }) {
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
+  const hasCustom = !!String(spec?.estimateTemplateUrl || '').trim();
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !spec?.id) return;
+    setUploading(true);
+    try {
+      const updated = await uploadEstimateTemplate(spec.id, file);
+      invalidateEstimateSpecsCache();
+      await loadEstimateSpecs(true);
+      onTemplateUpdated(updated);
+    } catch (err) {
+      alert(err.message || 'Не вдалося завантажити шаблон');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!spec?.id) return;
+    if (!window.confirm('Повернути типовий шаблон кошторису для цього контрагента?')) return;
+    setUploading(true);
+    try {
+      const updated = await deleteEstimateTemplate(spec.id);
+      invalidateEstimateSpecsCache();
+      await loadEstimateSpecs(true);
+      onTemplateUpdated(updated);
+    } catch (err) {
+      alert(err.message || 'Не вдалося скинути шаблон');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownloadCurrent = async () => {
+    try {
+      if (hasCustom) {
+        await downloadEstimateTemplate(spec.estimateTemplateUrl, spec.estimateTemplateName || 'estimate-template.xlsx');
+      } else {
+        await downloadDefaultEstimateTemplate();
+      }
+    } catch (err) {
+      alert(err.message || 'Не вдалося завантажити шаблон');
+    }
+  };
+
+  return (
+    <div className="ces-template-panel">
+      <div className="ces-template-head">
+        <div>
+          <div className="ces-template-title">Шаблон Excel кошторису</div>
+          <div className="ces-template-status">
+            {hasCustom
+              ? `Власний: ${spec.estimateTemplateName || 'шаблон.xlsx'}`
+              : 'Типовий шаблон системи'}
+          </div>
+        </div>
+        <div className="ces-template-actions">
+          <button type="button" className="ces-back-btn" onClick={handleDownloadCurrent}>
+            Завантажити
+          </button>
+          <button type="button" className="ces-back-btn" onClick={() => downloadDefaultEstimateTemplate().catch((err) => alert(err.message))}>
+            Типовий шаблон
+          </button>
+          {editable && (
+            <>
+              <button
+                type="button"
+                className="ces-add-btn"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? 'Завантаження…' : 'Завантажити .xlsx'}
+              </button>
+              {hasCustom && (
+                <button type="button" className="ces-back-btn" disabled={uploading} onClick={handleReset}>
+                  Скинути до типового
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      <p className="ces-template-hint">
+        Завантажте Excel-файл з оформленням кошторису для цього контрагента. Структура має відповідати типовому шаблону (рядки заголовків, таблиці робіт і матеріалів).
+      </p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        hidden
+        onChange={handleUpload}
+      />
+    </div>
+  );
+}
+
+function ContractEstimateSpecEditor({ spec, editable, saving, onChange, onSave, onBack, onTemplateUpdated }) {
   const [expanded, setExpanded] = useState({});
   const [filter, setFilter] = useState('');
 
@@ -126,6 +233,12 @@ function ContractEstimateSpecEditor({ spec, editable, saving, onChange, onSave, 
       {!editable && (
         <div className="ces-readonly-banner">Режим перегляду — немає прав на редагування.</div>
       )}
+
+      <EstimateTemplatePanel
+        spec={spec}
+        editable={editable}
+        onTemplateUpdated={onTemplateUpdated}
+      />
 
       <div className="ces-filter-row">
         <input
@@ -228,12 +341,159 @@ function ContractEstimateSpecEditor({ spec, editable, saving, onChange, onSave, 
   );
 }
 
+function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
+  const [clientName, setClientName] = useState('');
+  const [edrpou, setEdrpou] = useState('');
+  const [contractNumber, setContractNumber] = useState('');
+  const [sourceSpecId, setSourceSpecId] = useState('');
+  const [copyTemplate, setCopyTemplate] = useState(true);
+  const [templateFile, setTemplateFile] = useState(null);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setClientName('');
+    setEdrpou('');
+    setContractNumber('');
+    setSourceSpecId(existingSpecs[0]?.id || '');
+    setCopyTemplate(true);
+    setTemplateFile(null);
+  }, [open, existingSpecs]);
+
+  if (!open) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const created = await createEstimateContractSpec({
+        clientName: clientName.trim(),
+        edrpou: edrpou.trim(),
+        contractNumber: contractNumber.trim(),
+        sourceSpecId: sourceSpecId || undefined,
+        copyTemplate: sourceSpecId ? copyTemplate : false,
+      });
+      let result = created;
+      if (templateFile) {
+        result = await uploadEstimateTemplate(created.id, templateFile);
+      }
+      onCreated(result);
+      onClose();
+    } catch (err) {
+      alert(err.message || 'Не вдалося створити специфікацію');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="ces-modal-overlay" onClick={onClose}>
+      <div className="ces-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ces-modal-header">
+          <h3>Нова специфікація</h3>
+          <button type="button" className="ces-modal-close" onClick={onClose} aria-label="Закрити">×</button>
+        </div>
+        <form className="ces-modal-body" onSubmit={handleSubmit}>
+          <label className="ces-field">
+            <span>Контрагент *</span>
+            <input
+              type="text"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              placeholder="Наприклад: ТОВ «Компанія»"
+              required
+              autoFocus
+            />
+          </label>
+          <label className="ces-field">
+            <span>ЄДРПОУ *</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={edrpou}
+              onChange={(e) => setEdrpou(e.target.value.replace(/\D/g, ''))}
+              placeholder="8 цифр"
+              required
+              maxLength={10}
+            />
+          </label>
+          <label className="ces-field">
+            <span>Номер договору *</span>
+            <input
+              type="text"
+              value={contractNumber}
+              onChange={(e) => setContractNumber(e.target.value)}
+              placeholder="Наприклад: П-0123456"
+              required
+            />
+          </label>
+          <label className="ces-field">
+            <span>Скопіювати позиції з</span>
+            <select
+              value={sourceSpecId}
+              onChange={(e) => setSourceSpecId(e.target.value)}
+            >
+              <option value="">Порожній шаблон (1 категорія)</option>
+              {existingSpecs.map((spec) => (
+                <option key={spec.id} value={spec.id}>
+                  {spec.clientName || spec.title} — {spec.contractNumber} ({spec.itemCount ?? 0} поз.)
+                </option>
+              ))}
+            </select>
+          </label>
+          {sourceSpecId && (
+            <label className="ces-unavailable ces-copy-template-check">
+              <input
+                type="checkbox"
+                checked={copyTemplate}
+                onChange={(e) => setCopyTemplate(e.target.checked)}
+              />
+              Також скопіювати Excel-шаблон кошторису
+            </label>
+          )}
+          <label className="ces-field">
+            <span>Шаблон Excel (необов&apos;язково)</span>
+            <input
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
+            />
+          </label>
+          <p className="ces-modal-hint">
+            Можна завантажити власний шаблон одразу або пізніше в редакторі.{' '}
+            <button
+              type="button"
+              className="ces-link-btn"
+              onClick={() => downloadDefaultEstimateTemplate().catch((err) => alert(err.message))}
+            >
+              Завантажити типовий шаблон
+            </button>
+            {' '}для редагування в Excel.
+          </p>
+          <p className="ces-modal-hint">
+            Після створення відкриється редактор — там можна змінити тексти робіт та ціни.
+          </p>
+          <div className="ces-modal-footer">
+            <button type="button" className="ces-back-btn" onClick={onClose} disabled={creating}>
+              Скасувати
+            </button>
+            <button type="submit" className="ces-save-btn" disabled={creating}>
+              {creating ? 'Створення…' : 'Створити'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ContractEstimateSpecsEditor({ user }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const editable = canEditSpecs(user?.role);
 
   const loadList = useCallback(async () => {
@@ -288,6 +548,19 @@ function ContractEstimateSpecsEditor({ user }) {
     setDraft(null);
   };
 
+  const handleCreated = async (created) => {
+    invalidateEstimateSpecsCache();
+    await loadEstimateSpecs(true);
+    await loadList();
+    setDraft(cloneSpec(created));
+    setSelectedId(created.id);
+  };
+
+  const handleTemplateUpdated = async (updated) => {
+    setDraft(cloneSpec(updated));
+    await loadList();
+  };
+
   if (selectedId && draft) {
     return (
       <ContractEstimateSpecEditor
@@ -297,15 +570,27 @@ function ContractEstimateSpecsEditor({ user }) {
         onChange={setDraft}
         onSave={handleSave}
         onBack={handleBack}
+        onTemplateUpdated={handleTemplateUpdated}
       />
     );
   }
 
   return (
     <div className="ces-list-wrap">
-      <p className="ces-list-desc">
-        Специфікації робіт для автоматичного формування кошторису. Натисніть рядок, щоб редагувати текст та ціни.
-      </p>
+      <div className="ces-list-header">
+        <p className="ces-list-desc">
+          Специфікації робіт для автоматичного формування кошторису. Натисніть рядок, щоб редагувати текст та ціни.
+        </p>
+        {editable && (
+          <button
+            type="button"
+            className="ces-add-btn"
+            onClick={() => setShowCreateModal(true)}
+          >
+            + Додати специфікацію
+          </button>
+        )}
+      </div>
       {loading ? (
         <div className="ces-loading">Завантаження…</div>
       ) : (
@@ -317,13 +602,14 @@ function ContractEstimateSpecsEditor({ user }) {
                 <th>ЄДРПОУ</th>
                 <th>Номер договору</th>
                 <th>Позицій</th>
+                <th>Шаблон Excel</th>
                 <th>Оновлено</th>
               </tr>
             </thead>
             <tbody>
               {list.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="ces-empty">Специфікацій поки немає</td>
+                  <td colSpan={6} className="ces-empty">Специфікацій поки немає</td>
                 </tr>
               ) : (
                 list.map((row) => (
@@ -336,6 +622,7 @@ function ContractEstimateSpecsEditor({ user }) {
                     <td>{row.edrpou || '—'}</td>
                     <td>{row.contractNumber || '—'}</td>
                     <td>{row.itemCount ?? '—'}</td>
+                    <td>{row.hasCustomTemplate ? 'Власний' : 'Типовий'}</td>
                     <td>{formatUpdatedAt(row.updatedAt) || '—'}</td>
                   </tr>
                 ))
@@ -344,6 +631,12 @@ function ContractEstimateSpecsEditor({ user }) {
           </table>
         </div>
       )}
+      <CreateSpecModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        existingSpecs={list}
+        onCreated={handleCreated}
+      />
     </div>
   );
 }
