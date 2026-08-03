@@ -51,6 +51,7 @@ function resolveTestbotCandidate(a, minScore, cfg = {}) {
 
 function filterTestbotSignals(analyses, cfg) {
   const minScore = cfg.minScore ?? 70;
+  const bl = (cfg.pairBlacklist || []).map(normPair);
   const out = [];
   const seen = new Set();
   for (const a of analyses || []) {
@@ -58,6 +59,7 @@ function filterTestbotSignals(analyses, cfg) {
     if (!c) continue;
     const pair = normPair(c.pair);
     if (seen.has(pair)) continue;
+    if (bl.length && bl.includes(pair)) continue;
     seen.add(pair);
     out.push(c);
   }
@@ -375,16 +377,16 @@ function evaluateTestbotExit(trade, quote, cfg) {
   const partialAfterMs = trade.partialAfterMs ?? cfg.partialAfterMs ?? 600000;
   const earlyPartialUsd = Number.isFinite(cfg.earlyPartialUsd)
     ? cfg.earlyPartialUsd
-    : (Number(process.env.FX_TESTBOT_EARLY_PARTIAL_USD) || 1.5);
+    : (Number(process.env.FX_TESTBOT_EARLY_PARTIAL_USD) || 2.2);
   const earlyPartialMs = Number.isFinite(cfg.earlyPartialMs)
     ? cfg.earlyPartialMs
-    : (Number(process.env.FX_TESTBOT_EARLY_PARTIAL_MS) || 180000);
+    : (Number(process.env.FX_TESTBOT_EARLY_PARTIAL_MS) || 240000);
   const protectPeakUsd = Number.isFinite(cfg.protectPeakUsd)
     ? cfg.protectPeakUsd
-    : (Number(process.env.FX_TESTBOT_PROTECT_PEAK_USD) || 1.5);
+    : (Number(process.env.FX_TESTBOT_PROTECT_PEAK_USD) || 2);
   const protectFloorUsd = Number.isFinite(cfg.protectFloorUsd)
     ? cfg.protectFloorUsd
-    : (Number(process.env.FX_TESTBOT_PROTECT_FLOOR_USD) || 0.5);
+    : (Number(process.env.FX_TESTBOT_PROTECT_FLOOR_USD) || 1);
   const maxHoldMs = trade.maxHoldMs ?? cfg.maxHoldMs ?? 900000;
   const extendMs = Number.isFinite(cfg.holdExtendMs)
     ? cfg.holdExtendMs
@@ -423,10 +425,10 @@ function evaluateTestbotExit(trade, quote, cfg) {
   // CUT_STALE: довго в мінусі без early-bank peak → ріжемо до повного −$5 / time_exit −$4
   const cutStaleMs = Number.isFinite(cfg.cutStaleMs)
     ? cfg.cutStaleMs
-    : (Number(process.env.FX_TESTBOT_CUT_STALE_MS) || 480000);
+    : (Number(process.env.FX_TESTBOT_CUT_STALE_MS) || 720000);
   const cutStaleUsd = Number.isFinite(cfg.cutStaleUsd)
     ? cfg.cutStaleUsd
-    : (Number(process.env.FX_TESTBOT_CUT_STALE_USD) || 1.5);
+    : (Number(process.env.FX_TESTBOT_CUT_STALE_USD) || 2.5);
   if (
     cutStaleMs > 0
     && ageMs >= cutStaleMs

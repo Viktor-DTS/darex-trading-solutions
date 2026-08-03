@@ -21,7 +21,7 @@ const { createPairCooldown } = require('../services/risk/pairCooldown');
 const { checkCurrencyExposure } = require('../services/risk/currencyExposure');
 const { createExecutor, resolveExecutorMode } = require('../services/executor');
 const { isPairDailyLimitReached } = require('../services/risk/pairDailyLimit');
-const { appendEvent, summarize, getOpenEntries, getTodayClosedPnl, getTodayEntryCount, dayKeyFromTs } = require('../services/journal');
+const { appendEvent, summarize, getOpenEntries, getTodayClosedPnl, getTodayEntryCount, dayKeyFromTs, getClosedTrades } = require('../services/journal');
 const { writeState } = require('../services/state');
 const { claimWorkerLock, releaseWorkerLock } = require('../services/stateCache');
 const { runLearningCycle } = require('../services/learning');
@@ -32,6 +32,7 @@ const { isJpyCross } = require('../services/macro/jpyBias');
 const { rankEntriesBalanced } = require('../services/analyzer/bidirectional');
 const { trackWatchCycle, getWatchPromotions, clearWatch } = require('../services/analyzer/watchTracker');
 const { checkPairAllowed } = require('../services/risk/pairFilter');
+const { pairDayLossBlocked } = require('../services/risk/pairDayLoss');
 const { checkPairTierLiquidity, getMinScoreForPair, getPairTier } = require('../services/risk/pairTier');
 const { getSessionProfile, applySessionToConfig } = require('../services/learning/sessionAdapt');
 const { applyBreakevenIfNeeded } = require('../services/executor/breakeven');
@@ -91,7 +92,7 @@ function getOracleCfg() {
   const tbMinP = process.env.FX_TESTBOT_ORACLE_MIN_P_UP;
   const minPUp = tbMinP != null && String(tbMinP).trim() !== ''
     ? Number(tbMinP)
-    : 0.55;
+    : 0.60;
   // 0 = вимкнути calibration block на sim
   const tbMinHit = process.env.FX_TESTBOT_ORACLE_MIN_DIRECTION_HIT;
   const minDirectionHitRate = tbMinHit != null && String(tbMinHit).trim() !== ''
@@ -108,13 +109,13 @@ function getOracleCfg() {
   const tbMinKappa = process.env.FX_TESTBOT_ORACLE_MIN_KAPPA;
   const minKappa = tbMinKappa != null && String(tbMinKappa).trim() !== ''
     ? Number(tbMinKappa)
-    : 0.45;
+    : 0.52;
   return {
     ...o,
     microMinBarsInStop: Number.isFinite(microMin) ? microMin : 0,
     microMinM1: Number.isFinite(microMinM1) ? microMinM1 : 1,
-    minPUp: Number.isFinite(minPUp) ? minPUp : 0.55,
-    minKappa: Number.isFinite(minKappa) ? minKappa : 0.45,
+    minPUp: Number.isFinite(minPUp) ? minPUp : 0.60,
+    minKappa: Number.isFinite(minKappa) ? minKappa : 0.52,
     minPTp: Number.isFinite(minPTp) ? minPTp : 0,
     minDirectionHitRate: Number.isFinite(minDirectionHitRate) ? minDirectionHitRate : 0,
     skipDirectionMatch: process.env.FX_TESTBOT_ORACLE_SOFT_DIR === '1',
@@ -316,6 +317,16 @@ async function processTestbotEntries(force = false) {
     const cdMs = testbotCooldownRemainingMs(raw.pair, getTbCfg());
     if (cdMs > 0) {
       console.log(`[tb-skip] ${raw.pair} pair cooldown ${Math.round(cdMs / 1000)}s`);
+      continue;
+    }
+
+    const dayLoss = pairDayLossBlocked(
+      getTestbotClosedTrades(80, testbotJournalFile),
+      raw.pair,
+      { pairDayLossCap: getTbCfg().pairDayLossCap ?? config.pairDayLossCap },
+    );
+    if (dayLoss.blocked) {
+      console.log(`[tb-skip] ${raw.pair} ${dayLoss.reason}`);
       continue;
     }
 
@@ -1322,6 +1333,14 @@ async function onAnalyzeCycle() {
         const pairGate = checkPairAllowed(candidate.pair, cycleCfg);
         if (!pairGate.ok) {
           console.log(`[fx-skip] ${candidate.pair} ${pairGate.reason}`);
+          continue;
+        }
+
+        const charlieDayLoss = pairDayLossBlocked(getClosedTrades(80), candidate.pair, {
+          pairDayLossCap: cycleCfg.pairDayLossCap ?? config.pairDayLossCap,
+        });
+        if (charlieDayLoss.blocked) {
+          console.log(`[fx-skip] ${candidate.pair} ${charlieDayLoss.reason}`);
           continue;
         }
 
