@@ -468,6 +468,44 @@ export async function analyzeContractPdfByUrl(pdfUrl) {
 }
 
 /**
+ * Текст усіх сторінок PDF або Word (.docx) за URL.
+ * @param {string} fileUrl
+ * @returns {Promise<string>}
+ */
+export async function extractFullDocumentTextFromUrl(fileUrl) {
+  try {
+    if (!fileUrl || typeof fileUrl !== 'string') return '';
+
+    const kind = getContractFileKind(fileUrl);
+    if (kind === 'docx') {
+      return extractTextFromDocxUrl(fileUrl);
+    }
+    if (kind === 'doc') {
+      return '';
+    }
+
+    const pdfjs = await loadPdfJs();
+    const pdf = await pdfjs.getDocument({
+      url: fileUrl.trim(),
+      httpHeaders: {},
+      withCredentials: false,
+    }).promise;
+
+    const chunks = [];
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const lines = getPdfPageLinesFromTextContent(textContent);
+      chunks.push(lines.join('\n'));
+    }
+    return chunks.join('\n\n');
+  } catch (e) {
+    console.error('[CONTRACT] extractFullDocumentTextFromUrl:', e?.message || e);
+    return '';
+  }
+}
+
+/**
  * Аналіз договору (PDF або Word) за URL: ключ дедуплікації + номер/дата.
  * @param {string} fileUrl
  * @returns {Promise<{ pdfKey: string, meta: { contractNumber: string, contractDate: string } }>}

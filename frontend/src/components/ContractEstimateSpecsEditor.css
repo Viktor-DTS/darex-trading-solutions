@@ -48,6 +48,29 @@
   overflow: hidden;
 }
 
+.ces-modal-wide {
+  width: min(560px, 96vw);
+}
+
+.ces-field-source {
+  font-weight: 400;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 11px;
+}
+
+.ces-import-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+
+.ces-import-status {
+  font-size: 12px;
+  color: var(--text-secondary, #94a3b8);
+}
+
 .ces-modal-header {
   display: flex;
   align-items: center;

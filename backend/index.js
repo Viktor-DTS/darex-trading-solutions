@@ -8274,8 +8274,18 @@ app.post('/api/estimate-contract-specs', authenticateToken, async (req, res) => 
     let estimateTemplateName = '';
     let estimateTemplateCloudinaryId = '';
 
+    if (Array.isArray(body.categories) && body.categories.length) {
+      categories = cloneEstimateSpecCategories(body.categories);
+      if (Number(body.transportRatePerKm) > 0) {
+        transportRatePerKm = Number(body.transportRatePerKm);
+      }
+      if (Array.isArray(body.powerTiers) && body.powerTiers.length) {
+        powerTiers = cloneEstimateSpecCategories(body.powerTiers);
+      }
+    }
+
     const sourceSpecId = String(body.sourceSpecId || '').trim();
-    if (sourceSpecId) {
+    if (!categories.length && sourceSpecId) {
       const source = await EstimateContractSpec.findOne({ specId: sourceSpecId }).lean();
       if (source) {
         powerTiers = Array.isArray(source.powerTiers) && source.powerTiers.length

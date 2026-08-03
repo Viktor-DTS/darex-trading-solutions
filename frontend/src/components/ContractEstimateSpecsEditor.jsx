@@ -10,6 +10,13 @@ import {
   downloadEstimateTemplate,
 } from '../utils/estimate/estimateSpecsAPI';
 import { invalidateEstimateSpecsCache, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
+import {
+  fetchActiveContractsByEdrpou,
+  lookupClientNameByEdrpou,
+  normalizeEdrpouDigits,
+} from '../utils/estimate/contractLookup';
+import { parseEstimateSpecFromDocumentText } from '../utils/estimate/parseEstimateSpecFromText';
+import { extractFullDocumentTextFromUrl } from '../utils/pdfUtils';
 import './ContractEstimateSpecsEditor.css';
 
 function canEditSpecs(role) {
@@ -341,13 +348,30 @@ function ContractEstimateSpecEditor({ spec, editable, saving, onChange, onSave, 
   );
 }
 
+function formatUkDateFromIso(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
 function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
   const [clientName, setClientName] = useState('');
   const [edrpou, setEdrpou] = useState('');
   const [contractNumber, setContractNumber] = useState('');
+  const [contractManual, setContractManual] = useState(false);
+  const [contracts, setContracts] = useState([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractsProgress, setContractsProgress] = useState({ loaded: 0, total: 0 });
+  const [clientLookupLoading, setClientLookupLoading] = useState(false);
+  const [clientLookupSource, setClientLookupSource] = useState('');
+  const [selectedContractUrl, setSelectedContractUrl] = useState('');
   const [sourceSpecId, setSourceSpecId] = useState('');
   const [copyTemplate, setCopyTemplate] = useState(true);
   const [templateFile, setTemplateFile] = useState(null);
+  const [importedCategories, setImportedCategories] = useState(null);
+  const [importDiagnostics, setImportDiagnostics] = useState(null);
+  const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -355,10 +379,136 @@ function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
     setClientName('');
     setEdrpou('');
     setContractNumber('');
+    setContractManual(false);
+    setContracts([]);
+    setContractsLoading(false);
+    setContractsProgress({ loaded: 0, total: 0 });
+    setClientLookupLoading(false);
+    setClientLookupSource('');
+    setSelectedContractUrl('');
     setSourceSpecId(existingSpecs[0]?.id || '');
     setCopyTemplate(true);
     setTemplateFile(null);
+    setImportedCategories(null);
+    setImportDiagnostics(null);
   }, [open, existingSpecs]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const digits = normalizeEdrpouDigits(edrpou);
+    if (digits.length < 8) {
+      setContracts([]);
+      setClientLookupSource('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setClientLookupLoading(true);
+      setContractsLoading(true);
+      setContractsProgress({ loaded: 0, total: 0 });
+      setImportedCategories(null);
+      setImportDiagnostics(null);
+
+      try {
+        const [clientResult, contractList] = await Promise.all([
+          lookupClientNameByEdrpou(digits),
+          fetchActiveContractsByEdrpou(digits, {
+            onProgress: (loaded, total) => {
+              if (!cancelled) setContractsProgress({ loaded, total });
+            },
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        if (clientResult.name) {
+          setClientName((prev) => prev.trim() || clientResult.name);
+          setClientLookupSource(clientResult.source || '');
+        }
+
+        setContracts(contractList);
+
+        if (contractList.length === 1 && !contractManual) {
+          const only = contractList[0];
+          setContractNumber(only.contractNumber || '');
+          setSelectedContractUrl(only.url || '');
+          if (only.client) setClientName((prev) => prev.trim() || only.client);
+        } else if (contractList.length > 1 && !contractManual) {
+          setContractNumber('');
+          setSelectedContractUrl('');
+        }
+      } catch (err) {
+        if (!cancelled) console.error(err);
+      } finally {
+        if (!cancelled) {
+          setClientLookupLoading(false);
+          setContractsLoading(false);
+        }
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [edrpou, open, contractManual]);
+
+  const handleContractSelect = (value) => {
+    if (value === '__manual__') {
+      setContractManual(true);
+      setContractNumber('');
+      setSelectedContractUrl('');
+      return;
+    }
+    setContractManual(false);
+    const picked = contracts.find(
+      (c) => c.url === value || c.contractNumber === value
+    );
+    if (picked) {
+      setContractNumber(picked.contractNumber || '');
+      setSelectedContractUrl(picked.url || '');
+      if (picked.client) setClientName((prev) => prev.trim() || picked.client);
+    } else {
+      setContractNumber(value);
+      setSelectedContractUrl('');
+    }
+    setImportedCategories(null);
+    setImportDiagnostics(null);
+  };
+
+  const handleImportFromContract = async () => {
+    const url = selectedContractUrl || contracts.find((c) => c.contractNumber === contractNumber)?.url;
+    if (!url) {
+      alert('Оберіть договір зі списку для імпорту специфікації');
+      return;
+    }
+    setImporting(true);
+    try {
+      const fullText = await extractFullDocumentTextFromUrl(url);
+      if (!fullText.trim()) {
+        alert('Не вдалося прочитати текст договору. Перевірте, що файл — PDF або Word (.docx).');
+        return;
+      }
+      const { categories, diagnostics } = parseEstimateSpecFromDocumentText(fullText);
+      setImportedCategories(categories.length ? categories : null);
+      setImportDiagnostics(diagnostics);
+      if (!categories.length) {
+        alert('Специфікацію в договорі не знайдено. Можна скопіювати позиції з існуючої специфікації або додати вручну після створення.');
+        return;
+      }
+      if (diagnostics.quality === 'low' || diagnostics.quality === 'partial') {
+        alert(
+          `Імпортовано ${diagnostics.itemCount} поз. (${diagnostics.pricedCount} з ціною). `
+          + 'Рекомендуємо перевірити тексти та ціни в редакторі — структура договору може відрізнятися.'
+        );
+      }
+    } catch (err) {
+      alert(err.message || 'Помилка імпорту з договору');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -366,13 +516,18 @@ function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
     e.preventDefault();
     setCreating(true);
     try {
-      const created = await createEstimateContractSpec({
+      const payload = {
         clientName: clientName.trim(),
         edrpou: edrpou.trim(),
         contractNumber: contractNumber.trim(),
-        sourceSpecId: sourceSpecId || undefined,
-        copyTemplate: sourceSpecId ? copyTemplate : false,
-      });
+      };
+      if (importedCategories?.length) {
+        payload.categories = importedCategories;
+      } else if (sourceSpecId) {
+        payload.sourceSpecId = sourceSpecId;
+        payload.copyTemplate = copyTemplate;
+      }
+      const created = await createEstimateContractSpec(payload);
       let result = created;
       if (templateFile) {
         result = await uploadEstimateTemplate(created.id, templateFile);
@@ -386,25 +541,18 @@ function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
     }
   };
 
+  const contractSelectValue = contractManual
+    ? '__manual__'
+    : (selectedContractUrl || contracts.find((c) => c.contractNumber === contractNumber)?.url || contractNumber);
+
   return (
     <div className="ces-modal-overlay" onClick={onClose}>
-      <div className="ces-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="ces-modal ces-modal-wide" onClick={(e) => e.stopPropagation()}>
         <div className="ces-modal-header">
           <h3>Нова специфікація</h3>
           <button type="button" className="ces-modal-close" onClick={onClose} aria-label="Закрити">×</button>
         </div>
         <form className="ces-modal-body" onSubmit={handleSubmit}>
-          <label className="ces-field">
-            <span>Контрагент *</span>
-            <input
-              type="text"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              placeholder="Наприклад: ТОВ «Компанія»"
-              required
-              autoFocus
-            />
-          </label>
           <label className="ces-field">
             <span>ЄДРПОУ *</span>
             <input
@@ -415,41 +563,113 @@ function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
               placeholder="8 цифр"
               required
               maxLength={10}
+              autoFocus
             />
           </label>
+          {(clientLookupLoading || contractsLoading) && (
+            <p className="ces-modal-hint">
+              {clientLookupLoading ? 'Пошук контрагента…' : ''}
+              {contractsLoading && contractsProgress.total > 0
+                ? ` Аналіз договорів: ${contractsProgress.loaded}/${contractsProgress.total}`
+                : contractsLoading ? ' Завантаження договорів…' : ''}
+            </p>
+          )}
           <label className="ces-field">
-            <span>Номер договору *</span>
+            <span>
+              Контрагент *
+              {clientLookupSource && (
+                <span className="ces-field-source">
+                  {' '}(з {clientLookupSource === 'tasks' ? 'заявок' : clientLookupSource === 'client' ? 'CRM' : 'реєстру'})
+                </span>
+              )}
+            </span>
             <input
               type="text"
-              value={contractNumber}
-              onChange={(e) => setContractNumber(e.target.value)}
-              placeholder="Наприклад: П-0123456"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              placeholder="Назва автоматично або введіть вручну"
               required
             />
           </label>
           <label className="ces-field">
-            <span>Скопіювати позиції з</span>
-            <select
-              value={sourceSpecId}
-              onChange={(e) => setSourceSpecId(e.target.value)}
-            >
-              <option value="">Порожній шаблон (1 категорія)</option>
-              {existingSpecs.map((spec) => (
-                <option key={spec.id} value={spec.id}>
-                  {spec.clientName || spec.title} — {spec.contractNumber} ({spec.itemCount ?? 0} поз.)
-                </option>
-              ))}
-            </select>
-          </label>
-          {sourceSpecId && (
-            <label className="ces-unavailable ces-copy-template-check">
+            <span>Номер договору *</span>
+            {normalizeEdrpouDigits(edrpou).length >= 8 && contracts.length > 0 && !contractManual ? (
+              <select
+                value={contractSelectValue}
+                onChange={(e) => handleContractSelect(e.target.value)}
+                required
+              >
+                <option value="">— Оберіть договір —</option>
+                {contracts.map((c) => (
+                  <option key={c.url || c.contractNumber} value={c.url}>
+                    {c.contractNumber || c.fileName}
+                    {c.contractDate ? ` (${formatUkDateFromIso(c.contractDate)})` : ''}
+                  </option>
+                ))}
+                <option value="__manual__">✏️ Ввести номер вручну</option>
+              </select>
+            ) : (
               <input
-                type="checkbox"
-                checked={copyTemplate}
-                onChange={(e) => setCopyTemplate(e.target.checked)}
+                type="text"
+                value={contractNumber}
+                onChange={(e) => {
+                  setContractNumber(e.target.value);
+                  setSelectedContractUrl('');
+                  setImportedCategories(null);
+                  setImportDiagnostics(null);
+                }}
+                placeholder={normalizeEdrpouDigits(edrpou).length >= 8 ? 'Немає договорів у системі — введіть номер' : 'Спочатку вкажіть ЄДРПОУ'}
+                required
               />
-              Також скопіювати Excel-шаблон кошторису
-            </label>
+            )}
+          </label>
+          {selectedContractUrl && (
+            <div className="ces-import-row">
+              <button
+                type="button"
+                className="ces-back-btn"
+                disabled={importing}
+                onClick={handleImportFromContract}
+              >
+                {importing ? 'Читаю договір…' : 'Імпортувати специфікацію з PDF договору'}
+              </button>
+              {importDiagnostics?.foundSection && (
+                <span className="ces-import-status">
+                  {importedCategories
+                    ? `${importDiagnostics.itemCount} поз., ${importDiagnostics.pricedCount} з ціною`
+                    : 'Секцію знайдено, позиції не розпізнано'}
+                  {importDiagnostics.startMarker ? ` · «${importDiagnostics.startMarker}»` : ''}
+                </span>
+              )}
+            </div>
+          )}
+          {!importedCategories?.length && (
+            <>
+              <label className="ces-field">
+                <span>Скопіювати позиції з</span>
+                <select
+                  value={sourceSpecId}
+                  onChange={(e) => setSourceSpecId(e.target.value)}
+                >
+                  <option value="">Порожній шаблон (1 категорія)</option>
+                  {existingSpecs.map((spec) => (
+                    <option key={spec.id} value={spec.id}>
+                      {spec.clientName || spec.title} — {spec.contractNumber} ({spec.itemCount ?? 0} поз.)
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {sourceSpecId && (
+                <label className="ces-unavailable ces-copy-template-check">
+                  <input
+                    type="checkbox"
+                    checked={copyTemplate}
+                    onChange={(e) => setCopyTemplate(e.target.checked)}
+                  />
+                  Також скопіювати Excel-шаблон кошторису
+                </label>
+              )}
+            </>
           )}
           <label className="ces-field">
             <span>Шаблон Excel (необов&apos;язково)</span>
@@ -460,24 +680,22 @@ function CreateSpecModal({ open, onClose, existingSpecs, onCreated }) {
             />
           </label>
           <p className="ces-modal-hint">
-            Можна завантажити власний шаблон одразу або пізніше в редакторі.{' '}
+            Імпорт з договору читає <strong>усі сторінки PDF</strong> і шукає блок «Специфікація робіт».
+            Якщо структура договору нестандартна — перевірте результат у редакторі після створення.
+            {' '}
             <button
               type="button"
               className="ces-link-btn"
               onClick={() => downloadDefaultEstimateTemplate().catch((err) => alert(err.message))}
             >
-              Завантажити типовий шаблон
+              Завантажити типовий Excel-шаблон
             </button>
-            {' '}для редагування в Excel.
-          </p>
-          <p className="ces-modal-hint">
-            Після створення відкриється редактор — там можна змінити тексти робіт та ціни.
           </p>
           <div className="ces-modal-footer">
             <button type="button" className="ces-back-btn" onClick={onClose} disabled={creating}>
               Скасувати
             </button>
-            <button type="submit" className="ces-save-btn" disabled={creating}>
+            <button type="submit" className="ces-save-btn" disabled={creating || importing}>
               {creating ? 'Створення…' : 'Створити'}
             </button>
           </div>
