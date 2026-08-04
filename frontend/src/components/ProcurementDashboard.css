@@ -378,9 +378,32 @@
 }
 
 .procurement-nomenclature-panel-title {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.procurement-nomenclature-panel-note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.procurement-nomenclature-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.procurement-nomenclature-stock-item {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.procurement-nomenclature-stock-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .procurement-nomenclature-panel-name {

@@ -329,12 +329,8 @@ function ProcurementDashboard({ user }) {
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
-  const [nomenclatureStock, setNomenclatureStock] = useState({
-    label: '',
-    totalQuantity: 0,
-    warehouses: [],
-    loading: false,
-  });
+  const [nomenclatureStockItems, setNomenclatureStockItems] = useState([]);
+  const [nomenclatureStockLoading, setNomenclatureStockLoading] = useState(false);
   const nomenclatureStockDebounceRef = useRef(null);
   const nomenclatureStockRequestIdRef = useRef(0);
   const [procurementNotifUnreadCount, setProcurementNotifUnreadCount] = useState(0);
@@ -459,6 +455,24 @@ function ProcurementDashboard({ user }) {
       .map((w) => ({ value: w.name || w._id, label: w.name || String(w._id) }));
   }, [warehouses]);
 
+  const procurementAllowedWarehouseNames = useMemo(
+    () =>
+      new Set(
+        warehouseOptions.map((w) => String(w.label || '').trim().toLowerCase()).filter(Boolean)
+      ),
+    [warehouseOptions]
+  );
+
+  const filterStockWarehousesForProcurement = useCallback(
+    (warehouses) => {
+      if (!procurementAllowedWarehouseNames.size) return warehouses || [];
+      return (warehouses || []).filter((w) =>
+        procurementAllowedWarehouseNames.has(String(w.warehouseName || '').trim().toLowerCase())
+      );
+    },
+    [procurementAllowedWarehouseNames]
+  );
+
   const resetCreateForm = () => {
     setCreateForm({
       applicationKind: 'purchase',
@@ -472,46 +486,84 @@ function ProcurementDashboard({ user }) {
     setNomenclatureHints([]);
     setHintsForRow(null);
     if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
-    setNomenclatureStock({ label: '', totalQuantity: 0, warehouses: [], loading: false });
+    setNomenclatureStockItems([]);
+    setNomenclatureStockLoading(false);
   };
 
-  const loadNomenclatureStock = useCallback(
-    (label, productId) => {
-      const name = String(label || '').trim();
-      if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
-      if (name.length < 2) {
-        setNomenclatureStock({ label: '', totalQuantity: 0, warehouses: [], loading: false });
-        return;
-      }
-      nomenclatureStockDebounceRef.current = setTimeout(async () => {
-        const requestId = ++nomenclatureStockRequestIdRef.current;
-        setNomenclatureStock((prev) => ({ ...prev, label: name, loading: true }));
-        try {
-          const q = new URLSearchParams({ name });
-          const pid = String(productId || '').trim();
-          if (pid) q.set('productId', pid);
-          const res = await fetch(`${API_BASE_URL}/procurement-requests/nomenclature-stock?${q}`, {
-            headers: authHeaders,
-          });
-          if (tryHandleUnauthorizedResponse(res)) return;
-          if (!res.ok) throw new Error('stock fetch failed');
-          const data = await res.json();
-          if (requestId !== nomenclatureStockRequestIdRef.current) return;
-          setNomenclatureStock({
-            label: data.label || name,
-            totalQuantity: Number(data.totalQuantity) || 0,
-            warehouses: Array.isArray(data.warehouses) ? data.warehouses : [],
-            loading: false,
-          });
-        } catch (e) {
-          console.error(e);
-          if (requestId !== nomenclatureStockRequestIdRef.current) return;
-          setNomenclatureStock({ label: name, totalQuantity: 0, warehouses: [], loading: false });
+  useEffect(() => {
+    if (!createOpen) return undefined;
+
+    const seen = new Set();
+    const items = createForm.materials
+      .map((m) => ({
+        name: String(m.name || '').trim(),
+        productId: String(m.productId || '').trim(),
+      }))
+      .filter((m) => {
+        if (m.name.length < 2) return false;
+        const key = `${m.name.toLowerCase()}\0${m.productId}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    if (!items.length) {
+      setNomenclatureStockItems([]);
+      setNomenclatureStockLoading(false);
+      return undefined;
+    }
+
+    if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
+    nomenclatureStockDebounceRef.current = setTimeout(async () => {
+      const requestId = ++nomenclatureStockRequestIdRef.current;
+      setNomenclatureStockLoading(true);
+      try {
+        const results = await Promise.all(
+          items.map(async (item) => {
+            const q = new URLSearchParams({ name: item.name });
+            if (item.productId) q.set('productId', item.productId);
+            const res = await fetch(`${API_BASE_URL}/procurement-requests/nomenclature-stock?${q}`, {
+              headers: authHeaders,
+            });
+            if (tryHandleUnauthorizedResponse(res)) return null;
+            if (!res.ok) throw new Error('stock fetch failed');
+            const data = await res.json();
+            const warehouses = filterStockWarehousesForProcurement(
+              Array.isArray(data.warehouses) ? data.warehouses : []
+            );
+            const totalQuantity = warehouses.reduce((sum, w) => sum + (Number(w.quantity) || 0), 0);
+            return {
+              label: data.label || item.name,
+              productId: item.productId,
+              totalQuantity,
+              warehouses,
+            };
+          })
+        );
+        if (requestId !== nomenclatureStockRequestIdRef.current) return;
+        setNomenclatureStockItems(results.filter(Boolean));
+      } catch (e) {
+        console.error(e);
+        if (requestId !== nomenclatureStockRequestIdRef.current) return;
+        setNomenclatureStockItems(
+          items.map((item) => ({
+            label: item.name,
+            productId: item.productId,
+            totalQuantity: 0,
+            warehouses: [],
+          }))
+        );
+      } finally {
+        if (requestId === nomenclatureStockRequestIdRef.current) {
+          setNomenclatureStockLoading(false);
         }
-      }, 280);
-    },
-    [authHeaders]
-  );
+      }
+    }, 320);
+
+    return () => {
+      if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
+    };
+  }, [createOpen, createForm.materials, authHeaders, filterStockWarehousesForProcurement]);
 
   const requestNomenclatureHints = useCallback(
     (rowIndex, query) => {
@@ -572,7 +624,6 @@ function ProcurementDashboard({ user }) {
     });
     setNomenclatureHints([]);
     setHintsForRow(null);
-    loadNomenclatureStock(hint.label, hint.id);
   };
 
   const handleCreateSubmit = async (e) => {
@@ -1385,7 +1436,6 @@ function ProcurementDashboard({ user }) {
                         onFocus={() => {
                           if (String(row.name || '').trim().length >= 2) {
                             requestNomenclatureHints(idx, row.name);
-                            loadNomenclatureStock(row.name, row.productId);
                           }
                         }}
                         placeholder="Пошук з бази або вручну"
@@ -1397,8 +1447,6 @@ function ProcurementDashboard({ user }) {
                               <button
                                 type="button"
                                 className="procurement-hint-item"
-                                onMouseEnter={() => loadNomenclatureStock(h.label, h.id)}
-                                onFocus={() => loadNomenclatureStock(h.label, h.id)}
                                 onClick={() => pickNomenclatureHint(idx, h)}
                               >
                                 <span className="procurement-hint-label">{h.label}</span>
@@ -1491,43 +1539,53 @@ function ProcurementDashboard({ user }) {
 
               <aside className="procurement-modal-nomenclature-panel" aria-label="Інформація по номенклатурі">
                 <h3 className="procurement-nomenclature-panel-title">Інформація по номенклатурі</h3>
-                {!nomenclatureStock.label ? (
-                  <p className="procurement-nomenclature-panel-empty">
-                    Наведіть на підказку або оберіть номенклатуру в списку, щоб переглянути залишки на складах.
-                  </p>
-                ) : nomenclatureStock.loading ? (
+                <p className="procurement-nomenclature-panel-note">
+                  Залишки лише на складах зі списку «Бажаний склад відвантаження».
+                </p>
+                {nomenclatureStockLoading ? (
                   <p className="procurement-nomenclature-panel-empty">Завантаження…</p>
+                ) : !nomenclatureStockItems.length ? (
+                  <p className="procurement-nomenclature-panel-empty">
+                    Додайте найменування матеріалів (від 2 символів) — залишки відобразяться для всіх позицій.
+                  </p>
                 ) : (
-                  <>
-                    <p className="procurement-nomenclature-panel-name">{nomenclatureStock.label}</p>
-                    {nomenclatureStock.totalQuantity > 0 ? (
-                      <>
-                        <p className="procurement-nomenclature-panel-total">
-                          Загалом: <strong>{nomenclatureStock.totalQuantity}</strong>
-                        </p>
-                        <div className="procurement-nomenclature-stock-wrap">
-                          <table className="procurement-nomenclature-stock-table">
-                            <thead>
-                              <tr>
-                                <th>Склад</th>
-                                <th>Кількість</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {nomenclatureStock.warehouses.map((w) => (
-                                <tr key={`${w.warehouseId}-${w.warehouseName}`}>
-                                  <td>{w.warehouseName}</td>
-                                  <td>{w.quantity}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="procurement-nomenclature-panel-empty">Залишків на складах не знайдено.</p>
-                    )}
-                  </>
+                  <div className="procurement-nomenclature-stock-list">
+                    {nomenclatureStockItems.map((item) => (
+                      <section
+                        key={`${item.label}-${item.productId || ''}`}
+                        className="procurement-nomenclature-stock-item"
+                      >
+                        <p className="procurement-nomenclature-panel-name">{item.label}</p>
+                        {item.totalQuantity > 0 ? (
+                          <>
+                            <p className="procurement-nomenclature-panel-total">
+                              Загалом: <strong>{item.totalQuantity}</strong>
+                            </p>
+                            <div className="procurement-nomenclature-stock-wrap">
+                              <table className="procurement-nomenclature-stock-table">
+                                <thead>
+                                  <tr>
+                                    <th>Склад</th>
+                                    <th>Кількість</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {item.warehouses.map((w) => (
+                                    <tr key={`${item.label}-${w.warehouseId}-${w.warehouseName}`}>
+                                      <td>{w.warehouseName}</td>
+                                      <td>{w.quantity}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="procurement-nomenclature-panel-empty">Залишків на дозволених складах не знайдено.</p>
+                        )}
+                      </section>
+                    ))}
+                  </div>
                 )}
               </aside>
             </div>
