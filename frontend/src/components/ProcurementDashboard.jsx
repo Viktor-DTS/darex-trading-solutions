@@ -44,6 +44,24 @@ const PAYER_COMPANY_OPTIONS = [
   { value: 'dareks_energo', label: 'Дарекс Енерго' }
 ];
 
+/** Склади, приховані лише у списках вибору панелі «Відділ закупівель». */
+const PROCUREMENT_HIDDEN_WAREHOUSE_KEYWORDS = [
+  'аршулик',
+  'громак',
+  'запчаст',
+  'кушнир',
+  'сервис зип',
+  'сервіс зип',
+  'сядро',
+  'шамуратов',
+];
+
+function isProcurementHiddenWarehouse(name) {
+  const n = String(name || '').trim().toLowerCase();
+  if (!n) return false;
+  return PROCUREMENT_HIDDEN_WAREHOUSE_KEYWORDS.some((kw) => n.includes(kw));
+}
+
 function payerCompanyLabel(v) {
   return PAYER_COMPANY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
 }
@@ -429,7 +447,7 @@ function ProcurementDashboard({ user }) {
 
   const warehouseOptions = useMemo(() => {
     return warehouses
-      .filter((w) => w.isActive !== false)
+      .filter((w) => w.isActive !== false && !isProcurementHiddenWarehouse(w.name))
       .map((w) => ({ value: w.name || w._id, label: w.name || String(w._id) }));
   }, [warehouses]);
 
