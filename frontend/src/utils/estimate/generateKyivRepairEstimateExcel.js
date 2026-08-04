@@ -75,11 +75,13 @@ function unmergeOverlappingRow(ws, rowNumber, colStart, colEnd) {
   }
 }
 
-function setMergedCell(ws, rowNumber, colStart, colEnd, value, alignment = {}) {
+function setMergedCell(ws, rowNumber, colStart, colEnd, value, alignment = {}, options = {}) {
   unmergeOverlappingRow(ws, rowNumber, colStart, colEnd);
   const row = ws.getRow(rowNumber);
   for (let col = colStart; col <= colEnd; col += 1) {
-    row.getCell(col).value = null;
+    const cell = row.getCell(col);
+    cell.value = null;
+    if (options.border) cell.border = {};
   }
   const cell = row.getCell(colStart);
   cell.value = value;
@@ -89,7 +91,9 @@ function setMergedCell(ws, rowNumber, colStart, colEnd, value, alignment = {}) {
     wrapText: true,
     ...alignment,
   };
-  applyAmountCellBorder(ws, rowNumber, 6);
+  cell.font = options.font || { ...KYIV_TABLE_FONT };
+  if (options.border) cell.border = options.border;
+  if (options.applyAmountBorder !== false) applyAmountCellBorder(ws, rowNumber, 6);
   row.commit?.();
 }
 
@@ -248,7 +252,10 @@ function fixKyivSectionLabels(ws, {
 }) {
   setMergedCell(ws, workTotalRow, 3, 5, KYIV_LABELS.workTotal, { horizontal: 'right' });
   setMergedCell(ws, materialsTitleRow, 1, 6, KYIV_LABELS.materialsTitle, { horizontal: 'center' });
-  setMergedCell(ws, materialsSubtotalRow, 3, 5, KYIV_LABELS.materialsSubtotal, { horizontal: 'right' });
+  setMergedCell(ws, materialsSubtotalRow, 3, 5, KYIV_LABELS.materialsSubtotal, { horizontal: 'right' }, {
+    font: { ...KYIV_TABLE_FONT, bold: true },
+    border: { top: THIN_BORDER, right: THIN_BORDER },
+  });
   setMergedCell(ws, grandVatRow, 3, 5, KYIV_LABELS.grandVat, { horizontal: 'right' });
   setMergedCell(ws, grandTotalRow, 2, 5, KYIV_LABELS.grandTotal, { horizontal: 'right' });
 
