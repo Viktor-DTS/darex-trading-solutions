@@ -33,6 +33,11 @@ const { rankEntriesBalanced } = require('../services/analyzer/bidirectional');
 const { trackWatchCycle, getWatchPromotions, clearWatch } = require('../services/analyzer/watchTracker');
 const { checkPairAllowed } = require('../services/risk/pairFilter');
 const { pairDayLossBlocked } = require('../services/risk/pairDayLoss');
+const {
+  testbotSessionGate,
+  charlieSessionGate,
+  longBiasAllows,
+} = require('../services/risk/sessionGate');
 const { checkPairTierLiquidity, getMinScoreForPair, getPairTier } = require('../services/risk/pairTier');
 const { getSessionProfile, applySessionToConfig } = require('../services/learning/sessionAdapt');
 const { applyBreakevenIfNeeded } = require('../services/executor/breakeven');
@@ -285,6 +290,12 @@ async function processTestbotEntries(force = false) {
   const entryGap = getTbCfg().entryIntervalMs ?? 2000;
   if (!force && now - lastTestbotEntryAt < entryGap) return false;
 
+  const sess = testbotSessionGate(getTbCfg(), new Date(now));
+  if (!sess.ok) {
+    if (force) console.log(`[tb-skip] ${sess.reason}`);
+    return false;
+  }
+
   syncTestbotDailyPnl();
   const maxOpen = getTbCfg().maxOpenPositions ?? 20;
   if (testbotExecutor.getOpenCount() >= maxOpen) return false;
@@ -408,6 +419,16 @@ async function processTestbotEntries(force = false) {
       }
       registerPendingForecast({ ...oracle, linkedEntry: true });
       analysis.oracle5m = oracle;
+    }
+
+    const bias = longBiasAllows(
+      analysis.side || (analysis.action === 'SELL' ? 'short' : 'long'),
+      analysis.oracle5m,
+      getTbCfg(),
+    );
+    if (!bias.ok) {
+      console.log(`[tb-skip] ${raw.pair} ${bias.reason}`);
+      continue;
     }
 
     const trade = buildTestbotTrade(analysis, getTbCfg());
@@ -1342,6 +1363,24 @@ async function onAnalyzeCycle() {
         if (charlieDayLoss.blocked) {
           console.log(`[fx-skip] ${candidate.pair} ${charlieDayLoss.reason}`);
           continue;
+        }
+
+        if (isCharlie) {
+          const asian = charlieSessionGate(cycleCfg, new Date());
+          if (!asian.ok) {
+            console.log(`[fx-skip] ${candidate.pair} ${asian.reason}`);
+            continue;
+          }
+          const bias = longBiasAllows(
+            candidate.side || (candidate.action === 'SELL' ? 'short' : 'long'),
+            candidate.oracle5m || null,
+            { longBias: cycleCfg.longBias, shortMaxPUp: cycleCfg.shortMaxPUp, shortMinKappa: cycleCfg.shortMinKappa },
+          );
+          // CHARLIE without oracle: block shorts when long-bias on
+          if (!bias.ok) {
+            console.log(`[fx-skip] ${candidate.pair} ${bias.reason}`);
+            continue;
+          }
         }
 
         const tierGate = isCharlie

@@ -93,6 +93,7 @@ function evaluatePositionAction(trade, liveAnalysis, quote, cfg = {}) {
   const progressPips = cfg.posProgressPips ?? 0.5;
   const tpDecayConv = cfg.posTpDecayConv ?? 8;
   const dynamicMinFav = cfg.posDynamicTpMinFavPips ?? 0;
+  const minAgeForDecay = cfg.posConvDecayMinAgeMs ?? 0;
 
   const convDrop = entryConv - liveConv;
 
@@ -121,14 +122,17 @@ function evaluatePositionAction(trade, liveAnalysis, quote, cfg = {}) {
     };
   }
 
-  // Underwater + live setup gone → cut before full SL
+  // Underwater + live setup gone → cut before full SL (soft: need large conv drop)
   if (fav < 0 && convDrop >= convDecayLoss) {
-    return {
-      action: 'close',
-      reason: 'conv_decay',
-      detail: `в мінусі ${fav}p, conv ${entryConv}→${liveConv} (−${convDrop})`,
-      metrics,
-    };
+    // Give winners time: don't cut tiny red with modest conv drop
+    if (ageMs >= minAgeForDecay) {
+      return {
+        action: 'close',
+        reason: 'conv_decay',
+        detail: `в мінусі ${fav}p, conv ${entryConv}→${liveConv} (−${convDrop})`,
+        metrics,
+      };
+    }
   }
 
   // Loss scratch (optional): FX_POS_TIME_SCRATCH_LOSS_MS=0 disables

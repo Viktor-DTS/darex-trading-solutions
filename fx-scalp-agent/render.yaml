@@ -172,11 +172,27 @@ services:
       - key: FX_POS_PROGRESS_PIPS
         value: "0.4"
       - key: FX_POS_CONV_DECAY_LOSS
-        value: "18"
+        value: "25"
+      - key: FX_POS_CONV_DECAY_MIN_AGE_MS
+        value: "360000"
+      - key: FX_POS_CONV_DECAY
+        value: "22"
       - key: FX_PAIR_DAY_LOSS_CAP
         value: "2"
       - key: FX_PAIR_BLACKLIST
-        value: "USDCHF,AUDUSD,NZDUSD,EURCAD"
+        value: "USDCHF,AUDUSD,NZDUSD,EURCAD,CADJPY,USDJPY"
+      - key: FX_LONG_BIAS
+        value: "1"
+      - key: FX_SHORT_MAX_P_UP
+        value: "0.35"
+      - key: FX_SHORT_MIN_KAPPA
+        value: "0.55"
+      - key: FX_CHARLIE_ASIAN_SKIP
+        value: "1"
+      - key: FX_CHARLIE_ASIAN_SKIP_START
+        value: "03:00"
+      - key: FX_CHARLIE_ASIAN_SKIP_END
+        value: "04:00"
       - key: FX_BREAKEVEN_PIPS
         value: "2"
       - key: FX_POS_TP_DECAY_CONV
@@ -270,7 +286,13 @@ services:
       - key: FX_TESTBOT_PAIR_DAY_LOSS_CAP
         value: "2"
       - key: FX_TESTBOT_PAIR_BLACKLIST
-        value: "USDCHF,AUDUSD,NZDUSD,EURCAD"
+        value: "USDCHF,AUDUSD,NZDUSD,EURCAD,CADJPY,USDJPY"
+      - key: FX_TESTBOT_SESSION_GATE
+        value: "1"
+      - key: FX_TESTBOT_SESSION_START_UTC
+        value: "11:00"
+      - key: FX_TESTBOT_SESSION_END_UTC
+        value: "15:00"
       - key: FX_TESTBOT_ALLOW_DRAFT
         value: "0"
       - key: FX_TESTBOT_QUALITY_LOCK
