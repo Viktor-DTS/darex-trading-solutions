@@ -4,6 +4,11 @@
 
 const crypto = require('crypto');
 const { sanitizeLeadPayload, normalizePhone, pushStatusHistory } = require('./marketingLeads');
+const {
+  enrichMetaLeadAttribution,
+  mapMetaFieldDataExtended,
+  mergeUtm,
+} = require('./metaGraphEnrichment');
 
 const DEDUP_ACTIVE_STATUSES = ['new', 'in_review', 'assigned', 'transmitted', 'in_progress'];
 
@@ -185,36 +190,6 @@ function verifyMetaWebhookSignature(req) {
   }
 }
 
-function mapMetaFieldData(fieldData) {
-  const map = {};
-  (fieldData || []).forEach((row) => {
-    const key = String(row.name || '').toLowerCase();
-    const val = Array.isArray(row.values) ? row.values[0] : row.values;
-    if (key) map[key] = val != null ? String(val).trim() : '';
-  });
-
-  const pick = (...keys) => {
-    for (const k of keys) {
-      if (map[k]) return map[k];
-    }
-    return '';
-  };
-
-  const extras = Object.entries(map)
-    .filter(([k]) => !['full_name', 'first_name', 'last_name', 'phone_number', 'email', 'city'].includes(k))
-    .map(([k, v]) => `${k}: ${v}`)
-    .join('; ');
-
-  return {
-    clientName: pick('full_name') || [pick('first_name'), pick('last_name')].filter(Boolean).join(' '),
-    contactPhone: pick('phone_number', 'phone'),
-    contactEmail: pick('email'),
-    city: pick('city'),
-    productInterest: pick('product', 'product_interest', 'which_product_are_you_interested_in?'),
-    comment: extras,
-  };
-}
-
 async function fetchMetaLeadData(leadgenId) {
   const token = process.env.META_PAGE_ACCESS_TOKEN || '';
   if (!token) throw new Error('META_PAGE_ACCESS_TOKEN not configured');
@@ -231,21 +206,44 @@ async function processMetaLeadgenWebhook(deps, changeValue) {
   const leadgenId = changeValue?.leadgen_id;
   if (!leadgenId) return { skipped: true, reason: 'no_leadgen_id' };
 
-  const graph = await fetchMetaLeadData(leadgenId);
-  const mapped = mapMetaFieldData(graph.field_data);
+  const [graph, attribution] = await Promise.all([
+    fetchMetaLeadData(leadgenId),
+    enrichMetaLeadAttribution(changeValue),
+  ]);
+
+  const mapped = mapMetaFieldDataExtended(graph.field_data);
+  const utm = mergeUtm(attribution, mapped.utmFromForm || {});
+
+  const adsetId = changeValue.adset_id || changeValue.adgroup_id || attribution.metaAdsetId || '';
+  const campaignId = changeValue.campaign_id || attribution.metaCampaignId || '';
 
   return createMarketingLeadFromInbound(deps, {
-    source: 'facebook',
-    ...mapped,
+    source: attribution.source || 'facebook',
+    sourceDetail: attribution.sourceDetail,
+    clientName: mapped.clientName,
+    contactPhone: mapped.contactPhone,
+    contactEmail: mapped.contactEmail,
+    city: mapped.city,
+    productInterest: mapped.productInterest,
+    comment: mapped.comment,
+    ...utm,
+    trafficSource: mapped.trafficSource || attribution.trafficSource,
+    landingPage: mapped.landingPage || '',
+    referrer: mapped.referrer || attribution.referrer,
     metaLeadId: String(leadgenId),
-    metaFormId: changeValue.form_id ? String(changeValue.form_id) : '',
-    metaAdId: changeValue.ad_id ? String(changeValue.ad_id) : '',
-    metaAdsetId: changeValue.adset_id ? String(changeValue.adset_id) : '',
-    metaCampaignId: changeValue.campaign_id ? String(changeValue.campaign_id) : '',
-    rawPayload: { webhook: changeValue, graph },
+    metaFormId: changeValue.form_id ? String(changeValue.form_id) : attribution.metaFormId || '',
+    metaAdId: changeValue.ad_id ? String(changeValue.ad_id) : attribution.metaAdId || '',
+    metaAdsetId: adsetId ? String(adsetId) : '',
+    metaCampaignId: campaignId ? String(campaignId) : '',
+    metaCampaignName: attribution.metaCampaignName || '',
+    metaAdsetName: attribution.metaAdsetName || '',
+    metaAdName: attribution.metaAdName || '',
+    metaFormName: attribution.metaFormName || '',
+    metaPlatform: attribution.metaPlatform || '',
+    rawPayload: { webhook: changeValue, graph, attribution, customFields: mapped.customFieldsRaw },
   }, {
-    actorName: 'Facebook Lead Ads',
-    historyNote: 'Facebook Lead Ads',
+    actorName: attribution.metaPlatform === 'instagram' ? 'Instagram Lead Ads' : 'Facebook Lead Ads',
+    historyNote: 'Meta Lead Ads',
   });
 }
 

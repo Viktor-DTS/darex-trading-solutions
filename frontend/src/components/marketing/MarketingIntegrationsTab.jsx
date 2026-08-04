@@ -113,7 +113,7 @@ function MarketingIntegrationsTab() {
         </div>
         <div className="marketing-integration-card">
           <h4>Meta Lead Ads</h4>
-          <p>Webhook + Graph API для форм лідів.</p>
+          <p>Webhook + Graph API: назви кампаній, UTM-мапінг, IG/FB. ТЗ: docs/META_LEAD_ADS_TZ.md</p>
           <span className={`marketing-integration-status marketing-integration-status--${flags.meta ? 'ready' : 'planned'}`}>
             {flags.meta ? 'Готово до прийому' : 'Додайте env Meta'}
           </span>

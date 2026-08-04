@@ -9,6 +9,7 @@ import {
   updateMarketingLead,
 } from '../../utils/marketingLeadsAPI';
 import { getUsers } from '../../utils/clientsAPI';
+import MarketingLeadAttribution from './MarketingLeadAttribution';
 import './MarketingLeads.css';
 
 const EMPTY_FORM = {
@@ -240,11 +241,7 @@ function MarketingLeadsTab({ user }) {
             <p><strong>Місто:</strong> {selected.city || '—'}</p>
             <p><strong>Інтерес:</strong> {selected.productInterest || '—'}</p>
             <p><strong>Коментар:</strong> {selected.comment || '—'}</p>
-            {(selected.utmCampaign || selected.metaCampaignId) && (
-              <div className="marketing-utm-block">
-                <strong>Кампанія:</strong> {selected.utmCampaign || selected.metaCampaignId}
-              </div>
-            )}
+            <MarketingLeadAttribution lead={selected} />
             <div className="marketing-assign-row">
               <select
                 className="marketing-select"

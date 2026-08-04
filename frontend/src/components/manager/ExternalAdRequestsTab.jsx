@@ -6,6 +6,7 @@ import {
   updateMarketingLead,
 } from '../../utils/marketingLeadsAPI';
 import '../marketing/MarketingLeads.css';
+import MarketingLeadAttribution from '../marketing/MarketingLeadAttribution';
 
 function ExternalAdRequestsTab({ user }) {
   const [leads, setLeads] = useState([]);
@@ -171,6 +172,7 @@ function ExternalAdRequestsTab({ user }) {
             {selected.marketingNotes && (
               <p><strong>Нотатки маркетингу:</strong> {selected.marketingNotes}</p>
             )}
+            <MarketingLeadAttribution lead={selected} />
             <label style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
               Нотатки менеджера
               <textarea
