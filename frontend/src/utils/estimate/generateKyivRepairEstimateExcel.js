@@ -82,12 +82,19 @@ async function applyDarexHeader(workbook, ws) {
 
 function applyTableHeaderRowBorders(ws, rowNumber) {
   const row = ws.getRow(rowNumber);
+  const colCharsPerLine = { 1: 4, 2: 16, 3: 10, 4: 11, 5: 11, 6: 13 };
+  let maxLines = 1;
+
   for (let col = 1; col <= 6; col += 1) {
     const cell = row.getCell(col);
     applyFullBorder(cell);
     cell.font = { ...KYIV_TABLE_FONT, bold: true };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    const text = cell.value == null ? '' : String(cell.value);
+    maxLines = Math.max(maxLines, estimateWrappedLines(text, colCharsPerLine[col] || 12));
   }
+
+  row.height = Math.max(30, maxLines * 16 + 10);
   row.commit?.();
 }
 
