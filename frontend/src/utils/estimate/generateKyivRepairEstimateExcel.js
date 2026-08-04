@@ -236,7 +236,17 @@ function fillLineRow(ws, rowNumber, index, line) {
   row.commit?.();
 }
 
+function clearRowRange(ws, rowNumber, colStart = 1, colEnd = 6) {
+  unmergeOverlappingRow(ws, rowNumber, colStart, colEnd);
+  const row = ws.getRow(rowNumber);
+  for (let col = colStart; col <= colEnd; col += 1) {
+    row.getCell(col).value = null;
+  }
+  row.commit?.();
+}
+
 function applySectionTitleStyle(ws, rowNumber, title) {
+  clearRowRange(ws, rowNumber, 1, 6);
   setMergedCell(ws, rowNumber, WORK_SECTION_TITLE.colStart, WORK_SECTION_TITLE.colEnd, title, {
     horizontal: 'center',
     vertical: 'middle',
