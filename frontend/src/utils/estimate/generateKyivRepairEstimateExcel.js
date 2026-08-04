@@ -31,6 +31,9 @@ const FULL_BORDER = {
   right: THIN_BORDER,
 };
 const KYIV_TABLE_FONT = { name: 'Calibri', size: 11, bold: false };
+const KYIV_BOLD_FONT = { ...KYIV_TABLE_FONT, bold: true };
+const LABEL_BORDER_TOP_RIGHT = { top: THIN_BORDER, right: THIN_BORDER };
+const WORK_SECTION_TITLE = { row: 13, colStart: 2, colEnd: 5 };
 
 function resolveTemplateUrl(spec) {
   const custom = String(spec?.estimateTemplateUrl || '').trim();
@@ -201,37 +204,48 @@ function enrichWorkLinesFromSpec(workLines, spec) {
 }
 
 function fillLineRow(ws, rowNumber, index, line) {
+  unmergeOverlappingRow(ws, rowNumber, 1, 6);
   const row = ws.getRow(rowNumber);
   for (let col = 1; col <= 6; col += 1) {
-    applyFullBorder(row.getCell(col));
+    const cell = row.getCell(col);
+    cell.style = {};
+    applyFullBorder(cell);
+    cell.font = { ...KYIV_TABLE_FONT };
   }
 
   setCell(row, 1, index);
-  row.getCell(1).font = KYIV_TABLE_FONT;
   row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
   const nameCell = row.getCell(2);
   nameCell.value = line.name;
-  nameCell.font = KYIV_TABLE_FONT;
   nameCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
 
   setCell(row, 3, line.quantity);
-  row.getCell(3).font = KYIV_TABLE_FONT;
   row.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
 
-  setCell(row, 4, line.unit);
-  row.getCell(4).font = KYIV_TABLE_FONT;
-  row.getCell(4).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  const unitCell = row.getCell(4);
+  unitCell.value = String(line.unit || '').replace(/\s+/g, ' ').trim();
+  unitCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
   setCell(row, 5, line.unitPrice);
-  row.getCell(5).font = KYIV_TABLE_FONT;
   row.getCell(5).alignment = { horizontal: 'center', vertical: 'middle' };
 
   setCell(row, 6, roundMoney(line.total));
-  row.getCell(6).font = KYIV_TABLE_FONT;
   row.getCell(6).alignment = { horizontal: 'center', vertical: 'middle' };
 
   row.commit?.();
+}
+
+function applySectionTitleStyle(ws, rowNumber, title) {
+  setMergedCell(ws, rowNumber, WORK_SECTION_TITLE.colStart, WORK_SECTION_TITLE.colEnd, title, {
+    horizontal: 'center',
+    vertical: 'middle',
+  }, {
+    font: KYIV_BOLD_FONT,
+    border: {},
+    applyAmountBorder: false,
+  });
+  ws.getRow(rowNumber).height = 16.2;
 }
 
 function setMergedHeaderField(ws, rowNumber, colStart, colEnd, value) {
@@ -251,13 +265,17 @@ function fixKyivSectionLabels(ws, {
   grandTotalRow,
 }) {
   setMergedCell(ws, workTotalRow, 3, 5, KYIV_LABELS.workTotal, { horizontal: 'right' });
-  setMergedCell(ws, materialsTitleRow, 1, 6, KYIV_LABELS.materialsTitle, { horizontal: 'center' });
+  applySectionTitleStyle(ws, materialsTitleRow, KYIV_LABELS.materialsTitle);
   setMergedCell(ws, materialsSubtotalRow, 3, 5, KYIV_LABELS.materialsSubtotal, { horizontal: 'right' }, {
-    font: { ...KYIV_TABLE_FONT, bold: true },
-    border: { top: THIN_BORDER, right: THIN_BORDER },
+    font: KYIV_BOLD_FONT,
+    border: LABEL_BORDER_TOP_RIGHT,
   });
-  setMergedCell(ws, grandVatRow, 3, 5, KYIV_LABELS.grandVat, { horizontal: 'right' });
-  setMergedCell(ws, grandTotalRow, 2, 5, KYIV_LABELS.grandTotal, { horizontal: 'right' });
+  setMergedCell(ws, grandVatRow, 3, 5, KYIV_LABELS.grandVat, { horizontal: 'right' }, {
+    font: KYIV_BOLD_FONT,
+  });
+  setMergedCell(ws, grandTotalRow, 2, 5, KYIV_LABELS.grandTotal, { horizontal: 'right' }, {
+    font: KYIV_BOLD_FONT,
+  });
 
   [workTotalRow, materialsSubtotalRow, grandVatRow, grandTotalRow].forEach((rowNumber) => {
     applyAmountCellBorder(ws, rowNumber, 6);
@@ -273,12 +291,13 @@ function setKyivSectionTotals(ws, { vatRow, totalRow, totalWithVat }) {
   const vat = roundMoney(total / 6);
   const vatRowObj = ws.getRow(vatRow);
   const totalRowObj = ws.getRow(totalRow);
-  setCell(vatRowObj, 5, 'ПДВ 20%');
-  vatRowObj.getCell(5).font = KYIV_TABLE_FONT;
-  vatRowObj.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' };
+  const vatLabelCell = vatRowObj.getCell(5);
+  vatLabelCell.value = 'ПДВ 20%';
+  vatLabelCell.font = KYIV_BOLD_FONT;
+  vatLabelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+  vatLabelCell.border = { ...LABEL_BORDER_TOP_RIGHT };
   setCell(vatRowObj, 6, vat);
   setCell(totalRowObj, 6, total);
-  applyAmountCellBorder(ws, vatRow, 5);
   applyAmountCellBorder(ws, vatRow, 6);
   applyAmountCellBorder(ws, totalRow, 6);
   vatRowObj.commit?.();
@@ -310,6 +329,8 @@ export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLi
   const validWorkLines = filterNamedLines(enrichWorkLinesFromSpec(workLines, spec));
   const { materialLines } = splitLowerLinesForExport(lowerLines || []);
   const validMaterialLines = filterNamedLines(materialLines);
+
+  applySectionTitleStyle(ws, WORK_SECTION_TITLE.row, '1. Виконані роботи');
 
   setCell(ws.getRow(KYIV_LAYOUT.estimateNumber.row), KYIV_LAYOUT.estimateNumber.col, String(task.requestNumber || '').trim());
   setCell(
