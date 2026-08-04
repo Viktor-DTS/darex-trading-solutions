@@ -6,6 +6,30 @@ const FALLBACK_SPECS = [defaultPrivatbankSpec, defaultLifecellSpec];
 let specsCache = null;
 let loadPromise = null;
 
+function mergeSpecsWithFallback(apiList) {
+  const byId = new Map();
+  for (const spec of FALLBACK_SPECS) {
+    const id = String(spec?.id || '').trim();
+    if (id) byId.set(id, { ...spec });
+  }
+  for (const spec of apiList || []) {
+    const id = String(spec?.id || '').trim();
+    if (!id) continue;
+    const fallback = byId.get(id);
+    byId.set(id, fallback ? {
+      ...fallback,
+      ...spec,
+      excelGenerator: spec.excelGenerator || fallback.excelGenerator || '',
+      templateStaticPath: spec.templateStaticPath || fallback.templateStaticPath || '',
+      pricesAreNetOfVat: spec.pricesAreNetOfVat ?? fallback.pricesAreNetOfVat ?? false,
+      vatRate: Number.isFinite(Number(spec.vatRate)) ? Number(spec.vatRate) : (fallback.vatRate ?? 0),
+      categories: Array.isArray(spec.categories) && spec.categories.length ? spec.categories : fallback.categories,
+      powerTiers: Array.isArray(spec.powerTiers) && spec.powerTiers.length ? spec.powerTiers : fallback.powerTiers,
+    } : { ...spec });
+  }
+  return Array.from(byId.values());
+}
+
 export function getEstimateSpecsSync() {
   return specsCache || FALLBACK_SPECS;
 }
@@ -27,7 +51,7 @@ export async function loadEstimateSpecs(force = false) {
         return specsCache;
       }
       const list = await fetchEstimateContractSpecsFull();
-      specsCache = list.length ? list : [...FALLBACK_SPECS];
+      specsCache = mergeSpecsWithFallback(list);
     } catch (e) {
       console.warn('[estimateSpecRegistry] API fallback:', e.message);
       specsCache = [...FALLBACK_SPECS];
@@ -63,9 +87,46 @@ export function getEstimateSpecForTask(task) {
   if (!task) return null;
   const edrpou = normalizeEdrpou(task.edrpou);
   if (!edrpou) return null;
-  return getEstimateSpecsSync().find(
-    (spec) => normalizeEdrpou(spec.edrpou) === edrpou && contractMatches(spec, task.contractNumber)
-  ) || null;
+  const specsForEdrpou = getEstimateSpecsSync().filter(
+    (spec) => normalizeEdrpou(spec.edrpou) === edrpou
+  );
+  if (!specsForEdrpou.length) return null;
+
+  const contractNumber = String(task.contractNumber || '').trim();
+  if (contractNumber) {
+    const byContract = specsForEdrpou.find((spec) => contractMatches(spec, contractNumber));
+    if (byContract) return byContract;
+  }
+
+  if (specsForEdrpou.length === 1) return specsForEdrpou[0];
+  return null;
+}
+
+export function getEstimateAvailabilitySummary() {
+  const specs = getEstimateSpecsSync();
+  if (!specs.length) {
+    return 'Специфікації договорів для кошторисів ще не налаштовані.';
+  }
+  const clients = specs.map((spec) => {
+    const name = String(spec.clientName || spec.title || '').trim() || 'Контрагент';
+    const edrpou = normalizeEdrpou(spec.edrpou);
+    return edrpou ? `${name} (ЄДРПОУ ${edrpou})` : name;
+  });
+  return `Кнопка доступна для заявок: ${clients.join('; ')} — після збереження заявки та прив’язки файлу договору.`;
+}
+
+export function getEstimateDisabledReason(task, taskId) {
+  if (!taskId) return 'Спочатку збережіть заявку.';
+  if (task?.worksWithoutContract) return 'Заявка позначена як «без договору».';
+  if (!String(task?.contractNumber || '').trim()) return 'Заповніть номер договору.';
+  if (!getContractFileUrl(task)) return 'Завантажте або оберіть файл договору.';
+  if (!getEstimateSpecForTask(task)) {
+    const edrpou = normalizeEdrpou(task?.edrpou);
+    const count = getEstimateSpecsSync().filter((spec) => normalizeEdrpou(spec.edrpou) === edrpou).length;
+    if (!count) return `Для ЄДРПОУ ${edrpou || '—'} немає специфікації кошторису.`;
+    if (count > 1) return 'Номер договору не збігається з жодною специфікацією для цього ЄДРПОУ.';
+  }
+  return getEstimateAvailabilitySummary();
 }
 
 export function isEstimateGenerationAvailable(task) {

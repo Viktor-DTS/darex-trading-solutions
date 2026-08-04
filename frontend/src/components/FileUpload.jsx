@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../config';
 import EstimateBuilderModal from './EstimateBuilderModal';
-import { getEstimateSpecForTask, isEstimateGenerationAvailable, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
+import { getEstimateSpecForTask, getEstimateDisabledReason, isEstimateGenerationAvailable, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
 import { openFilePreview } from '../utils/pdfUtils';
 import './FileUpload.css';
 
@@ -136,6 +136,10 @@ const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated
   const canGenerateEstimate = useMemo(
     () => specsReady && !!taskId && !readOnly && isEstimateGenerationAvailable(task),
     [specsReady, taskId, readOnly, task]
+  );
+  const estimateHint = useMemo(
+    () => (canGenerateEstimate ? '' : getEstimateDisabledReason(task, taskId)),
+    [canGenerateEstimate, task, taskId]
   );
 
   // Завантаження існуючих файлів
@@ -588,14 +592,14 @@ const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated
             title={
               canGenerateEstimate
                 ? 'Сформувати кошторис за специфікацією договору'
-                : 'Потрібні збережена заявка, ЄДРПОУ 14360570, договір П-0156625 та файл договору'
+                : estimateHint
             }
           >
             📊 Сформувати кошторис
           </button>
-          {!canGenerateEstimate && (
+          {!canGenerateEstimate && estimateHint && (
             <div className="estimate-generate-hint">
-              Кнопка доступна для заявок ПриватБанку (ЄДРПОУ 14360570) з договором П-0156625 після збереження заявки.
+              {estimateHint}
             </div>
           )}
         </div>
