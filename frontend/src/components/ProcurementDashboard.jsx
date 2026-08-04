@@ -55,6 +55,13 @@ function isProcurementExecutorWorkStatus(status) {
   return status === 'in_progress' || status === 'partially_fulfilled';
 }
 
+const PROCUREMENT_BLOCKABLE_STATUSES = [
+  'pending_review',
+  'in_progress',
+  'awaiting_warehouse',
+  'partially_fulfilled'
+];
+
 const PAYER_COMPANY_OPTIONS = [
   { value: 'dts', label: 'ДТС' },
   { value: 'dareks_energo', label: 'Дарекс Енерго' }
@@ -318,7 +325,7 @@ function defaultMaterialRow(firstUom) {
 }
 
 function ProcurementDashboard({ user }) {
-  const [activeSection, setActiveSection] = useState('active'); // 'active' | 'archive' | 'notifications' | 'import'
+  const [activeSection, setActiveSection] = useState('active'); // 'active' | 'archive' | 'blocked' | 'notifications' | 'import'
   const [requests, setRequests] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -370,7 +377,11 @@ function ProcurementDashboard({ user }) {
   }, []);
 
   const activeRequests = useMemo(
-    () => requests.filter((r) => r.status !== 'completed'),
+    () => requests.filter((r) => r.status !== 'completed' && r.status !== 'blocked'),
+    [requests]
+  );
+  const blockedRequests = useMemo(
+    () => requests.filter((r) => r.status === 'blocked'),
     [requests]
   );
   const archivedRequests = useMemo(
@@ -819,6 +830,53 @@ function ProcurementDashboard({ user }) {
     }
   };
 
+  const blockRequest = async (id) => {
+    const reason = window.prompt('Причина блокування (необов\'язково):');
+    if (reason === null) return;
+    if (!window.confirm('Заблокувати цю заявку? Вона переміститься у вкладку «Заблоковані».')) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${id}/block`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() })
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Помилка');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const unblockRequest = async (id) => {
+    if (!window.confirm('Повернути заявку в роботу?')) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${id}/unblock`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' }
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Помилка');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const persistExecutorMaterials = async (requestId) => {
     if (!materialsDraft || !materialsDraft.length) return true;
     const payload = materialsDraft.map((m) => ({
@@ -1087,6 +1145,84 @@ function ProcurementDashboard({ user }) {
     [runSupplierNameLookup]
   );
 
+  const canBlockProcurementRequest = (d) =>
+    !!d && PROCUREMENT_BLOCKABLE_STATUSES.includes(d.status) && isVidZakupok;
+
+  const renderProcurementRequestsTable = (requestList, emptyMessage) => (
+    <div className="procurement-table-wrap procurement-table-wrap--scroll">
+      <table className="procurement-table">
+        <thead>
+          <tr>
+            <th>№ заявки</th>
+            <th>Статус</th>
+            <th>Тип заявки</th>
+            <th>Компанія платник</th>
+            <th>Відповідальний (хто подав)</th>
+            <th>Пріоритет</th>
+            <th>Дата подачі</th>
+            <th>Бажаний склад</th>
+            <th>Фактичний склад відвантаження</th>
+            <th>Відповідальний за виконання заявки</th>
+            <th>Дата виконання (відділ закупівель)</th>
+            {isAdmin ? <th className="procurement-th-actions">Дії</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {requestList.map((r) => (
+            <tr
+              key={r._id}
+              className="procurement-table-row--openable"
+              tabIndex={0}
+              onClick={() => openDetail(r)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openDetail(r);
+                }
+              }}
+            >
+              <td>{r.requestNumber || '—'}</td>
+              <td>
+                <span className={`procurement-status procurement-status--${r.status}`}>
+                  {STATUS_LABELS[r.status] || r.status}
+                </span>
+              </td>
+              <td className="procurement-desc-cell">{applicationKindLabel(r)}</td>
+              <td>{payerCompanyLabel(r.payerCompany)}</td>
+              <td>{r.requesterName || r.requesterLogin || '—'}</td>
+              <td>{priorityLabel(r.priority)}</td>
+              <td>{formatDt(r.createdAt)}</td>
+              <td>{r.desiredWarehouse || '—'}</td>
+              <td className="procurement-table-col-warehouse">
+                {r.actualWarehouse ? r.actualWarehouse : '—'}
+              </td>
+              <td className="procurement-table-col-executor">{procurementExecutorRowLabel(r)}</td>
+              <td className="procurement-table-col-date">{formatDt(r.executorCompletedAt)}</td>
+              {isAdmin ? (
+                <td
+                  className="procurement-td-actions"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="procurement-btn-delete-row"
+                    disabled={saving}
+                    title="Видалити заявку (лише адміністратор)"
+                    onClick={(e) => deleteProcurementRequest(e, r)}
+                  >
+                    Видалити
+                  </button>
+                </td>
+              ) : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!requestList.length && <div className="procurement-empty">{emptyMessage}</div>}
+    </div>
+  );
+
   const runGoogleSheetImport = useCallback(async () => {
     const sheetNames = importSheetNames
       .split(/[\n,;]+/)
@@ -1170,6 +1306,24 @@ function ProcurementDashboard({ user }) {
                 <span className="tab-icon">📦</span>
                 <span className="tab-label">Архів заявок</span>
               </button>
+              <button
+                type="button"
+                className={`procurement-sidebar-tab ${activeSection === 'blocked' ? 'active' : ''} ${
+                  blockedRequests.length > 0 ? 'procurement-sidebar-tab--with-badge' : ''
+                }`}
+                onClick={() => setActiveSection('blocked')}
+              >
+                <span className="tab-icon">🚫</span>
+                <span className="tab-label">Заблоковані</span>
+                {blockedRequests.length > 0 ? (
+                  <span
+                    className="procurement-sidebar-badge"
+                    aria-label={`Заблокованих заявок: ${blockedRequests.length}`}
+                  >
+                    {blockedRequests.length > 99 ? '99+' : blockedRequests.length}
+                  </span>
+                ) : null}
+              </button>
               {isAdmin ? (
                 <button
                   type="button"
@@ -1208,84 +1362,23 @@ function ProcurementDashboard({ user }) {
               {loading ? (
                 <div className="procurement-loading">Завантаження…</div>
               ) : (
-                <div className="procurement-table-wrap">
-                  <table className="procurement-table">
-                    <thead>
-                      <tr>
-                        <th>№ заявки</th>
-                        <th>Статус</th>
-                        <th>Тип заявки</th>
-                        <th>Компанія платник</th>
-                        <th>Відповідальний (хто подав)</th>
-                        <th>Пріоритет</th>
-                        <th>Дата подачі</th>
-                        <th>Бажаний склад</th>
-                        <th>Фактичний склад відвантаження</th>
-                        <th>Відповідальний за виконання заявки</th>
-                        <th>Дата виконання (відділ закупівель)</th>
-                        {isAdmin ? <th className="procurement-th-actions">Дії</th> : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {archivedRequests.map((r) => (
-                        <tr
-                          key={r._id}
-                          className="procurement-table-row--openable"
-                          tabIndex={0}
-                          onClick={() => openDetail(r)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              openDetail(r);
-                            }
-                          }}
-                        >
-                          <td>{r.requestNumber || '—'}</td>
-                          <td>
-                            <span className={`procurement-status procurement-status--${r.status}`}>
-                              {STATUS_LABELS[r.status] || r.status}
-                            </span>
-                          </td>
-                          <td className="procurement-desc-cell">{applicationKindLabel(r)}</td>
-                          <td>{payerCompanyLabel(r.payerCompany)}</td>
-                          <td>{r.requesterName || r.requesterLogin || '—'}</td>
-                          <td>{priorityLabel(r.priority)}</td>
-                          <td>{formatDt(r.createdAt)}</td>
-                          <td>{r.desiredWarehouse || '—'}</td>
-                          <td className="procurement-table-col-warehouse">
-                            {r.actualWarehouse ? r.actualWarehouse : '—'}
-                          </td>
-                          <td className="procurement-table-col-executor">
-                            {procurementExecutorRowLabel(r)}
-                          </td>
-                          <td className="procurement-table-col-date">
-                            {formatDt(r.executorCompletedAt)}
-                          </td>
-                          {isAdmin ? (
-                            <td
-                              className="procurement-td-actions"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                className="procurement-btn-delete-row"
-                                disabled={saving}
-                                title="Видалити заявку (лише адміністратор)"
-                                onClick={(e) => deleteProcurementRequest(e, r)}
-                              >
-                                Видалити
-                              </button>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {!archivedRequests.length && (
-                    <div className="procurement-empty">Немає виконаних заявок в архіві.</div>
-                  )}
-                </div>
+                renderProcurementRequestsTable(archivedRequests, 'Немає виконаних заявок в архіві.')
+              )}
+            </div>
+          )}
+          {activeSection === 'blocked' && (
+            <div className="procurement-active-panel procurement-blocked-panel">
+              <div className="procurement-toolbar">
+                <h1 className="procurement-title">Заблоковані заявки</h1>
+              </div>
+              <p className="procurement-hint">
+                Заявки, які виконавець відділу закупівель заблокував або які надійшли з Google Sheets зі статусом
+                «Заблоковано». Відкрийте картку, щоб переглянути деталі або повернути заявку в роботу.
+              </p>
+              {loading ? (
+                <div className="procurement-loading">Завантаження…</div>
+              ) : (
+                renderProcurementRequestsTable(blockedRequests, 'Немає заблокованих заявок.')
               )}
             </div>
           )}
@@ -1296,8 +1389,8 @@ function ProcurementDashboard({ user }) {
               </div>
               <p className="procurement-hint">
                 Міграція з таблиці «Замовлення Рудковському» — усі вкладки 2026 року. Кожен рядок (колонки A–I)
-                стає заявкою. <strong>Завершено</strong> (зелені) → архів; <strong>Заблоковано</strong> → активні
-                зі статусом «Заблоковано»; білі рядки та інші статуси → активні «Очікує розгляду». Повторний імпорт
+                стає заявкою. <strong>Завершено</strong> (зелені) → архів; <strong>Заблоковано</strong> → вкладка
+                «Заблоковані»; білі рядки та інші статуси → активні «Очікує розгляду». Повторний імпорт
                 пропускає вже імпортовані рядки.
               </p>
               <div className="procurement-import-form">
@@ -1444,84 +1537,10 @@ function ProcurementDashboard({ user }) {
               {loading ? (
                 <div className="procurement-loading">Завантаження…</div>
               ) : (
-                <div className="procurement-table-wrap">
-                  <table className="procurement-table">
-                    <thead>
-                      <tr>
-                        <th>№ заявки</th>
-                        <th>Статус</th>
-                        <th>Тип заявки</th>
-                        <th>Компанія платник</th>
-                        <th>Відповідальний (хто подав)</th>
-                        <th>Пріоритет</th>
-                        <th>Дата подачі</th>
-                        <th>Бажаний склад</th>
-                        <th>Фактичний склад відвантаження</th>
-                        <th>Відповідальний за виконання заявки</th>
-                        <th>Дата виконання (відділ закупівель)</th>
-                        {isAdmin ? <th className="procurement-th-actions">Дії</th> : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeRequests.map((r) => (
-                        <tr
-                          key={r._id}
-                          className="procurement-table-row--openable"
-                          tabIndex={0}
-                          onClick={() => openDetail(r)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              openDetail(r);
-                            }
-                          }}
-                        >
-                          <td>{r.requestNumber || '—'}</td>
-                          <td>
-                            <span className={`procurement-status procurement-status--${r.status}`}>
-                              {STATUS_LABELS[r.status] || r.status}
-                            </span>
-                          </td>
-                          <td className="procurement-desc-cell">{applicationKindLabel(r)}</td>
-                          <td>{payerCompanyLabel(r.payerCompany)}</td>
-                          <td>{r.requesterName || r.requesterLogin || '—'}</td>
-                          <td>{priorityLabel(r.priority)}</td>
-                          <td>{formatDt(r.createdAt)}</td>
-                          <td>{r.desiredWarehouse || '—'}</td>
-                          <td className="procurement-table-col-warehouse">
-                            {r.actualWarehouse ? r.actualWarehouse : '—'}
-                          </td>
-                          <td className="procurement-table-col-executor">
-                            {procurementExecutorRowLabel(r)}
-                          </td>
-                          <td className="procurement-table-col-date">
-                            {formatDt(r.executorCompletedAt)}
-                          </td>
-                          {isAdmin ? (
-                            <td
-                              className="procurement-td-actions"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                className="procurement-btn-delete-row"
-                                disabled={saving}
-                                title="Видалити заявку (лише адміністратор)"
-                                onClick={(e) => deleteProcurementRequest(e, r)}
-                              >
-                                Видалити
-                              </button>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {!activeRequests.length && (
-                    <div className="procurement-empty">Немає заявок. Натисніть «Подати заявку».</div>
-                  )}
-                </div>
+                renderProcurementRequestsTable(
+                  activeRequests,
+                  'Немає заявок. Натисніть «Подати заявку».'
+                )
               )}
             </div>
           )}
@@ -1812,6 +1831,15 @@ function ProcurementDashboard({ user }) {
                 <span className="procurement-detail-k">Статус заявки</span>
                 <span className="procurement-detail-v">{STATUS_LABELS[detail.status] || detail.status}</span>
               </div>
+              {detail.status === 'blocked' && (detail.blockedByName || detail.blockedAt) ? (
+                <div className="procurement-detail-row">
+                  <span className="procurement-detail-k">Заблоковано</span>
+                  <span className="procurement-detail-v">
+                    {detail.blockedByName || detail.blockedByLogin || '—'}
+                    {detail.blockedAt ? ` · ${formatDt(detail.blockedAt)}` : ''}
+                  </span>
+                </div>
+              ) : null}
               {detail.status === 'completed' && detail.receiptOutcome ? (
                 <div className="procurement-detail-row">
                   <span className="procurement-detail-k">Прийом на складі</span>
@@ -2491,6 +2519,26 @@ function ProcurementDashboard({ user }) {
                     onClick={() => takeInWork(detail._id)}
                   >
                     Взяти в роботу
+                  </button>
+                )}
+                {canBlockProcurementRequest(detail) && (
+                  <button
+                    type="button"
+                    className="procurement-btn-block"
+                    disabled={saving}
+                    onClick={() => blockRequest(detail._id)}
+                  >
+                    Заблокувати
+                  </button>
+                )}
+                {detail.status === 'blocked' && isVidZakupok && (
+                  <button
+                    type="button"
+                    className="procurement-btn-primary"
+                    disabled={saving}
+                    onClick={() => unblockRequest(detail._id)}
+                  >
+                    Повернути в роботу
                   </button>
                 )}
                 {isProcurementExecutorWorkStatus(detail.status) && isVidZakupok && (

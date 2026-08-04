@@ -108,6 +108,10 @@
 
 .procurement-active-panel {
   padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .procurement-toolbar {
@@ -146,6 +150,13 @@
   background: var(--surface);
 }
 
+.procurement-table-wrap--scroll {
+  flex: 1;
+  min-height: 240px;
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+}
+
 .procurement-table {
   width: 100%;
   border-collapse: collapse;
@@ -164,6 +175,10 @@
   background: var(--background);
   font-weight: 600;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--border);
 }
 
 .procurement-table tbody tr:hover {
@@ -601,6 +616,33 @@
 }
 
 .procurement-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.procurement-btn-block {
+  padding: 8px 16px;
+  border: 1px solid rgba(211, 47, 47, 0.55);
+  border-radius: 6px;
+  background: rgba(211, 47, 47, 0.12);
+  color: #e57373;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.procurement-btn-block:hover:not(:disabled) {
+  background: rgba(211, 47, 47, 0.22);
+}
+
+.procurement-btn-block:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--border);

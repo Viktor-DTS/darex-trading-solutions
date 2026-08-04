@@ -2049,6 +2049,11 @@ const procurementRequestSchema = new mongoose.Schema(
       ],
       default: []
     },
+    /** Статус до блокування — для повернення в роботу */
+    blockedFromStatus: { type: String, default: '' },
+    blockedAt: { type: Date, default: null },
+    blockedByLogin: { type: String, default: '' },
+    blockedByName: { type: String, default: '' },
     attachments: [procurementAttachmentSchema],
     /** Файли виконавця: рахунки, видаткові накладні, кошториси тощо */
     executorAttachments: [procurementAttachmentSchema],
@@ -3740,6 +3745,13 @@ function stripProcurementLineBinaryFields(docOrList) {
 /** Редагування матеріалів / відвантаження виконавцем після взяття в роботу або після часткового прийому на складі */
 const PROCUREMENT_EXECUTOR_WORK_STATUSES = ['in_progress', 'partially_fulfilled'];
 
+const PROCUREMENT_BLOCKABLE_STATUSES = [
+  'pending_review',
+  'in_progress',
+  'awaiting_warehouse',
+  'partially_fulfilled',
+];
+
 function procurementExecutorCanEditWork(status) {
   return PROCUREMENT_EXECUTOR_WORK_STATUSES.includes(status);
 }
@@ -4400,6 +4412,73 @@ app.post('/api/procurement-requests/:id/take-in-work', async (req, res) => {
   } catch (error) {
     logPerformance('POST /api/procurement-requests/take-in-work', startTime);
     console.error('[ERROR] take-in-work:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/procurement-requests/:id/block', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (!PROCUREMENT_BLOCKABLE_STATUSES.includes(pr.status)) {
+      return res.status(400).json({
+        error: 'Заблокувати можна лише активну заявку (не виконану і не вже заблоковану)',
+      });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const reason = String(req.body?.reason || '').trim();
+    pr.blockedFromStatus = pr.status;
+    pr.status = 'blocked';
+    pr.blockedAt = new Date();
+    pr.blockedByLogin = req.user.login;
+    pr.blockedByName = String(dbUser?.name || req.user.name || req.user.login).trim();
+    if (reason) {
+      const prefix = `Заблоковано: ${reason}`;
+      pr.notes = pr.notes ? `${prefix}\n${pr.notes}` : prefix;
+    }
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    logPerformance('POST /api/procurement-requests/block', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/block', startTime);
+    console.error('[ERROR] block procurement:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/procurement-requests/:id/unblock', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (pr.status !== 'blocked') {
+      return res.status(400).json({ error: 'Заявка не заблокована' });
+    }
+    const prev = String(pr.blockedFromStatus || '').trim();
+    const restore =
+      prev && PROCUREMENT_BLOCKABLE_STATUSES.includes(prev) ? prev : 'pending_review';
+    pr.status = restore;
+    pr.blockedFromStatus = '';
+    pr.blockedAt = null;
+    pr.blockedByLogin = '';
+    pr.blockedByName = '';
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    logPerformance('POST /api/procurement-requests/unblock', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/unblock', startTime);
+    console.error('[ERROR] unblock procurement:', error);
     res.status(500).json({ error: error.message });
   }
 });
