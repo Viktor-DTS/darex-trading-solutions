@@ -1,18 +1,25 @@
 import React from 'react';
 
 /** Блок атрибуції: UTM, Meta, landing — для картки ліда. */
-function MarketingLeadAttribution({ lead }) {
+function MarketingLeadAttribution({ lead, interactionLabels = {} }) {
   if (!lead) return null;
 
   const hasUtm = lead.utmSource || lead.utmMedium || lead.utmCampaign || lead.utmContent || lead.utmTerm;
-  const hasMeta = lead.metaCampaignId || lead.metaCampaignName || lead.metaAdName;
+  const hasMeta = lead.metaCampaignId || lead.metaCampaignName || lead.metaAdName || lead.metaCommentId;
+  const hasSocial = lead.metaIgUsername || lead.metaPsid || lead.interactionType;
   const hasVisit = lead.landingPage || lead.trafficSource || lead.referrer;
 
-  if (!hasUtm && !hasMeta && !hasVisit) return null;
+  if (!hasUtm && !hasMeta && !hasVisit && !hasSocial) return null;
 
   return (
     <div className="marketing-utm-block marketing-attribution-block">
       <strong style={{ display: 'block', marginBottom: 8 }}>Атрибуція / UTM</strong>
+      {lead.interactionType && (
+        <p style={{ margin: '0 0 8px', fontSize: 12 }}>
+          Тип: <strong>{interactionLabels[lead.interactionType] || lead.interactionType}</strong>
+          {lead.metaIgUsername && ` · @${lead.metaIgUsername}`}
+        </p>
+      )}
       {hasUtm && (
         <ul style={{ margin: '0 0 8px', paddingLeft: 18, fontSize: 12 }}>
           {lead.utmSource && <li>utm_source: {lead.utmSource}</li>}
@@ -32,6 +39,9 @@ function MarketingLeadAttribution({ lead }) {
           {lead.metaCampaignId && !lead.metaCampaignName && <li>Campaign ID: {lead.metaCampaignId}</li>}
           {lead.metaAdId && <li>Ad ID: {lead.metaAdId}</li>}
           {lead.metaLeadId && <li>Lead ID: {lead.metaLeadId}</li>}
+          {lead.metaCommentId && <li>Comment ID: {lead.metaCommentId}</li>}
+          {lead.metaPostId && <li>Post ID: {lead.metaPostId}</li>}
+          {lead.metaMediaId && <li>Media ID: {lead.metaMediaId}</li>}
         </ul>
       )}
       {hasVisit && (

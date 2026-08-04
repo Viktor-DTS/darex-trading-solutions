@@ -30,10 +30,15 @@ function phoneNormalized(value) {
   return digits;
 }
 
-async function findDuplicateLead(MarketingLead, { phone, metaLeadId, email }) {
+async function findDuplicateLead(MarketingLead, { phone, metaLeadId, metaCommentId, email }) {
   if (metaLeadId) {
     const byMeta = await MarketingLead.findOne({ metaLeadId: String(metaLeadId) }).lean();
     if (byMeta) return { lead: byMeta, reason: 'meta_lead_id' };
+  }
+
+  if (metaCommentId) {
+    const byComment = await MarketingLead.findOne({ metaCommentId: String(metaCommentId) }).lean();
+    if (byComment) return { lead: byComment, reason: 'meta_comment_id' };
   }
 
   const { days } = getDedupConfig();
@@ -74,9 +79,12 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
   const payload = sanitizeLeadPayload(rawPayload, { isInbound: true });
 
   if (!payload.contactPhone && !payload.contactEmail) {
-    const err = new Error('contactPhone or contactEmail required');
-    err.statusCode = 400;
-    throw err;
+    const isCommentLead = payload.interactionType === 'comment' || payload.metaCommentId;
+    if (!isCommentLead) {
+      const err = new Error('contactPhone or contactEmail required');
+      err.statusCode = 400;
+      throw err;
+    }
   }
 
   payload.phoneNormalized = phoneNormalized(payload.contactPhone);
@@ -84,6 +92,7 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
   const duplicate = await findDuplicateLead(MarketingLead, {
     phone: payload.contactPhone,
     metaLeadId: payload.metaLeadId,
+    metaCommentId: payload.metaCommentId,
     email: payload.contactEmail,
   });
 
@@ -219,6 +228,7 @@ async function processMetaLeadgenWebhook(deps, changeValue) {
 
   return createMarketingLeadFromInbound(deps, {
     source: attribution.source || 'facebook',
+    interactionType: 'lead_form',
     sourceDetail: attribution.sourceDetail,
     clientName: mapped.clientName,
     contactPhone: mapped.contactPhone,
@@ -560,6 +570,14 @@ function getIntegrationStatus() {
       viber: `${baseUrl}/api/marketing/webhooks/viber`,
       inbound: `${baseUrl}/api/marketing/leads/inbound`,
     },
+    phase2: (() => {
+      try {
+        const { getMetaPhase2Status } = require('./metaPhase2');
+        return getMetaPhase2Status();
+      } catch {
+        return null;
+      }
+    })(),
   };
 }
 

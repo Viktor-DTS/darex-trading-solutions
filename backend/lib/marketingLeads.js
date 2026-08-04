@@ -40,6 +40,15 @@ const SOURCE_LABELS = {
   other: 'Інше',
 };
 
+const INTERACTION_TYPE_LABELS = {
+  lead_form: 'Lead Form (реклама)',
+  direct_message: 'Direct / Messenger',
+  comment: 'Коментар',
+  manual: 'Вручну',
+  inbound: 'Inbound API',
+  bot: 'Бот',
+};
+
 const STATUS_LABELS = {
   new: 'Новий',
   in_review: 'На розгляді',
@@ -116,6 +125,12 @@ function sanitizeLeadPayload(body, { isInbound = false } = {}) {
     metaAdName: pick('metaAdName'),
     metaFormName: pick('metaFormName'),
     metaPlatform: pick('metaPlatform'),
+    metaPsid: pick('metaPsid'),
+    metaIgUsername: pick('metaIgUsername'),
+    metaCommentId: pick('metaCommentId'),
+    metaPostId: pick('metaPostId'),
+    metaMediaId: pick('metaMediaId'),
+    interactionType: pick('interactionType'),
     trafficSource: pick('trafficSource'),
     landingPage: pick('landingPage'),
     referrer: pick('referrer'),
@@ -168,6 +183,7 @@ module.exports = {
   MARKETING_LEAD_STATUSES,
   SOURCE_LABELS,
   STATUS_LABELS,
+  INTERACTION_TYPE_LABELS,
   canAccessMarketingPanel,
   canManageAllMarketingLeads,
   canViewManagerExternalLeads,

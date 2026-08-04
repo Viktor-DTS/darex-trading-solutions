@@ -1,6 +1,8 @@
 # ТЗ: інтеграція Meta Lead Ads → CRM DTS (Darex Trading Solutions)
 
-**Версія:** 1.0 · **Дата:** 2026-08-04  
+> **Оновлено:** повне ТЗ (Етап 1 + 2) — див. **`META_INTEGRATION_FULL_TZ.md`**
+
+**Версія:** 1.1 · **Дата:** 2026-08-04  
 **CRM:** Маркетинговий віділ DTS  
 **Backend (Render):** `https://darex-trading-solutions.onrender.com`
 

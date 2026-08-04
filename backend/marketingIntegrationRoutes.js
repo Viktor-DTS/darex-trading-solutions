@@ -6,7 +6,6 @@ const { canAccessMarketingPanel } = require('./lib/marketingLeads');
 const {
   createMarketingLeadFromInbound,
   verifyMetaWebhookSignature,
-  processMetaLeadgenWebhook,
   processGoogleLeadWebhook,
   handleTelegramUpdate,
   handleViberWebhook,
@@ -14,6 +13,7 @@ const {
   viberApi,
   getIntegrationStatus,
 } = require('./lib/marketingIntegrations');
+const { processMetaWebhookBody } = require('./lib/metaPhase2');
 
 function registerMarketingIntegrationRoutes(app, deps) {
   const { MarketingLead, MarketingBotSession, getNextMarketingLeadNumber, authenticateToken } = deps;
@@ -79,24 +79,7 @@ function registerMarketingIntegrationRoutes(app, deps) {
       }
 
       const body = req.body || {};
-      if (body.object !== 'page') {
-        return res.json({ ok: true, skipped: true });
-      }
-
-      const results = [];
-      for (const entry of body.entry || []) {
-        for (const change of entry.changes || []) {
-          if (change.field !== 'leadgen') continue;
-          try {
-            const result = await processMetaLeadgenWebhook(serviceDeps, change.value || {});
-            results.push(result);
-          } catch (err) {
-            console.error('[META LEAD]', err.message);
-            results.push({ error: err.message });
-          }
-        }
-      }
-
+      const results = await processMetaWebhookBody(serviceDeps, MarketingBotSession, body);
       res.json({ ok: true, results });
     } catch (e) {
       console.error('[META WEBHOOK]', e);

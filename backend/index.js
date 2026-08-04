@@ -62,6 +62,7 @@ const {
   buildListQuery: buildMarketingLeadListQuery,
   SOURCE_LABELS: MARKETING_SOURCE_LABELS,
   STATUS_LABELS: MARKETING_STATUS_LABELS,
+  INTERACTION_TYPE_LABELS: MARKETING_INTERACTION_TYPE_LABELS,
 } = require('./lib/marketingLeads');
 const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
 const {
@@ -623,6 +624,17 @@ const marketingLeadSchema = new mongoose.Schema({
   metaAdName: String,
   metaFormName: String,
   metaPlatform: String,
+  metaPsid: String,
+  metaIgUsername: String,
+  metaCommentId: { type: String, sparse: true, index: true },
+  metaPostId: String,
+  metaMediaId: String,
+  interactionType: {
+    type: String,
+    enum: ['lead_form', 'direct_message', 'comment', 'manual', 'inbound', 'bot'],
+    default: 'manual',
+    index: true,
+  },
   trafficSource: String,
   landingPage: String,
   referrer: String,
@@ -659,7 +671,11 @@ marketingLeadSchema.index({ phoneNormalized: 1, createdAt: -1 });
 const MarketingLead = mongoose.model('MarketingLead', marketingLeadSchema);
 
 const marketingBotSessionSchema = new mongoose.Schema({
-  platform: { type: String, enum: ['telegram', 'viber'], required: true },
+  platform: {
+    type: String,
+    enum: ['telegram', 'viber', 'meta_ig_dm', 'meta_fb_dm'],
+    required: true,
+  },
   chatId: { type: String, required: true },
   step: String,
   data: mongoose.Schema.Types.Mixed,
@@ -18409,6 +18425,7 @@ app.get('/api/marketing/leads/meta', authenticateToken, async (req, res) => {
     res.json({
       sources: MARKETING_SOURCE_LABELS,
       statuses: MARKETING_STATUS_LABELS,
+      interactionTypes: MARKETING_INTERACTION_TYPE_LABELS,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

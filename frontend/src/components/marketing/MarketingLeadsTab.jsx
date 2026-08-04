@@ -30,7 +30,7 @@ const EMPTY_FORM = {
 function MarketingLeadsTab({ user }) {
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState(null);
-  const [meta, setMeta] = useState({ sources: {}, statuses: {} });
+  const [meta, setMeta] = useState({ sources: {}, statuses: {}, interactionTypes: {} });
   const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', source: '', search: '' });
@@ -241,7 +241,7 @@ function MarketingLeadsTab({ user }) {
             <p><strong>Місто:</strong> {selected.city || '—'}</p>
             <p><strong>Інтерес:</strong> {selected.productInterest || '—'}</p>
             <p><strong>Коментар:</strong> {selected.comment || '—'}</p>
-            <MarketingLeadAttribution lead={selected} />
+            <MarketingLeadAttribution lead={selected} interactionLabels={meta.interactionTypes} />
             <div className="marketing-assign-row">
               <select
                 className="marketing-select"

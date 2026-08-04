@@ -120,7 +120,19 @@ function MarketingIntegrationsTab() {
           <div className="marketing-api-hint" style={{ marginTop: 10, fontSize: 11 }}>{webhooks.meta}</div>
         </div>
         <div className="marketing-integration-card">
-          <h4>Google Lead Form</h4>
+          <h4>Meta Етап 2: Direct + коментарі</h4>
+          <p>
+            Instagram/Facebook Direct (діалог заявки) + коментарі IG/FB у CRM.
+            Увімкнення: env META_PHASE2_*=1 після налаштувань Meta.
+          </p>
+          <span className={`marketing-integration-status marketing-integration-status--${status?.phase2?.messagingEnabled || status?.phase2?.commentsEnabled ? 'ready' : 'planned'}`}>
+            {status?.phase2?.messagingEnabled || status?.phase2?.commentsEnabled ? 'Увімкнено' : 'Очікує env + Meta App Review'}
+          </span>
+          <ul className="marketing-roadmap-list" style={{ marginTop: 10, fontSize: 12 }}>
+            <li>Direct: {status?.phase2?.messagingEnabled ? '✅' : '— META_PHASE2_MESSAGING=1'}</li>
+            <li>Коментарі: {status?.phase2?.commentsEnabled ? '✅' : '— META_PHASE2_COMMENTS=1'}</li>
+          </ul>
+        </div>
           <p>Webhook з google_key у Google Ads.</p>
           <span className={`marketing-integration-status marketing-integration-status--${flags.google ? 'ready' : 'planned'}`}>
             {flags.google ? 'Готово до прийому' : 'Додайте GOOGLE_LEAD_WEBHOOK_KEY'}
@@ -190,6 +202,11 @@ function MarketingIntegrationsTab() {
         <li>Verify Token = значення <code>META_VERIFY_TOKEN</code></li>
         <li>Page Access Token з правами <code>leads_retrieval</code></li>
       </ul>
+
+      <h4 style={{ color: '#f5ecd6', margin: '16px 0 12px' }}>Повне ТЗ для Meta</h4>
+      <p style={{ color: 'rgba(244,244,245,0.7)', fontSize: 13 }}>
+        docs/META_INTEGRATION_FULL_TZ.md — Етап 1 (Lead Ads) + Етап 2 (Direct, коментарі, UTM, сайт)
+      </p>
 
       <h4 style={{ color: '#f5ecd6', margin: '16px 0 12px' }}>Google Ads</h4>
       <ul className="marketing-roadmap-list">
