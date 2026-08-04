@@ -3759,6 +3759,84 @@ function escapeRegExpForProcurementHint(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Підказки номенклатури для заявок на закупівлю: карточки продуктів + позиції зі складських залишків. */
+async function buildProcurementNomenclatureHints(query) {
+  const q = String(query || '').trim();
+  if (q.length < 2) return [];
+  const rx = new RegExp(escapeRegExpForProcurementHint(q), 'i');
+  const limit = 30;
+
+  const cards = await ProductCard.find({
+    isActive: true,
+    $or: [
+      { displayName: rx },
+      { type: rx },
+      { manufacturer: rx },
+      { 'technicalSpecs.name': rx },
+      { 'technicalSpecs.value': rx },
+    ],
+  })
+    .select('displayName type manufacturer')
+    .sort({ displayName: 1, type: 1 })
+    .limit(limit)
+    .lean();
+
+  const out = cards.map((c) => {
+    const label = String(c.displayName || c.type || '').trim() || '—';
+    const typePart = c.type && c.type !== label ? c.type : null;
+    const sub = [typePart, c.manufacturer].filter(Boolean).join(' · ');
+    return { id: c._id, label, subtitle: sub };
+  });
+
+  const seenLabels = new Set(out.map((h) => h.label.toLowerCase()));
+  const seenProductIds = new Set(out.map((h) => String(h.id)));
+
+  const equipmentGroups = await Equipment.aggregate([
+    {
+      $match: {
+        isDeleted: { $ne: true },
+        $or: [{ type: rx }, { manufacturer: rx }, { serialNumber: rx }],
+      },
+    },
+    {
+      $group: {
+        _id: { type: '$type', productId: '$productId' },
+        manufacturer: { $first: '$manufacturer' },
+        itemKind: { $first: '$itemKind' },
+      },
+    },
+    { $sort: { '_id.type': 1 } },
+    { $limit: 80 },
+  ]);
+
+  for (const row of equipmentGroups) {
+    if (out.length >= limit) break;
+    const label = String(row?._id?.type || '').trim();
+    if (!label) continue;
+    const labelKey = label.toLowerCase();
+    if (seenLabels.has(labelKey)) continue;
+
+    const productId = row?._id?.productId;
+    const productIdStr = productId ? String(productId) : '';
+    if (productIdStr && seenProductIds.has(productIdStr)) continue;
+
+    const subParts = [];
+    if (row.manufacturer) subParts.push(String(row.manufacturer).trim());
+    subParts.push(productIdStr ? 'карточка продукту' : 'залишки на складі');
+    if (row.itemKind === 'parts') subParts.push('деталі');
+
+    out.push({
+      id: productId || null,
+      label,
+      subtitle: subParts.filter(Boolean).join(' · '),
+    });
+    seenLabels.add(labelKey);
+    if (productIdStr) seenProductIds.add(productIdStr);
+  }
+
+  return out.slice(0, limit);
+}
+
 function normalizeProcurementEdrpouDigits(input) {
   return String(input || '').replace(/\D/g, '');
 }
@@ -3969,20 +4047,7 @@ app.get('/api/procurement-requests/nomenclature-hints', async (req, res) => {
       logPerformance('GET /api/procurement-requests/nomenclature-hints', startTime, 0);
       return res.json([]);
     }
-    const rx = new RegExp(escapeRegExpForProcurementHint(q), 'i');
-    const cards = await ProductCard.find({
-      isActive: true,
-      $or: [{ displayName: rx }, { type: rx }, { manufacturer: rx }]
-    })
-      .select('displayName type manufacturer')
-      .sort({ displayName: 1 })
-      .limit(30)
-      .lean();
-    const out = cards.map((c) => {
-      const label = String(c.displayName || c.type || '').trim() || '—';
-      const sub = [c.type, c.manufacturer].filter(Boolean).join(' · ');
-      return { id: c._id, label, subtitle: sub };
-    });
+    const out = await buildProcurementNomenclatureHints(q);
     logPerformance('GET /api/procurement-requests/nomenclature-hints', startTime, out.length);
     res.json(out);
   } catch (error) {

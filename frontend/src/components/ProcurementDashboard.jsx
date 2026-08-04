@@ -1342,7 +1342,7 @@ function ProcurementDashboard({ user }) {
                       {hintsForRow === idx && nomenclatureHints.length > 0 && (
                         <ul className="procurement-hints-list" role="listbox">
                           {nomenclatureHints.map((h) => (
-                            <li key={String(h.id)}>
+                            <li key={String(h.id || h.label)}>
                               <button
                                 type="button"
                                 className="procurement-hint-item"
