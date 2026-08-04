@@ -20,3 +20,6 @@ backend/logs/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+
+# Docs tooling (generate-meta-tz-docx.js)
+docs/node_modules/

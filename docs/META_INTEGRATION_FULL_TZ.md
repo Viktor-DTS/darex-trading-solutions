@@ -1,6 +1,7 @@
 # Повне ТЗ: Meta / Instagram → CRM DTS
 
 **Версія:** 2.0 · **Дата:** 2026-08-04  
+**Word:** `META_INTEGRATION_FULL_TZ.docx` (поруч з цим файлом)
 **Система:** Darex Trading Solutions — панель «Маркетинговий віділ»  
 **Backend:** `https://darex-trading-solutions.onrender.com`
 
