@@ -23,17 +23,19 @@ const KYIV_LABELS = {
   grandTotal: 'Разом,  роботи та матеріали з ПДВ,грн. :',
 };
 
-const THIN_BORDER = { style: 'thin' };
+const TABLE_BORDER_SIDE = { style: 'medium' };
 const FULL_BORDER = {
-  top: THIN_BORDER,
-  left: THIN_BORDER,
-  bottom: THIN_BORDER,
-  right: THIN_BORDER,
+  top: TABLE_BORDER_SIDE,
+  left: TABLE_BORDER_SIDE,
+  bottom: TABLE_BORDER_SIDE,
+  right: TABLE_BORDER_SIDE,
 };
 const KYIV_TABLE_FONT = { name: 'Calibri', size: 11, bold: false };
 const KYIV_BOLD_FONT = { ...KYIV_TABLE_FONT, bold: true };
-const LABEL_BORDER_TOP_RIGHT = { top: THIN_BORDER, right: THIN_BORDER };
+const LABEL_BORDER_TOP_RIGHT = { top: TABLE_BORDER_SIDE, right: TABLE_BORDER_SIDE };
 const WORK_SECTION_TITLE = { row: 13, colStart: 2, colEnd: 5 };
+const WORK_TABLE_HEADER_ROW = 14;
+const DAREX_HEADER_IMAGE_URL = `${import.meta.env.BASE_URL}images/header-darex.png`;
 
 function resolveTemplateUrl(spec) {
   const custom = String(spec?.estimateTemplateUrl || '').trim();
@@ -53,6 +55,40 @@ function applyFullBorder(cell) {
 
 function applyAmountCellBorder(ws, rowNumber, col = 6) {
   applyFullBorder(ws.getRow(rowNumber).getCell(col));
+}
+
+async function applyDarexHeader(workbook, ws) {
+  try {
+    const response = await fetch(DAREX_HEADER_IMAGE_URL);
+    if (!response.ok) return;
+    const buffer = await response.arrayBuffer();
+    for (let rowNumber = 1; rowNumber <= 5; rowNumber += 1) {
+      const row = ws.getRow(rowNumber);
+      for (let col = 1; col <= 7; col += 1) {
+        row.getCell(col).value = null;
+      }
+      row.height = rowNumber === 1 ? 74 : 10;
+      row.commit?.();
+    }
+    const imageId = workbook.addImage({ buffer, extension: 'png' });
+    ws.addImage(imageId, {
+      tl: { col: 0.1, row: 0.02 },
+      ext: { width: 650, height: 90 },
+    });
+  } catch (e) {
+    console.warn('[generateKyivRepairEstimateExcel] Darex header image:', e.message);
+  }
+}
+
+function applyTableHeaderRowBorders(ws, rowNumber) {
+  const row = ws.getRow(rowNumber);
+  for (let col = 1; col <= 6; col += 1) {
+    const cell = row.getCell(col);
+    applyFullBorder(cell);
+    cell.font = { ...KYIV_TABLE_FONT, bold: true };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  }
+  row.commit?.();
 }
 
 function parseMergeRef(mergeRef) {
@@ -336,11 +372,14 @@ export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLi
   await workbook.xlsx.load(buffer);
   const ws = workbook.worksheets[0];
 
+  await applyDarexHeader(workbook, ws);
+
   const validWorkLines = filterNamedLines(enrichWorkLinesFromSpec(workLines, spec));
   const { materialLines } = splitLowerLinesForExport(lowerLines || []);
   const validMaterialLines = filterNamedLines(materialLines);
 
   applySectionTitleStyle(ws, WORK_SECTION_TITLE.row, '1. Виконані роботи');
+  applyTableHeaderRowBorders(ws, WORK_TABLE_HEADER_ROW);
 
   setCell(ws.getRow(KYIV_LAYOUT.estimateNumber.row), KYIV_LAYOUT.estimateNumber.col, String(task.requestNumber || '').trim());
   setCell(
@@ -409,6 +448,8 @@ export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLi
     grandVatRow,
     grandTotalRow,
   });
+
+  applyTableHeaderRowBorders(ws, materialsTitleRow + 1);
 
   const tableDataRows = [
     ...validWorkLines.map((_, idx) => KYIV_LAYOUT.workDataStart + idx),
