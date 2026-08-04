@@ -55,8 +55,8 @@ export function createEstimateLine({ id, name, quantity = 1, unit = 'послу�
   };
 }
 
-export function buildWorkLineFromSpec(category, item, powerTierId) {
-  const price = getSpecItemPrice(item, powerTierId);
+export function buildWorkLineFromSpec(category, item, powerTierId, spec) {
+  const price = getSpecItemPrice(item, powerTierId, spec);
   if (price == null) return null;
   return createEstimateLine({
     id: item.id,
@@ -105,7 +105,8 @@ export function buildLowerTableLinesFromTask(task, spec, warehouses = []) {
 
   const transportKm = parseNumber(task.transportKm);
   const transportSum = parseNumber(task.transportSum);
-  if (transportSum > 0 || transportKm > 0) {
+  const skipAutoTransport = String(spec?.excelGenerator || '').trim() === 'kyiv-repair';
+  if (!skipAutoTransport && (transportSum > 0 || transportKm > 0)) {
     const unitPrice = transportKm > 0 ? roundMoney(transportSum / transportKm) : parseNumber(spec?.transportRatePerKm || 35);
     lines.push(createEstimateLine({
       id: 'transport',

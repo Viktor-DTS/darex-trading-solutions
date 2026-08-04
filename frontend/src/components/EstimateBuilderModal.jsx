@@ -66,6 +66,10 @@ function EstimateBuilderModal({
     originCustomizedRef.current = false;
     setTransportOriginAddress('');
     setIncludeReturnToBaseInLabel(false);
+    const tiers = spec?.powerTiers || [];
+    if (tiers.length === 1) {
+      setPowerTier(tiers[0].id);
+    }
     fetchActiveWarehouses()
       .then((list) => setWarehouses(Array.isArray(list) ? list : []))
       .catch(() => setWarehouses([]));
@@ -225,10 +229,10 @@ function EstimateBuilderModal({
     const selected = selectableItems.filter(({ item }) => selectedSpecIds.includes(item.id));
     setWorkLines(
       selected
-        .map(({ category, item }) => buildWorkLineFromSpec(category, item, powerTier))
+        .map(({ category, item }) => buildWorkLineFromSpec(category, item, powerTier, spec))
         .filter(Boolean)
     );
-  }, [powerTier, selectedSpecIds, selectableItems]);
+  }, [powerTier, selectedSpecIds, selectableItems, spec]);
 
   const toggleSpecItem = (itemId) => {
     setSelectedSpecIds((prev) =>
@@ -369,19 +373,26 @@ function EstimateBuilderModal({
 
         <div className="estimate-builder-body">
           <div className="estimate-section">
-            <h4>Потужність генератора *</h4>
-            <div className="estimate-power-options">
-              {(spec?.powerTiers || []).map((tier) => (
-                <label key={tier.id} className={`estimate-power-option ${powerTier === tier.id ? 'active' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={powerTier === tier.id}
-                    onChange={() => setPowerTier(tier.id)}
-                  />
-                  {tier.label}
-                </label>
-              ))}
-            </div>
+            <h4>{(spec?.powerTiers || []).length > 1 ? 'Потужність генератора *' : 'Тариф *'}</h4>
+            {(spec?.powerTiers || []).length > 1 ? (
+              <div className="estimate-power-options">
+                {(spec?.powerTiers || []).map((tier) => (
+                  <label key={tier.id} className={`estimate-power-option ${powerTier === tier.id ? 'active' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={powerTier === tier.id}
+                      onChange={() => setPowerTier(tier.id)}
+                    />
+                    {tier.label}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="estimate-single-tier-note">
+                {(spec?.powerTiers || [])[0]?.label || 'Ціна згідно договору'}
+                {spec?.pricesAreNetOfVat ? ' · у кошторисі ціни з ПДВ' : ''}
+              </p>
+            )}
           </div>
 
           <div className="estimate-section">
@@ -402,7 +413,7 @@ function EstimateBuilderModal({
                         .filter((item) => !item.includedInPackage)
                         .map((item) => {
                         const unavailable = item.prices?.unavailable;
-                        const price = powerTier ? getSpecItemPrice(item, powerTier) : null;
+                        const price = powerTier ? getSpecItemPrice(item, powerTier, spec) : null;
                         return (
                           <div key={item.id} className={`estimate-spec-item-wrap ${unavailable ? 'disabled' : ''}`}>
                             <label className="estimate-spec-item">

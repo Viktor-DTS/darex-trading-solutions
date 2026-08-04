@@ -713,6 +713,7 @@ const EstimateContractSpec = mongoose.model('EstimateContractSpec', estimateCont
 
 const DEFAULT_ESTIMATE_SPEC_FILES = [
   path.join(__dirname, 'data', 'estimateSpecs', 'privatbank-p0156625.json'),
+  path.join(__dirname, 'data', 'estimateSpecs', 'lifecell-amn24use229.json'),
 ];
 const DEFAULT_ESTIMATE_TEMPLATE_FILE = path.join(__dirname, 'data', 'estimateTemplates', 'default.xlsx');
 
@@ -735,6 +736,10 @@ function normalizeEstimateSpecPayload(raw = {}) {
     transportRatePerKm: Number(raw.transportRatePerKm) || 0,
     categories,
     itemCount: countEstimateSpecItems(categories),
+    excelGenerator: String(raw.excelGenerator || '').trim(),
+    templateStaticPath: String(raw.templateStaticPath || '').trim(),
+    pricesAreNetOfVat: !!raw.pricesAreNetOfVat,
+    vatRate: Number.isFinite(Number(raw.vatRate)) ? Number(raw.vatRate) : (raw.pricesAreNetOfVat ? 0.2 : 0),
   };
 }
 
@@ -754,6 +759,10 @@ function estimateSpecDocToApi(doc) {
     itemCount: d.itemCount || countEstimateSpecItems(d.categories),
     estimateTemplateUrl: d.estimateTemplateUrl || '',
     estimateTemplateName: d.estimateTemplateName || '',
+    excelGenerator: d.excelGenerator || '',
+    templateStaticPath: d.templateStaticPath || '',
+    pricesAreNetOfVat: !!d.pricesAreNetOfVat,
+    vatRate: Number(d.vatRate) || 0,
     updatedAt: d.updatedAt,
     updatedByLogin: d.updatedByLogin || '',
   };
@@ -798,18 +807,22 @@ async function loadDefaultEstimateSpecsFromDisk() {
 }
 
 async function ensureEstimateContractSpecsSeeded() {
-  const count = await EstimateContractSpec.countDocuments();
-  if (count > 0) return;
   const defaults = await loadDefaultEstimateSpecsFromDisk();
   if (!defaults.length) return;
   const now = new Date();
-  await EstimateContractSpec.insertMany(
-    defaults.map((spec) => ({
-      ...spec,
-      updatedAt: now,
-      updatedByLogin: 'system',
-    }))
-  );
+  for (const spec of defaults) {
+    await EstimateContractSpec.findOneAndUpdate(
+      { specId: spec.specId },
+      {
+        $setOnInsert: {
+          ...spec,
+          updatedAt: now,
+          updatedByLogin: 'system',
+        },
+      },
+      { upsert: true }
+    );
+  }
 }
 
 function canEditEstimateContractSpecs(role) {

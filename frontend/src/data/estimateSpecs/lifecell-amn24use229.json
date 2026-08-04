@@ -1,0 +1,71 @@
+{
+  "id": "lifecell-amn24use229",
+  "clientName": "ТОВ «Лайфселл»",
+  "edrpou": "22859846",
+  "contractNumber": "AMN24USE229",
+  "contractNumberAliases": [
+    "AMN24USE229",
+    "AMN24USE229 "
+  ],
+  "title": "ТОВ Лайфселл — прайс-лист робіт (Додаток №1)",
+  "excelGenerator": "kyiv-repair",
+  "templateStaticPath": "templates/estimate-template-lifecell-kyiv.xlsx",
+  "pricesAreNetOfVat": true,
+  "vatRate": 0.2,
+  "powerTiers": [
+    {
+      "id": "standard",
+      "label": "Ціна згідно договору"
+    }
+  ],
+  "transportRatePerKm": 0,
+  "categories": [
+    {
+      "id": "cat-price-list",
+      "title": "Прайс-лист на Роботи",
+      "items": [
+        {
+          "id": "cat-price-list-PPL-SDG-REPAIR",
+          "code": "PPL-SDG-REPAIR",
+          "label": "Аварійно-відновлювальні роботи ДГУ",
+          "unit": "людино-година",
+          "prices": {
+            "standard": 744,
+            "unavailable": false
+          }
+        },
+        {
+          "id": "cat-price-list-PPL-DGN-SDG-HOUR",
+          "code": "PPL-DGN-SDG-HOUR",
+          "label": "Діагностика стаціонарного генератора",
+          "unit": "послуга",
+          "prices": {
+            "standard": 4750,
+            "unavailable": false
+          }
+        },
+        {
+          "id": "cat-price-list-PPL-TRNS-DRX",
+          "code": "PPL-TRNS-DRX",
+          "label": "Транспорт Дарекс у 2 сторони для робіт з ДГУ",
+          "unit": "км",
+          "prices": {
+            "standard": 15,
+            "unavailable": false
+          }
+        },
+        {
+          "id": "cat-price-list-PPL-DGN-MDG",
+          "code": "PPL-DGN-MDG",
+          "label": "Діагностика мобільного генератора",
+          "unit": "послуга",
+          "prices": {
+            "standard": 2250,
+            "unavailable": false
+          }
+        }
+      ]
+    }
+  ],
+  "itemCount": 4
+}

@@ -5,7 +5,10 @@ const DEFAULT_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/estimate-temp
 
 export function getEstimateTemplateUrl(spec) {
   const custom = String(spec?.estimateTemplateUrl || '').trim();
-  return custom || DEFAULT_TEMPLATE_URL;
+  if (custom) return custom;
+  const staticPath = String(spec?.templateStaticPath || '').trim();
+  if (staticPath) return `${import.meta.env.BASE_URL}${staticPath.replace(/^\//, '')}`;
+  return DEFAULT_TEMPLATE_URL;
 }
 
 const TEMPLATE_ROWS = {
@@ -260,7 +263,16 @@ function enrichWorkLinesFromSpec(workLines, spec) {
   });
 }
 
-export async function generateEstimateExcel({ task, workLines, lowerLines, spec }) {
+export async function generateEstimateExcel(params) {
+  const { spec } = params;
+  if (String(spec?.excelGenerator || '').trim() === 'kyiv-repair') {
+    const { generateKyivRepairEstimateExcel } = await import('./generateKyivRepairEstimateExcel');
+    return generateKyivRepairEstimateExcel(params);
+  }
+  return generateDefaultEstimateExcel(params);
+}
+
+async function generateDefaultEstimateExcel({ task, workLines, lowerLines, spec }) {
   const ExcelJS = (await import('exceljs')).default;
   const templateUrl = getEstimateTemplateUrl(spec);
   const response = await fetch(templateUrl);

@@ -227,6 +227,7 @@ function ContractEstimateSpecEditor({ spec, editable, saving, onChange, onSave, 
           <h2 className="ces-editor-title">{spec.clientName || spec.title}</h2>
           <div className="ces-editor-meta">
             ЄДРПОУ: {spec.edrpou} · Договір: {spec.contractNumber}
+            {spec.pricesAreNetOfVat ? ' · Ціни без ПДВ (у кошторисі з ПДВ)' : ''}
             {spec.updatedAt ? ` · Оновлено: ${formatUpdatedAt(spec.updatedAt)}${spec.updatedByLogin ? ` — ${spec.updatedByLogin}` : ''}` : ''}
           </div>
         </div>

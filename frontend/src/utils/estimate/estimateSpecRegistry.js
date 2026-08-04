@@ -1,8 +1,8 @@
 import defaultPrivatbankSpec from '../../data/estimateSpecs/privatbank-p0156625.json';
+import defaultLifecellSpec from '../../data/estimateSpecs/lifecell-amn24use229.json';
 import { fetchEstimateContractSpecsFull } from './estimateSpecsAPI';
 
-const FALLBACK_SPECS = [defaultPrivatbankSpec];
-
+const FALLBACK_SPECS = [defaultPrivatbankSpec, defaultLifecellSpec];
 let specsCache = null;
 let loadPromise = null;
 
@@ -124,10 +124,18 @@ export function contractSupportsEstimate(contract, task = {}) {
   });
 }
 
-export function getSpecItemPrice(item, powerTierId) {
+import { roundMoney } from './estimatePrefill';
+
+export function getSpecItemPrice(item, powerTierId, spec) {
   if (!item?.prices || item.prices.unavailable) return null;
   const price = item.prices[powerTierId];
-  return price != null && Number.isFinite(Number(price)) ? Number(price) : null;
+  if (price == null || !Number.isFinite(Number(price))) return null;
+  let gross = Number(price);
+  if (spec?.pricesAreNetOfVat) {
+    const rate = Number(spec.vatRate);
+    gross = roundMoney(gross * (1 + (Number.isFinite(rate) ? rate : 0.2)));
+  }
+  return gross;
 }
 
 export function formatSpecItemDisplayName(categoryTitle, item) {
