@@ -32,8 +32,24 @@ const STATUS_LABELS = {
   in_progress: 'Взята в роботу',
   awaiting_warehouse: 'Чекає відвантаження на склад',
   partially_fulfilled: 'Частково виконана',
-  completed: 'Повністю виконана'
+  completed: 'Повністю виконана',
+  blocked: 'Заблоковано'
 };
+
+const DEFAULT_IMPORT_SHEET_NAMES_2026 = [
+  '2026 Січень',
+  '2026 Лютий',
+  '2026 Березень',
+  '2026 Квітень',
+  '2026 Травень',
+  '2026 Червень',
+  '2026 Липень',
+  '2026 Серп',
+  '2026 Вересень',
+  '2026 Жовтень',
+  '2026 Листопад',
+  '2026 Грудень'
+].join('\n');
 
 function isProcurementExecutorWorkStatus(status) {
   return status === 'in_progress' || status === 'partially_fulfilled';
@@ -302,7 +318,7 @@ function defaultMaterialRow(firstUom) {
 }
 
 function ProcurementDashboard({ user }) {
-  const [activeSection, setActiveSection] = useState('active'); // 'active' | 'archive' | 'notifications'
+  const [activeSection, setActiveSection] = useState('active'); // 'active' | 'archive' | 'notifications' | 'import'
   const [requests, setRequests] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -334,6 +350,10 @@ function ProcurementDashboard({ user }) {
   const nomenclatureStockDebounceRef = useRef(null);
   const nomenclatureStockRequestIdRef = useRef(0);
   const [procurementNotifUnreadCount, setProcurementNotifUnreadCount] = useState(0);
+  const [importSheetNames, setImportSheetNames] = useState(DEFAULT_IMPORT_SHEET_NAMES_2026);
+  const [importDryRun, setImportDryRun] = useState(true);
+  const [importRunning, setImportRunning] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   const { units: uomList } = useUnitsOfMeasure();
   const normUom = useCallback((v) => normalizeUomLabel(v, uomList), [uomList]);
@@ -1067,6 +1087,45 @@ function ProcurementDashboard({ user }) {
     [runSupplierNameLookup]
   );
 
+  const runGoogleSheetImport = useCallback(async () => {
+    const sheetNames = importSheetNames
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!sheetNames.length) {
+      alert('Вкажіть хоча б одну вкладку Google Sheets');
+      return;
+    }
+    const confirmMsg = importDryRun
+      ? `Пробний імпорт (без запису в БД) для ${sheetNames.length} вкладок?`
+      : `Імпортувати заявки з ${sheetNames.length} вкладок у базу? Пропуск дублікатів увімкнено.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setImportRunning(true);
+    setImportResult(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/import-google-sheet`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetNames, dryRun: importDryRun })
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || 'Помилка імпорту');
+        return;
+      }
+      setImportResult(data);
+      if (!importDryRun) {
+        await loadRequests();
+      }
+    } catch (e) {
+      alert(e.message || 'Помилка імпорту');
+    } finally {
+      setImportRunning(false);
+    }
+  }, [authHeaders, importDryRun, importSheetNames, loadRequests]);
+
   return (
     <div className="procurement-dashboard">
       <div className="procurement-dashboard-main">
@@ -1111,6 +1170,16 @@ function ProcurementDashboard({ user }) {
                 <span className="tab-icon">📦</span>
                 <span className="tab-label">Архів заявок</span>
               </button>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className={`procurement-sidebar-tab ${activeSection === 'import' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('import')}
+                >
+                  <span className="tab-icon">📥</span>
+                  <span className="tab-label">Імпорт з Google Sheets</span>
+                </button>
+              ) : null}
             </nav>
           </div>
         </aside>
@@ -1218,6 +1287,133 @@ function ProcurementDashboard({ user }) {
                   )}
                 </div>
               )}
+            </div>
+          )}
+          {activeSection === 'import' && isAdmin && (
+            <div className="procurement-active-panel procurement-import-panel">
+              <div className="procurement-toolbar">
+                <h1 className="procurement-title">Імпорт заявок з Google Sheets</h1>
+              </div>
+              <p className="procurement-hint">
+                Міграція з таблиці «Замовлення Рудковському» — усі вкладки 2026 року. Кожен рядок (колонки A–I)
+                стає заявкою. <strong>Завершено</strong> (зелені) → архів; <strong>Заблоковано</strong> → активні
+                зі статусом «Заблоковано»; білі рядки та інші статуси → активні «Очікує розгляду». Повторний імпорт
+                пропускає вже імпортовані рядки.
+              </p>
+              <div className="procurement-import-form">
+                <label className="procurement-field">
+                  <span className="procurement-field-label">Назви вкладок (по одній на рядок)</span>
+                  <textarea
+                    className="procurement-import-textarea"
+                    rows={8}
+                    value={importSheetNames}
+                    onChange={(e) => setImportSheetNames(e.target.value)}
+                    disabled={importRunning}
+                    placeholder="2026 Січень"
+                  />
+                </label>
+                <label className="procurement-import-dryrun">
+                  <input
+                    type="checkbox"
+                    checked={importDryRun}
+                    onChange={(e) => setImportDryRun(e.target.checked)}
+                    disabled={importRunning}
+                  />
+                  <span>Пробний запуск (без запису в базу)</span>
+                </label>
+                <button
+                  type="button"
+                  className="procurement-btn-primary"
+                  onClick={() => void runGoogleSheetImport()}
+                  disabled={importRunning}
+                >
+                  {importRunning
+                    ? 'Імпорт…'
+                    : importDryRun
+                      ? 'Запустити пробний імпорт'
+                      : 'Імпортувати заявки'}
+                </button>
+              </div>
+              {importResult ? (
+                <div className="procurement-import-summary">
+                  <h2>Результат</h2>
+                  <ul>
+                    <li>
+                      Рядків у таблиці: <strong>{importResult.totalRows ?? 0}</strong>
+                    </li>
+                    <li>
+                      {importDryRun ? 'Буде імпортовано' : 'Імпортовано'}:{' '}
+                      <strong>{importResult.imported ?? 0}</strong>
+                    </li>
+                    <li>
+                      Пропущено (порожні): <strong>{importResult.skipped ?? 0}</strong>
+                    </li>
+                    <li>
+                      Пропущено (вже є): <strong>{importResult.skippedExisting ?? 0}</strong>
+                    </li>
+                  </ul>
+                  {importResult.byStatus ? (
+                    <div className="procurement-import-by-status">
+                      <h3>За статусами</h3>
+                      <ul>
+                        <li>
+                          Виконано (архів): <strong>{importResult.byStatus.completed ?? 0}</strong>
+                        </li>
+                        <li>
+                          Заблоковано: <strong>{importResult.byStatus.blocked ?? 0}</strong>
+                        </li>
+                        <li>
+                          Очікує розгляду: <strong>{importResult.byStatus.pending_review ?? 0}</strong>
+                        </li>
+                        <li>
+                          В роботі: <strong>{importResult.byStatus.in_progress ?? 0}</strong>
+                        </li>
+                        <li>
+                          На складі: <strong>{importResult.byStatus.awaiting_warehouse ?? 0}</strong>
+                        </li>
+                      </ul>
+                    </div>
+                  ) : null}
+                  {Array.isArray(importResult.sheets) && importResult.sheets.length > 0 ? (
+                    <table className="procurement-table procurement-import-sheets-table">
+                      <thead>
+                        <tr>
+                          <th>Вкладка</th>
+                          <th>Рядків</th>
+                          <th>Імпорт</th>
+                          <th>Пропуск</th>
+                          <th>Вже є</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importResult.sheets.map((s) => (
+                          <tr key={s.sheetName}>
+                            <td>{s.sheetName}</td>
+                            <td>{s.rows ?? 0}</td>
+                            <td>{s.imported ?? 0}</td>
+                            <td>{s.skipped ?? 0}</td>
+                            <td>{s.skippedExisting ?? 0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : null}
+                  {Array.isArray(importResult.errors) && importResult.errors.length > 0 ? (
+                    <div className="procurement-import-errors">
+                      <h3>Помилки</h3>
+                      <ul>
+                        {importResult.errors.map((err, idx) => (
+                          <li key={idx}>
+                            {err.sheetName ? `«${err.sheetName}»` : ''}
+                            {err.row ? ` рядок ${err.row}` : ''}: {err.error}
+                            {err.description ? ` — ${err.description}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           )}
           {activeSection === 'active' && (

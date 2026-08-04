@@ -255,6 +255,25 @@
   color: #2e7d32;
 }
 
+.procurement-status--blocked {
+  background: rgba(244, 67, 54, 0.15);
+  color: #c62828;
+}
+
+.procurement-import-by-status {
+  margin-top: 12px;
+}
+
+.procurement-import-by-status h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.procurement-import-by-status ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
 .procurement-btn-primary {
   padding: 8px 16px;
   border: none;
@@ -1162,6 +1181,63 @@
   margin: 0 0 12px;
   line-height: 1.5;
   max-width: 100%;
+}
+
+.procurement-import-panel .procurement-import-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+  margin-top: 16px;
+}
+
+.procurement-import-textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+.procurement-import-dryrun {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.procurement-import-summary {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt, rgba(0, 0, 0, 0.02));
+}
+
+.procurement-import-summary h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.procurement-import-summary ul {
+  margin: 0 0 16px;
+  padding-left: 20px;
+}
+
+.procurement-import-sheets-table {
+  margin-top: 12px;
+}
+
+.procurement-import-errors {
+  margin-top: 16px;
+  color: #b42318;
+}
+
+.procurement-import-errors ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
 }
 
 @media (max-width: 720px) {

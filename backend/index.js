@@ -65,6 +65,11 @@ const {
 } = require('./lib/marketingLeads');
 const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
 const {
+  importProcurementFromGoogleSheet,
+  DEFAULT_SPREADSHEET_ID,
+  DEFAULT_SHEET_NAMES_2026,
+} = require('./lib/procurementGoogleSheetImport');
+const {
   buildReceiptScope,
   listPendingMoveReceipts,
   countPendingMoveReceipts,
@@ -1994,6 +1999,8 @@ const procurementRequestSchema = new mongoose.Schema(
   {
     /** Унікальний номер для відображення, напр. VZ-00042 */
     requestNumber: { type: String, trim: true, sparse: true, unique: true },
+    /** Ключ зовнішнього імпорту (Google Sheets) — захист від дублікатів */
+    importSourceKey: { type: String, trim: true, sparse: true, unique: true },
     /** Повне / часткове надходження після завскладу */
     receiptOutcome: {
       type: String,
@@ -2018,7 +2025,7 @@ const procurementRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending_review', 'in_progress', 'awaiting_warehouse', 'partially_fulfilled', 'completed'],
+      enum: ['pending_review', 'in_progress', 'awaiting_warehouse', 'partially_fulfilled', 'completed', 'blocked'],
       default: 'pending_review'
     },
     requesterLogin: { type: String, required: true },
@@ -4123,6 +4130,53 @@ app.get('/api/procurement-requests/nomenclature-stock', async (req, res) => {
   } catch (error) {
     logPerformance('GET /api/procurement-requests/nomenclature-stock', startTime);
     console.error('[ERROR] nomenclature-stock:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/procurement-requests/import-google-sheet', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const role = String(req.user?.role || '').toLowerCase();
+    if (!['admin', 'administrator'].includes(role)) {
+      return res.status(403).json({ error: 'Імпорт доступний лише адміністратору' });
+    }
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const spreadsheetId = String(body.spreadsheetId || DEFAULT_SPREADSHEET_ID).trim();
+    let sheetNames = body.sheetNames;
+    if (typeof sheetNames === 'string') {
+      sheetNames = sheetNames
+        .split(/[\n,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    if (!Array.isArray(sheetNames) || !sheetNames.length) {
+      sheetNames = [...DEFAULT_SHEET_NAMES_2026];
+    }
+    const dryRun = body.dryRun === true || body.dryRun === 'true' || body.dryRun === 1;
+    const summary = await importProcurementFromGoogleSheet(
+      {
+        ProcurementRequest,
+        User,
+        ProcurementCounter,
+        getNextProcurementRequestNumber,
+        getUnitsOfMeasureList,
+      },
+      {
+        spreadsheetId,
+        sheetNames,
+        dryRun,
+        fallbackRequesterLogin: String(body.fallbackRequesterLogin || req.user.login || 'admin').trim(),
+        executorLogin: String(body.executorLogin || req.user.login || '').trim(),
+        executorName: String(body.executorName || req.user.name || 'Міграція Google Sheets').trim(),
+        skipExisting: body.skipExisting !== false && body.skipExisting !== 'false',
+      }
+    );
+    logPerformance('POST /api/procurement-requests/import-google-sheet', startTime, summary.imported);
+    res.json(summary);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/import-google-sheet', startTime);
+    console.error('[ERROR] import-google-sheet:', error);
     res.status(500).json({ error: error.message });
   }
 });
