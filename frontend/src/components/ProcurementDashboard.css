@@ -348,6 +348,103 @@
   width: 100%;
 }
 
+.procurement-modal--create-split {
+  max-width: min(1180px, 98vw);
+  width: 100%;
+  max-height: min(94vh, calc(100dvh - 24px));
+  display: flex;
+  flex-direction: column;
+}
+
+.procurement-modal-create-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.procurement-modal-create-form {
+  padding: 16px 18px 20px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  min-height: 0;
+}
+
+.procurement-modal-nomenclature-panel {
+  padding: 16px 18px 20px;
+  overflow-y: auto;
+  background: var(--background);
+  min-height: 0;
+}
+
+.procurement-nomenclature-panel-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.procurement-nomenclature-panel-name {
+  margin: 0 0 8px;
+  font-weight: 600;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.procurement-nomenclature-panel-total {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.procurement-nomenclature-panel-empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.procurement-nomenclature-stock-wrap {
+  overflow-x: auto;
+}
+
+.procurement-nomenclature-stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.procurement-nomenclature-stock-table th,
+.procurement-nomenclature-stock-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.procurement-nomenclature-stock-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.procurement-nomenclature-stock-table td:last-child,
+.procurement-nomenclature-stock-table th:last-child {
+  width: 88px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .procurement-modal-create-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .procurement-modal-create-form {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
 .procurement-modal-header {
   display: flex;
   align-items: center;

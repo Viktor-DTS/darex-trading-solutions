@@ -329,6 +329,14 @@ function ProcurementDashboard({ user }) {
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
+  const [nomenclatureStock, setNomenclatureStock] = useState({
+    label: '',
+    totalQuantity: 0,
+    warehouses: [],
+    loading: false,
+  });
+  const nomenclatureStockDebounceRef = useRef(null);
+  const nomenclatureStockRequestIdRef = useRef(0);
   const [procurementNotifUnreadCount, setProcurementNotifUnreadCount] = useState(0);
 
   const { units: uomList } = useUnitsOfMeasure();
@@ -463,7 +471,47 @@ function ProcurementDashboard({ user }) {
     });
     setNomenclatureHints([]);
     setHintsForRow(null);
+    if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
+    setNomenclatureStock({ label: '', totalQuantity: 0, warehouses: [], loading: false });
   };
+
+  const loadNomenclatureStock = useCallback(
+    (label, productId) => {
+      const name = String(label || '').trim();
+      if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
+      if (name.length < 2) {
+        setNomenclatureStock({ label: '', totalQuantity: 0, warehouses: [], loading: false });
+        return;
+      }
+      nomenclatureStockDebounceRef.current = setTimeout(async () => {
+        const requestId = ++nomenclatureStockRequestIdRef.current;
+        setNomenclatureStock((prev) => ({ ...prev, label: name, loading: true }));
+        try {
+          const q = new URLSearchParams({ name });
+          const pid = String(productId || '').trim();
+          if (pid) q.set('productId', pid);
+          const res = await fetch(`${API_BASE_URL}/procurement-requests/nomenclature-stock?${q}`, {
+            headers: authHeaders,
+          });
+          if (tryHandleUnauthorizedResponse(res)) return;
+          if (!res.ok) throw new Error('stock fetch failed');
+          const data = await res.json();
+          if (requestId !== nomenclatureStockRequestIdRef.current) return;
+          setNomenclatureStock({
+            label: data.label || name,
+            totalQuantity: Number(data.totalQuantity) || 0,
+            warehouses: Array.isArray(data.warehouses) ? data.warehouses : [],
+            loading: false,
+          });
+        } catch (e) {
+          console.error(e);
+          if (requestId !== nomenclatureStockRequestIdRef.current) return;
+          setNomenclatureStock({ label: name, totalQuantity: 0, warehouses: [], loading: false });
+        }
+      }, 280);
+    },
+    [authHeaders]
+  );
 
   const requestNomenclatureHints = useCallback(
     (rowIndex, query) => {
@@ -524,6 +572,7 @@ function ProcurementDashboard({ user }) {
     });
     setNomenclatureHints([]);
     setHintsForRow(null);
+    loadNomenclatureStock(hint.label, hint.id);
   };
 
   const handleCreateSubmit = async (e) => {
@@ -1234,7 +1283,7 @@ function ProcurementDashboard({ user }) {
 
       {createOpen && (
         <div className="procurement-modal-overlay" role="dialog" aria-modal="true">
-          <div className="procurement-modal procurement-modal--xlarge">
+          <div className="procurement-modal procurement-modal--create-split">
             <div className="procurement-modal-header">
               <h2>Нова заявка на закупівлю</h2>
               <button
@@ -1246,7 +1295,8 @@ function ProcurementDashboard({ user }) {
                 ×
               </button>
             </div>
-            <form onSubmit={handleCreateSubmit} className="procurement-modal-body">
+            <div className="procurement-modal-create-layout">
+              <form onSubmit={handleCreateSubmit} className="procurement-modal-create-form">
               <label className="procurement-field">
                 <span>Тип заявки *</span>
                 <select
@@ -1335,6 +1385,7 @@ function ProcurementDashboard({ user }) {
                         onFocus={() => {
                           if (String(row.name || '').trim().length >= 2) {
                             requestNomenclatureHints(idx, row.name);
+                            loadNomenclatureStock(row.name, row.productId);
                           }
                         }}
                         placeholder="Пошук з бази або вручну"
@@ -1346,6 +1397,8 @@ function ProcurementDashboard({ user }) {
                               <button
                                 type="button"
                                 className="procurement-hint-item"
+                                onMouseEnter={() => loadNomenclatureStock(h.label, h.id)}
+                                onFocus={() => loadNomenclatureStock(h.label, h.id)}
                                 onClick={() => pickNomenclatureHint(idx, h)}
                               >
                                 <span className="procurement-hint-label">{h.label}</span>
@@ -1434,7 +1487,50 @@ function ProcurementDashboard({ user }) {
                   {saving ? 'Збереження…' : 'Подати заявку'}
                 </button>
               </div>
-            </form>
+              </form>
+
+              <aside className="procurement-modal-nomenclature-panel" aria-label="Інформація по номенклатурі">
+                <h3 className="procurement-nomenclature-panel-title">Інформація по номенклатурі</h3>
+                {!nomenclatureStock.label ? (
+                  <p className="procurement-nomenclature-panel-empty">
+                    Наведіть на підказку або оберіть номенклатуру в списку, щоб переглянути залишки на складах.
+                  </p>
+                ) : nomenclatureStock.loading ? (
+                  <p className="procurement-nomenclature-panel-empty">Завантаження…</p>
+                ) : (
+                  <>
+                    <p className="procurement-nomenclature-panel-name">{nomenclatureStock.label}</p>
+                    {nomenclatureStock.totalQuantity > 0 ? (
+                      <>
+                        <p className="procurement-nomenclature-panel-total">
+                          Загалом: <strong>{nomenclatureStock.totalQuantity}</strong>
+                        </p>
+                        <div className="procurement-nomenclature-stock-wrap">
+                          <table className="procurement-nomenclature-stock-table">
+                            <thead>
+                              <tr>
+                                <th>Склад</th>
+                                <th>Кількість</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {nomenclatureStock.warehouses.map((w) => (
+                                <tr key={`${w.warehouseId}-${w.warehouseName}`}>
+                                  <td>{w.warehouseName}</td>
+                                  <td>{w.quantity}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="procurement-nomenclature-panel-empty">Залишків на складах не знайдено.</p>
+                    )}
+                  </>
+                )}
+              </aside>
+            </div>
           </div>
         </div>
       )}

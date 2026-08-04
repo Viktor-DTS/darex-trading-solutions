@@ -3837,6 +3837,57 @@ async function buildProcurementNomenclatureHints(query) {
   return out.slice(0, limit);
 }
 
+/** Залишки обраної номенклатури на складах (для панелі закупівель). */
+async function buildProcurementNomenclatureStock(name, productId) {
+  const label = String(name || '').trim();
+  if (!label) {
+    return { label: '', totalQuantity: 0, warehouses: [] };
+  }
+
+  const match = {
+    isDeleted: { $ne: true },
+    status: { $in: ['in_stock', 'reserved'] },
+  };
+
+  const pid = String(productId || '').trim();
+  if (pid && mongoose.isValidObjectId(pid)) {
+    const oid = new mongoose.Types.ObjectId(pid);
+    const typeRx = new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i');
+    match.$or = [
+      { productId: oid },
+      { productId: null, type: typeRx },
+      { productId: { $exists: false }, type: typeRx },
+    ];
+  } else {
+    match.type = new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i');
+  }
+
+  const rows = await Equipment.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: {
+          warehouseId: '$currentWarehouse',
+          warehouseName: '$currentWarehouseName',
+        },
+        quantity: { $sum: { $ifNull: ['$quantity', 1] } },
+      },
+    },
+    { $sort: { quantity: -1, '_id.warehouseName': 1 } },
+  ]);
+
+  const warehouses = rows
+    .map((r) => ({
+      warehouseId: r._id?.warehouseId ? String(r._id.warehouseId) : '',
+      warehouseName: String(r._id?.warehouseName || r._id?.warehouseId || '—').trim() || '—',
+      quantity: Number(r.quantity) || 0,
+    }))
+    .filter((w) => w.quantity > 0);
+
+  const totalQuantity = warehouses.reduce((sum, w) => sum + w.quantity, 0);
+  return { label, totalQuantity, warehouses };
+}
+
 function normalizeProcurementEdrpouDigits(input) {
   return String(input || '').replace(/\D/g, '');
 }
@@ -4053,6 +4104,25 @@ app.get('/api/procurement-requests/nomenclature-hints', async (req, res) => {
   } catch (error) {
     logPerformance('GET /api/procurement-requests/nomenclature-hints', startTime);
     console.error('[ERROR] nomenclature-hints:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/procurement-requests/nomenclature-stock', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const name = String(req.query.name || req.query.label || '').trim();
+    const productId = String(req.query.productId || req.query.id || '').trim();
+    if (name.length < 2) {
+      logPerformance('GET /api/procurement-requests/nomenclature-stock', startTime, 0);
+      return res.json({ label: name, totalQuantity: 0, warehouses: [] });
+    }
+    const out = await buildProcurementNomenclatureStock(name, productId);
+    logPerformance('GET /api/procurement-requests/nomenclature-stock', startTime, out.warehouses.length);
+    res.json(out);
+  } catch (error) {
+    logPerformance('GET /api/procurement-requests/nomenclature-stock', startTime);
+    console.error('[ERROR] nomenclature-stock:', error);
     res.status(500).json({ error: error.message });
   }
 });
