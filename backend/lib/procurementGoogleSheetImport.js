@@ -96,8 +96,6 @@ function mapStatus(label) {
   const s = String(label || '').trim().toLowerCase();
   if (s.includes('заверш')) return 'completed';
   if (s.includes('заблок')) return 'blocked';
-  if (s.includes('в робот') || s.includes('робот')) return 'in_progress';
-  if (s.includes('склад') || s.includes('відвантаж') || s.includes('очіку')) return 'awaiting_warehouse';
   return 'pending_review';
 }
 
@@ -162,7 +160,10 @@ function mapRowToProcurementDoc(row, ctx) {
   const description = row.description;
   if (!description) return null;
 
-  const status = mapStatus(row.statusLabel);
+  let status = mapStatus(row.statusLabel);
+  if (status === 'awaiting_warehouse' || status === 'in_progress') {
+    status = 'pending_review';
+  }
   const qty = parseQuantityFromText(`${description} ${row.notes}`);
   const importSourceKey = `gsheet:${spreadsheetId}:${sheetName}:${rowIndex + 2}:${normalizeNameKey(description).slice(0, 120)}`;
 

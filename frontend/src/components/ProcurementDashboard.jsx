@@ -98,6 +98,10 @@ function applicationKindLabel(row) {
   return '—';
 }
 
+function isImportedProcurementRequest(row) {
+  return Boolean(String(row?.importSourceKey || '').trim());
+}
+
 function formatDt(iso) {
   if (!iso) return '—';
   try {
@@ -663,12 +667,13 @@ function ProcurementDashboard({ user }) {
       alert('Оберіть тип заявки');
       return;
     }
-    if (!createForm.payerCompany) {
+    const isPriceDetermination = createForm.applicationKind === 'price_determination';
+    if (!isPriceDetermination && !createForm.payerCompany) {
       alert('Оберіть компанію платника');
       return;
     }
     const dw = String(createForm.desiredWarehouse || '').trim();
-    if (!dw) {
+    if (!isPriceDetermination && !dw) {
       alert('Оберіть бажаний склад відвантаження');
       return;
     }
@@ -685,7 +690,9 @@ function ProcurementDashboard({ user }) {
     try {
       const fd = new FormData();
       fd.append('applicationKind', createForm.applicationKind);
-      fd.append('payerCompany', createForm.payerCompany);
+      if (createForm.payerCompany) {
+        fd.append('payerCompany', createForm.payerCompany);
+      }
       fd.append('priority', createForm.priority);
       fd.append('desiredWarehouse', dw);
       fd.append('notes', String(createForm.notes || '').trim());
@@ -1262,6 +1269,8 @@ function ProcurementDashboard({ user }) {
     }
   }, [authHeaders, importDryRun, importSheetNames, loadRequests]);
 
+  const isPriceDeterminationCreate = createForm.applicationKind === 'price_determination';
+
   return (
     <div className="procurement-dashboard">
       <div className="procurement-dashboard-main">
@@ -1578,14 +1587,14 @@ function ProcurementDashboard({ user }) {
                 </select>
               </label>
               <label className="procurement-field">
-                <span>Компанія платник *</span>
+                <span>Компанія платник{isPriceDeterminationCreate ? '' : ' *'}</span>
                 <select
-                  required
+                  required={!isPriceDeterminationCreate}
                   value={createForm.payerCompany}
                   onChange={(e) => setCreateForm({ ...createForm, payerCompany: e.target.value })}
                 >
-                  <option value="" disabled>
-                    — Оберіть компанію —
+                  <option value="" disabled={!isPriceDeterminationCreate}>
+                    {isPriceDeterminationCreate ? '— Не обрано —' : '— Оберіть компанію —'}
                   </option>
                   {PAYER_COMPANY_OPTIONS.map((p) => (
                     <option key={p.value} value={p.value}>
@@ -1608,14 +1617,14 @@ function ProcurementDashboard({ user }) {
                 </select>
               </label>
               <label className="procurement-field">
-                <span>Бажаний склад відвантаження *</span>
+                <span>Бажаний склад відвантаження{isPriceDeterminationCreate ? '' : ' *'}</span>
                 <select
-                  required
+                  required={!isPriceDeterminationCreate}
                   value={createForm.desiredWarehouse}
                   onChange={(e) => setCreateForm({ ...createForm, desiredWarehouse: e.target.value })}
                 >
-                  <option value="" disabled>
-                    — Оберіть склад —
+                  <option value="" disabled={!isPriceDeterminationCreate}>
+                    {isPriceDeterminationCreate ? '— Не обрано —' : '— Оберіть склад —'}
                   </option>
                   {warehouseOptions.map((w) => (
                     <option key={w.value} value={w.label}>
@@ -1837,6 +1846,14 @@ function ProcurementDashboard({ user }) {
                   <span className="procurement-detail-v">
                     {detail.blockedByName || detail.blockedByLogin || '—'}
                     {detail.blockedAt ? ` · ${formatDt(detail.blockedAt)}` : ''}
+                  </span>
+                </div>
+              ) : null}
+              {isImportedProcurementRequest(detail) ? (
+                <div className="procurement-detail-row">
+                  <span className="procurement-detail-k">Джерело</span>
+                  <span className="procurement-detail-v procurement-detail-import-note">
+                    Імпортована з Google Sheets — підтвердження регіональним складом не потрібне.
                   </span>
                 </div>
               ) : null}
@@ -2549,11 +2566,15 @@ function ProcurementDashboard({ user }) {
                       disabled={saving}
                       onClick={() => completeExecutor(detail._id)}
                     >
-                      Підтвердити відвантаження (завершити етап закупівель)
+                      {isImportedProcurementRequest(detail)
+                        ? 'Закрити заявку (без підтвердження складом)'
+                        : 'Підтвердити відвантаження (завершити етап закупівель)'}
                     </button>
                   </div>
                 )}
-                {detail.status === 'awaiting_warehouse' && isWarehouseConfirmer && (
+                {detail.status === 'awaiting_warehouse' &&
+                  isWarehouseConfirmer &&
+                  !isImportedProcurementRequest(detail) && (
                   <p className="procurement-field-hint" style={{ marginTop: 12 }}>
                     Підтвердження фактичної кількості прийому робить <strong>завсклад</strong> у розділі{' '}
                     <strong>Складський облік → Затвердження отримання товару</strong> (блок «Надходження від

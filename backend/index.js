@@ -2358,6 +2358,7 @@ function procurementReceiptAwaitingThisUserAction(reqUser, names, pr) {
 
 async function notifyWarehouseStaffProcurementIncoming(pr) {
   try {
+    if (isImportedProcurementRequest(pr)) return;
     const whSet = new Set();
     for (const line of pr.materials || []) {
       if (!procurementLineNeedsShipmentWarehouse(line)) continue;
@@ -3752,6 +3753,51 @@ const PROCUREMENT_BLOCKABLE_STATUSES = [
   'partially_fulfilled',
 ];
 
+/** Заявка імпортована з Google Sheets — без підтвердження регіональним складом. */
+function isImportedProcurementRequest(pr) {
+  return Boolean(String(pr?.importSourceKey || '').trim());
+}
+
+/** MongoDB-фільтр: лише заявки, створені в системі (не імпорт). */
+function procurementNotImportedMongoFilter() {
+  return {
+    $or: [{ importSourceKey: { $exists: false } }, { importSourceKey: null }, { importSourceKey: '' }],
+  };
+}
+
+/** Закрити імпортовану заявку без етапу «завсклад підтвердив прийом». */
+function applyImportedProcurementClosedWithoutWarehouse(pr, at = new Date()) {
+  pr.status = 'completed';
+  pr.receiptOutcome = 'full';
+  pr.warehouseReceivedAt = pr.warehouseReceivedAt || at;
+  for (const line of pr.materials || []) {
+    if (!line || line.rejected) continue;
+    const exp = expectedQtyForProcurementMaterialLine(line);
+    if (exp != null && exp > 0 && (line.receivedQuantity == null || line.receivedQuantity === '')) {
+      line.receivedQuantity = exp;
+    }
+  }
+  pr.markModified('materials');
+}
+
+/** Виправити імпортовані заявки, що зависли в очікуванні складу. */
+async function repairImportedProcurementStuckAwaitingWarehouse() {
+  try {
+    const stuck = await ProcurementRequest.find({
+      status: { $in: ['awaiting_warehouse', 'partially_fulfilled'] },
+      importSourceKey: { $exists: true, $nin: [null, ''] },
+    }).limit(500);
+    for (const pr of stuck) {
+      applyImportedProcurementClosedWithoutWarehouse(pr);
+      await pr.save();
+    }
+    return stuck.length;
+  } catch (e) {
+    console.error('[procurement] repairImportedProcurementStuckAwaitingWarehouse:', e.message);
+    return 0;
+  }
+}
+
 function procurementExecutorCanEditWork(status) {
   return PROCUREMENT_EXECUTOR_WORK_STATUSES.includes(status);
 }
@@ -4196,6 +4242,9 @@ app.post('/api/procurement-requests/import-google-sheet', async (req, res) => {
 app.get('/api/procurement-requests', async (req, res) => {
   const startTime = Date.now();
   try {
+    if (isVidZakupokProcurementRole(req.user.role)) {
+      await repairImportedProcurementStuckAwaitingWarehouse();
+    }
     const login = String(req.user.login || '').trim();
     const q = {};
     if (!isVidZakupokProcurementRole(req.user.role)) {
@@ -4308,11 +4357,16 @@ app.post(
       if (!applicationKind || !PROCUREMENT_APPLICATION_KINDS.includes(applicationKind)) {
         return res.status(400).json({ error: 'Оберіть тип заявки: Закупівля або Визначення ціни' });
       }
-      if (!payerCompany || !PROCUREMENT_PAYER_COMPANIES.includes(payerCompany)) {
-        return res.status(400).json({ error: 'Оберіть компанію платника (ДТС або Дарекс Енерго)' });
-      }
-      if (!desiredWarehouse) {
-        return res.status(400).json({ error: 'Оберіть бажаний склад відвантаження' });
+      const isPriceDetermination = applicationKind === 'price_determination';
+      if (!isPriceDetermination) {
+        if (!payerCompany || !PROCUREMENT_PAYER_COMPANIES.includes(payerCompany)) {
+          return res.status(400).json({ error: 'Оберіть компанію платника (ДТС або Дарекс Енерго)' });
+        }
+        if (!desiredWarehouse) {
+          return res.status(400).json({ error: 'Оберіть бажаний склад відвантаження' });
+        }
+      } else if (payerCompany && !PROCUREMENT_PAYER_COMPANIES.includes(payerCompany)) {
+        return res.status(400).json({ error: 'Некоректна компанія платника (ДТС або Дарекс Енерго)' });
       }
       const allowedP = ['1_workday', '5_workdays', '7_workdays', 'more_than_7_workdays'];
       if (!allowedP.includes(priority)) {
@@ -4362,20 +4416,23 @@ app.post(
         data: f.buffer
       }));
       const requestNumber = await getNextProcurementRequestNumber();
-      const doc = await ProcurementRequest.create({
+      const createPayload = {
         requestNumber,
         receiptOutcome: 'pending',
         applicationKind,
         description: '',
-        payerCompany,
         priority,
-        desiredWarehouse,
+        desiredWarehouse: desiredWarehouse || '',
         notes: notes.slice(0, 50000),
         materials,
         requesterLogin: req.user.login,
         requesterName: String(dbUser?.name || req.user.name || req.user.login).trim(),
         attachments
-      });
+      };
+      if (payerCompany) {
+        createPayload.payerCompany = payerCompany;
+      }
+      const doc = await ProcurementRequest.create(createPayload);
       const out = await ProcurementRequest.findById(doc._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
       stripProcurementLineBinaryFields(out);
       await notifyVidZakupokNewProcurementRequest(out);
@@ -4638,6 +4695,17 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     pr.executorCompletedAt = new Date();
     pr.executorLogin = req.user.login;
     pr.executorName = String(dbUser?.name || req.user.name || req.user.login).trim();
+    if (isImportedProcurementRequest(pr)) {
+      applyImportedProcurementClosedWithoutWarehouse(pr, pr.executorCompletedAt);
+      pr.markModified('materials');
+      await pr.save();
+      const outImported = await ProcurementRequest.findById(pr._id)
+        .select(PROCUREMENT_DOC_LIST_PROJECTION)
+        .lean();
+      stripProcurementLineBinaryFields(outImported);
+      logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
+      return res.json(outImported);
+    }
     pr.status = 'awaiting_warehouse';
     pr.receiptOutcome = 'pending';
     pr.markModified('materials');
@@ -4665,6 +4733,7 @@ app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req,
     }
     const candidates = await ProcurementRequest.find({
       status: 'awaiting_warehouse',
+      ...procurementNotImportedMongoFilter(),
       $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
     })
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
@@ -4689,6 +4758,7 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
     }
     const rowsAll = await ProcurementRequest.find({
       status: 'awaiting_warehouse',
+      ...procurementNotImportedMongoFilter(),
       $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
     })
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
@@ -4875,6 +4945,11 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     }
     const pr = await ProcurementRequest.findById(req.params.id);
     if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (isImportedProcurementRequest(pr)) {
+      return res.status(400).json({
+        error: 'Імпортовані заявки закриваються без підтвердження складом',
+      });
+    }
     if (pr.status !== 'awaiting_warehouse') {
       return res.status(400).json({
         error: 'Прийом доступний лише для статусу «Чекає відвантаження на склад»'
@@ -5113,6 +5188,11 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
     }
     const pr = await ProcurementRequest.findById(req.params.id);
     if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (isImportedProcurementRequest(pr)) {
+      return res.status(400).json({
+        error: 'Імпортовані заявки закриваються без підтвердження складом',
+      });
+    }
     if (pr.status !== 'awaiting_warehouse') {
       return res.status(400).json({
         error: 'Підтвердження складу доступне лише для статусу «Чекає відвантаження на склад»'

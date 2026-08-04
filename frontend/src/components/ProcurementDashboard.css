@@ -615,6 +615,12 @@
   font-size: 13px;
 }
 
+.procurement-detail-import-note {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .procurement-detail-actions {
   display: flex;
   flex-wrap: wrap;
