@@ -55,17 +55,42 @@ export function createEstimateLine({ id, name, quantity = 1, unit = 'послу�
   };
 }
 
-export function buildWorkLineFromSpec(category, item, powerTierId, spec) {
+export function isSpecTransportKmItem(item) {
+  if (!item) return false;
+  const field = String(item.quantityFromTask || '').trim();
+  if (field === 'transportKm') return true;
+  const code = String(item.code || '').trim().toUpperCase();
+  if (code === 'PPL-TRNS-DRX') return true;
+  const unit = String(item.unit || '').trim().toLowerCase();
+  return unit === 'км' && /TRNS|TRANSPORT/i.test(code);
+}
+
+export function isWorkLineTransportKm(line) {
+  if (!line) return false;
+  const id = String(line.specItemId || line.id || '').toUpperCase();
+  if (id.includes('PPL-TRNS-DRX')) return true;
+  const unit = String(line.unit || '').trim().toLowerCase();
+  return line.source === 'spec' && unit === 'км' && /TRNS/i.test(id);
+}
+
+export function getSpecItemQuantityFromTask(item, task) {
+  if (!isSpecTransportKmItem(item) || !task) return 1;
+  const km = parseNumber(task.transportKm);
+  return km > 0 ? km : 1;
+}
+
+export function buildWorkLineFromSpec(category, item, powerTierId, spec, task) {
   const price = getSpecItemPrice(item, powerTierId, spec);
   if (price == null) return null;
   return createEstimateLine({
     id: item.id,
     name: formatSpecItemDisplayName(category.title, item),
-    quantity: 1,
+    quantity: getSpecItemQuantityFromTask(item, task),
     unit: item.unit || 'послуга',
     unitPrice: price,
     source: 'spec',
     specItemId: item.id,
+    specItemCode: item.code,
     categoryId: category.id,
   });
 }

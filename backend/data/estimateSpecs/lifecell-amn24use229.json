@@ -49,6 +49,7 @@
           "code": "PPL-TRNS-DRX",
           "label": "Транспорт Дарекс у 2 сторони для робіт з ДГУ",
           "unit": "км",
+          "quantityFromTask": "transportKm",
           "prices": {
             "standard": 15,
             "unavailable": false

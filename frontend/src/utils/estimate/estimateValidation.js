@@ -1,4 +1,4 @@
-import { parseNumber, roundMoney, sumLines } from './estimatePrefill';
+import { isWorkLineTransportKm, parseNumber, roundMoney, sumLines } from './estimatePrefill';
 
 export function buildValidation(task, workLines, lowerLines, calculations = {}) {
   const worksTotal = sumLines(workLines);
@@ -42,6 +42,13 @@ export function buildTaskPatchFromEstimate(workLines, lowerLines, validation) {
     if (line.source === 'task-per-diem') patch.perDiem = roundMoney(line.total);
     if (line.source === 'task-living') patch.living = roundMoney(line.total);
     if (line.source === 'task-other-exp') patch.otherExp = roundMoney(line.total);
+  });
+
+  workLines.forEach((line) => {
+    if (isWorkLineTransportKm(line)) {
+      patch.transportKm = parseNumber(line.quantity);
+      patch.transportSum = roundMoney(line.total);
+    }
   });
 
   return patch;

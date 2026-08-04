@@ -229,10 +229,10 @@ function EstimateBuilderModal({
     const selected = selectableItems.filter(({ item }) => selectedSpecIds.includes(item.id));
     setWorkLines(
       selected
-        .map(({ category, item }) => buildWorkLineFromSpec(category, item, powerTier, spec))
+        .map(({ category, item }) => buildWorkLineFromSpec(category, item, powerTier, spec, task))
         .filter(Boolean)
     );
-  }, [powerTier, selectedSpecIds, selectableItems, spec]);
+  }, [powerTier, selectedSpecIds, selectableItems, spec, task?.transportKm]);
 
   const toggleSpecItem = (itemId) => {
     setSelectedSpecIds((prev) =>
