@@ -1,18 +1,18 @@
 import { formatUkDateFromIso, roundMoney, splitLowerLinesForExport } from './estimatePrefill';
 import { formatSpecItemDisplayName } from './estimateSpecRegistry';
 
-const KYIV_ROWS = {
+const KYIV_LAYOUT = {
   estimateNumber: { row: 7, col: 5 },
   estimateDate: { row: 8, col: 5 },
-  equipment: { row: 9, col: 4 },
-  siteId: { row: 10, col: 4 },
-  client: { row: 11, col: 4 },
-  address: { row: 12, col: 4 },
-  workDataRow: 15,
-  defaultWorkRows: 6,
+  equipment: { row: 9, col: 3 },
+  siteId: { row: 10, col: 3 },
+  client: { row: 11, col: 3 },
+  address: { row: 12, col: 3 },
+  workDataStart: 15,
+  workDefaultRows: 6,
   workVatRow: 21,
-  materialsDataRow: 25,
-  defaultMaterialRows: 7,
+  materialsDataStart: 25,
+  materialsDefaultRows: 7,
   materialsSubtotalRow: 32,
   signatureRow: 35,
 };
@@ -32,7 +32,7 @@ function setCell(row, col, value) {
 function captureRowTemplate(ws, rowNumber) {
   const row = ws.getRow(rowNumber);
   const cells = [];
-  for (let c = 1; c <= 8; c += 1) {
+  for (let c = 1; c <= 7; c += 1) {
     const cell = row.getCell(c);
     cells.push({
       value: cell.value,
@@ -74,17 +74,6 @@ function cloneRowStyle(ws, sourceRowNumber, targetRowNumber) {
   applyRowTemplate(ws, targetRowNumber, captureRowTemplate(ws, sourceRowNumber));
 }
 
-function fillLineRow(ws, rowNumber, index, line) {
-  const row = ws.getRow(rowNumber);
-  setCell(row, 2, index);
-  setCell(row, 3, line.name);
-  setCell(row, 4, line.quantity);
-  setCell(row, 5, line.unit);
-  setCell(row, 6, line.unitPrice);
-  setCell(row, 7, roundMoney(line.total));
-  row.commit?.();
-}
-
 function adjustTableRows(ws, { startRow, defaultRows, footerRowInitial, lines }) {
   const rowDelta = lines.length - defaultRows;
   if (rowDelta > 0) {
@@ -96,6 +85,17 @@ function adjustTableRows(ws, { startRow, defaultRows, footerRowInitial, lines })
     ws.spliceRows(startRow + lines.length, -rowDelta);
   }
   return footerRowInitial + rowDelta;
+}
+
+function fillLineRow(ws, rowNumber, index, line) {
+  const row = ws.getRow(rowNumber);
+  setCell(row, 1, index);
+  setCell(row, 2, line.name);
+  setCell(row, 3, line.quantity);
+  setCell(row, 4, line.unit);
+  setCell(row, 5, line.unitPrice);
+  setCell(row, 6, roundMoney(line.total));
+  row.commit?.();
 }
 
 function filterNamedLines(lines) {
@@ -121,18 +121,23 @@ function enrichWorkLinesFromSpec(workLines, spec) {
   });
 }
 
-function trimWorksheetAfterRow(ws, lastRow) {
-  while (ws.rowCount > lastRow) {
-    ws.spliceRows(lastRow + 1, 1);
-  }
-}
-
-function setKyivWorksTotals(ws, vatRow, totalRow, totalWithVat) {
+function setKyivSectionTotals(ws, { vatRow, totalRow, totalWithVat }) {
   const total = roundMoney(totalWithVat);
   const vat = roundMoney(total / 6);
-  setCell(ws.getRow(vatRow), 5, 'ПДВ 20%');
-  setCell(ws.getRow(vatRow), 6, vat);
-  setCell(ws.getRow(totalRow), 7, total);
+  const vatRowObj = ws.getRow(vatRow);
+  const totalRowObj = ws.getRow(totalRow);
+  setCell(vatRowObj, 5, 'ПДВ 20%');
+  setCell(vatRowObj, 6, vat);
+  setCell(totalRowObj, 6, total);
+  vatRowObj.commit?.();
+  totalRowObj.commit?.();
+}
+
+function setGrandTotals(ws, { grandVatRow, grandTotalRow, combinedTotal }) {
+  const total = roundMoney(combinedTotal);
+  const vat = roundMoney(total / 6);
+  setCell(ws.getRow(grandVatRow), 6, vat);
+  setCell(ws.getRow(grandTotalRow), 6, total);
 }
 
 export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLines, spec }) {
@@ -149,53 +154,68 @@ export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLi
   const { materialLines } = splitLowerLinesForExport(lowerLines || []);
   const validMaterialLines = filterNamedLines(materialLines);
 
-  setCell(ws.getRow(KYIV_ROWS.estimateNumber.row), KYIV_ROWS.estimateNumber.col, String(task.requestNumber || '').trim());
+  setCell(ws.getRow(KYIV_LAYOUT.estimateNumber.row), KYIV_LAYOUT.estimateNumber.col, String(task.requestNumber || '').trim());
   setCell(
-    ws.getRow(KYIV_ROWS.estimateDate.row),
-    KYIV_ROWS.estimateDate.col,
+    ws.getRow(KYIV_LAYOUT.estimateDate.row),
+    KYIV_LAYOUT.estimateDate.col,
     formatUkDateFromIso(task.date || task.requestDate || new Date().toISOString().slice(0, 10))
   );
-  setCell(ws.getRow(KYIV_ROWS.equipment.row), KYIV_ROWS.equipment.col, String(task.equipment || '').trim());
+  setCell(ws.getRow(KYIV_LAYOUT.equipment.row), KYIV_LAYOUT.equipment.col, String(task.equipment || '').trim());
   setCell(
-    ws.getRow(KYIV_ROWS.siteId.row),
-    KYIV_ROWS.siteId.col,
+    ws.getRow(KYIV_LAYOUT.siteId.row),
+    KYIV_LAYOUT.siteId.col,
     String(task.customerEquipmentNumber || task.siteId || '').trim()
   );
-  setCell(ws.getRow(KYIV_ROWS.client.row), KYIV_ROWS.client.col, String(task.client || '').trim());
-  setCell(ws.getRow(KYIV_ROWS.address.row), KYIV_ROWS.address.col, String(task.address || '').trim());
+  setCell(ws.getRow(KYIV_LAYOUT.client.row), KYIV_LAYOUT.client.col, String(task.client || '').trim());
+  setCell(ws.getRow(KYIV_LAYOUT.address.row), KYIV_LAYOUT.address.col, String(task.address || '').trim());
 
-  const workFooterRow = adjustTableRows(ws, {
-    startRow: KYIV_ROWS.workDataRow,
-    defaultRows: KYIV_ROWS.defaultWorkRows,
-    footerRowInitial: KYIV_ROWS.workVatRow,
+  const workRowDelta = validWorkLines.length - KYIV_LAYOUT.workDefaultRows;
+
+  const workVatRow = adjustTableRows(ws, {
+    startRow: KYIV_LAYOUT.workDataStart,
+    defaultRows: KYIV_LAYOUT.workDefaultRows,
+    footerRowInitial: KYIV_LAYOUT.workVatRow,
     lines: validWorkLines,
   });
+  const workTotalRow = workVatRow + 1;
 
-  validWorkLines.forEach((line, idx) => fillLineRow(ws, KYIV_ROWS.workDataRow + idx, idx + 1, line));
+  validWorkLines.forEach((line, idx) => {
+    fillLineRow(ws, KYIV_LAYOUT.workDataStart + idx, idx + 1, line);
+  });
 
   const worksTotal = roundMoney(validWorkLines.reduce((s, l) => s + Number(l.total || 0), 0));
-  setKyivWorksTotals(ws, workFooterRow, workFooterRow + 1, worksTotal);
+  setKyivSectionTotals(ws, { vatRow: workVatRow, totalRow: workTotalRow, totalWithVat: worksTotal });
 
-  const materialsFooterRow = adjustTableRows(ws, {
-    startRow: KYIV_ROWS.materialsDataRow,
-    defaultRows: KYIV_ROWS.defaultMaterialRows,
-    footerRowInitial: KYIV_ROWS.materialsSubtotalRow,
+  const materialsDataStart = KYIV_LAYOUT.materialsDataStart + workRowDelta;
+  const materialsSubtotalInitial = KYIV_LAYOUT.materialsSubtotalRow + workRowDelta;
+
+  const materialsSubtotalRow = adjustTableRows(ws, {
+    startRow: materialsDataStart,
+    defaultRows: KYIV_LAYOUT.materialsDefaultRows,
+    footerRowInitial: materialsSubtotalInitial,
     lines: validMaterialLines,
   });
 
   validMaterialLines.forEach((line, idx) => {
-    fillLineRow(ws, KYIV_ROWS.materialsDataRow + idx, idx + 1, line);
+    fillLineRow(ws, materialsDataStart + idx, idx + 1, line);
   });
 
   const materialsTotal = roundMoney(validMaterialLines.reduce((s, l) => s + Number(l.total || 0), 0));
-  setCell(ws.getRow(materialsFooterRow), 7, materialsTotal);
+  setCell(ws.getRow(materialsSubtotalRow), 6, materialsTotal);
 
-  const combinedTotal = roundMoney(worksTotal + materialsTotal);
-  const combinedVat = roundMoney(combinedTotal / 6);
-  setCell(ws.getRow(materialsFooterRow + 1), 7, combinedVat);
-  setCell(ws.getRow(materialsFooterRow + 2), 7, combinedTotal);
+  const grandVatRow = materialsSubtotalRow + 1;
+  const grandTotalRow = materialsSubtotalRow + 2;
+  const signatureRow = materialsSubtotalRow + 3;
 
-  trimWorksheetAfterRow(ws, KYIV_ROWS.signatureRow);
+  setGrandTotals(ws, {
+    grandVatRow,
+    grandTotalRow,
+    combinedTotal: roundMoney(worksTotal + materialsTotal),
+  });
+
+  while (ws.rowCount > signatureRow) {
+    ws.spliceRows(signatureRow + 1, 1);
+  }
 
   const outBuffer = await workbook.xlsx.writeBuffer();
   return new Blob([outBuffer], {
