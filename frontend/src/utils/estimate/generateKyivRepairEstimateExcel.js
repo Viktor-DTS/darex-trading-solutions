@@ -4,17 +4,24 @@ import { formatSpecItemDisplayName } from './estimateSpecRegistry';
 const KYIV_LAYOUT = {
   estimateNumber: { row: 7, col: 5 },
   estimateDate: { row: 8, col: 5 },
-  equipment: { row: 9, col: 3 },
-  siteId: { row: 10, col: 3 },
-  client: { row: 11, col: 3 },
-  address: { row: 12, col: 3 },
+  equipment: { row: 9, col: 3, mergeEnd: 6 },
+  siteId: { row: 10, col: 3, mergeEnd: 6 },
+  client: { row: 11, col: 3, mergeEnd: 6 },
+  address: { row: 12, col: 3, mergeEnd: 6 },
   workDataStart: 15,
   workDefaultRows: 6,
   workVatRow: 21,
   materialsDataStart: 25,
   materialsDefaultRows: 7,
   materialsSubtotalRow: 32,
-  signatureRow: 35,
+};
+
+const KYIV_LABELS = {
+  workTotal: 'Разом з ПДВ, загальна сума, грн. :',
+  materialsTitle: '2. Матеріали та запасні частини',
+  materialsSubtotal: 'Разом матеріали та запасні частини  з ПДВ.:',
+  grandVat: 'Загальна сума ПДВ, грн. :',
+  grandTotal: 'Разом,  роботи та матеріали з ПДВ,грн. :',
 };
 
 function resolveTemplateUrl(spec) {
@@ -27,6 +34,70 @@ function resolveTemplateUrl(spec) {
 
 function setCell(row, col, value) {
   row.getCell(col).value = value;
+}
+
+function parseMergeRef(mergeRef) {
+  const match = String(mergeRef || '').match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+  if (!match) return null;
+  const colToNum = (letters) =>
+    letters.split('').reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0);
+  return {
+    top: Number(match[2]),
+    left: colToNum(match[1]),
+    bottom: Number(match[4]),
+    right: colToNum(match[3]),
+  };
+}
+
+function unmergeOverlappingRow(ws, rowNumber, colStart, colEnd) {
+  for (const mergeRef of [...(ws.model.merges || [])]) {
+    const range = parseMergeRef(mergeRef);
+    if (!range) continue;
+    const overlapsRow = rowNumber >= range.top && rowNumber <= range.bottom;
+    const overlapsCol = !(colEnd < range.left || colStart > range.right);
+    if (overlapsRow && overlapsCol) ws.unMergeCells(mergeRef);
+  }
+}
+
+function setMergedCell(ws, rowNumber, colStart, colEnd, value, alignment = {}) {
+  unmergeOverlappingRow(ws, rowNumber, colStart, colEnd);
+  const row = ws.getRow(rowNumber);
+  for (let col = colStart; col <= colEnd; col += 1) {
+    row.getCell(col).value = null;
+  }
+  const cell = row.getCell(colStart);
+  cell.value = value;
+  if (colEnd > colStart) ws.mergeCells(rowNumber, colStart, rowNumber, colEnd);
+  cell.alignment = {
+    vertical: 'middle',
+    wrapText: true,
+    ...alignment,
+  };
+  row.commit?.();
+}
+
+function estimateWrappedLines(text, charsPerLine = 58) {
+  return String(text || '')
+    .split('\n')
+    .reduce((sum, part) => sum + Math.max(1, Math.ceil(part.length / charsPerLine)), 0);
+}
+
+function autoFitRowHeight(ws, rowNumber, { textCol = 2, minHeight = 15, lineHeight = 15, charsPerLine = 58 } = {}) {
+  const row = ws.getRow(rowNumber);
+  const cell = row.getCell(textCol);
+  const text = cell.value == null ? '' : String(cell.value);
+  cell.alignment = {
+    ...(cell.alignment || {}),
+    wrapText: true,
+    vertical: 'top',
+  };
+  const lines = estimateWrappedLines(text, charsPerLine);
+  row.height = Math.max(minHeight, lines * lineHeight);
+  row.commit?.();
+}
+
+function autoFitTableRows(ws, rowNumbers, options = {}) {
+  rowNumbers.forEach((rowNumber) => autoFitRowHeight(ws, rowNumber, options));
 }
 
 function captureRowTemplate(ws, rowNumber) {
@@ -90,12 +161,37 @@ function adjustTableRows(ws, { startRow, defaultRows, footerRowInitial, lines })
 function fillLineRow(ws, rowNumber, index, line) {
   const row = ws.getRow(rowNumber);
   setCell(row, 1, index);
-  setCell(row, 2, line.name);
+  const nameCell = row.getCell(2);
+  nameCell.value = line.name;
+  nameCell.alignment = { ...(nameCell.alignment || {}), wrapText: true, vertical: 'top' };
   setCell(row, 3, line.quantity);
   setCell(row, 4, line.unit);
   setCell(row, 5, line.unitPrice);
   setCell(row, 6, roundMoney(line.total));
   row.commit?.();
+}
+
+function setMergedHeaderField(ws, rowNumber, colStart, colEnd, value) {
+  setMergedCell(ws, rowNumber, colStart, colEnd, String(value || '').trim(), {
+    horizontal: 'left',
+    vertical: 'top',
+    wrapText: true,
+  });
+  autoFitRowHeight(ws, rowNumber, { textCol: colStart, charsPerLine: 42, minHeight: 15, lineHeight: 15 });
+}
+
+function fixKyivSectionLabels(ws, {
+  workTotalRow,
+  materialsTitleRow,
+  materialsSubtotalRow,
+  grandVatRow,
+  grandTotalRow,
+}) {
+  setMergedCell(ws, workTotalRow, 3, 5, KYIV_LABELS.workTotal, { horizontal: 'right' });
+  setMergedCell(ws, materialsTitleRow, 1, 6, KYIV_LABELS.materialsTitle, { horizontal: 'center' });
+  setMergedCell(ws, materialsSubtotalRow, 3, 5, KYIV_LABELS.materialsSubtotal, { horizontal: 'right' });
+  setMergedCell(ws, grandVatRow, 3, 5, KYIV_LABELS.grandVat, { horizontal: 'right' });
+  setMergedCell(ws, grandTotalRow, 2, 5, KYIV_LABELS.grandTotal, { horizontal: 'right' });
 }
 
 function filterNamedLines(lines) {
@@ -160,14 +256,10 @@ export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLi
     KYIV_LAYOUT.estimateDate.col,
     formatUkDateFromIso(task.date || task.requestDate || new Date().toISOString().slice(0, 10))
   );
-  setCell(ws.getRow(KYIV_LAYOUT.equipment.row), KYIV_LAYOUT.equipment.col, String(task.equipment || '').trim());
-  setCell(
-    ws.getRow(KYIV_LAYOUT.siteId.row),
-    KYIV_LAYOUT.siteId.col,
-    String(task.customerEquipmentNumber || task.siteId || '').trim()
-  );
-  setCell(ws.getRow(KYIV_LAYOUT.client.row), KYIV_LAYOUT.client.col, String(task.client || '').trim());
-  setCell(ws.getRow(KYIV_LAYOUT.address.row), KYIV_LAYOUT.address.col, String(task.address || '').trim());
+  setMergedHeaderField(ws, KYIV_LAYOUT.equipment.row, KYIV_LAYOUT.equipment.col, KYIV_LAYOUT.equipment.mergeEnd, task.equipment);
+  setMergedHeaderField(ws, KYIV_LAYOUT.siteId.row, KYIV_LAYOUT.siteId.col, KYIV_LAYOUT.siteId.mergeEnd, task.customerEquipmentNumber || task.siteId);
+  setMergedHeaderField(ws, KYIV_LAYOUT.client.row, KYIV_LAYOUT.client.col, KYIV_LAYOUT.client.mergeEnd, task.client);
+  setMergedHeaderField(ws, KYIV_LAYOUT.address.row, KYIV_LAYOUT.address.col, KYIV_LAYOUT.address.mergeEnd, task.address);
 
   const workRowDelta = validWorkLines.length - KYIV_LAYOUT.workDefaultRows;
 
@@ -203,6 +295,7 @@ export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLi
   const materialsTotal = roundMoney(validMaterialLines.reduce((s, l) => s + Number(l.total || 0), 0));
   setCell(ws.getRow(materialsSubtotalRow), 6, materialsTotal);
 
+  const materialsTitleRow = workTotalRow + 1;
   const grandVatRow = materialsSubtotalRow + 1;
   const grandTotalRow = materialsSubtotalRow + 2;
   const signatureRow = materialsSubtotalRow + 3;
@@ -212,6 +305,23 @@ export async function generateKyivRepairEstimateExcel({ task, workLines, lowerLi
     grandTotalRow,
     combinedTotal: roundMoney(worksTotal + materialsTotal),
   });
+
+  fixKyivSectionLabels(ws, {
+    workTotalRow,
+    materialsTitleRow,
+    materialsSubtotalRow,
+    grandVatRow,
+    grandTotalRow,
+  });
+
+  autoFitTableRows(
+    ws,
+    [
+      ...validWorkLines.map((_, idx) => KYIV_LAYOUT.workDataStart + idx),
+      ...validMaterialLines.map((_, idx) => materialsDataStart + idx),
+    ],
+    { textCol: 2, charsPerLine: 36, minHeight: 15, lineHeight: 15 }
+  );
 
   while (ws.rowCount > signatureRow) {
     ws.spliceRows(signatureRow + 1, 1);
