@@ -37,8 +37,8 @@ const DEFAULT_ACCESS_RULES = {
   operator: ['operator'],
   accountant: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
-  warehouse: ['warehouse', 'inventory', 'service'],
-  zavsklad: ['warehouse', 'inventory', 'service'],
+  warehouse: ['warehouse', 'service'],
+  zavsklad: ['warehouse', 'service'],
   regkerivn: ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
   regional: ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
   service: ['service'],
@@ -70,20 +70,6 @@ const convertAccessRules = (dbRules) => {
       converted[role] = Object.keys(panels).filter(panelId => 
         panels[panelId] === 'full' || panels[panelId] === 'read'
       );
-      
-      // «Складський облік»: для завскладу — якщо не явне 'none' (зокрема ключ відсутній у старих даних).
-      // Для лише бухгалтерії — тільки якщо в БД явно full/read; інакше збігається з матрицею (нема ключа → «Немає»).
-      const inv = panels.inventory;
-      if (!converted[role].includes('inventory')) {
-        if (converted[role].includes('warehouse') && inv !== 'none') {
-          converted[role].push('inventory');
-        } else if (
-          converted[role].includes('accountant') &&
-          (inv === 'full' || inv === 'read')
-        ) {
-          converted[role].push('inventory');
-        }
-      }
     }
   });
   
