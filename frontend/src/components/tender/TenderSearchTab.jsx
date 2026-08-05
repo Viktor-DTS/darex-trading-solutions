@@ -3,6 +3,7 @@ import {
   searchTenders,
   saveTenderToWatchlist,
   getTenderMeta,
+  getProzorroTender,
 } from '../../utils/tenderAPI';
 import TenderDetailPanel from './TenderDetailPanel';
 import './TenderDepartment.css';
@@ -40,11 +41,25 @@ function TenderSearchTab({ onSaved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [directLookup, setDirectLookup] = useState(false);
 
   useEffect(() => {
     getTenderMeta().then(setMeta).catch(() => {});
+  }, []);
+
+  const handleSelectTender = useCallback(async (tender) => {
+    setSelected(tender);
+    setDetailLoading(true);
+    try {
+      const full = await getProzorroTender(tender.prozorroId, tender.source || 'prozorro');
+      setSelected({ ...tender, ...full, analysis: full.analysis || tender.analysis });
+    } catch (e) {
+      console.warn('Tender detail fetch failed', e);
+    } finally {
+      setDetailLoading(false);
+    }
   }, []);
 
   const runSearch = useCallback(async () => {
@@ -67,7 +82,7 @@ function TenderSearchTab({ onSaved }) {
       setItems(nextItems);
       setDirectLookup(!!data.directLookup);
       if (nextItems.length > 0) {
-        setSelected(nextItems[0]);
+        handleSelectTender(nextItems[0]);
       } else {
         setSelected(null);
       }
@@ -86,7 +101,7 @@ function TenderSearchTab({ onSaved }) {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, handleSelectTender]);
 
   useEffect(() => {
     runSearch();
@@ -239,7 +254,7 @@ function TenderSearchTab({ onSaved }) {
                   <button
                     type="button"
                     className={`tender-list-item ${selected?.prozorroId === t.prozorroId && selected?.source === t.source ? 'active' : ''}`}
-                    onClick={() => setSelected(t)}
+                    onClick={() => handleSelectTender(t)}
                   >
                     <div className="tender-list-item-top">
                       <span className={`tender-score ${scoreClass(t.analysis?.score)}`}>
@@ -264,7 +279,9 @@ function TenderSearchTab({ onSaved }) {
         </div>
 
         <div className="tender-detail-wrap">
-          {selected ? (
+          {detailLoading && selected ? (
+            <div className="tender-loading">Завантаження документів…</div>
+          ) : selected ? (
             <TenderDetailPanel
               tender={selected}
               analysis={selected.analysis}

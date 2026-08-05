@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
+import TenderDocumentPreview from './TenderDocumentPreview';
+import { canPreviewDocument, documentKindLabel, getDocumentKind } from '../../utils/tenderDocumentUtils';
 import './TenderDepartment.css';
 
 function TenderDetailPanel({ tender, analysis, onSave, saving, mode = 'search' }) {
   const a = analysis || tender?.analysis || {};
   const docs = a.requiredDocs || [];
+  const [previewDoc, setPreviewDoc] = useState(null);
   const platformUrl = tender.platformUrl || tender.prozorroUrl || (tender.tenderNumber ? `https://prozorro.gov.ua/tender/${tender.tenderNumber}` : '');
   const prozorroUrl = tender.prozorroUrl || (tender.tenderNumber ? `https://prozorro.gov.ua/tender/${tender.tenderNumber}` : '');
   const dzoUrl = tender.source === 'dzo' ? platformUrl : '';
+  const tenderDocuments = tender.documents || [];
 
   return (
     <div className="tender-detail-panel">
@@ -109,15 +113,41 @@ function TenderDetailPanel({ tender, analysis, onSave, saving, mode = 'search' }
         )}
       </div>
 
-      {(tender.documents || []).length > 0 && (
+      {tenderDocuments.length > 0 && (
         <section className="tender-detail-section">
           <h4>Документи тендера</h4>
           <ul className="tender-doc-links">
-            {tender.documents.slice(0, 12).map((d, i) => (
-              <li key={d.url || i}>
-                <a href={d.url} target="_blank" rel="noopener noreferrer">{d.title || 'Документ'}</a>
-              </li>
-            ))}
+            {tenderDocuments.map((d, i) => {
+              const kind = getDocumentKind(d);
+              const previewable = canPreviewDocument(d);
+              return (
+                <li key={d.url || d.id || i} className="tender-doc-item">
+                  <div className="tender-doc-item-main">
+                    <span className="tender-doc-item-type">{documentKindLabel(kind)}</span>
+                    <span className="tender-doc-item-title">{d.title || 'Документ'}</span>
+                  </div>
+                  <div className="tender-doc-item-actions">
+                    {previewable && (
+                      <button
+                        type="button"
+                        className="tender-btn tender-btn-secondary tender-btn-sm"
+                        onClick={() => setPreviewDoc(d)}
+                      >
+                        Переглянути
+                      </button>
+                    )}
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="tender-btn tender-btn-secondary tender-btn-sm"
+                    >
+                      {previewable ? 'Завантажити' : 'Відкрити'}
+                    </a>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -139,6 +169,10 @@ function TenderDetailPanel({ tender, analysis, onSave, saving, mode = 'search' }
           </button>
         )}
       </div>
+
+      {previewDoc && (
+        <TenderDocumentPreview doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+      )}
     </div>
   );
 }

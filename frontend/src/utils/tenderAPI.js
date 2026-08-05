@@ -30,8 +30,9 @@ export function searchTenders(params = {}) {
   return apiFetch(`/tenders/search${q ? `?${q}` : ''}`);
 }
 
-export function getProzorroTender(id) {
-  return apiFetch(`/tenders/prozorro/${encodeURIComponent(id)}`);
+export function getProzorroTender(id, source = 'prozorro') {
+  const qs = source ? `?source=${encodeURIComponent(source)}` : '';
+  return apiFetch(`/tenders/prozorro/${encodeURIComponent(id)}${qs}`);
 }
 
 export function getTenderWatchlist(params = {}) {
