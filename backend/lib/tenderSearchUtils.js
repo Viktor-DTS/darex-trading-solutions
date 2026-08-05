@@ -50,6 +50,14 @@ function matchesRegionFilter(summary, region) {
   return hay.includes(needle);
 }
 
+/** Дедлайн подачі ще не минув. Якщо дедлайн не визначено — показуємо. */
+function isSubmissionOpen(deadline) {
+  if (!deadline) return true;
+  const end = new Date(deadline);
+  if (Number.isNaN(end.getTime())) return true;
+  return end.getTime() > Date.now();
+}
+
 function passesTenderFilters(raw, summary, {
   query,
   keywords,
@@ -64,6 +72,7 @@ function passesTenderFilters(raw, summary, {
   fromCpvSearch = false,
 }) {
   if (isActive && !isActive(raw.status)) return false;
+  if (!isSubmissionOpen(summary.deadline)) return false;
 
   if (!matchesRegionFilter(summary, region)) return false;
   if (minBudget != null && summary.budget != null && summary.budget < minBudget) return false;
@@ -121,6 +130,7 @@ module.exports = {
   cpvMatchesNiche,
   cpvInText,
   matchesRegionFilter,
+  isSubmissionOpen,
   passesTenderFilters,
   parseTenderQuery,
 };

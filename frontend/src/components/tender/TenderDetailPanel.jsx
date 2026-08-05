@@ -16,8 +16,8 @@ function TenderDetailPanel({ tender, analysis, onSave, saving, mode = 'search' }
           <span className="tender-detail-badge">{a.categoryLabel || '—'}</span>
           {a.powerKw && <span className="tender-detail-badge">~{a.powerKw} кВт</span>}
           {a.daysLeft != null && (
-            <span className={`tender-detail-badge ${a.daysLeft < 5 ? 'tender-detail-badge--warn' : ''}`}>
-              {a.daysLeft} дн. до дедлайну
+            <span className={`tender-detail-badge ${a.daysLeft < 0 ? 'tender-detail-badge--expired' : a.daysLeft < 5 ? 'tender-detail-badge--warn' : ''}`}>
+              {a.daysLeft < 0 ? 'Дедлайн минув' : `${a.daysLeft} дн. до дедлайну`}
             </span>
           )}
         </div>

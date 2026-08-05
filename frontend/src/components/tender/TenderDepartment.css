@@ -358,6 +358,11 @@
   color: #ffb74d;
 }
 
+.tender-detail-badge--expired {
+  background: rgba(244, 67, 54, 0.2);
+  color: #ff8a80;
+}
+
 .tender-recommendation {
   padding: 8px 14px;
   border-radius: 8px;

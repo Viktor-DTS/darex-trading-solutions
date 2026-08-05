@@ -124,7 +124,8 @@ function buildCompetitiveNotes(tender, category) {
   }
 
   if (days != null) {
-    if (days < 3) notes.push('⚠️ Критично мало часу до дедлайну — ризик не встигнути підготувати документи.');
+    if (days < 0) notes.push('Дедлайн подачі минув — участь неможлива.');
+    else if (days < 3) notes.push('⚠️ Критично мало часу до дедлайну — ризик не встигнути підготувати документи.');
     else if (days < 7) notes.push('Обмежений термін — пріоритетна перевірка TZ та постачальників.');
     else if (days >= 14) notes.push('Достатній термін для підготовки КП та узгодження з постачальником.');
   }
@@ -179,6 +180,7 @@ function computeScore(tender, category) {
 }
 
 function recommendationFromScore(score, days) {
+  if (days != null && days < 0) return 'skip';
   if (days != null && days < 2) return 'skip';
   if (score >= 70) return 'take';
   if (score >= 45) return 'review';
@@ -213,7 +215,8 @@ function analyzeTender(tender) {
   if (daysLeft != null && daysLeft >= 10) strengths.push(`Залишилось ${daysLeft} дн. до дедлайну`);
   if (tender.budget != null) strengths.push(`Бюджет: ${tender.budgetFormatted || tender.budget}`);
 
-  if (daysLeft != null && daysLeft < 5) risks.push('Мало часу на підготовку документів');
+  if (daysLeft != null && daysLeft < 0) risks.push('Дедлайн подачі вже минув');
+  if (daysLeft != null && daysLeft >= 0 && daysLeft < 5) risks.push('Мало часу на підготовку документів');
   if (!tender.region) risks.push('Регіон не визначено — уточнити логістику');
   if (tender.numberOfTenderers >= 4) risks.push('Висока конкуренція');
 
