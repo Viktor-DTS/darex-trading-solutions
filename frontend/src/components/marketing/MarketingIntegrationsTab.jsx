@@ -133,6 +133,8 @@ function MarketingIntegrationsTab() {
             <li>Коментарі: {status?.phase2?.commentsEnabled ? '✅' : '— META_PHASE2_COMMENTS=1'}</li>
           </ul>
         </div>
+        <div className="marketing-integration-card">
+          <h4>Google Ads Lead Form</h4>
           <p>Webhook з google_key у Google Ads.</p>
           <span className={`marketing-integration-status marketing-integration-status--${flags.google ? 'ready' : 'planned'}`}>
             {flags.google ? 'Готово до прийому' : 'Додайте GOOGLE_LEAD_WEBHOOK_KEY'}
