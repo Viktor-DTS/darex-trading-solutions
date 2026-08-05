@@ -1008,7 +1008,7 @@ function AdminDashboard({ user }) {
   };
 
   const renderAccessTab = () => (
-    <div className="admin-section">
+    <div className="admin-section admin-access-section">
       <div className="access-header">
         <h3>🔑 Права доступу до панелей</h3>
         <button className="btn-save-access" onClick={handleSaveAccess}>

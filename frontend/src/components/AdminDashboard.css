@@ -51,7 +51,10 @@
 /* Контент */
 .admin-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   padding: 14px;
   padding-bottom: 32px;
 }
@@ -448,9 +451,29 @@
   background: #43a047;
 }
 
+.admin-access-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.admin-access-section .access-header,
+.admin-access-section .access-legend {
+  flex-shrink: 0;
+}
+
 .access-table-wrapper {
   overflow-x: auto;
   border-radius: 6px;
+}
+
+.admin-access-section .access-table-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .access-table {
@@ -467,6 +490,9 @@
   font-weight: 600;
   font-size: 10px;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .access-table td {
