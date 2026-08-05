@@ -720,10 +720,6 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
 
 .procurement-executor-block {
   display: flex;
