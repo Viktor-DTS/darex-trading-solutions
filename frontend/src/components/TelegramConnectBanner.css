@@ -1,0 +1,89 @@
+.telegram-connect-banner {
+  margin: 0 12px 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(33, 150, 243, 0.45);
+  background: linear-gradient(135deg, rgba(13, 110, 253, 0.12), rgba(33, 150, 243, 0.08));
+  color: var(--text, #e8e8e8);
+}
+
+.telegram-connect-banner.collapsed {
+  padding-bottom: 10px;
+}
+
+.telegram-connect-banner__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.telegram-connect-banner__icon {
+  font-size: 1.2rem;
+}
+
+.telegram-connect-banner__header strong {
+  flex: 1;
+  font-size: 0.95rem;
+}
+
+.telegram-connect-banner__header-actions {
+  margin-left: auto;
+}
+
+.telegram-connect-banner__toggle {
+  border: 1px solid var(--border, #444);
+  background: transparent;
+  color: var(--text-secondary, #bbb);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.telegram-connect-banner__content {
+  margin-top: 12px;
+}
+
+.telegram-connect-banner__body {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+  color: var(--text-secondary, #ccc);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.telegram-connect-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.telegram-connect-banner__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface-dark, #2a2a2a);
+  color: var(--text, #e8e8e8);
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.telegram-connect-banner__btn--primary {
+  border-color: #2196f3;
+  background: rgba(33, 150, 243, 0.25);
+  font-weight: 600;
+}
+
+.telegram-connect-banner__btn--primary:hover {
+  background: rgba(33, 150, 243, 0.35);
+}

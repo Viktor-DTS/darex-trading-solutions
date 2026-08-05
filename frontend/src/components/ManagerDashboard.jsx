@@ -109,6 +109,12 @@ function ManagerDashboard({ user }) {
   }, [fetchManagerNotificationsUnread]);
 
   useEffect(() => {
+    const openNotifications = () => setActiveTab('notifications');
+    window.addEventListener('dts-open-notifications-tab', openNotifications);
+    return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
+  }, []);
+
+  useEffect(() => {
     if (activeTab !== 'stock') setSelectedCategoryId(null);
   }, [activeTab]);
 

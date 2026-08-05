@@ -139,6 +139,27 @@
   color: var(--text-secondary, #ccc);
 }
 
+.manager-notification-body--pre {
+  white-space: pre-wrap;
+  font-family: inherit;
+  background: rgba(0, 0, 0, 0.12);
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.btn-notification-telegram {
+  display: inline-block;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 14px;
+  color: #fff;
+  background: var(--primary, #0d6efd);
+}
+
 .btn-notification-read {
   margin-top: 10px;
   padding: 6px 12px;

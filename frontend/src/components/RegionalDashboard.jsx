@@ -559,6 +559,12 @@ function RegionalDashboard({ user }) {
     return () => clearInterval(id);
   }, [fetchRegionalNotificationsUnread]);
 
+  useEffect(() => {
+    const openNotifications = () => setActiveTab('notifications');
+    window.addEventListener('dts-open-notifications-tab', openNotifications);
+    return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
+  }, []);
+
   const handleOpenTaskFromNotification = useCallback(async (taskId) => {
     try {
       const token = localStorage.getItem('token');

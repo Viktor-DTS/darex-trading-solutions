@@ -23,6 +23,7 @@ import ProcurementDashboard from './components/ProcurementDashboard';
 import MarketingDashboard from './components/MarketingDashboard';
 import AssistantChatWidget from './components/AssistantChatWidget';
 import TaskExportOverlay from './components/TaskExportOverlay';
+import TelegramConnectBanner from './components/TelegramConnectBanner';
 import API_BASE_URL from './config';
 import { PANELS } from './constants/panelsCatalog';
 import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
@@ -464,6 +465,18 @@ function App() {
                       <button className="logout-btn" onClick={handleLogout}>Вийти</button>
                     </div>
                   </nav>
+                  <TelegramConnectBanner
+                    onOpenNotifications={() => {
+                      const panelsWithNotifications = ['service', 'regional', 'manager', 'warehouse', 'inventory'];
+                      const target = panelsWithNotifications.find((p) =>
+                        getAvailablePanelsForRole(user.role, accessRules).some((ap) => ap.id === p)
+                      );
+                      if (target && target !== currentPanel) {
+                        handlePanelChange(target);
+                      }
+                      window.dispatchEvent(new CustomEvent('dts-open-notifications-tab'));
+                    }}
+                  />
                   {/* Основний вміст */}
                   <div className={`panel-content with-selector ${!['manager', 'inventory', 'marketing'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
                     {renderPanel()}

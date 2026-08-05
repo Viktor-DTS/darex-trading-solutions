@@ -70,6 +70,7 @@ const {
   parseTelegramStartToken,
   buildTelegramInviteLink,
   buildTelegramInviteSmsText,
+  buildTelegramConnectNotificationBody,
   getBotUsername,
   isValidTelegramChatId,
 } = require('./lib/telegramLink');
@@ -541,7 +542,8 @@ const MANAGER_NOTIFICATION_KINDS = [
   'assistant_accountant_relay',
   'assistant_accountant_relay_reply',
   'external_ad_lead_new',
-  'external_ad_lead_assigned'
+  'external_ad_lead_assigned',
+  'telegram_connect_invite'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -1576,6 +1578,48 @@ async function createManagerNotificationDeduped(doc) {
     if (e && e.code === 11000) return;
     throw e;
   }
+}
+
+/** In-app сповіщення «Підключіть Telegram» для користувачів без Chat ID */
+async function ensureTelegramConnectNotification(user) {
+  if (!user?.login || user.dismissed) return { needed: false };
+  if (!process.env.TELEGRAM_BOT_TOKEN) return { needed: false };
+
+  if (isValidTelegramChatId(user.telegramChatId)) {
+    await ManagerUserNotification.deleteMany({
+      recipientLogin: user.login,
+      kind: 'telegram_connect_invite',
+    });
+    return { needed: false };
+  }
+
+  const inviteLink = buildTelegramInviteLink(user.login, JWT_SECRET);
+  const body = buildTelegramConnectNotificationBody({
+    name: user.name,
+    login: user.login,
+    inviteLink,
+  });
+
+  await ManagerUserNotification.findOneAndUpdate(
+    { dedupeKey: `telegram_connect:${user.login}` },
+    {
+      recipientLogin: user.login,
+      kind: 'telegram_connect_invite',
+      title: '📱 Підключіть Telegram для робочих сповіщень',
+      body,
+      read: false,
+      dedupeKey: `telegram_connect:${user.login}`,
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  return {
+    needed: true,
+    inviteLink,
+    botUsername: getBotUsername(),
+    title: '📱 Підключіть Telegram для робочих сповіщень',
+    body,
+  };
 }
 
 async function getTaskNotificationRecipientLogins(task) {
@@ -3698,6 +3742,9 @@ app.post('/api/auth', async (req, res) => {
     );
     
     logPerformance('POST /api/auth', startTime);
+    ensureTelegramConnectNotification(user).catch((e) => {
+      console.warn('[TELEGRAM] ensure connect notification on login:', e.message);
+    });
     res.json({ 
       token, 
       user: { 
@@ -18169,6 +18216,11 @@ class TelegramService {
       { $set: { telegramChatId: String(chatId), telegramLinkedAt: new Date() } }
     );
 
+    await ManagerUserNotification.deleteMany({
+      recipientLogin: login,
+      kind: 'telegram_connect_invite',
+    });
+
     const displayName = user.name || user.login;
     await this.sendMessage(
       chatId,
@@ -18660,6 +18712,19 @@ app.post('/api/sms/test', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[SMS] Помилка тесту:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// In-app запрошення підключити Telegram (банер + системне сповіщення)
+app.get('/api/telegram/connect-prompt', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ login: req.user.login }).lean();
+    if (!user) return res.status(404).json({ error: 'Користувача не знайдено' });
+    const result = await ensureTelegramConnectNotification(user);
+    res.json(result);
+  } catch (error) {
+    console.error('[TELEGRAM] connect-prompt:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

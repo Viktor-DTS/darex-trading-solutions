@@ -49,6 +49,12 @@ function Dashboard({ user, panelType = 'service' }) {
     return () => clearInterval(id);
   }, [fetchNotificationsUnread]);
 
+  useEffect(() => {
+    const openNotifications = () => setActiveTab('notifications');
+    window.addEventListener('dts-open-notifications-tab', openNotifications);
+    return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
+  }, []);
+
   const handleOpenTaskFromNotification = useCallback(async (taskId) => {
     try {
       const token = localStorage.getItem('token');

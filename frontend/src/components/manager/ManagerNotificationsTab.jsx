@@ -21,7 +21,8 @@ const KIND_LABELS = {
   procurement_receipt_partial: 'Частковий прийом / заявка не повністю',
   onec_move_receipt_partial: 'Частковий прийом переміщення (1С)',
   procurement_request_new: 'Нова заявка (для виконавців)',
-  procurement_request_completed: 'Заявку виконано (для заявника)'
+  procurement_request_completed: 'Заявку виконано (для заявника)',
+  telegram_connect_invite: 'Підключення Telegram'
 };
 
 function notificationTaskId(n) {
@@ -43,6 +44,16 @@ function notificationProcurementId(n) {
 
 const DEFAULT_DESCRIPTION =
   'Персональні сповіщення для вашого облікового запису: нагадування про резерви, події по заявках регіону (рахунок, затвердження або відмова завскладом і бухгалтерією).';
+
+function extractInviteLink(text) {
+  const match = String(text || '').match(/https:\/\/t\.me\/[^\s]+/);
+  return match ? match[0] : null;
+}
+
+function bodyWithoutInviteLink(body, link) {
+  if (!link) return body;
+  return String(body || '').replace(link, '').trim();
+}
 
 function ManagerNotificationsTab({
   onUnreadCountChange,
@@ -212,7 +223,26 @@ function ManagerNotificationsTab({
                 </span>
               </div>
               <h3 className="manager-notification-title">{n.title}</h3>
-              <p className="manager-notification-body">{n.body}</p>
+              {n.kind === 'telegram_connect_invite' ? (
+                <>
+                  <pre className="manager-notification-body manager-notification-body--pre">
+                    {bodyWithoutInviteLink(n.body, extractInviteLink(n.body))}
+                  </pre>
+                  {extractInviteLink(n.body) ? (
+                    <a
+                      className="btn-primary btn-notification-telegram"
+                      href={extractInviteLink(n.body)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => markRead(n._id)}
+                    >
+                      Підключити Telegram
+                    </a>
+                  ) : null}
+                </>
+              ) : (
+                <p className="manager-notification-body">{n.body}</p>
+              )}
               {n.kind === 'shipment_request_new' && onOpenShipmentRequest && n.shipmentRequestId ? (
                 <button
                   type="button"
