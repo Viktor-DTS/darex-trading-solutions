@@ -2,9 +2,10 @@
  * API маршрути панелі «Тендерний відділ».
  */
 const mongoose = require('mongoose');
-const { searchTendersAll, getTenderDetails, SOURCES } = require('./tenderAggregator');
+const { searchTendersAll, lookupTenderByQuery, getTenderDetails, SOURCES } = require('./tenderAggregator');
 const { DEFAULT_NICHE_KEYWORDS } = require('./tenderProzorro');
 const { analyzeTender, CATEGORY_LABELS, RECOMMENDATION_LABELS } = require('./tenderAnalysis');
+const { parseTenderQuery } = require('./tenderSearchUtils');
 
 const TENDER_STATUSES = ['new', 'review', 'approved', 'assigned', 'participating', 'won', 'lost', 'rejected'];
 
@@ -82,6 +83,20 @@ function canViewTender(user, record) {
   return false;
 }
 
+function sortTenderItems(items, sortBy = 'deadline') {
+  const sorted = [...items];
+  if (sortBy === 'score') {
+    sorted.sort((a, b) => (b.analysis?.score ?? 0) - (a.analysis?.score ?? 0));
+    return sorted;
+  }
+  sorted.sort((a, b) => {
+    const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+    const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+    return da - db;
+  });
+  return sorted;
+}
+
 function registerTenderRoutes(app, deps = {}) {
   const { User, createManagerNotificationDeduped, authenticateToken } = deps;
 
@@ -117,6 +132,28 @@ function registerTenderRoutes(app, deps = {}) {
       const maxBudget = req.query.maxBudget != null && req.query.maxBudget !== '' ? Number(req.query.maxBudget) : null;
       const nicheOnly = req.query.nicheOnly !== '0';
       const source = String(req.query.source || 'all').trim();
+      const sortBy = String(req.query.sortBy || 'score').trim();
+      const minScore = req.query.minScore != null && req.query.minScore !== ''
+        ? Number(req.query.minScore)
+        : null;
+
+      if (q && parseTenderQuery(q)) {
+        const tender = await lookupTenderByQuery(q);
+        let enriched = [{ ...tender, analysis: analyzeTender(tender) }];
+        if (minScore != null && !Number.isNaN(minScore)) {
+          enriched = enriched.filter((t) => (t.analysis?.score ?? 0) >= minScore);
+        }
+        enriched = sortTenderItems(enriched, sortBy);
+        return res.json({
+          items: enriched,
+          count: enriched.length,
+          query: q,
+          source,
+          directLookup: true,
+          sortBy,
+          minScore,
+        });
+      }
 
       const { items, warnings, query: usedQuery } = await searchTendersAll({
         query: q,
@@ -129,16 +166,23 @@ function registerTenderRoutes(app, deps = {}) {
         source,
       });
 
-      const enriched = items.map((t) => ({
+      let enriched = items.map((t) => ({
         ...t,
         analysis: analyzeTender(t),
       }));
+
+      if (minScore != null && !Number.isNaN(minScore)) {
+        enriched = enriched.filter((t) => (t.analysis?.score ?? 0) >= minScore);
+      }
+      enriched = sortTenderItems(enriched, sortBy);
 
       res.json({
         items: enriched,
         count: enriched.length,
         query: q || usedQuery,
         source,
+        sortBy,
+        minScore,
         warnings,
         warning: warnings.length ? warnings.join('; ') : undefined,
       });

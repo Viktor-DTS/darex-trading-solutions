@@ -3,6 +3,7 @@
  */
 const { searchTenders: searchProzorro, getTenderWithDetails, DEFAULT_NICHE_KEYWORDS } = require('./tenderProzorro');
 const { searchTendersDzo, getTenderDzoDetails } = require('./tenderDzo');
+const { parseTenderQuery } = require('./tenderSearchUtils');
 
 const SOURCES = {
   prozorro: { id: 'prozorro', label: 'Prozorro', url: 'https://prozorro.gov.ua' },
@@ -35,6 +36,32 @@ function sortByDeadline(items) {
     const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
     return da - db;
   });
+}
+
+async function lookupTenderByQuery(query) {
+  const parsed = parseTenderQuery(query);
+  if (!parsed) return null;
+
+  if (parsed.type === 'dzo_id') {
+    return getTenderDzoDetails(parsed.id);
+  }
+
+  if (parsed.type === 'ua') {
+    try {
+      return await getTenderWithDetails(parsed.id);
+    } catch (prozorroErr) {
+      const dzoItems = await searchTendersDzo({
+        query: parsed.id,
+        limit: 5,
+        nicheOnly: false,
+      });
+      const found = dzoItems.find((t) => t.tenderNumber === parsed.id);
+      if (found) return getTenderDzoDetails(found.prozorroId);
+      throw prozorroErr;
+    }
+  }
+
+  return null;
 }
 
 async function searchTendersAll(options = {}) {
@@ -89,6 +116,7 @@ async function getTenderDetails(id, source = 'prozorro') {
 module.exports = {
   SOURCES,
   searchTendersAll,
+  lookupTenderByQuery,
   getTenderDetails,
   dedupeTenders,
 };

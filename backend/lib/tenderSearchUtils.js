@@ -88,6 +88,31 @@ function passesTenderFilters(raw, summary, {
   return true;
 }
 
+/** Розпізнати UA-номер, DZO/Prozorro URL або internal ID. */
+function parseTenderQuery(input) {
+  const s = String(input || '').trim();
+  if (!s) return null;
+
+  const dzoUuid = s.match(/dzo\.com\.ua\/tenders?\/([a-f0-9]{32})/i);
+  if (dzoUuid) return { type: 'dzo_id', id: dzoUuid[1], source: 'dzo' };
+
+  const prozorroUrl = s.match(/prozorro\.gov\.ua\/tender\/(UA-[^\s/?#]+)/i);
+  if (prozorroUrl) return { type: 'ua', id: prozorroUrl[1], source: 'auto' };
+
+  const dzoUaUrl = s.match(/dzo\.com\.ua\/tender\/(UA-[^\s/?#]+)/i);
+  if (dzoUaUrl) return { type: 'ua', id: dzoUaUrl[1], source: 'auto' };
+
+  if (/^UA-\d{4}-\d{2}-\d{2}-\d{6}-[a-z]$/i.test(s)) {
+    return { type: 'ua', id: s, source: 'auto' };
+  }
+
+  if (/^[a-f0-9]{32}$/i.test(s)) {
+    return { type: 'dzo_id', id: s, source: 'dzo' };
+  }
+
+  return null;
+}
+
 module.exports = {
   isVagueRegion,
   regionFromTitleText,
@@ -97,4 +122,5 @@ module.exports = {
   cpvInText,
   matchesRegionFilter,
   passesTenderFilters,
+  parseTenderQuery,
 };

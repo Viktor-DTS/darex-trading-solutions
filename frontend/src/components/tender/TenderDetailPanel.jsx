@@ -6,7 +6,7 @@ function TenderDetailPanel({ tender, analysis, onSave, saving, mode = 'search' }
   const docs = a.requiredDocs || [];
   const platformUrl = tender.platformUrl || tender.prozorroUrl || (tender.tenderNumber ? `https://prozorro.gov.ua/tender/${tender.tenderNumber}` : '');
   const prozorroUrl = tender.prozorroUrl || (tender.tenderNumber ? `https://prozorro.gov.ua/tender/${tender.tenderNumber}` : '');
-  const dzoUrl = tender.source === 'dzo' ? platformUrl : (tender.tenderNumber ? `https://www.dzo.com.ua/tender/${tender.tenderNumber}` : '');
+  const dzoUrl = tender.source === 'dzo' ? platformUrl : '';
 
   return (
     <div className="tender-detail-panel">

@@ -94,7 +94,24 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tender-toolbar--secondary {
   margin-bottom: 12px;
+}
+
+.tender-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--tender-muted);
+  cursor: pointer;
+}
+
+.tender-checkbox input {
+  accent-color: var(--tender-accent);
 }
 
 .tender-input,
@@ -188,7 +205,12 @@
   border: 1px solid rgba(255, 193, 7, 0.35);
   color: #ffd666;
   margin-bottom: 12px;
-  font-size: 13px;
+}
+
+.tender-alert--info {
+  background: rgba(45, 156, 219, 0.12);
+  border-color: rgba(45, 156, 219, 0.35);
+  color: #8fd0ff;
 }
 
 .tender-search-layout {
