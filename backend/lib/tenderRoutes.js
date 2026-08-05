@@ -6,7 +6,7 @@ const { searchTendersAll, lookupTenderByQuery, getTenderDetails, SOURCES } = req
 const { DEFAULT_NICHE_KEYWORDS } = require('./tenderProzorro');
 const { analyzeTender, CATEGORY_LABELS, RECOMMENDATION_LABELS } = require('./tenderAnalysis');
 const { parseTenderQuery } = require('./tenderSearchUtils');
-const { isAllowedDocumentUrl, fetchDocumentStream, guessContentType } = require('./tenderDocumentProxy');
+const { isAllowedDocumentUrl, fetchDocumentBuffer, guessContentType, isZipBuffer, isPdfBuffer } = require('./tenderDocumentProxy');
 
 const TENDER_STATUSES = ['new', 'review', 'approved', 'assigned', 'participating', 'won', 'lost', 'rejected'];
 
@@ -132,12 +132,22 @@ function registerTenderRoutes(app, deps = {}) {
         return res.status(400).json({ error: 'Недозволене джерело документа' });
       }
 
-      const upstream = await fetchDocumentStream(docUrl);
-      const contentType = guessContentType(docUrl, upstream.headers['content-type'], title);
+      const { buffer, contentType: upstreamType } = await fetchDocumentBuffer(docUrl);
+      const contentType = guessContentType(docUrl, upstreamType, title);
+
+      const looksDocx = /\.docx/i.test(title) || contentType.includes('wordprocessingml');
+      const looksPdf = /\.pdf/i.test(title) || contentType.includes('pdf');
+      if (looksDocx && !isZipBuffer(buffer)) {
+        return res.status(502).json({ error: 'Файл пошкоджений або недоступний для перегляду' });
+      }
+      if (looksPdf && !isPdfBuffer(buffer)) {
+        return res.status(502).json({ error: 'PDF недоступний для перегляду' });
+      }
+
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', 'inline');
       res.setHeader('Cache-Control', 'private, max-age=300');
-      upstream.pipe(res);
+      res.send(buffer);
     } catch (e) {
       console.error('[tenders/documents/preview]', e.message);
       res.status(502).json({ error: e.message || 'Не вдалося завантажити документ' });

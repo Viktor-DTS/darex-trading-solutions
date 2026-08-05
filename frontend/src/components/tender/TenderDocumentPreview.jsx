@@ -3,9 +3,9 @@ import API_BASE_URL from '../../config';
 import { getDocumentKind, documentKindLabel } from '../../utils/tenderDocumentUtils';
 import './TenderDepartment.css';
 
-async function fetchDocumentBlob(docUrl) {
+async function fetchDocumentBlob(docUrl, title = '') {
   const token = localStorage.getItem('token');
-  const proxyUrl = `${API_BASE_URL}/tenders/documents/preview?url=${encodeURIComponent(docUrl)}`;
+  const proxyUrl = `${API_BASE_URL}/tenders/documents/preview?url=${encodeURIComponent(docUrl)}&title=${encodeURIComponent(title)}`;
   const res = await fetch(proxyUrl, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -44,7 +44,7 @@ function TenderDocumentPreview({ doc, onClose }) {
       setBlobUrl('');
 
       try {
-        const blob = await fetchDocumentBlob(doc.url);
+        const blob = await fetchDocumentBlob(doc.url, doc.title || '');
         if (cancelled) return;
 
         if (kind === 'pdf' || kind === 'image') {
@@ -52,8 +52,15 @@ function TenderDocumentPreview({ doc, onClose }) {
           blobUrlRef.current = url;
           setBlobUrl(url);
         } else if (kind === 'docx' || kind === 'doc') {
-          const mammoth = await import('mammoth');
           const arrayBuffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          const isZip = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+          if (!isZip) {
+            throw new Error(kind === 'doc'
+              ? 'Старий формат .doc не підтримує перегляд у браузері — завантажте файл.'
+              : 'Файл пошкоджений або недоступний для перегляду.');
+          }
+          const mammoth = await import('mammoth');
           const result = await mammoth.convertToHtml({ arrayBuffer });
           if (!cancelled) {
             setHtml(result.value || '<p>Документ порожній</p>');
