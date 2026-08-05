@@ -37,10 +37,8 @@ function plainTextToHtml(text) {
 async function convertLegacyDocToHtml(buffer) {
   const extracted = await new WordExtractor().extract(buffer);
   const body = await extracted.getBody();
-  const footnotes = await extracted.getFootnotes().catch(() => '');
   const html = plainTextToHtml(body);
-  const notes = footnotes ? plainTextToHtml(footnotes) : '';
-  return notes ? `${html}<hr><section class="tender-doc-footnotes">${notes}</section>` : html;
+  return html;
 }
 
 module.exports = {
