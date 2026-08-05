@@ -16,6 +16,17 @@ async function fetchDocumentBlob(docUrl, title = '') {
   return res.blob();
 }
 
+async function fetchLegacyDocHtml(docUrl, title = '') {
+  const token = localStorage.getItem('token');
+  const proxyUrl = `${API_BASE_URL}/tenders/documents/preview-html?url=${encodeURIComponent(docUrl)}&title=${encodeURIComponent(title)}`;
+  const res = await fetch(proxyUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.html || '<p>Документ порожній</p>';
+}
+
 function TenderDocumentPreview({ doc, onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,21 +55,23 @@ function TenderDocumentPreview({ doc, onClose }) {
       setBlobUrl('');
 
       try {
-        const blob = await fetchDocumentBlob(doc.url, doc.title || '');
-        if (cancelled) return;
-
-        if (kind === 'pdf' || kind === 'image') {
+        if (kind === 'doc') {
+          const legacyHtml = await fetchLegacyDocHtml(doc.url, doc.title || '');
+          if (!cancelled) setHtml(legacyHtml);
+        } else if (kind === 'pdf' || kind === 'image') {
+          const blob = await fetchDocumentBlob(doc.url, doc.title || '');
+          if (cancelled) return;
           const url = URL.createObjectURL(blob);
           blobUrlRef.current = url;
           setBlobUrl(url);
-        } else if (kind === 'docx' || kind === 'doc') {
+        } else if (kind === 'docx') {
+          const blob = await fetchDocumentBlob(doc.url, doc.title || '');
+          if (cancelled) return;
           const arrayBuffer = await blob.arrayBuffer();
           const bytes = new Uint8Array(arrayBuffer);
           const isZip = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
           if (!isZip) {
-            throw new Error(kind === 'doc'
-              ? 'Старий формат .doc не підтримує перегляд у браузері — завантажте файл.'
-              : 'Файл пошкоджений або недоступний для перегляду.');
+            throw new Error('Файл пошкоджений або недоступний для перегляду.');
           }
           const mammoth = await import('mammoth');
           const result = await mammoth.convertToHtml({ arrayBuffer });

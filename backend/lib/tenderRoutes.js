@@ -7,6 +7,7 @@ const { DEFAULT_NICHE_KEYWORDS } = require('./tenderProzorro');
 const { analyzeTender, CATEGORY_LABELS, RECOMMENDATION_LABELS } = require('./tenderAnalysis');
 const { parseTenderQuery } = require('./tenderSearchUtils');
 const { isAllowedDocumentUrl, fetchDocumentBuffer, guessContentType, isZipBuffer, isPdfBuffer } = require('./tenderDocumentProxy');
+const { isOleDocBuffer, convertLegacyDocToHtml } = require('./tenderDocumentConvert');
 
 const TENDER_STATUSES = ['new', 'review', 'approved', 'assigned', 'participating', 'won', 'lost', 'rejected'];
 
@@ -151,6 +152,32 @@ function registerTenderRoutes(app, deps = {}) {
     } catch (e) {
       console.error('[tenders/documents/preview]', e.message);
       res.status(502).json({ error: e.message || 'Не вдалося завантажити документ' });
+    }
+  });
+
+  app.get('/api/tenders/documents/preview-html', authenticateToken, async (req, res) => {
+    try {
+      if (!canAccessTenderPanel(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      const docUrl = String(req.query.url || '').trim();
+      const title = String(req.query.title || '').trim();
+      if (!docUrl) return res.status(400).json({ error: 'URL документа не вказано' });
+      if (!isAllowedDocumentUrl(docUrl)) {
+        return res.status(400).json({ error: 'Недозволене джерело документа' });
+      }
+
+      const { buffer } = await fetchDocumentBuffer(docUrl);
+
+      if (!isOleDocBuffer(buffer)) {
+        return res.status(400).json({ error: 'Цей endpoint лише для legacy .doc файлів' });
+      }
+
+      const html = await convertLegacyDocToHtml(buffer);
+      return res.json({ html, kind: 'doc' });
+    } catch (e) {
+      console.error('[tenders/documents/preview-html]', e.message);
+      res.status(502).json({ error: e.message || 'Не вдалося відкрити документ' });
     }
   });
 
