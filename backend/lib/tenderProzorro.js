@@ -38,6 +38,7 @@ const CPV_DG_CODES = [
   '31100000',
   '45311200',
   '50532000',
+  '50532300',
 ];
 
 const ACTIVE_STATUSES = new Set([
