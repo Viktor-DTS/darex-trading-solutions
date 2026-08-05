@@ -9,11 +9,19 @@ const SOURCES = {
   dzo: { id: 'dzo', label: 'DZO', url: 'https://www.dzo.com.ua' },
 };
 
+function dedupeKey(t) {
+  if (t.tenderNumber && String(t.tenderNumber).startsWith('UA-')) {
+    return `ua:${t.tenderNumber}`;
+  }
+  const src = t.source || 'unknown';
+  return `${src}:${t.prozorroId || t.tenderNumber || ''}`;
+}
+
 function dedupeTenders(items) {
   const seen = new Set();
   const out = [];
   for (const t of items) {
-    const key = t.tenderNumber || t.prozorroId;
+    const key = dedupeKey(t);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(t);
@@ -21,47 +29,52 @@ function dedupeTenders(items) {
   return out;
 }
 
+function sortByDeadline(items) {
+  return [...items].sort((a, b) => {
+    const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+    const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+    return da - db;
+  });
+}
+
 async function searchTendersAll(options = {}) {
   const source = String(options.source || 'all').toLowerCase();
   const limit = options.limit || 25;
   const warnings = [];
-  let items = [];
+  const tasks = [];
 
   if (source === 'all' || source === 'prozorro') {
-    try {
-      const prozorroItems = await searchProzorro({ ...options, limit });
-      items.push(...prozorroItems.map((t) => ({
-        ...t,
-        source: t.source || 'prozorro',
-        sourceLabel: t.sourceLabel || 'Prozorro',
-        platformUrl: t.platformUrl || t.prozorroUrl,
-      })));
-    } catch (e) {
-      warnings.push(`Prozorro: ${e.message}`);
-    }
+    tasks.push(
+      searchProzorro({ ...options, limit })
+        .then((items) => items.map((t) => ({
+          ...t,
+          source: t.source || 'prozorro',
+          sourceLabel: t.sourceLabel || 'Prozorro',
+          platformUrl: t.platformUrl || t.prozorroUrl,
+        })))
+        .catch((e) => {
+          warnings.push(`Prozorro: ${e.message}`);
+          return [];
+        })
+    );
   }
 
   if (source === 'all' || source === 'dzo') {
-    try {
-      const dzoItems = await searchTendersDzo({ ...options, limit });
-      items.push(...dzoItems);
-    } catch (e) {
-      warnings.push(`DZO: ${e.message}`);
-    }
+    tasks.push(
+      searchTendersDzo({ ...options, limit })
+        .catch((e) => {
+          warnings.push(`DZO: ${e.message}`);
+          return [];
+        })
+    );
   }
 
-  items = dedupeTenders(items);
-
-  if (source === 'all') {
-    items.sort((a, b) => {
-      const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-      const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-      return da - db;
-    });
-  }
+  const batches = await Promise.all(tasks);
+  let items = dedupeTenders(batches.flat());
+  items = sortByDeadline(items).slice(0, limit);
 
   return {
-    items: items.slice(0, limit),
+    items,
     warnings,
     query: options.query || DEFAULT_NICHE_KEYWORDS.slice(0, 3).join(' '),
   };

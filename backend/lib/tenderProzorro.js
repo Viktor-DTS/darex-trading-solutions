@@ -5,6 +5,12 @@
 const https = require('https');
 
 const { detectCategory } = require('./tenderAnalysis');
+const {
+  resolveTenderRegion,
+  textMatchesNiche,
+  cpvMatchesNiche,
+  passesTenderFilters,
+} = require('./tenderSearchUtils');
 
 const PROZORRO_API_BASE = 'https://public-api.prozorro.gov.ua/api/2.5';
 const PROZORRO_SEARCH_URL = 'https://prozorro.gov.ua/api/search/tenders';
@@ -29,16 +35,36 @@ const DEFAULT_NICHE_KEYWORDS = [
   'монтаж генератор',
   'пусконалагодження',
   'техобслуговування генератор',
+  'технічного обслуговування дизель',
   'ремонт генератор',
   'автозапуск',
 ];
 
+/** Окремі запити — як у DZO, не склеювати в один рядок. */
+const DEFAULT_PROZORRO_SEARCH_QUERIES = [
+  'дизель-генератор',
+  'технічного обслуговування дизель',
+  'техобслуговування генератор',
+  'генератор',
+  'монтаж генератор',
+  'пусконалагодження',
+  'UPS',
+  'ДБЖ',
+];
+
+/** Префікси CPV для post-filter (items[].classification). */
 const CPV_DG_CODES = [
   '31120000',
   '31100000',
   '45311200',
   '50532000',
   '50532300',
+];
+
+/** Повні коди CPV з контрольною цифрою для web search API. */
+const PROZORRO_CPV_SEARCH_CODES = [
+  '31121100-1',
+  '50532300-6',
 ];
 
 const ACTIVE_STATUSES = new Set([
@@ -49,6 +75,14 @@ const ACTIVE_STATUSES = new Set([
   'active.pre-qualification',
   'active',
 ]);
+
+const PROZORRO_SEARCH_STATUSES = [
+  'active.enquiries',
+  'active.tendering',
+  'active.auction',
+  'active.qualification',
+  'active.pre-qualification',
+];
 
 function prozorroRequest(url, { method = 'GET', body = null, timeoutMs = 25000 } = {}) {
   return new Promise((resolve, reject) => {
@@ -180,12 +214,14 @@ function normalizeTenderSummary(raw, detail) {
 
   const tenderNumber = t.tenderID || (String(t.id || '').startsWith('UA-') ? t.id : '') || raw?.tenderID || '';
   const internalId = t.id && !String(t.id).startsWith('UA-') ? t.id : raw?.id || tenderNumber;
+  const title = normalizeText(t.title || raw?.title || '');
+  const description = normalizeText(t.description || raw?.description || t.title || raw?.title || '');
 
   return {
     prozorroId: internalId || tenderNumber,
     tenderNumber,
-    title: normalizeText(t.title || raw?.title || ''),
-    description: normalizeText(t.description || raw?.description || t.title || raw?.title || ''),
+    title,
+    description,
     status: t.status || raw?.status || '',
     statusLabel: statusLabelUk(t.status || raw?.status),
     budget,
@@ -194,7 +230,12 @@ function normalizeTenderSummary(raw, detail) {
     deadline,
     deadlineFormatted: deadline ? new Date(deadline).toLocaleString('uk-UA') : '—',
     customer: normalizeText(t.procuringEntity?.name || t.procuringEntity?.identifier?.legalName || raw?.procuringEntity?.name || ''),
-    region: delivery.region || procRegion || pickRegion(raw?.procuringEntity) || '',
+    region: resolveTenderRegion({
+      deliveryRegion: delivery.region,
+      procRegion: procRegion || pickRegion(raw?.procuringEntity),
+      title,
+      description,
+    }),
     deliveryAddress: delivery.deliveryAddress || '',
     cpvCodes,
     documents: extractDocuments(t.documents),
@@ -208,31 +249,22 @@ function normalizeTenderSummary(raw, detail) {
   };
 }
 
-function textMatchesNiche(text, keywords) {
-  const hay = String(text || '').toLowerCase();
-  return keywords.some((kw) => hay.includes(String(kw).toLowerCase()));
-}
-
-function cpvMatchesNiche(cpvCodes) {
-  return (cpvCodes || []).some((code) =>
-    CPV_DG_CODES.some((prefix) => String(code).startsWith(prefix))
-  );
-}
-
 function isActiveTender(status) {
   const s = String(status || '').toLowerCase();
   return ACTIVE_STATUSES.has(s) || s.startsWith('active');
 }
 
 /**
- * Офіційний пошук Prozorro — POST (GET не підтримується).
+ * Офіційний web-пошук Prozorro — POST з параметром `text` (не query_text).
  */
-async function searchProzorroWeb(query, { limit = 20 } = {}) {
+async function searchProzorroWeb({ text, cpv, page = 1 } = {}) {
   const body = {
-    query_text: query || DEFAULT_NICHE_KEYWORDS.slice(0, 3).join(' '),
-    limit: Math.min(limit, 50),
-    page: 1,
+    page,
+    tender_status: PROZORRO_SEARCH_STATUSES,
   };
+  if (text) body.text = text;
+  if (cpv && cpv.length) body.cpv = cpv;
+
   const data = await prozorroRequest(PROZORRO_SEARCH_URL, { method: 'POST', body });
   const items = data?.data || [];
   return Array.isArray(items) ? items : [];
@@ -261,22 +293,8 @@ async function resolveInternalId(tenderIdOrUa) {
   throw new Error(`Не вдалося знайти внутрішній ID для ${key}`);
 }
 
-async function enrichSearchItem(raw) {
-  const summary = normalizeTenderSummary(raw, raw);
-  if (summary.deadline && summary.description !== summary.title) {
-    return summary;
-  }
-  try {
-    const internalId = await resolveInternalId(raw.tenderID || raw.id);
-    const detail = await fetchTenderDetail(internalId);
-    return normalizeTenderSummary(raw, detail);
-  } catch {
-    return summary;
-  }
-}
-
 /**
- * Fallback: feed + keyword filter.
+ * Fallback: feed + keyword filter (повільно, лише останні закупівлі).
  */
 async function searchProzorroFeed(keywords, { limit = 30, maxPages = 3 } = {}) {
   let path = '/api/2.5/tenders?descending=1&limit=100&mode=_all_';
@@ -295,7 +313,7 @@ async function searchProzorroFeed(keywords, { limit = 30, maxPages = 3 } = {}) {
         if (!detail || !isActiveTender(detail.status)) continue;
         const hay = `${detail.title || ''} ${detail.description || ''}`;
         const cpv = (detail.items || []).map((i) => i.classification?.id).filter(Boolean);
-        if (textMatchesNiche(hay, keywords) || cpvMatchesNiche(cpv)) {
+        if (textMatchesNiche(hay, keywords) || cpvMatchesNiche(cpv, CPV_DG_CODES)) {
           results.push(normalizeTenderSummary(detail, detail));
         }
       } catch {
@@ -308,6 +326,10 @@ async function searchProzorroFeed(keywords, { limit = 30, maxPages = 3 } = {}) {
     path = next;
   }
   return results;
+}
+
+function tenderKey(raw) {
+  return raw?.tenderID || raw?.id || '';
 }
 
 async function searchTenders(options = {}) {
@@ -325,55 +347,86 @@ async function searchTenders(options = {}) {
     ? query.split(/[,;|]/).map((s) => s.trim()).filter(Boolean)
     : DEFAULT_NICHE_KEYWORDS;
 
-  const searchQuery = query || keywords.slice(0, 3).join(' ');
-  let rawItems = [];
+  const rawByKey = new Map();
+
+  const addItems = (items, fromCpvSearch = false) => {
+    for (const raw of items) {
+      const key = tenderKey(raw);
+      if (!key) continue;
+      const existing = rawByKey.get(key);
+      if (!existing || fromCpvSearch) {
+        rawByKey.set(key, { raw, fromCpvSearch: fromCpvSearch || existing?.fromCpvSearch });
+      }
+    }
+  };
 
   try {
-    rawItems = await searchProzorroWeb(searchQuery, { limit: limit * 2 });
+    if (query) {
+      for (const kw of keywords) {
+        try {
+          const items = await searchProzorroWeb({ text: kw });
+          addItems(items, false);
+        } catch (err) {
+          console.warn('[tenderProzorro] search failed for', kw, err.message);
+        }
+        if (rawByKey.size >= limit * 2) break;
+      }
+    } else {
+      for (const kw of DEFAULT_PROZORRO_SEARCH_QUERIES) {
+        try {
+          const items = await searchProzorroWeb({ text: kw });
+          addItems(items, false);
+        } catch (err) {
+          console.warn('[tenderProzorro] search failed for', kw, err.message);
+        }
+        if (rawByKey.size >= limit * 2) break;
+      }
+
+      for (const cpv of PROZORRO_CPV_SEARCH_CODES) {
+        try {
+          const items = await searchProzorroWeb({ cpv: [cpv] });
+          addItems(items, true);
+        } catch (err) {
+          console.warn('[tenderProzorro] CPV search failed for', cpv, err.message);
+        }
+      }
+    }
   } catch (err) {
-    console.warn('[tenderProzorro] search POST failed, using feed fallback:', err.message);
+    console.warn('[tenderProzorro] search failed, using feed fallback:', err.message);
     return searchProzorroFeed(keywords, { limit, maxPages: 2 });
   }
 
-  if (rawItems.length === 0) {
+  if (rawByKey.size === 0) {
     return searchProzorroFeed(keywords, { limit, maxPages: 2 });
   }
 
   const normalized = [];
-  const seen = new Set();
-
-  for (const raw of rawItems) {
+  for (const { raw, fromCpvSearch } of rawByKey.values()) {
     if (normalized.length >= limit) break;
-    const key = raw.tenderID || raw.id;
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
 
-    try {
-      if (!isActiveTender(raw.status)) continue;
-
-      let summary = normalizeTenderSummary(raw, raw);
-
-      if (nicheOnly) {
-        const kw = query ? keywords : DEFAULT_NICHE_KEYWORDS;
-        const hay = `${summary.title} ${summary.description}`;
-        if (!textMatchesNiche(hay, kw) && !cpvMatchesNiche(summary.cpvCodes)) continue;
-      }
-
-      if (region && !summary.region.toLowerCase().includes(region.toLowerCase())) continue;
-      if (minBudget != null && summary.budget != null && summary.budget < minBudget) continue;
-      if (maxBudget != null && summary.budget != null && summary.budget > maxBudget) continue;
-
-      if (category) {
-        const cat = detectCategory(`${summary.title} ${summary.description}`);
-        if (cat !== category && cat !== 'mixed') continue;
-      }
-
-      summary = normalizeTenderSummary(raw, raw);
+    const summary = normalizeTenderSummary(raw, raw);
+    if (passesTenderFilters(raw, summary, {
+      query,
+      keywords,
+      category,
+      region,
+      minBudget,
+      maxBudget,
+      nicheOnly,
+      defaultKeywords: DEFAULT_NICHE_KEYWORDS,
+      cpvPrefixes: CPV_DG_CODES,
+      isActive: isActiveTender,
+      fromCpvSearch,
+    })) {
       normalized.push(summary);
-    } catch (err) {
-      console.warn('[tenderProzorro] skip item', key, err.message);
     }
   }
+
+  normalized.sort((a, b) => {
+    const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+    const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+    return da - db;
+  });
 
   return normalized;
 }

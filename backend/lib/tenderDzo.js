@@ -3,8 +3,8 @@
  * https://www.dzo.com.ua/ — API: https://search.dzo.com.ua
  */
 const https = require('https');
-const { detectCategory } = require('./tenderAnalysis');
 const { DEFAULT_NICHE_KEYWORDS, CPV_DG_CODES } = require('./tenderProzorro');
+const { resolveTenderRegion, passesTenderFilters } = require('./tenderSearchUtils');
 
 const DZO_SEARCH_BASE = 'https://search.dzo.com.ua';
 const DZO_SITE_BASE = 'https://www.dzo.com.ua';
@@ -77,18 +77,6 @@ function dzoRequest(path, { timeoutMs = 30000 } = {}) {
 
 function normalizeText(v) {
   return String(v || '').trim();
-}
-
-function isVagueRegion(region) {
-  const r = String(region || '').toLowerCase();
-  return !r || r.includes('відповідно') || r.includes('документац') || r.includes('згідно');
-}
-
-function regionFromTitleText(titleHay) {
-  const oblastMatch = String(titleHay || '').match(
-    /[А-ЯІЇЄ][а-яіїє'-]+(?:ська|ський)(?:\s*(?:та|і)\s*[А-ЯІЇЄ][а-яіїє'-]+(?:ська|ський))*\s*обл/
-  );
-  return oblastMatch ? oblastMatch[0] : '';
 }
 
 function statusLabelUk(status) {
@@ -165,15 +153,14 @@ function normalizeDzoTender(raw) {
     .flatMap((i) => (i.classification ? [i.classification.id] : []))
     .filter(Boolean);
 
-  const titleHay = `${t.title || ''} ${t.description || ''}`;
-  const regionFromTitle = regionFromTitleText(titleHay);
-  const deliveryRegion = isVagueRegion(delivery.region) ? '' : delivery.region;
+  const title = normalizeText(t.title || '');
+  const description = normalizeText(t.description || t.title || '');
 
   return {
     prozorroId: internalId || tenderNumber,
     tenderNumber,
-    title: normalizeText(t.title || ''),
-    description: normalizeText(t.description || t.title || ''),
+    title,
+    description,
     status: t.status || '',
     statusLabel: statusLabelUk(t.status),
     budget,
@@ -182,7 +169,12 @@ function normalizeDzoTender(raw) {
     deadline,
     deadlineFormatted: deadline ? new Date(deadline).toLocaleString('uk-UA') : '—',
     customer: normalizeText(t.procuringEntity?.name || t.procuringEntity?.identifier?.legalName || ''),
-    region: deliveryRegion || regionFromTitle || procRegion || '',
+    region: resolveTenderRegion({
+      deliveryRegion: delivery.region,
+      procRegion,
+      title,
+      description,
+    }),
     deliveryAddress: delivery.deliveryAddress || '',
     cpvCodes,
     documents: extractDocuments(t.documents),
@@ -194,17 +186,6 @@ function normalizeDzoTender(raw) {
     numberOfTenderers: t.numberOfTenderers ?? null,
     datePublished: t.date || t.dateCreated || null,
   };
-}
-
-function textMatchesNiche(text, keywords) {
-  const hay = String(text || '').toLowerCase();
-  return keywords.some((kw) => hay.includes(String(kw).toLowerCase()));
-}
-
-function cpvMatchesNiche(cpvCodes) {
-  return (cpvCodes || []).some((code) =>
-    CPV_DG_CODES.some((prefix) => String(code).startsWith(prefix))
-  );
 }
 
 function isActiveDzoStatus(status) {
@@ -237,30 +218,6 @@ async function fetchDzoMembers(searchOpts) {
   return Array.isArray(data.member) ? data.member : [];
 }
 
-function passesFilters(raw, summary, { query, keywords, category, region, minBudget, maxBudget, nicheOnly }) {
-  if (!isActiveDzoStatus(raw.status)) return false;
-
-  if (region && !summary.region.toLowerCase().includes(region.toLowerCase())) {
-    const hay = `${summary.title} ${summary.description}`.toLowerCase();
-    if (!hay.includes(region.toLowerCase())) return false;
-  }
-  if (minBudget != null && summary.budget != null && summary.budget < minBudget) return false;
-  if (maxBudget != null && summary.budget != null && summary.budget > maxBudget) return false;
-
-  if (nicheOnly) {
-    const kw = query ? keywords : DEFAULT_NICHE_KEYWORDS;
-    const hay = `${summary.title} ${summary.description}`;
-    if (!textMatchesNiche(hay, kw) && !cpvMatchesNiche(summary.cpvCodes)) return false;
-  }
-
-  if (category) {
-    const cat = detectCategory(`${summary.title} ${summary.description}`);
-    if (cat !== category && cat !== 'mixed') return false;
-  }
-
-  return true;
-}
-
 async function searchTendersDzo(options = {}) {
   const {
     query = '',
@@ -279,47 +236,58 @@ async function searchTendersDzo(options = {}) {
   const rawById = new Map();
   const baseOpts = { region, minBudget, maxBudget, itemsPerPage: 20 };
 
+  const addMembers = (members, fromCpvSearch = false) => {
+    for (const m of members) {
+      if (!m?.id) continue;
+      const existing = rawById.get(m.id);
+      rawById.set(m.id, { raw: m, fromCpvSearch: fromCpvSearch || existing?.fromCpvSearch });
+    }
+  };
+
   if (query) {
     for (const kw of keywords) {
       const members = await fetchDzoMembers({ ...baseOpts, keyword: kw });
-      for (const m of members) {
-        if (m?.id) rawById.set(m.id, m);
-      }
+      addMembers(members, false);
       if (rawById.size >= limit * 2) break;
     }
   } else {
     for (const kw of DEFAULT_DZO_SEARCH_QUERIES) {
       try {
         const members = await fetchDzoMembers({ ...baseOpts, keyword: kw });
-        for (const m of members) {
-          if (m?.id) rawById.set(m.id, m);
-        }
+        addMembers(members, false);
       } catch (err) {
         console.warn('[tenderDzo] search failed for', kw, err.message);
       }
       if (rawById.size >= limit * 2) break;
     }
 
-    if (rawById.size < limit) {
-      for (const cpv of DEFAULT_DZO_CPV_PREFIXES) {
-        try {
-          const members = await fetchDzoMembers({ ...baseOpts, classification: `${cpv}-` });
-          for (const m of members) {
-            if (m?.id) rawById.set(m.id, m);
-          }
-        } catch (err) {
-          console.warn('[tenderDzo] CPV search failed for', cpv, err.message);
-        }
-        if (rawById.size >= limit * 2) break;
+    for (const cpv of DEFAULT_DZO_CPV_PREFIXES) {
+      try {
+        const members = await fetchDzoMembers({ ...baseOpts, classification: `${cpv}-` });
+        addMembers(members, true);
+      } catch (err) {
+        console.warn('[tenderDzo] CPV search failed for', cpv, err.message);
       }
     }
   }
 
   const normalized = [];
-  for (const raw of rawById.values()) {
+  for (const { raw, fromCpvSearch } of rawById.values()) {
     if (normalized.length >= limit) break;
     const summary = normalizeDzoTender(raw);
-    if (passesFilters(raw, summary, { query, keywords, category, region, minBudget, maxBudget, nicheOnly })) {
+    if (passesTenderFilters(raw, summary, {
+      query,
+      keywords,
+      category,
+      region,
+      minBudget,
+      maxBudget,
+      nicheOnly,
+      defaultKeywords: DEFAULT_NICHE_KEYWORDS,
+      cpvPrefixes: CPV_DG_CODES,
+      isActive: isActiveDzoStatus,
+      fromCpvSearch,
+    })) {
       normalized.push(summary);
     }
   }
