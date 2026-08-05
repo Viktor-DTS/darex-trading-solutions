@@ -140,6 +140,63 @@ function procurementExecutorRowLabel(r) {
   return '—';
 }
 
+function procurementRequestSearchBlob(r) {
+  const parts = [
+    r.requestNumber,
+    STATUS_LABELS[r.status] || r.status,
+    applicationKindLabel(r),
+    payerCompanyLabel(r.payerCompany),
+    r.requesterName,
+    r.requesterLogin,
+    priorityLabel(r.priority),
+    formatDt(r.createdAt),
+    r.desiredWarehouse,
+    r.actualWarehouse,
+    r.executorName,
+    r.executorLogin,
+    procurementExecutorRowLabel(r),
+    formatDt(r.executorCompletedAt),
+    r.notes
+  ];
+  for (const m of r.materials || []) {
+    if (!m) continue;
+    parts.push(m.name, m.supplierName, m.actualWarehouse);
+  }
+  return parts
+    .filter((x) => x != null && String(x).trim() !== '' && String(x).trim() !== '—')
+    .join(' ')
+    .toLowerCase();
+}
+
+function filterProcurementRequestList(list, query, dateFrom, dateTo) {
+  const terms = String(query || '')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  const fromMs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
+  const toMs = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null;
+
+  return (list || []).filter((r) => {
+    if (fromMs != null || toMs != null) {
+      const createdMs = r.createdAt ? new Date(r.createdAt).getTime() : NaN;
+      if (!Number.isFinite(createdMs)) return false;
+      if (fromMs != null && createdMs < fromMs) return false;
+      if (toMs != null && createdMs > toMs) return false;
+    }
+    if (!terms.length) return true;
+    const blob = procurementRequestSearchBlob(r);
+    return terms.every((term) => blob.includes(term));
+  });
+}
+
+function procurementListEmptyMessage(totalCount, filteredCount, emptyMessage) {
+  if (totalCount > 0 && filteredCount === 0) {
+    return 'За обраними фільтрами заявок не знайдено.';
+  }
+  return emptyMessage;
+}
+
 function sumWarehouseAcceptedQty(events) {
   if (!Array.isArray(events)) return 0;
   return events.reduce((acc, ev) => acc + (Number(ev?.acceptedQuantity) || 0), 0);
@@ -365,6 +422,9 @@ function ProcurementDashboard({ user }) {
   const [importDryRun, setImportDryRun] = useState(true);
   const [importRunning, setImportRunning] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [listSearchQuery, setListSearchQuery] = useState('');
+  const [listDateFrom, setListDateFrom] = useState('');
+  const [listDateTo, setListDateTo] = useState('');
 
   const { units: uomList } = useUnitsOfMeasure();
   const normUom = useCallback((v) => normalizeUomLabel(v, uomList), [uomList]);
@@ -391,6 +451,21 @@ function ProcurementDashboard({ user }) {
   const archivedRequests = useMemo(
     () => requests.filter((r) => r.status === 'completed'),
     [requests]
+  );
+
+  const hasListFilters = Boolean(listSearchQuery.trim() || listDateFrom || listDateTo);
+
+  const filteredActiveRequests = useMemo(
+    () => filterProcurementRequestList(activeRequests, listSearchQuery, listDateFrom, listDateTo),
+    [activeRequests, listSearchQuery, listDateFrom, listDateTo]
+  );
+  const filteredBlockedRequests = useMemo(
+    () => filterProcurementRequestList(blockedRequests, listSearchQuery, listDateFrom, listDateTo),
+    [blockedRequests, listSearchQuery, listDateFrom, listDateTo]
+  );
+  const filteredArchivedRequests = useMemo(
+    () => filterProcurementRequestList(archivedRequests, listSearchQuery, listDateFrom, listDateTo),
+    [archivedRequests, listSearchQuery, listDateFrom, listDateTo]
   );
 
   const fetchProcurementNotifUnreadCount = useCallback(async () => {
@@ -1155,6 +1230,55 @@ function ProcurementDashboard({ user }) {
   const canBlockProcurementRequest = (d) =>
     !!d && PROCUREMENT_BLOCKABLE_STATUSES.includes(d.status) && isVidZakupok;
 
+  const clearListFilters = () => {
+    setListSearchQuery('');
+    setListDateFrom('');
+    setListDateTo('');
+  };
+
+  const renderProcurementListFilters = (shownCount, totalCount) => (
+    <div className="procurement-list-filters">
+      <label className="procurement-list-filter procurement-list-filter--search">
+        <span className="procurement-list-filter-label">Пошук</span>
+        <input
+          type="search"
+          className="procurement-list-filter-input"
+          placeholder="№ заявки, заявник, склад, матеріал…"
+          value={listSearchQuery}
+          onChange={(e) => setListSearchQuery(e.target.value)}
+        />
+      </label>
+      <label className="procurement-list-filter">
+        <span className="procurement-list-filter-label">Дата від</span>
+        <input
+          type="date"
+          className="procurement-list-filter-input procurement-list-filter-input--date"
+          value={listDateFrom}
+          onChange={(e) => setListDateFrom(e.target.value)}
+        />
+      </label>
+      <label className="procurement-list-filter">
+        <span className="procurement-list-filter-label">Дата до</span>
+        <input
+          type="date"
+          className="procurement-list-filter-input procurement-list-filter-input--date"
+          value={listDateTo}
+          onChange={(e) => setListDateTo(e.target.value)}
+        />
+      </label>
+      {hasListFilters ? (
+        <>
+          <button type="button" className="procurement-list-filter-clear" onClick={clearListFilters}>
+            Скинути
+          </button>
+          <span className="procurement-list-filter-count">
+            {shownCount} з {totalCount}
+          </span>
+        </>
+      ) : null}
+    </div>
+  );
+
   const renderProcurementRequestsTable = (requestList, emptyMessage) => (
     <div className="procurement-table-wrap procurement-table-wrap--scroll">
       <table className="procurement-table">
@@ -1368,10 +1492,18 @@ function ProcurementDashboard({ user }) {
                 Повністю виконані заявки (статус «Повністю виконана»). Відкрийте рядок, щоб переглянути картку з
                 матеріалами та історією прийомів на складі.
               </p>
+              {renderProcurementListFilters(filteredArchivedRequests.length, archivedRequests.length)}
               {loading ? (
                 <div className="procurement-loading">Завантаження…</div>
               ) : (
-                renderProcurementRequestsTable(archivedRequests, 'Немає виконаних заявок в архіві.')
+                renderProcurementRequestsTable(
+                  filteredArchivedRequests,
+                  procurementListEmptyMessage(
+                    archivedRequests.length,
+                    filteredArchivedRequests.length,
+                    'Немає виконаних заявок в архіві.'
+                  )
+                )
               )}
             </div>
           )}
@@ -1384,10 +1516,18 @@ function ProcurementDashboard({ user }) {
                 Заявки, які виконавець відділу закупівель заблокував або які надійшли з Google Sheets зі статусом
                 «Заблоковано». Відкрийте картку, щоб переглянути деталі або повернути заявку в роботу.
               </p>
+              {renderProcurementListFilters(filteredBlockedRequests.length, blockedRequests.length)}
               {loading ? (
                 <div className="procurement-loading">Завантаження…</div>
               ) : (
-                renderProcurementRequestsTable(blockedRequests, 'Немає заблокованих заявок.')
+                renderProcurementRequestsTable(
+                  filteredBlockedRequests,
+                  procurementListEmptyMessage(
+                    blockedRequests.length,
+                    filteredBlockedRequests.length,
+                    'Немає заблокованих заявок.'
+                  )
+                )
               )}
             </div>
           )}
@@ -1543,12 +1683,18 @@ function ProcurementDashboard({ user }) {
                 </p>
               )}
 
+              {renderProcurementListFilters(filteredActiveRequests.length, activeRequests.length)}
+
               {loading ? (
                 <div className="procurement-loading">Завантаження…</div>
               ) : (
                 renderProcurementRequestsTable(
-                  activeRequests,
-                  'Немає заявок. Натисніть «Подати заявку».'
+                  filteredActiveRequests,
+                  procurementListEmptyMessage(
+                    activeRequests.length,
+                    filteredActiveRequests.length,
+                    'Немає заявок. Натисніть «Подати заявку».'
+                  )
                 )
               )}
             </div>
