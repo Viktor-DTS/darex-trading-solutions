@@ -2807,6 +2807,7 @@ async function notifyProcurementRequesterCompleted(pr) {
 async function userCanReadProcurementRequest(reqUser, dbUser, pr) {
   if (!pr) return false;
   if (isVidZakupokProcurementRole(reqUser.role)) return true;
+  if (isImportedProcurementRequest(pr)) return true;
   if (String(pr.requesterLogin || '').trim() === String(reqUser.login || '').trim()) return true;
   if (isWarehouseProcurementConfirmRole(reqUser.role)) {
     const names = await getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser);
@@ -3800,6 +3801,28 @@ function procurementNotImportedMongoFilter() {
   };
 }
 
+/** MongoDB-фільтр: лише імпортовані заявки (Google Sheets тощо). */
+function procurementImportedMongoFilter() {
+  return { importSourceKey: { $exists: true, $nin: [null, ''] } };
+}
+
+/** Список заявок для користувача: імпортовані — всім; неімпортовані — заявнику або відділу закупівель. */
+function procurementListQueryForUser(reqUser) {
+  if (isVidZakupokProcurementRole(reqUser.role)) {
+    return {};
+  }
+  const login = String(reqUser.login || '').trim();
+  return {
+    $or: [
+      procurementImportedMongoFilter(),
+      {
+        ...procurementNotImportedMongoFilter(),
+        requesterLogin: login,
+      },
+    ],
+  };
+}
+
 /** Закрити імпортовану заявку без етапу «завсклад підтвердив прийом». */
 function applyImportedProcurementClosedWithoutWarehouse(pr, at = new Date()) {
   pr.status = 'completed';
@@ -4280,11 +4303,7 @@ app.get('/api/procurement-requests', async (req, res) => {
     if (isVidZakupokProcurementRole(req.user.role)) {
       await repairImportedProcurementStuckAwaitingWarehouse();
     }
-    const login = String(req.user.login || '').trim();
-    const q = {};
-    if (!isVidZakupokProcurementRole(req.user.role)) {
-      q.requesterLogin = login;
-    }
+    const q = procurementListQueryForUser(req.user);
     const rows = await ProcurementRequest.find(q)
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })

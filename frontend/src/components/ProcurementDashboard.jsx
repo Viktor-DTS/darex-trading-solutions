@@ -1689,8 +1689,9 @@ function ProcurementDashboard({ user }) {
               </p>
               {!isVidZakupok && (
                 <p className="procurement-hint">
-                  У цьому списку показано лише <strong>ваші</strong> заявки. Усі заявки бачать виконавці відділу
-                  закупівель (VidZakupok) та адміністратори.
+                  У цьому списку показано <strong>ваші</strong> заявки, створені в системі, та{' '}
+                  <strong>усі імпортовані</strong> заявки (з Google Sheets). Усі заявки без обмежень бачать
+                  виконавці відділу закупівель (VidZakupok) та адміністратори.
                 </p>
               )}
 
