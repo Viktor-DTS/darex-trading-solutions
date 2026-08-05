@@ -7,6 +7,7 @@ import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
 import ClientDataSelectionModal from './ClientDataSelectionModal';
 import EquipmentDataSelectionModal from './EquipmentDataSelectionModal';
+import MaterialNameAutocomplete from './MaterialNameAutocomplete';
 import TaskOneCMovementsPanel from './onec/TaskOneCMovementsPanel';
 import './AddTaskModal.css';
 
@@ -2811,7 +2812,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="form-row four-cols">
                   <div className="form-group">
                     <label>Тип оливи</label>
-                    <input type="text" name="oilType" value={formData.oilType} onChange={handleChange} />
+                    <MaterialNameAutocomplete
+                      name="oilType"
+                      value={formData.oilType}
+                      onChange={handleChange}
+                      disabled={isReadOnly}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Використано, л</label>
@@ -2830,7 +2836,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="form-row four-cols">
                   <div className="form-group">
                     <label>Масляний фільтр: Назва</label>
-                    <input type="text" name="filterName" value={formData.filterName} onChange={handleChange} />
+                    <MaterialNameAutocomplete
+                      name="filterName"
+                      value={formData.filterName}
+                      onChange={handleChange}
+                      disabled={isReadOnly}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Штук</label>
@@ -2849,7 +2860,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="form-row four-cols">
                   <div className="form-group">
                     <label>Паливний фільтр: Назва</label>
-                    <input type="text" name="fuelFilterName" value={formData.fuelFilterName} onChange={handleChange} />
+                    <MaterialNameAutocomplete
+                      name="fuelFilterName"
+                      value={formData.fuelFilterName}
+                      onChange={handleChange}
+                      disabled={isReadOnly}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Штук</label>
@@ -2868,7 +2884,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="form-row four-cols">
                   <div className="form-group">
                     <label>Повітряний фільтр: Назва</label>
-                    <input type="text" name="airFilterName" value={formData.airFilterName} onChange={handleChange} />
+                    <MaterialNameAutocomplete
+                      name="airFilterName"
+                      value={formData.airFilterName}
+                      onChange={handleChange}
+                      disabled={isReadOnly}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Штук</label>
@@ -2887,7 +2908,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="form-row four-cols">
                   <div className="form-group">
                     <label>Антифриз: Тип</label>
-                    <input type="text" name="antifreezeType" value={formData.antifreezeType} onChange={handleChange} />
+                    <MaterialNameAutocomplete
+                      name="antifreezeType"
+                      value={formData.antifreezeType}
+                      onChange={handleChange}
+                      disabled={isReadOnly}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Літри</label>
@@ -2912,11 +2938,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <div className="form-row six-cols other-material-line-row" key={`other-mat-${idx}`}>
                           <div className="form-group">
                             <label>Назва</label>
-                            <textarea
+                            <MaterialNameAutocomplete
                               value={row.name}
-                              onChange={(e) => updateOtherMaterialLine(idx, 'name', e.target.value)}
-                              readOnly={isReadOnly}
-                              rows={1}
+                              onValueChange={(v) => updateOtherMaterialLine(idx, 'name', v)}
+                              disabled={isReadOnly}
                               className="other-material-name"
                               placeholder="Назва..."
                             />

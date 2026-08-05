@@ -4011,6 +4011,155 @@ async function buildProcurementNomenclatureStock(name, productId) {
   return { label, totalQuantity, warehouses };
 }
 
+function shortRegionLabelForMaterialHint(regionRaw) {
+  const r = String(regionRaw || '').trim();
+  if (!r) return 'Регіон';
+  if (/^україна$/i.test(r)) return 'Україна';
+  return r.replace(/ський$/i, '') || r;
+}
+
+function materialHintStockKey(hint) {
+  const label = String(hint?.label || '').trim().toLowerCase();
+  const pid = hint?.id ? String(hint.id) : '';
+  return pid ? `pid:${pid}` : `lbl:${label}`;
+}
+
+function equipmentStockRowMatchesMaterialHint(row, hint) {
+  const label = String(hint?.label || '').trim();
+  const pid = hint?.id ? String(hint.id) : '';
+  const rowType = String(row?._id?.type || '').trim();
+  const rowPid = row?._id?.productId ? String(row._id.productId) : '';
+
+  if (pid && mongoose.isValidObjectId(pid)) {
+    if (rowPid === pid) return true;
+    if (!rowPid && label) {
+      return new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i').test(rowType);
+    }
+    return false;
+  }
+  if (!label) return false;
+  return new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i').test(rowType);
+}
+
+async function batchStockRowsForMaterialHints(hints) {
+  const orConditions = [];
+  const seen = new Set();
+  for (const h of hints.slice(0, 15)) {
+    const label = String(h?.label || '').trim();
+    if (!label) continue;
+    const pid = h?.id ? String(h.id) : '';
+    const dedupeKey = materialHintStockKey(h);
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    if (pid && mongoose.isValidObjectId(pid)) {
+      const oid = new mongoose.Types.ObjectId(pid);
+      const typeRx = new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i');
+      orConditions.push(
+        { productId: oid },
+        { productId: null, type: typeRx },
+        { productId: { $exists: false }, type: typeRx }
+      );
+    } else {
+      orConditions.push({ type: new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i') });
+    }
+  }
+  if (!orConditions.length) return [];
+
+  return Equipment.aggregate([
+    {
+      $match: {
+        isDeleted: { $ne: true },
+        status: { $in: ['in_stock', 'reserved'] },
+        $or: orConditions,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          type: '$type',
+          productId: '$productId',
+          warehouseId: '$currentWarehouse',
+          warehouseName: '$currentWarehouseName',
+        },
+        quantity: { $sum: { $ifNull: ['$quantity', 1] } },
+      },
+    },
+  ]);
+}
+
+/** Підказки матеріалів для сервісної форми: назва + залишки (регіон користувача завжди, інші — лише > 0). */
+async function buildServiceMaterialHints(query, userRegionRaw) {
+  const hints = await buildProcurementNomenclatureHints(query);
+  if (!hints.length) return [];
+
+  const userRegion = String(userRegionRaw || '').trim();
+  const isNational = isNationalWarehouseRegion(userRegion);
+  const regionLabel = shortRegionLabelForMaterialHint(userRegion);
+
+  const warehouses = await Warehouse.find({ isActive: true })
+    .select('_id name region isRegionBase')
+    .lean();
+  const whById = new Map(warehouses.map((w) => [String(w._id), w]));
+
+  const allowedIds = isNational
+    ? new Set(warehouses.map((w) => String(w._id)))
+    : await loadActiveWarehouseIdsForUserRegion(userRegion);
+
+  const stockRows = await batchStockRowsForMaterialHints(hints);
+
+  const enriched = hints.slice(0, 10).map((hint) => {
+    const matching = stockRows.filter((row) => equipmentStockRowMatchesMaterialHint(row, hint));
+
+    let regionQty = 0;
+    const otherByRegion = new Map();
+
+    for (const row of matching) {
+      const whId = row._id?.warehouseId ? String(row._id.warehouseId) : '';
+      const qty = Number(row.quantity) || 0;
+      if (qty <= 0) continue;
+
+      const wh = whById.get(whId);
+      const whRegion = String(wh?.region || '').trim();
+      const regionKey = whRegion || String(row._id?.warehouseName || 'Інший').trim() || 'Інший';
+
+      if (isNational || allowedIds.has(whId)) {
+        regionQty += qty;
+      } else {
+        const prev = otherByRegion.get(regionKey) || {
+          region: shortRegionLabelForMaterialHint(regionKey),
+          quantity: 0,
+        };
+        prev.quantity += qty;
+        otherByRegion.set(regionKey, prev);
+      }
+    }
+
+    const otherRegions = [...otherByRegion.values()]
+      .filter((r) => r.quantity > 0)
+      .sort((a, b) => b.quantity - a.quantity);
+
+    return {
+      id: hint.id,
+      label: hint.label,
+      subtitle: hint.subtitle || '',
+      regionLabel,
+      regionQty,
+      otherRegions,
+    };
+  });
+
+  enriched.sort((a, b) => {
+    const score = (item) => (item.regionQty > 0 ? 2 : item.otherRegions.length > 0 ? 1 : 0);
+    const diff = score(b) - score(a);
+    if (diff !== 0) return diff;
+    if (b.regionQty !== a.regionQty) return b.regionQty - a.regionQty;
+    return String(a.label).localeCompare(String(b.label), 'uk');
+  });
+
+  return enriched;
+}
+
 function normalizeProcurementEdrpouDigits(input) {
   return String(input || '').replace(/\D/g, '');
 }
@@ -4246,6 +4395,25 @@ app.get('/api/procurement-requests/nomenclature-stock', async (req, res) => {
   } catch (error) {
     logPerformance('GET /api/procurement-requests/nomenclature-stock', startTime);
     console.error('[ERROR] nomenclature-stock:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/service/material-hints', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) {
+      logPerformance('GET /api/service/material-hints', startTime, 0);
+      return res.json([]);
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).select('region').lean();
+    const out = await buildServiceMaterialHints(q, dbUser?.region);
+    logPerformance('GET /api/service/material-hints', startTime, out.length);
+    res.json(out);
+  } catch (error) {
+    logPerformance('GET /api/service/material-hints', startTime);
+    console.error('[ERROR] service/material-hints:', error);
     res.status(500).json({ error: error.message });
   }
 });

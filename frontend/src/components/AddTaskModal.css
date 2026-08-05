@@ -238,7 +238,8 @@
   min-width: 0;
 }
 
-.accountant-mode .task-form .form-row.other-material-line-row textarea.other-material-name {
+.accountant-mode .task-form .form-row.other-material-line-row textarea.other-material-name,
+.accountant-mode .task-form .form-row.other-material-line-row .material-autocomplete-wrapper.other-material-name input {
   min-height: 22px;
   height: auto;
   resize: vertical;
