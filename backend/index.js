@@ -4122,12 +4122,18 @@ async function buildServiceMaterialHints(query, userRegionRaw) {
       const wh = whById.get(whId);
       const whRegion = String(wh?.region || '').trim();
       const regionKey = whRegion || String(row._id?.warehouseName || 'Інший').trim() || 'Інший';
+      const shortLabel = shortRegionLabelForMaterialHint(regionKey);
 
-      if (isNational || allowedIds.has(whId)) {
+      if (isNational) {
+        regionQty += qty;
+        const prev = otherByRegion.get(regionKey) || { region: shortLabel, quantity: 0 };
+        prev.quantity += qty;
+        otherByRegion.set(regionKey, prev);
+      } else if (allowedIds.has(whId)) {
         regionQty += qty;
       } else {
         const prev = otherByRegion.get(regionKey) || {
-          region: shortRegionLabelForMaterialHint(regionKey),
+          region: shortLabel,
           quantity: 0,
         };
         prev.quantity += qty;

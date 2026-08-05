@@ -123,7 +123,7 @@ export default function MaterialNameAutocomplete({
                 {h.subtitle ? <span className="material-hint-sub">{h.subtitle}</span> : null}
                 {h.otherRegions?.length > 0 ? (
                   <span className="material-hint-other">
-                    {h.otherRegions.map((r) => `${r.region}: ${r.quantity}`).join(' · ')}
+                    {h.otherRegions.map((r) => `${r.region}: ${r.quantity}`).join(' - ')}
                   </span>
                 ) : null}
               </button>
