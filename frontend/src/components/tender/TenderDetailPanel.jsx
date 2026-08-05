@@ -4,12 +4,15 @@ import './TenderDepartment.css';
 function TenderDetailPanel({ tender, analysis, onSave, saving, mode = 'search' }) {
   const a = analysis || tender?.analysis || {};
   const docs = a.requiredDocs || [];
+  const platformUrl = tender.platformUrl || tender.prozorroUrl || (tender.tenderNumber ? `https://prozorro.gov.ua/tender/${tender.tenderNumber}` : '');
   const prozorroUrl = tender.prozorroUrl || (tender.tenderNumber ? `https://prozorro.gov.ua/tender/${tender.tenderNumber}` : '');
+  const dzoUrl = tender.source === 'dzo' ? platformUrl : (tender.tenderNumber ? `https://www.dzo.com.ua/tender/${tender.tenderNumber}` : '');
 
   return (
     <div className="tender-detail-panel">
       <div className="tender-detail-header">
         <div>
+          <span className="tender-detail-badge">{tender.sourceLabel || 'Prozorro'}</span>
           <span className="tender-detail-badge">{a.categoryLabel || '—'}</span>
           {a.powerKw && <span className="tender-detail-badge">~{a.powerKw} кВт</span>}
           {a.daysLeft != null && (
@@ -120,6 +123,11 @@ function TenderDetailPanel({ tender, analysis, onSave, saving, mode = 'search' }
       )}
 
       <div className="tender-detail-actions">
+        {dzoUrl && (
+          <a href={dzoUrl} target="_blank" rel="noopener noreferrer" className="tender-btn tender-btn-secondary">
+            Відкрити на DZO ↗
+          </a>
+        )}
         {prozorroUrl && (
           <a href={prozorroUrl} target="_blank" rel="noopener noreferrer" className="tender-btn tender-btn-secondary">
             Відкрити на Prozorro ↗

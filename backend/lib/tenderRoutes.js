@@ -2,14 +2,17 @@
  * API маршрути панелі «Тендерний відділ».
  */
 const mongoose = require('mongoose');
-const { searchTenders, getTenderWithDetails, DEFAULT_NICHE_KEYWORDS } = require('./tenderProzorro');
+const { searchTendersAll, getTenderDetails, SOURCES } = require('./tenderAggregator');
+const { DEFAULT_NICHE_KEYWORDS } = require('./tenderProzorro');
 const { analyzeTender, CATEGORY_LABELS, RECOMMENDATION_LABELS } = require('./tenderAnalysis');
 
 const TENDER_STATUSES = ['new', 'review', 'approved', 'assigned', 'participating', 'won', 'lost', 'rejected'];
 
 const tenderWatchSchema = new mongoose.Schema(
   {
-    prozorroId: { type: String, required: true, unique: true, index: true },
+    prozorroId: { type: String, required: true, index: true },
+    source: { type: String, enum: ['prozorro', 'dzo'], default: 'prozorro', index: true },
+    sourceLabel: String,
     tenderNumber: String,
     title: String,
     description: String,
@@ -24,6 +27,7 @@ const tenderWatchSchema = new mongoose.Schema(
     categoryLabel: String,
     powerKw: Number,
     prozorroUrl: String,
+    platformUrl: String,
     documents: [{ title: String, url: String, format: String }],
     analysis: {
       score: Number,
@@ -50,6 +54,7 @@ const tenderWatchSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+tenderWatchSchema.index({ source: 1, prozorroId: 1 }, { unique: true });
 tenderWatchSchema.index({ status: 1, updatedAt: -1 });
 tenderWatchSchema.index({ assignedManagerLogin: 1, status: 1 });
 
@@ -95,6 +100,7 @@ function registerTenderRoutes(app, deps = {}) {
       },
       recommendations: RECOMMENDATION_LABELS,
       defaultKeywords: DEFAULT_NICHE_KEYWORDS,
+      sources: SOURCES,
     });
   });
 
@@ -110,8 +116,9 @@ function registerTenderRoutes(app, deps = {}) {
       const minBudget = req.query.minBudget != null && req.query.minBudget !== '' ? Number(req.query.minBudget) : null;
       const maxBudget = req.query.maxBudget != null && req.query.maxBudget !== '' ? Number(req.query.maxBudget) : null;
       const nicheOnly = req.query.nicheOnly !== '0';
+      const source = String(req.query.source || 'all').trim();
 
-      const items = await searchTenders({
+      const { items, warnings, query: usedQuery } = await searchTendersAll({
         query: q,
         region,
         category,
@@ -119,6 +126,7 @@ function registerTenderRoutes(app, deps = {}) {
         minBudget,
         maxBudget,
         nicheOnly,
+        source,
       });
 
       const enriched = items.map((t) => ({
@@ -129,7 +137,10 @@ function registerTenderRoutes(app, deps = {}) {
       res.json({
         items: enriched,
         count: enriched.length,
-        query: q || DEFAULT_NICHE_KEYWORDS.slice(0, 3).join(' '),
+        query: q || usedQuery,
+        source,
+        warnings,
+        warning: warnings.length ? warnings.join('; ') : undefined,
       });
     } catch (e) {
       console.error('[tenders/search]', e);
@@ -147,7 +158,8 @@ function registerTenderRoutes(app, deps = {}) {
       if (!canAccessTenderPanel(req.user)) {
         return res.status(403).json({ error: 'Немає доступу' });
       }
-      const tender = await getTenderWithDetails(req.params.id);
+      const source = String(req.query.source || 'prozorro').toLowerCase();
+      const tender = await getTenderDetails(req.params.id, source);
       const analysis = analyzeTender(tender);
       res.json({ ...tender, analysis });
     } catch (e) {
@@ -203,8 +215,9 @@ function registerTenderRoutes(app, deps = {}) {
       }
       const prozorroId = String(bodyProzorroId(req.body)).trim();
       if (!prozorroId) return res.status(400).json({ error: 'Вкажіть prozorroId' });
+      const source = String(req.body?.source || req.body?.tender?.source || 'prozorro').toLowerCase();
 
-      const existing = await TenderWatch.findOne({ prozorroId }).lean();
+      const existing = await TenderWatch.findOne({ prozorroId, source }).lean();
       if (existing) return res.status(409).json({ error: 'Тендер уже в робочому списку', record: existing });
 
       let tender;
@@ -213,7 +226,7 @@ function registerTenderRoutes(app, deps = {}) {
         tender = req.body.tender;
         analysis = req.body.analysis;
       } else {
-        tender = await getTenderWithDetails(prozorroId);
+        tender = await getTenderDetails(prozorroId, source);
         analysis = analyzeTender(tender);
       }
 
@@ -221,6 +234,8 @@ function registerTenderRoutes(app, deps = {}) {
 
       const record = await TenderWatch.create({
         prozorroId: tender.prozorroId || prozorroId,
+        source: tender.source || source,
+        sourceLabel: tender.sourceLabel || (source === 'dzo' ? 'DZO' : 'Prozorro'),
         tenderNumber: tender.tenderNumber,
         title: tender.title,
         description: tender.description,
@@ -235,6 +250,7 @@ function registerTenderRoutes(app, deps = {}) {
         categoryLabel: analysis.categoryLabel,
         powerKw: analysis.powerKw,
         prozorroUrl: tender.prozorroUrl,
+        platformUrl: tender.platformUrl || tender.prozorroUrl,
         documents: tender.documents || [],
         analysis: {
           score: analysis.score,
@@ -255,7 +271,10 @@ function registerTenderRoutes(app, deps = {}) {
       res.status(201).json(record);
     } catch (e) {
       if (e.code === 11000) {
-        const existing = await TenderWatch.findOne({ prozorroId: bodyProzorroId(req.body) }).lean();
+        const existing = await TenderWatch.findOne({
+          prozorroId: bodyProzorroId(req.body),
+          source: String(req.body?.source || req.body?.tender?.source || 'prozorro').toLowerCase(),
+        }).lean();
         return res.status(409).json({ error: 'Тендер уже в робочому списку', record: existing });
       }
       res.status(400).json({ error: e.message });

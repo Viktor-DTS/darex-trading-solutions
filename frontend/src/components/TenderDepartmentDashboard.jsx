@@ -13,10 +13,10 @@ function TenderDepartmentDashboard({ user }) {
         <header className="tender-hero">
           <h1>Тендерний відділ</h1>
           <p>
-            Пошук актуальних закупівель на Prozorro за профілем компанії: дизель-генератори, сервіс, монтаж, ДБЖ/UPS.
+            Пошук актуальних закупівель на Prozorro та DZO (dzo.com.ua) за профілем компанії: дизель-генератори, сервіс, монтаж, ДБЖ/UPS.
             Аналіз бюджету, дедлайну, регіону та конкурентоспроможності — з передачею менеджерам для реалізації.
           </p>
-          <span className="tender-hero-badge">Prozorro · ДГ · Сервіс · Монтаж · ДБЖ</span>
+          <span className="tender-hero-badge">Prozorro · DZO · ДГ · Сервіс · Монтаж · ДБЖ</span>
         </header>
 
         <nav className="tender-tabs">
@@ -25,7 +25,7 @@ function TenderDepartmentDashboard({ user }) {
             className={`tender-tab-btn ${tab === 'search' ? 'active' : ''}`}
             onClick={() => setTab('search')}
           >
-            🔍 Пошук Prozorro
+            🔍 Пошук тендерів
           </button>
           <button
             type="button"

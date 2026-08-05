@@ -30,6 +30,7 @@ function TenderSearchTab({ onSaved }) {
     category: '',
     minBudget: '',
     maxBudget: '',
+    source: 'all',
   });
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -51,6 +52,7 @@ function TenderSearchTab({ onSaved }) {
         category: filters.category,
         minBudget: filters.minBudget || undefined,
         maxBudget: filters.maxBudget || undefined,
+        source: filters.source || 'all',
         limit: 30,
       });
       setItems(data.items || []);
@@ -64,7 +66,7 @@ function TenderSearchTab({ onSaved }) {
     } catch (e) {
       console.error(e);
       setItems([]);
-      setError(e.message || 'Prozorro тимчасово недоступний. Спробуйте через кілька хвилин.');
+      setError(e.message || 'Майданчик тимчасово недоступний. Спробуйте через кілька хвилин.');
     } finally {
       setLoading(false);
     }
@@ -79,6 +81,7 @@ function TenderSearchTab({ onSaved }) {
     try {
       await saveTenderToWatchlist({
         prozorroId: tender.prozorroId,
+        source: tender.source || 'prozorro',
         tender,
         analysis: tender.analysis,
       });
@@ -113,7 +116,7 @@ function TenderSearchTab({ onSaved }) {
         <button type="button" className="tender-preset-btn" onClick={() => applyNichePreset('service')}>Сервіс / ТО</button>
         <button type="button" className="tender-preset-btn" onClick={() => applyNichePreset('mounting')}>Монтаж / ПНР</button>
         <button type="button" className="tender-preset-btn" onClick={() => applyNichePreset('ups')}>ДБЖ / UPS</button>
-        <button type="button" className="tender-preset-btn tender-preset-btn--all" onClick={() => setFilters({ q: '', region: '', category: '', minBudget: '', maxBudget: '' })}>
+        <button type="button" className="tender-preset-btn tender-preset-btn--all" onClick={() => setFilters({ q: '', region: '', category: '', minBudget: '', maxBudget: '', source: 'all' })}>
           Скинути
         </button>
       </div>
@@ -134,6 +137,15 @@ function TenderSearchTab({ onSaved }) {
           value={filters.region}
           onChange={(e) => setFilters((p) => ({ ...p, region: e.target.value }))}
         />
+        <select
+          className="tender-select"
+          value={filters.source}
+          onChange={(e) => setFilters((p) => ({ ...p, source: e.target.value }))}
+        >
+          <option value="all">Усі майданчики</option>
+          <option value="prozorro">Prozorro</option>
+          <option value="dzo">DZO (dzo.com.ua)</option>
+        </select>
         <select
           className="tender-select"
           value={filters.category}
@@ -158,7 +170,7 @@ function TenderSearchTab({ onSaved }) {
           onChange={(e) => setFilters((p) => ({ ...p, maxBudget: e.target.value }))}
         />
         <button type="button" className="tender-btn tender-btn-primary" onClick={runSearch} disabled={loading}>
-          {loading ? 'Пошук...' : '🔍 Знайти на Prozorro'}
+          {loading ? 'Пошук...' : '🔍 Знайти тендери'}
         </button>
       </div>
 
@@ -173,7 +185,7 @@ function TenderSearchTab({ onSaved }) {
       <div className="tender-search-layout">
         <div className="tender-list-wrap">
           {loading ? (
-            <div className="tender-loading">Завантаження тендерів з Prozorro...</div>
+            <div className="tender-loading">Завантаження тендерів...</div>
           ) : items.length === 0 ? (
             <div className="tender-empty">Немає результатів</div>
           ) : (
@@ -189,7 +201,7 @@ function TenderSearchTab({ onSaved }) {
                       <span className={`tender-score ${scoreClass(t.analysis?.score)}`}>
                         {t.analysis?.score ?? '—'}
                       </span>
-                      <span className="tender-list-status">{t.statusLabel}</span>
+                      <span className="tender-list-status">{t.sourceLabel || t.statusLabel}</span>
                     </div>
                     <div className="tender-list-title">{t.title || 'Без назви'}</div>
                     <div className="tender-list-meta">
