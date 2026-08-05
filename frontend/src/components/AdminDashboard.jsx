@@ -26,6 +26,7 @@ const ACCESS_PANEL_KEYS_FOR_MATRIX = [
   'reports',
   'analytics',
   'procurement',
+  'tenders',
   'admin'
 ];
 
@@ -954,6 +955,7 @@ function AdminDashboard({ user }) {
     { key: 'reports', label: 'Звіти' },
     { key: 'analytics', label: 'Аналітика' },
     { key: 'procurement', label: 'Відділ закупівель' },
+    { key: 'tenders', label: 'Тендерний відділ' },
     { key: 'admin', label: 'Адміністратор' },
   ];
 

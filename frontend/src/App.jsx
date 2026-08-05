@@ -21,6 +21,7 @@ import FinancialDashboard from './components/FinancialDashboard';
 import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import ProcurementDashboard from './components/ProcurementDashboard';
 import MarketingDashboard from './components/MarketingDashboard';
+import TenderDepartmentDashboard from './components/TenderDepartmentDashboard';
 import AssistantChatWidget from './components/AssistantChatWidget';
 import TaskExportOverlay from './components/TaskExportOverlay';
 import TelegramConnectBanner from './components/TelegramConnectBanner';
@@ -31,8 +32,8 @@ import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './u
 // Права доступу за замовчуванням (резервні, якщо база недоступна).
 // Перелік панелей (`PANELS`) — constants/panelsCatalog.js.
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'tenders', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'tenders', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
   operator: ['operator'],
   accountant: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
@@ -51,6 +52,10 @@ const DEFAULT_ACCESS_RULES = {
   vidzakupok: ['procurement'],
   /** Маркетинговий відділ — ліди та зовнішня реклама. */
   marketing: ['marketing'],
+  /** Тендерний відділ — пошук та аналіз закупівель Prozorro (ДГ, сервіс, монтаж, ДБЖ). */
+  tenderviddil: ['tenders'],
+  tender: ['tenders'],
+  tendervid: ['tenders'],
   mgradm: ['manager', 'marketing', 'inventory'],
 };
 
@@ -413,6 +418,8 @@ function App() {
         return <AnalyticsDashboard user={user} accessRules={accessRules} />;
       case 'procurement':
         return <ProcurementDashboard user={user} />;
+      case 'tenders':
+        return <TenderDepartmentDashboard user={user} />;
       case 'admin':
         return <AdminDashboard user={user} />;
       case 'service':
@@ -478,12 +485,12 @@ function App() {
                     }}
                   />
                   {/* Основний вміст */}
-                  <div className={`panel-content with-selector ${!['manager', 'inventory', 'marketing'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
+                  <div className={`panel-content with-selector ${!['manager', 'inventory', 'marketing', 'tenders'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
                     {renderPanel()}
                   </div>
                   
                   {/* Панель статистики заявок — приховано лише в Менеджери та Складський облік */}
-                  {!['manager', 'inventory', 'marketing'].includes(currentPanel) && (
+                  {!['manager', 'inventory', 'marketing', 'tenders'].includes(currentPanel) && (
                     <TasksStatisticsBar user={user} />
                   )}
                   <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />

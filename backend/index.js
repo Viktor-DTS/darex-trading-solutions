@@ -104,6 +104,7 @@ const {
 } = require('./assistantCashlessPending');
 const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
+const { registerTenderRoutes } = require('./lib/tenderRoutes');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -19284,6 +19285,12 @@ initAssistantAccountantRelay({
   createManagerNotificationDeduped,
 });
 scheduleCashlessPendingJob();
+
+registerTenderRoutes(app, {
+  User,
+  createManagerNotificationDeduped,
+  authenticateToken,
+});
 
 registerTradingRoutes(app, { getAssistantConnection });
 scheduleTradingScanJob(getAssistantConnection);
