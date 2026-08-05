@@ -54,12 +54,17 @@ function TenderSearchTab({ onSaved }) {
         limit: 30,
       });
       setItems(data.items || []);
-      if ((data.items || []).length === 0) {
+      if (data.warning) {
+        setError(data.warning);
+      } else if ((data.items || []).length === 0) {
         setError('За вашими критеріями тендерів не знайдено. Спробуйте інший запит або регіон.');
+      } else {
+        setError('');
       }
     } catch (e) {
-      setError(e.message || 'Помилка пошуку');
+      console.error(e);
       setItems([]);
+      setError(e.message || 'Prozorro тимчасово недоступний. Спробуйте через кілька хвилин.');
     } finally {
       setLoading(false);
     }

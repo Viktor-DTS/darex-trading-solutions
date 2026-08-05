@@ -126,10 +126,19 @@ function registerTenderRoutes(app, deps = {}) {
         analysis: analyzeTender(t),
       }));
 
-      res.json({ items: enriched, count: enriched.length, query: q || DEFAULT_NICHE_KEYWORDS.slice(0, 3).join(' ') });
+      res.json({
+        items: enriched,
+        count: enriched.length,
+        query: q || DEFAULT_NICHE_KEYWORDS.slice(0, 3).join(' '),
+      });
     } catch (e) {
       console.error('[tenders/search]', e);
-      res.status(500).json({ error: e.message || 'Помилка пошуку тендерів' });
+      res.json({
+        items: [],
+        count: 0,
+        warning: e.message || 'Prozorro тимчасово недоступний',
+        query: String(req.query.q || req.query.query || '').trim() || DEFAULT_NICHE_KEYWORDS.slice(0, 3).join(' '),
+      });
     }
   });
 
