@@ -90,6 +90,7 @@ function AdminDashboard({ user }) {
     name: '',
     role: 'service',
     region: '',
+    phone: '',
     telegramChatId: '',
     dismissed: false
   });
@@ -264,6 +265,7 @@ function AdminDashboard({ user }) {
       name: u.name || '',
       role: u.role || 'service',
       region: u.region || '',
+      phone: u.phone || '',
       telegramChatId: u.telegramChatId || '',
       dismissed: u.dismissed || false
     });
@@ -378,6 +380,7 @@ function AdminDashboard({ user }) {
       name: '',
       role: 'service',
       region: regions[0]?.name || '',
+      phone: '',
       telegramChatId: '',
       dismissed: false
     });
@@ -666,8 +669,14 @@ function AdminDashboard({ user }) {
             ))}
           </select>
           <input
+            name="phone"
+            placeholder="Телефон (380XXXXXXXXX)"
+            value={userForm.phone}
+            onChange={handleUserFormChange}
+          />
+          <input
             name="telegramChatId"
-            placeholder="Telegram Chat ID"
+            placeholder="Telegram Chat ID (авто після SMS)"
             value={userForm.telegramChatId}
             onChange={handleUserFormChange}
           />
@@ -740,7 +749,15 @@ function AdminDashboard({ user }) {
                         <td>{u.login}</td>
                         <td>{u.name}</td>
                         <td>{roles.find(r => r.value === u.role)?.label || u.role}</td>
-                        <td>{u.telegramChatId || '-'}</td>
+                        <td>
+                          {isTelegramConnected(u) ? (
+                            <span className="telegram-connected">✅ {u.telegramChatId}</span>
+                          ) : u.phone ? (
+                            <span className="telegram-pending">⏳ {u.phone}</span>
+                          ) : (
+                            <span className="telegram-missing">—</span>
+                          )}
+                        </td>
                         <td className="actions-cell">
                           <button className="btn-edit" onClick={() => handleEditUser(u)} title="Редагувати">✏️</button>
                           <button 
@@ -1631,13 +1648,138 @@ function AdminDashboard({ user }) {
   });
   const [telegramStatus, setTelegramStatus] = useState(null);
   const [testResult, setTestResult] = useState(null);
+  const [pendingTelegramUsers, setPendingTelegramUsers] = useState([]);
+  const [invitePreview, setInvitePreview] = useState(null);
+  const [telegramBusy, setTelegramBusy] = useState('');
+  const [inviteResult, setInviteResult] = useState(null);
+
+  const isTelegramConnected = (u) => {
+    const chatId = u.telegramChatId?.trim();
+    return chatId && chatId !== 'Chat ID' && /^\d+$/.test(chatId);
+  };
 
   // Завантаження статусу Telegram
   useEffect(() => {
     if (activeTab === 'telegram') {
       loadTelegramStatus();
+      loadPendingTelegramUsers();
     }
   }, [activeTab]);
+
+  const loadPendingTelegramUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/telegram/pending-invites`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setPendingTelegramUsers(await res.json());
+      }
+    } catch (error) {
+      console.error('Помилка завантаження pending invites:', error);
+    }
+  };
+
+  const loadInvitePreview = async (login) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/telegram/invite-preview/${encodeURIComponent(login)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setInvitePreview(await res.json());
+      }
+    } catch (error) {
+      console.error('Помилка превʼю SMS:', error);
+    }
+  };
+
+  const setupTelegramWebhook = async () => {
+    setTelegramBusy('webhook');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/telegram/setup-webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({})
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        alert(`Webhook налаштовано:\n${result.url}`);
+        loadTelegramStatus();
+      } else {
+        alert('Помилка: ' + (result.error || 'не вдалося налаштувати webhook'));
+      }
+    } catch (error) {
+      alert('Помилка: ' + error.message);
+    } finally {
+      setTelegramBusy('');
+    }
+  };
+
+  const sendTelegramInvite = async (user) => {
+    if (!window.confirm(`Надіслати SMS-запрошення для ${user.name || user.login}?`)) return;
+    setTelegramBusy(`invite-${user.login}`);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/telegram/send-invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ login: user.login })
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        alert(`✅ SMS надіслано на ${result.recipient}`);
+        loadPendingTelegramUsers();
+        loadData();
+      } else {
+        alert('Помилка: ' + (result.error || 'не вдалося надіслати SMS'));
+      }
+    } catch (error) {
+      alert('Помилка: ' + error.message);
+    } finally {
+      setTelegramBusy('');
+    }
+  };
+
+  const sendAllTelegramInvites = async () => {
+    if (!pendingTelegramUsers.length) {
+      alert('Немає користувачів для запрошення');
+      return;
+    }
+    if (!window.confirm(`Надіслати SMS ${pendingTelegramUsers.length} користувачам?`)) return;
+    setTelegramBusy('invite-all');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/telegram/send-invites-pending`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({})
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setInviteResult(result);
+        loadPendingTelegramUsers();
+        loadData();
+        alert(`Готово: надіслано ${result.sentCount}, помилок ${result.failedCount}`);
+      } else {
+        alert('Помилка: ' + (result.error || 'не вдалося надіслати SMS'));
+      }
+    } catch (error) {
+      alert('Помилка: ' + error.message);
+    } finally {
+      setTelegramBusy('');
+    }
+  };
 
   const loadTelegramStatus = async () => {
     try {
@@ -1682,7 +1824,7 @@ function AdminDashboard({ user }) {
 
   const renderTelegramTab = () => (
     <div className="admin-section">
-      <h3>📱 Налаштування Telegram сповіщень</h3>
+      <h3>📱 Telegram — сповіщення системи «Гідра»</h3>
       
       {telegramStatus && (
         <div className="telegram-status">
@@ -1691,17 +1833,123 @@ function AdminDashboard({ user }) {
             <div className={`status-item ${telegramStatus.botTokenConfigured ? 'ok' : 'error'}`}>
               🤖 Bot Token: {telegramStatus.botTokenConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}
             </div>
+            <div className={`status-item ${telegramStatus.botUsername ? 'ok' : 'error'}`}>
+              📛 Бот: @{telegramStatus.botUsername || '—'}
+            </div>
+            <div className={`status-item ${telegramStatus.smsConfigured ? 'ok' : 'error'}`}>
+              📲 SMS API: {telegramStatus.smsConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}
+            </div>
+            <div className={`status-item ${telegramStatus.publicApiUrlConfigured ? 'ok' : 'error'}`}>
+              🌐 PUBLIC_API_URL: {telegramStatus.publicApiUrlConfigured ? '✅' : '❌ Потрібно для webhook'}
+            </div>
             <div className={`status-item ${telegramStatus.adminChatIdConfigured ? 'ok' : 'error'}`}>
               👑 Admin Chat ID: {telegramStatus.adminChatIdConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}
             </div>
           </div>
+          {telegramStatus.webhookInfo?.url && (
+            <div className="status-warning ok">
+              🔗 Webhook: {telegramStatus.webhookInfo.url}
+            </div>
+          )}
           {!telegramStatus.botTokenConfigured && (
             <div className="status-warning">
               ⚠️ Для роботи сповіщень потрібно налаштувати TELEGRAM_BOT_TOKEN в змінних середовища
             </div>
           )}
+          <div className="form-buttons" style={{ marginTop: '12px' }}>
+            <button
+              type="button"
+              className="btn-save"
+              disabled={!telegramStatus.botTokenConfigured || telegramBusy === 'webhook'}
+              onClick={setupTelegramWebhook}
+            >
+              {telegramBusy === 'webhook' ? '⏳ ...' : '🔗 Налаштувати webhook бота'}
+            </button>
+          </div>
         </div>
       )}
+
+      <div className="telegram-form telegram-invite-section">
+        <h4>📨 Підключення користувачів через SMS</h4>
+        <p className="telegram-invite-desc">
+          Додайте номер телефону в профілі користувача (розділ «Користувачі»), потім надішліть SMS із
+          офіційним посиланням на бота. Текст пояснює, що це робоча система «Гідра», а не фішинг.
+          Після переходу за посиланням Chat ID збережеться автоматично.
+        </p>
+        <div className="notifications-info">
+          <span className="without-telegram">⏳ Очікують підключення: {pendingTelegramUsers.length}</span>
+        </div>
+        {pendingTelegramUsers.length > 0 ? (
+          <>
+            <button
+              type="button"
+              className="btn-save"
+              disabled={!telegramStatus?.smsConfigured || telegramBusy === 'invite-all'}
+              onClick={sendAllTelegramInvites}
+            >
+              {telegramBusy === 'invite-all' ? '⏳ Надсилання...' : `📤 Надіслати SMS всім (${pendingTelegramUsers.length})`}
+            </button>
+            <div className="notifications-table-wrapper" style={{ marginTop: '16px' }}>
+              <table className="notifications-table">
+                <thead>
+                  <tr>
+                    <th>Користувач</th>
+                    <th>Телефон</th>
+                    <th>SMS відправлено</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingTelegramUsers.map(u => (
+                    <tr key={u.login} className="no-telegram">
+                      <td>
+                        <div className="user-name">{u.name}</div>
+                        <div className="user-login">{u.login}</div>
+                      </td>
+                      <td>{u.phone || u.phoneNormalized}</td>
+                      <td>{u.telegramInviteSentAt ? new Date(u.telegramInviteSentAt).toLocaleString('uk-UA') : '—'}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-edit"
+                          disabled={telegramBusy === `invite-${u.login}`}
+                          onClick={() => sendTelegramInvite(u)}
+                          title="Надіслати SMS"
+                        >
+                          📤 SMS
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-edit"
+                          onClick={() => loadInvitePreview(u.login)}
+                          title="Переглянути текст SMS"
+                        >
+                          👁️
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p>Усі користувачі з телефоном уже підключені до Telegram, або телефони не вказані.</p>
+        )}
+        {invitePreview && (
+          <div className="sms-preview-box">
+            <h4>📝 Превʼю SMS для {invitePreview.login}</h4>
+            <pre className="sms-preview-text">{invitePreview.smsText}</pre>
+            <p><strong>Посилання:</strong> <a href={invitePreview.inviteLink} target="_blank" rel="noreferrer">{invitePreview.inviteLink}</a></p>
+            <button type="button" className="btn-cancel" onClick={() => setInvitePreview(null)}>Закрити</button>
+          </div>
+        )}
+        {inviteResult?.failed?.length > 0 && (
+          <div className="status-warning">
+            Помилки: {inviteResult.failed.map(f => `${f.name}: ${f.error}`).join('; ')}
+          </div>
+        )}
+      </div>
 
       <div className="telegram-form">
         <h4>🧪 Тестування відправки</h4>
@@ -1736,11 +1984,12 @@ function AdminDashboard({ user }) {
       <div className="telegram-instructions">
         <h4>📋 Інструкція:</h4>
         <ol>
-          <li>Створіть бота в Telegram через @BotFather</li>
-          <li>Отримайте токен та додайте в TELEGRAM_BOT_TOKEN</li>
-          <li>Дізнайтесь свій Chat ID через @userinfobot</li>
-          <li>Введіть Chat ID користувачам в розділі "Користувачі"</li>
-          <li>Протестуйте відправку вище</li>
+          <li>Створіть бота в Telegram через @BotFather (якщо ще немає — бот DTS-Service вже використовується)</li>
+          <li>Додайте на сервер: TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, PUBLIC_API_URL, SMS_API_TOKEN, SMS_SENDER</li>
+          <li>Натисніть «Налаштувати webhook бота»</li>
+          <li>У розділі «Користувачі» вкажіть телефон кожного співробітника (380XXXXXXXXX)</li>
+          <li>Надішліть SMS-запрошення — користувач переходить за посиланням і натискає Start</li>
+          <li>Chat ID збережеться автоматично; налаштуйте типи сповіщень у вкладці «Сповіщення»</li>
         </ol>
       </div>
     </div>
@@ -2018,8 +2267,8 @@ function AdminDashboard({ user }) {
       
       {usersWithTelegram.length === 0 ? (
         <div className="no-users-message">
-          <p>Немає користувачів з налаштованим Telegram Chat ID.</p>
-          <p>Спочатку додайте Chat ID в розділі "Користувачі".</p>
+          <p>Немає користувачів з налаштованим Telegram.</p>
+          <p>Додайте телефони та надішліть SMS-запрошення у вкладці «Telegram».</p>
         </div>
       ) : (
         <>

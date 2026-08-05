@@ -66,6 +66,14 @@ const {
 } = require('./lib/marketingLeads');
 const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
 const {
+  normalizePhone: normalizeUserPhone,
+  parseTelegramStartToken,
+  buildTelegramInviteLink,
+  buildTelegramInviteSmsText,
+  getBotUsername,
+  isValidTelegramChatId,
+} = require('./lib/telegramLink');
+const {
   importProcurementFromGoogleSheet,
   DEFAULT_SPREADSHEET_ID,
   DEFAULT_SHEET_NAMES_2026,
@@ -356,6 +364,7 @@ function authenticateToken(req, res, next) {
     '/api/trading/cron',
     '/api/marketing/leads/inbound',
     '/api/marketing/webhooks',
+    '/api/telegram/webhook',
   ];
   const requestPath = req.originalUrl || req.path;
   const isPublicPath = publicPaths.some(path => requestPath.startsWith(path));
@@ -488,6 +497,10 @@ const userSchema = new mongoose.Schema({
   columnsSettings: Object,
   id: Number,
   telegramChatId: String,
+  phone: String,
+  phoneNormalized: { type: String, index: true },
+  telegramLinkedAt: Date,
+  telegramInviteSentAt: Date,
   fcmToken: { type: String, default: null },
   lastActivity: { type: Date, default: Date.now },
   dismissed: { type: Boolean, default: false },
@@ -8367,7 +8380,7 @@ app.get('/api/users', async (req, res) => {
     const filter = includeDismissed ? {} : { dismissed: { $ne: true } };
     
     const users = await User.find(filter)
-      .select('login name role region telegramChatId id dismissed notificationSettings lastActivity')
+      .select('login name role region phone telegramChatId telegramLinkedAt telegramInviteSentAt id dismissed notificationSettings lastActivity')
       .lean();
     logPerformance('GET /api/users', startTime, users.length);
     res.json(users);
@@ -8426,12 +8439,15 @@ app.post('/api/users', authenticateToken, async (req, res) => {
     }
     
     // Створюємо нового користувача
+    const phoneNorm = userData.phone ? normalizeUserPhone(userData.phone) : '';
     const newUser = new User({
       login: userData.login,
       password: userData.password, // В продакшені потрібно хешувати пароль
       name: userData.name,
       role: userData.role,
       region: userData.region || '',
+      phone: userData.phone || '',
+      phoneNormalized: phoneNorm || undefined,
       telegramChatId: userData.telegramChatId || '',
       dismissed: userData.dismissed || false,
       id: userData.id || Date.now(),
@@ -8470,6 +8486,11 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
     // Видаляємо поля, які не потрібно оновлювати
     delete updateData._id;
     delete updateData.__v;
+
+    if (Object.prototype.hasOwnProperty.call(updateData, 'phone')) {
+      updateData.phone = updateData.phone || '';
+      updateData.phoneNormalized = updateData.phone ? normalizeUserPhone(updateData.phone) : '';
+    }
     
     const updatedUser = await User.findByIdAndUpdate(
       userId,
@@ -18077,7 +18098,7 @@ class TelegramService {
     this.baseUrl = this.botToken ? `https://api.telegram.org/bot${this.botToken}` : null;
   }
 
-  async sendMessage(chatId, message) {
+  async sendMessage(chatId, message, extra = {}) {
     if (!this.botToken || !this.baseUrl) {
       console.log('[TELEGRAM] Bot token не налаштовано');
       return false;
@@ -18090,7 +18111,8 @@ class TelegramService {
         body: JSON.stringify({
           chat_id: chatId,
           text: message,
-          parse_mode: 'HTML'
+          parse_mode: 'HTML',
+          ...extra,
         })
       });
       
@@ -18100,6 +18122,156 @@ class TelegramService {
       console.error('[TELEGRAM] Помилка відправки:', error);
       return false;
     }
+  }
+
+  async apiCall(method, body = {}) {
+    if (!this.botToken || !this.baseUrl) {
+      throw new Error('TELEGRAM_BOT_TOKEN не налаштовано');
+    }
+    const response = await fetch(`${this.baseUrl}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!result.ok) {
+      throw new Error(result.description || `Telegram API ${method} failed`);
+    }
+    return result;
+  }
+
+  async sendContactRequest(chatId) {
+    const botName = getBotUsername();
+    return this.sendMessage(
+      chatId,
+      `<b>DTS-Service — сповіщення системи «Гідра»</b>\n\n`
+      + `Цей бот надсилає робочі повідомлення про заявки та статус системи DTS (Darex Trading Solutions).\n\n`
+      + `🔐 Бот <b>не запитує</b> пароль, код доступу чи банківські дані.\n\n`
+      + `Якщо ви отримали SMS з посиланням — натисніть «Start» за цим посиланням.\n\n`
+      + `Або натисніть кнопку нижче, щоб підтвердити номер телефону:`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [[{ text: '📱 Поділитися номером телефону', request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      }
+    );
+  }
+
+  async linkUserChatId(login, chatId) {
+    const user = await User.findOne({ login }).lean();
+    if (!user) return { ok: false, reason: 'user_not_found' };
+
+    await User.updateOne(
+      { login },
+      { $set: { telegramChatId: String(chatId), telegramLinkedAt: new Date() } }
+    );
+
+    const displayName = user.name || user.login;
+    await this.sendMessage(
+      chatId,
+      `✅ <b>Підключено!</b>\n\n`
+      + `${displayName}, ви отримуватимете сповіщення системи «Гідра» (DTS) у цьому чаті.\n\n`
+      + `Типи сповіщень налаштовує адміністратор у веб-системі.`,
+      { reply_markup: { remove_keyboard: true } }
+    );
+    console.log(`[TELEGRAM] Користувача ${login} прив'язано до chat_id ${chatId}`);
+    return { ok: true, user };
+  }
+
+  async handleContactShare(message) {
+    const chatId = String(message.chat.id);
+    const contact = message.contact;
+    if (!contact) return;
+
+    const contactPhone = normalizeUserPhone(contact.phone_number);
+    if (!/^38\d{10}$/.test(contactPhone)) {
+      await this.sendMessage(chatId, '❌ Не вдалося розпізнати номер. Спробуйте перейти за посиланням з SMS.');
+      return;
+    }
+
+    const user = await User.findOne({
+      phoneNormalized: contactPhone,
+      dismissed: { $ne: true },
+    }).lean();
+
+    if (!user) {
+      await this.sendMessage(
+        chatId,
+        '❌ Номер не знайдено в системі DTS.\n\n'
+        + 'Переконайтесь, що адміністратор вказав ваш телефон у профілі, або перейдіть за персональним посиланням з SMS.'
+      );
+      return;
+    }
+
+    await this.linkUserChatId(user.login, chatId);
+  }
+
+  async handleUpdate(update) {
+    const message = update?.message;
+    if (!message) return;
+
+    const chatId = String(message.chat.id);
+    const text = String(message.text || '').trim();
+
+    if (message.contact) {
+      await this.handleContactShare(message);
+      return;
+    }
+
+    if (text.startsWith('/start')) {
+      const param = text.split(/\s+/)[1];
+      if (param) {
+        const login = parseTelegramStartToken(param, JWT_SECRET);
+        if (login) {
+          const linked = await this.linkUserChatId(login, chatId);
+          if (!linked.ok) {
+            await this.sendMessage(chatId, '❌ Посилання недійсне або термін його дії минув. Зверніться до адміністратора DTS.');
+          }
+          return;
+        }
+      }
+      await this.sendContactRequest(chatId);
+      return;
+    }
+
+    if (text === '/help' || text === '/id') {
+      await this.sendMessage(
+        chatId,
+        `<b>DTS-Service</b>\n\n`
+        + `Ваш Chat ID: <code>${chatId}</code>\n\n`
+        + `Для підключення сповіщень «Гідра» перейдіть за посиланням з SMS або поділіться номером телефону.`
+      );
+    }
+  }
+
+  buildInviteLink(login) {
+    return buildTelegramInviteLink(login, JWT_SECRET);
+  }
+
+  buildInviteSmsText(user) {
+    const inviteLink = this.buildInviteLink(user.login);
+    return buildTelegramInviteSmsText({
+      name: user.name,
+      login: user.login,
+      inviteLink,
+    });
+  }
+
+  async setupWebhook(publicBaseUrl) {
+    const base = String(publicBaseUrl || process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+    if (!base) throw new Error('PUBLIC_API_URL не налаштовано');
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+    const url = `${base}/api/telegram/webhook${secret ? `?secret=${encodeURIComponent(secret)}` : ''}`;
+    const result = await this.apiCall('setWebhook', { url });
+    return { url, result: result.result };
+  }
+
+  async getWebhookInfo() {
+    const result = await this.apiCall('getWebhookInfo');
+    return result.result;
   }
 
   // Відправка сповіщення про заявку
@@ -18492,11 +18664,191 @@ app.post('/api/sms/test', authenticateToken, async (req, res) => {
 });
 
 // Статус Telegram
-app.get('/api/telegram/status', (req, res) => {
-  res.json({
-    botTokenConfigured: !!process.env.TELEGRAM_BOT_TOKEN,
-    adminChatIdConfigured: !!process.env.ADMIN_TELEGRAM_CHAT_ID
-  });
+app.get('/api/telegram/status', authenticateToken, async (req, res) => {
+  try {
+    let webhookInfo = null;
+    if (process.env.TELEGRAM_BOT_TOKEN) {
+      try {
+        webhookInfo = await telegramService.getWebhookInfo();
+      } catch (e) {
+        webhookInfo = { error: e.message };
+      }
+    }
+    res.json({
+      botTokenConfigured: !!process.env.TELEGRAM_BOT_TOKEN,
+      botUsername: getBotUsername(),
+      adminChatIdConfigured: !!process.env.ADMIN_TELEGRAM_CHAT_ID,
+      smsConfigured: smsService.isConfigured(),
+      publicApiUrlConfigured: !!process.env.PUBLIC_API_URL,
+      webhookInfo,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Webhook для вхідних повідомлень Telegram (публічний)
+app.post('/api/telegram/webhook', async (req, res) => {
+  try {
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (expectedSecret && req.query.secret !== expectedSecret) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return res.status(503).json({ error: 'Bot not configured' });
+    }
+    await telegramService.handleUpdate(req.body);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('[TELEGRAM] Webhook error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Налаштування webhook Telegram
+app.post('/api/telegram/setup-webhook', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const baseUrl = req.body?.baseUrl || process.env.PUBLIC_API_URL;
+    const result = await telegramService.setupWebhook(baseUrl);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[TELEGRAM] setup-webhook:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Превʼю тексту SMS-запрошення
+app.get('/api/telegram/invite-preview/:login', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const user = await User.findOne({ login: req.params.login }).lean();
+    if (!user) return res.status(404).json({ error: 'Користувача не знайдено' });
+    res.json({
+      login: user.login,
+      phone: user.phone || '',
+      inviteLink: telegramService.buildInviteLink(user.login),
+      smsText: telegramService.buildInviteSmsText(user),
+      telegramConnected: isValidTelegramChatId(user.telegramChatId),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Список користувачів без Telegram, але з телефоном
+app.get('/api/telegram/pending-invites', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const users = await User.find({
+      dismissed: { $ne: true },
+      phoneNormalized: { $exists: true, $ne: '' },
+      $or: [
+        { telegramChatId: { $exists: false } },
+        { telegramChatId: '' },
+        { telegramChatId: 'Chat ID' },
+      ],
+    })
+      .select('login name phone phoneNormalized region telegramInviteSentAt')
+      .sort({ name: 1 })
+      .lean();
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function sendTelegramInviteSmsToUser(user, { force = false } = {}) {
+  if (!user?.login) throw new Error('Користувача не знайдено');
+  if (isValidTelegramChatId(user.telegramChatId)) {
+    throw new Error(`Користувач ${user.name || user.login} вже підключений до Telegram`);
+  }
+  const phoneNorm = user.phoneNormalized || normalizeUserPhone(user.phone);
+  if (!/^38\d{10}$/.test(phoneNorm)) {
+    throw new Error(`Невірний або відсутній номер телефону для ${user.name || user.login}`);
+  }
+  if (!smsService.isConfigured()) {
+    throw new Error('SMS API не налаштовано (SMS_API_TOKEN та SMS_SENDER)');
+  }
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    throw new Error('TELEGRAM_BOT_TOKEN не налаштовано');
+  }
+
+  const smsText = telegramService.buildInviteSmsText(user);
+  const result = await smsService.sendMessage(user.phone || phoneNorm, smsText);
+  await User.updateOne(
+    { login: user.login },
+    { $set: { telegramInviteSentAt: new Date(), phoneNormalized: phoneNorm, phone: user.phone || phoneNorm } }
+  );
+  return { success: true, recipient: result.recipient, login: user.login };
+}
+
+// SMS-запрошення підключити Telegram (один користувач)
+app.post('/api/telegram/send-invite', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const { login, userId } = req.body || {};
+    let user = null;
+    if (userId) user = await User.findById(userId).lean();
+    else if (login) user = await User.findOne({ login }).lean();
+    if (!user) return res.status(404).json({ error: 'Користувача не знайдено' });
+
+    const result = await sendTelegramInviteSmsToUser(user);
+    res.json(result);
+  } catch (error) {
+    console.error('[TELEGRAM] send-invite:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// SMS-запрошення всім, хто ще не підключив Telegram
+app.post('/api/telegram/send-invites-pending', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const logins = Array.isArray(req.body?.logins) ? req.body.logins : null;
+    const query = {
+      dismissed: { $ne: true },
+      phoneNormalized: { $exists: true, $ne: '' },
+      $or: [
+        { telegramChatId: { $exists: false } },
+        { telegramChatId: '' },
+        { telegramChatId: 'Chat ID' },
+      ],
+    };
+    if (logins?.length) query.login = { $in: logins };
+
+    const users = await User.find(query).lean();
+    const results = { sent: [], failed: [] };
+
+    for (const user of users) {
+      try {
+        const r = await sendTelegramInviteSmsToUser(user);
+        results.sent.push(r);
+      } catch (e) {
+        results.failed.push({ login: user.login, name: user.name, error: e.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      sentCount: results.sent.length,
+      failedCount: results.failed.length,
+      ...results,
+    });
+  } catch (error) {
+    console.error('[TELEGRAM] send-invites-pending:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Тест відправки

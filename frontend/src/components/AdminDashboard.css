@@ -1312,6 +1312,51 @@
   cursor: not-allowed;
 }
 
+.telegram-connected {
+  color: #4caf50;
+  font-size: 11px;
+}
+
+.telegram-pending {
+  color: #ffb74d;
+  font-size: 11px;
+}
+
+.telegram-missing {
+  color: #666;
+}
+
+.telegram-invite-desc {
+  color: #aaa;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.telegram-invite-section {
+  margin-bottom: 24px;
+}
+
+.sms-preview-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: #1a2332;
+  border: 1px solid #2a3a4d;
+  border-radius: 8px;
+}
+
+.sms-preview-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #ddd;
+  background: #0f1419;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
 /* Адаптивність */
 @media (max-width: 768px) {
   .admin-tabs {
