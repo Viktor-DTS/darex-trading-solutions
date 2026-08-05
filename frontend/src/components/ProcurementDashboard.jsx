@@ -140,6 +140,14 @@ function procurementExecutorRowLabel(r) {
   return '—';
 }
 
+function normalizeProcurementSearchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function procurementRequestSearchBlob(r) {
   const parts = [
     r.requestNumber,
@@ -149,29 +157,25 @@ function procurementRequestSearchBlob(r) {
     r.requesterName,
     r.requesterLogin,
     priorityLabel(r.priority),
-    formatDt(r.createdAt),
     r.desiredWarehouse,
     r.actualWarehouse,
     r.executorName,
     r.executorLogin,
-    procurementExecutorRowLabel(r),
-    formatDt(r.executorCompletedAt),
-    r.notes
+    procurementExecutorRowLabel(r)
   ];
   for (const m of r.materials || []) {
     if (!m) continue;
     parts.push(m.name, m.supplierName, m.actualWarehouse);
   }
-  return parts
-    .filter((x) => x != null && String(x).trim() !== '' && String(x).trim() !== '—')
-    .join(' ')
-    .toLowerCase();
+  return normalizeProcurementSearchText(
+    parts
+      .filter((x) => x != null && String(x).trim() !== '' && String(x).trim() !== '—')
+      .join(' ')
+  );
 }
 
 function filterProcurementRequestList(list, query, dateFrom, dateTo) {
-  const terms = String(query || '')
-    .trim()
-    .toLowerCase()
+  const terms = normalizeProcurementSearchText(query)
     .split(/\s+/)
     .filter(Boolean);
   const fromMs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
@@ -1241,7 +1245,10 @@ function ProcurementDashboard({ user }) {
       <label className="procurement-list-filter procurement-list-filter--search">
         <span className="procurement-list-filter-label">Пошук</span>
         <input
-          type="search"
+          type="text"
+          name="procurement-list-search"
+          autoComplete="off"
+          spellCheck={false}
           className="procurement-list-filter-input"
           placeholder="№ заявки, заявник, склад, матеріал…"
           value={listSearchQuery}
@@ -1252,6 +1259,8 @@ function ProcurementDashboard({ user }) {
         <span className="procurement-list-filter-label">Дата від</span>
         <input
           type="date"
+          name="procurement-list-date-from"
+          autoComplete="off"
           className="procurement-list-filter-input procurement-list-filter-input--date"
           value={listDateFrom}
           onChange={(e) => setListDateFrom(e.target.value)}
@@ -1261,6 +1270,8 @@ function ProcurementDashboard({ user }) {
         <span className="procurement-list-filter-label">Дата до</span>
         <input
           type="date"
+          name="procurement-list-date-to"
+          autoComplete="off"
           className="procurement-list-filter-input procurement-list-filter-input--date"
           value={listDateTo}
           onChange={(e) => setListDateTo(e.target.value)}
