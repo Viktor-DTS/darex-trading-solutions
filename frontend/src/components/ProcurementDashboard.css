@@ -103,15 +103,30 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .procurement-active-panel {
   padding: 16px 20px 24px;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
   box-sizing: border-box;
+  overflow: auto;
+}
+
+.procurement-list-panel {
+  overflow: hidden;
+}
+
+.procurement-list-panel .procurement-toolbar,
+.procurement-list-panel .procurement-hint,
+.procurement-list-panel .procurement-list-filters,
+.procurement-list-panel .procurement-loading {
+  flex-shrink: 0;
 }
 
 .procurement-toolbar {
@@ -222,10 +237,10 @@
 }
 
 .procurement-table-wrap--scroll {
-  flex: 1;
-  min-height: 240px;
-  max-height: calc(100vh - 210px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .procurement-table {

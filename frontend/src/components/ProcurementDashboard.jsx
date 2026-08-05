@@ -1495,7 +1495,7 @@ function ProcurementDashboard({ user }) {
             </div>
           )}
           {activeSection === 'archive' && (
-            <div className="procurement-active-panel procurement-archive-panel">
+            <div className="procurement-active-panel procurement-list-panel procurement-archive-panel">
               <div className="procurement-toolbar">
                 <h1 className="procurement-title">Архів заявок</h1>
               </div>
@@ -1519,7 +1519,7 @@ function ProcurementDashboard({ user }) {
             </div>
           )}
           {activeSection === 'blocked' && (
-            <div className="procurement-active-panel procurement-blocked-panel">
+            <div className="procurement-active-panel procurement-list-panel procurement-blocked-panel">
               <div className="procurement-toolbar">
                 <h1 className="procurement-title">Заблоковані заявки</h1>
               </div>
@@ -1670,7 +1670,7 @@ function ProcurementDashboard({ user }) {
             </div>
           )}
           {activeSection === 'active' && (
-            <div className="procurement-active-panel">
+            <div className="procurement-active-panel procurement-list-panel">
               <div className="procurement-toolbar">
                 <h1 className="procurement-title">Активні заявки на закупівлю</h1>
                 <button
