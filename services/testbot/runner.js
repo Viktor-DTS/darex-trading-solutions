@@ -186,11 +186,16 @@ function prepareTestbotAnalysis(source, cfg) {
 
   const side = isShort ? 'short' : 'long';
 
+  const sizeMult = Number.isFinite(source._edgeSizeMult) ? source._edgeSizeMult
+    : (Number.isFinite(cfg.edgeSizeMult) ? cfg.edgeSizeMult : 1);
+  const baseRisk = cfg.riskPerTradePct ?? 0.35;
+  const riskPct = Math.max(0.05, baseRisk * Math.max(0, Math.min(1, sizeMult)));
+
   const units = calcUnitsForRisk(
 
     cfg.equityUsd ?? 1000,
 
-    cfg.riskPerTradePct ?? 0.35,
+    riskPct,
 
     stopPips,
 
