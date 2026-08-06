@@ -373,8 +373,13 @@ function evaluateTestbotExit(trade, quote, cfg) {
     if (ask >= trade.stopLoss) {
       return { action: 'close', reason: 'stop', exitPrice: trade.stopLoss };
     }
+    if (trade.takeProfit != null && ask <= trade.takeProfit) {
+      return { action: 'close', reason: 'take_profit', exitPrice: trade.takeProfit };
+    }
   } else if (bid <= trade.stopLoss) {
     return { action: 'close', reason: 'stop', exitPrice: trade.stopLoss };
+  } else if (trade.takeProfit != null && bid >= trade.takeProfit) {
+    return { action: 'close', reason: 'take_profit', exitPrice: trade.takeProfit };
   }
 
   const targetUsd = trade.targetUsd ?? cfg.targetUsd ?? 5;

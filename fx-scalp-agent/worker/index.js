@@ -75,6 +75,12 @@ const { mergeTestbotConfig } = require('../services/testbot/runtimeSettings');
 const { evaluateTestbotEdgeGate } = require('../services/testbot/edgeGate');
 const { computeEdgeStats } = require('../services/testbot/edgeMath');
 const {
+  loadChampionModel,
+  evaluateChampionSignal,
+  buildChampionAnalysis,
+  championMaxHoldMs,
+} = require('../services/testbot/champion');
+const {
   forecastOracle5m,
   oracleGateAllows,
   registerPendingForecast,
@@ -91,8 +97,13 @@ function getTbCfg() {
   return mergeTestbotConfig(tbBase);
 }
 function isTestbotEdgeMode() {
+  if (isTestbotChampionMode()) return false;
   const cfg = getTbCfg();
   return cfg.edgeMode === true || process.env.FX_TESTBOT_EDGE_MODE === '1';
+}
+function isTestbotChampionMode() {
+  const cfg = getTbCfg();
+  return cfg.championMode === true || process.env.FX_TESTBOT_CHAMPION === '1';
 }
 function getOracleCfg() {
   const o = config.oracle || {};
@@ -289,8 +300,111 @@ async function analyzeTestbotPairFresh(pair) {
   return analyzePairFn(pair, { liveQuote, bars, macro: cachedMacroForMgmt });
 }
 
+async function processTestbotChampionEntries(force = false) {
+  if (!testbotExecutor) return false;
+  const now = Date.now();
+  const entryGap = getTbCfg().entryIntervalMs ?? 2000;
+  if (!force && now - lastTestbotEntryAt < entryGap) return false;
+
+  const model = loadChampionModel(getTbCfg());
+  const pair = normPair(model.pair || 'GBPUSD');
+
+  syncTestbotDailyPnl();
+  if (testbotExecutor.getOpenCount() >= (getTbCfg().maxOpenPositions ?? 20)) return false;
+  if (testbotExecutor.hasPair(pair)) {
+    if (force) console.log(`[tb-champ] ${pair} already open`);
+    return false;
+  }
+  if (!getTbCfg().allowCharlieOverlap && executor.hasPair(pair)) {
+    console.log(`[tb-champ] ${pair} CHARLIE live overlap blocked`);
+    return false;
+  }
+  const cdMs = testbotCooldownRemainingMs(pair, getTbCfg());
+  if (cdMs > 0) {
+    if (force) console.log(`[tb-champ] ${pair} cooldown ${Math.round(cdMs / 1000)}s`);
+    return false;
+  }
+
+  let snap = hub.getPairSnapshot(pair);
+  try {
+    snap = await hub.ensurePairHistory(pair, { minM5: 40, minM1: 20 }) || snap;
+  } catch (e) {
+    console.warn(`[tb-champ] ${pair} ensureBars`, e.message);
+  }
+  const bars5m = snap?.bars5m || [];
+  const signal = evaluateChampionSignal(bars5m, model, now);
+  if (!signal.ok) {
+    if (force || now - (processTestbotChampionEntries._lastLogAt || 0) > 60000) {
+      processTestbotChampionEntries._lastLogAt = now;
+      console.log(`[tb-champ] skip ${signal.reason}`);
+    }
+    return false;
+  }
+
+  const liveQuote = snap
+    ? { bid: snap.bid, ask: snap.ask, mid: snap.mid, spreadPips: snap.spreadPips }
+    : null;
+  if (!liveQuote || (liveQuote.mid == null && liveQuote.bid == null)) {
+    console.log(`[tb-champ] ${pair} no quote`);
+    return false;
+  }
+
+  const analysis = buildChampionAnalysis(signal, liveQuote, model, getTbCfg());
+  const trade = buildTestbotTrade(analysis, {
+    ...getTbCfg(),
+    stopPips: model.exit?.stopPips ?? 3,
+  });
+  if (trade.units <= 0) {
+    console.log(`[tb-champ] ${pair} units=0`);
+    return false;
+  }
+
+  const opened = testbotExecutor.tryOpen(analysis);
+  if (!opened) {
+    console.log(`[tb-champ] ${pair} tryOpen declined`);
+    return false;
+  }
+
+  const maxHoldMs = analysis.maxHoldMs || championMaxHoldMs(model);
+  // Approximate USD target from tp pips for exit helper (secondary to price TP)
+  const targetUsd = getTbCfg().targetUsd ?? 5;
+  Object.assign(opened, {
+    botKind: 'testbot',
+    signalEngine: 'champion',
+    championId: model.id,
+    targetUsd,
+    partialUsd: getTbCfg().partialUsd ?? 2.5,
+    partialAfterMs: getTbCfg().partialAfterMs ?? 600000,
+    maxHoldMs,
+    maxStopLossUsd: getTbCfg().maxStopLossUsd ?? 5,
+    maxNetStopUsd: (getTbCfg().maxStopLossUsd ?? 5) + (getTbCfg().simCommissionUsd ?? 0.05),
+    entryConviction: 90,
+    testbotSignalAction: analysis.action,
+    testbotInverted: false,
+    stopLoss: analysis.stopLoss,
+    takeProfit: analysis.takeProfit,
+  });
+
+  testbotRisk.tradesToday += 1;
+  appendTestbotEvent('entry', {
+    ...opened,
+    score: 90,
+    championId: model.id,
+    championReason: signal.reason,
+  }, testbotJournalFile);
+  lastTestbotEntryAt = now;
+  console.log(
+    `[tb-champ] ENTRY ${opened.side} ${opened.pair} @ ${opened.entry} id=${model.id} ${signal.reason} SL=${opened.stopLoss} TP=${opened.takeProfit} hold≤${Math.round(maxHoldMs / 60000)}m`,
+  );
+  return true;
+}
+
 async function processTestbotEntries(force = false) {
-  if (!testbotExecutor || !lastAnalyses.length) return false;
+  if (!testbotExecutor) return false;
+  if (isTestbotChampionMode()) {
+    return processTestbotChampionEntries(force);
+  }
+  if (!lastAnalyses.length) return false;
 
   const now = Date.now();
   const entryGap = getTbCfg().entryIntervalMs ?? 2000;
@@ -949,7 +1063,22 @@ function publishState(extra = {}, force = false) {
       allowSetupDraft: getTbCfg().allowSetupDraft === true,
       allowCharlieOverlap: getTbCfg().allowCharlieOverlap !== false,
       edgeMode: isTestbotEdgeMode(),
-      edge: (() => {
+      championMode: isTestbotChampionMode(),
+      champion: isTestbotChampionMode() ? (() => {
+        const m = loadChampionModel(getTbCfg());
+        return {
+          id: m.id,
+          pair: m.pair,
+          theory: m.theory,
+          session: `${m.filters?.hourUtcMin ?? 12}–${m.filters?.hourUtcMax ?? 15} UTC`,
+          stopPips: m.exit?.stopPips,
+          tpPips: m.exit?.tpPips,
+          maxHoldBars: m.exit?.maxHoldBars,
+          lookback: m.entry?.lookback,
+          bufferPips: m.entry?.bufferPips,
+        };
+      })() : null,
+      edge: (!isTestbotChampionMode() && isTestbotEdgeMode()) ? (() => {
         const closed = getTestbotClosedTrades(getTbCfg().edgeWindow ?? 80, testbotJournalFile);
         const gate = evaluateTestbotEdgeGate(closed, getTbCfg(), null);
         return {
@@ -958,7 +1087,7 @@ function publishState(extra = {}, force = false) {
           sizeMult: gate.sizeMult,
           ...(gate.global || computeEdgeStats(closed)),
         };
-      })(),
+      })() : null,
       openTrades: testbotExecutor.getOpenTrades(),
       openPositionsLive: buildTestbotLivePositions(),
       journal: summarizeTestbot(testbotJournalFile),
@@ -1815,7 +1944,11 @@ async function main() {
       const n = testbotExecutor.restoreAll(tbOpens);
       console.log(`[tb-worker] recovered ${n} testbot position(s): ${testbotExecutor.getOpenTrades().map((t) => t.pair).join(', ')}`);
     }
-    console.log(`[tb-worker] enabled edgeMode=${isTestbotEdgeMode()} minScore=${getTbCfg().minScore ?? 60} pairCd=${Math.round((getTbCfg().pairCooldownMs ?? 300000) / 60000)}m invert=${getTbCfg().invertDirection === true} maxSL=$${getTbCfg().maxStopLossUsd ?? 10}+comm target=$${getTbCfg().targetUsd ?? 1} maxOpen=${getTbCfg().maxOpenPositions ?? 20} oracle=${!isTestbotEdgeMode() && getOracleCfg().enabled === true}`);
+    console.log(`[tb-worker] enabled champion=${isTestbotChampionMode()} edgeMode=${isTestbotEdgeMode()} minScore=${getTbCfg().minScore ?? 60} pairCd=${Math.round((getTbCfg().pairCooldownMs ?? 300000) / 60000)}m maxSL=$${getTbCfg().maxStopLossUsd ?? 10}+comm target=$${getTbCfg().targetUsd ?? 1} maxOpen=${getTbCfg().maxOpenPositions ?? 20}`);
+    if (isTestbotChampionMode()) {
+      const m = loadChampionModel(getTbCfg());
+      console.log(`[tb-champ] boot id=${m.id} pair=${m.pair} session=${m.filters?.hourUtcMin}–${m.filters?.hourUtcMax} UTC break look=${m.entry?.lookback} buf=${m.entry?.bufferPips}p SL=${m.exit?.stopPips}p TP=${m.exit?.tpPips}p hold=${m.exit?.maxHoldBars}×M5`);
+    }
     if (isTestbotEdgeMode()) {
       const eg = evaluateTestbotEdgeGate(
         getTestbotClosedTrades(getTbCfg().edgeWindow ?? 80, testbotJournalFile),
@@ -1824,7 +1957,7 @@ async function main() {
       );
       console.log(`[tb-edge] boot ${eg.ok ? 'ARMED' : 'HALT'} ${eg.reason}`);
     }
-    if (!isTestbotEdgeMode() && getOracleCfg().enabled) {
+    if (!isTestbotChampionMode() && !isTestbotEdgeMode() && getOracleCfg().enabled) {
       loadPendingFromDisk(getOracleCfg());
     }
   }

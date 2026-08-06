@@ -1,0 +1,31 @@
+{
+  "id": "BREAK-GBPUSD-R20m2",
+  "theory": "BREAK",
+  "pair": "GBPUSD",
+  "parent": "BREAK-GBPUSD-R19m2",
+  "note": "Sandbox campaign champion R20 — forward sim only",
+  "entry": {
+    "type": "BREAK",
+    "lookback": 24,
+    "bufferPips": 2.5
+  },
+  "filters": {
+    "hourUtcMin": 12,
+    "hourUtcMax": 15,
+    "longOnly": true
+  },
+  "exit": {
+    "stopPips": 3,
+    "tpPips": 24,
+    "maxHoldBars": 16
+  },
+  "costs": {
+    "spreadPips": 1.4,
+    "commissionUsd": 0.05
+  },
+  "size": {
+    "pipValueUsd": 1
+  },
+  "minTrades": 8,
+  "round": 20
+}

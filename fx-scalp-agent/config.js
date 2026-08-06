@@ -371,6 +371,9 @@ module.exports = {
     edgeWindow: num('FX_TESTBOT_EDGE_WINDOW', 80),
     edgePairMinTrades: num('FX_TESTBOT_EDGE_PAIR_MIN_TRADES', 8),
     kellyFraction: num('FX_TESTBOT_KELLY_FRACTION', 0.25),
+    /** Sandbox campaign champion — forward sim (takes precedence over edge mode). */
+    championMode: process.env.FX_TESTBOT_CHAMPION === '1',
+    championId: str('FX_TESTBOT_CHAMPION_ID', 'BREAK-GBPUSD-R20m2'),
     entryIntervalMs: num('FX_TESTBOT_ENTRY_INTERVAL_MS', 2000),
     /** Min wait before re-entry on same pair after exit; then fresh re-analyze. */
     pairCooldownMs: num('FX_TESTBOT_PAIR_COOLDOWN_MS', 300000),
