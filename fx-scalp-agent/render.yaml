@@ -18,7 +18,7 @@ services:
     envVars:
       - fromGroup: fx-scalp-shared
       - key: FX_AUTO_START_WORKER
-        value: "1"
+        value: "0"
       - key: FX_STATE_FILE
         value: "1"
       - key: FX_PROFIT_BOOST
@@ -64,7 +64,7 @@ services:
       - key: FX_CHARLIE_SCAN_PAIRS
         value: "24"
       - key: FX_CHARLIE_ALWAYS_ON
-        value: "1"
+        value: "0"
       - key: FX_CHARLIE_MARKET_HUNT
         value: "1"
       - key: FX_CHARLIE_UNIVERSE_MAX
@@ -239,7 +239,7 @@ services:
       - key: FX_OPEN_BROKER_SYNC_MS
         value: "5000"
       - key: FX_TESTBOT_ENABLED
-        value: "1"
+        value: "0"
       - key: FX_TESTBOT_MIN_SCORE
         value: "70"
       # Symmetric R:R — break-even ≈ 50% WR
@@ -308,7 +308,7 @@ services:
       - key: FX_TESTBOT_KELLY_FRACTION
         value: "0.25"
       - key: FX_TESTBOT_CHAMPION
-        value: "1"
+        value: "0"
       - key: FX_TESTBOT_CHAMPION_ID
         value: "BREAK-GBPUSD-R20m2"
       - key: FX_TESTBOT_ALLOW_DRAFT

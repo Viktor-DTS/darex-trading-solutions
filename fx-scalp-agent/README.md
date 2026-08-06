@@ -1,5 +1,7 @@
 # fx-scalp-agent
 
+> **CLOSED (2026-08-06).** Немає підтвердженої переваги. Див. [`docs/PROJECT_CLOSEOUT.md`](docs/PROJECT_CLOSEOUT.md). Воркер/Testbot/champion вимкнені в `render.yaml`.
+
 Low-latency FX agent for **intraday → scalp** path. Built for **VPS**, not Render.
 
 ## Architecture
