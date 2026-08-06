@@ -293,6 +293,20 @@ services:
         value: "11:00"
       - key: FX_TESTBOT_SESSION_END_UTC
         value: "15:00"
+      - key: FX_TESTBOT_EDGE_MODE
+        value: "1"
+      - key: FX_TESTBOT_EDGE_MIN_TRADES
+        value: "30"
+      - key: FX_TESTBOT_EDGE_MIN_E
+        value: "0"
+      - key: FX_TESTBOT_EDGE_REQUIRE_KELLY
+        value: "1"
+      - key: FX_TESTBOT_EDGE_WINDOW
+        value: "80"
+      - key: FX_TESTBOT_EDGE_PAIR_MIN_TRADES
+        value: "8"
+      - key: FX_TESTBOT_KELLY_FRACTION
+        value: "0.25"
       - key: FX_TESTBOT_ALLOW_DRAFT
         value: "0"
       - key: FX_TESTBOT_QUALITY_LOCK

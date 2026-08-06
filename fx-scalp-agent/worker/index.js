@@ -72,6 +72,8 @@ const {
 } = require('../services/testbot/journal');
 const { consumeTestbotClearRequest } = require('../services/testbot/clearRequest');
 const { mergeTestbotConfig } = require('../services/testbot/runtimeSettings');
+const { evaluateTestbotEdgeGate } = require('../services/testbot/edgeGate');
+const { computeEdgeStats } = require('../services/testbot/edgeMath');
 const {
   forecastOracle5m,
   oracleGateAllows,
@@ -87,6 +89,10 @@ const {
 const tbBase = config.testbot || {};
 function getTbCfg() {
   return mergeTestbotConfig(tbBase);
+}
+function isTestbotEdgeMode() {
+  const cfg = getTbCfg();
+  return cfg.edgeMode === true || process.env.FX_TESTBOT_EDGE_MODE === '1';
 }
 function getOracleCfg() {
   const o = config.oracle || {};
@@ -290,10 +296,26 @@ async function processTestbotEntries(force = false) {
   const entryGap = getTbCfg().entryIntervalMs ?? 2000;
   if (!force && now - lastTestbotEntryAt < entryGap) return false;
 
-  const sess = testbotSessionGate(getTbCfg(), new Date(now));
-  if (!sess.ok) {
-    if (force) console.log(`[tb-skip] ${sess.reason}`);
+  const edgeMode = isTestbotEdgeMode();
+  const closedForEdge = getTestbotClosedTrades(
+    getTbCfg().edgeWindow ?? 80,
+    testbotJournalFile,
+  );
+  const globalEdge = evaluateTestbotEdgeGate(closedForEdge, getTbCfg(), null);
+  if (edgeMode && !globalEdge.ok) {
+    if (force || now - (processTestbotEntries._lastEdgeLogAt || 0) > 60000) {
+      processTestbotEntries._lastEdgeLogAt = now;
+      console.log(`[tb-edge] HALT ${globalEdge.reason}`);
+    }
     return false;
+  }
+
+  if (!edgeMode) {
+    const sess = testbotSessionGate(getTbCfg(), new Date(now));
+    if (!sess.ok) {
+      if (force) console.log(`[tb-skip] ${sess.reason}`);
+      return false;
+    }
   }
 
   syncTestbotDailyPnl();
@@ -331,13 +353,21 @@ async function processTestbotEntries(force = false) {
       continue;
     }
 
-    const dayLoss = pairDayLossBlocked(
-      getTestbotClosedTrades(80, testbotJournalFile),
-      raw.pair,
-      { pairDayLossCap: getTbCfg().pairDayLossCap ?? config.pairDayLossCap },
-    );
-    if (dayLoss.blocked) {
-      console.log(`[tb-skip] ${raw.pair} ${dayLoss.reason}`);
+    if (!edgeMode) {
+      const dayLoss = pairDayLossBlocked(
+        getTestbotClosedTrades(80, testbotJournalFile),
+        raw.pair,
+        { pairDayLossCap: getTbCfg().pairDayLossCap ?? config.pairDayLossCap },
+      );
+      if (dayLoss.blocked) {
+        console.log(`[tb-skip] ${raw.pair} ${dayLoss.reason}`);
+        continue;
+      }
+    }
+
+    const pairEdge = evaluateTestbotEdgeGate(closedForEdge, getTbCfg(), raw.pair);
+    if (edgeMode && !pairEdge.ok) {
+      console.log(`[tb-edge] ${raw.pair} ${pairEdge.reason}`);
       continue;
     }
 
@@ -367,7 +397,8 @@ async function processTestbotEntries(force = false) {
     let snap = hub.getPairSnapshot(raw.pair);
     const oracleCfg = getOracleCfg();
     const oracleMinM5 = Math.max(30, oracleCfg.windowBars ?? 36);
-    if (oracleCfg.enabled) {
+    const useOracle = !edgeMode && oracleCfg.enabled === true;
+    if (useOracle) {
       try {
         snap = await hub.ensurePairHistory(raw.pair, { minM5: oracleMinM5, minM1: 20 }) || snap;
       } catch (e) {
@@ -383,13 +414,24 @@ async function processTestbotEntries(force = false) {
       continue;
     }
 
-    const analysis = prepareTestbotAnalysis({ ...candidate, quote: liveQuote }, getTbCfg());
+    const sizeMult = edgeMode
+      ? (pairEdge.sizeMult || globalEdge.sizeMult || 0)
+      : 1;
+    if (edgeMode && !(sizeMult > 0)) {
+      console.log(`[tb-edge] ${raw.pair} sizeMult=0`);
+      continue;
+    }
+
+    const analysis = prepareTestbotAnalysis(
+      { ...candidate, quote: liveQuote, _edgeSizeMult: sizeMult },
+      getTbCfg(),
+    );
     if (!analysis) {
       console.log(`[tb-skip] ${raw.pair} prepare declined`);
       continue;
     }
 
-    if (oracleCfg.enabled) {
+    if (useOracle) {
       const m5n = snap?.bars5m?.length ?? 0;
       if (m5n < oracleMinM5) {
         console.log(`[tb-skip] ${raw.pair} oracle: need ≥${oracleMinM5} M5 bars (have ${m5n})`);
@@ -421,14 +463,16 @@ async function processTestbotEntries(force = false) {
       analysis.oracle5m = oracle;
     }
 
-    const bias = longBiasAllows(
-      analysis.side || (analysis.action === 'SELL' ? 'short' : 'long'),
-      analysis.oracle5m,
-      getTbCfg(),
-    );
-    if (!bias.ok) {
-      console.log(`[tb-skip] ${raw.pair} ${bias.reason}`);
-      continue;
+    if (!edgeMode) {
+      const bias = longBiasAllows(
+        analysis.side || (analysis.action === 'SELL' ? 'short' : 'long'),
+        analysis.oracle5m,
+        getTbCfg(),
+      );
+      if (!bias.ok) {
+        console.log(`[tb-skip] ${raw.pair} ${bias.reason}`);
+        continue;
+      }
     }
 
     const trade = buildTestbotTrade(analysis, getTbCfg());
@@ -456,6 +500,10 @@ async function processTestbotEntries(force = false) {
       entryConviction: candidate._testbotConv ?? analysis.score,
       testbotSignalAction: analysis.testbotSignalAction,
       testbotInverted: analysis.testbotInverted,
+      edgeMode: edgeMode === true,
+      edgeE: globalEdge.global?.E,
+      edgeKelly: globalEdge.global?.kelly,
+      edgeSizeMult: sizeMult,
     });
 
     testbotRisk.tradesToday += 1;
@@ -472,7 +520,10 @@ async function processTestbotEntries(force = false) {
     const orc = analysis.oracle5m
       ? ` oracle=${analysis.oracle5m.direction} pUp=${(analysis.oracle5m.pUp * 100).toFixed(0)}% fc=${analysis.oracle5m.forecastMid_5m}`
       : '';
-    console.log(`[tb-entry] ${opened.side} ${opened.pair} @ ${opened.entry} conv=${opened.entryConviction}${inv}${orc} SL≤$${opened.maxNetStopUsd ?? '1+comm'} target=$${opened.targetUsd} partial=$${opened.partialUsd}/${Math.round((opened.partialAfterMs || 600000) / 60000)}m`);
+    const edg = edgeMode
+      ? ` edgeE=${globalEdge.global?.E} f*=${globalEdge.global?.kelly} ×${Number(sizeMult).toFixed(2)}`
+      : '';
+    console.log(`[tb-entry] ${opened.side} ${opened.pair} @ ${opened.entry} conv=${opened.entryConviction}${inv}${orc}${edg} SL≤$${opened.maxNetStopUsd ?? '1+comm'} target=$${opened.targetUsd}`);
   }
 
   return openedAny;
@@ -897,10 +948,21 @@ function publishState(extra = {}, force = false) {
       invertDirection: getTbCfg().invertDirection === true,
       allowSetupDraft: getTbCfg().allowSetupDraft === true,
       allowCharlieOverlap: getTbCfg().allowCharlieOverlap !== false,
+      edgeMode: isTestbotEdgeMode(),
+      edge: (() => {
+        const closed = getTestbotClosedTrades(getTbCfg().edgeWindow ?? 80, testbotJournalFile);
+        const gate = evaluateTestbotEdgeGate(closed, getTbCfg(), null);
+        return {
+          ok: gate.ok,
+          reason: gate.reason,
+          sizeMult: gate.sizeMult,
+          ...(gate.global || computeEdgeStats(closed)),
+        };
+      })(),
       openTrades: testbotExecutor.getOpenTrades(),
       openPositionsLive: buildTestbotLivePositions(),
       journal: summarizeTestbot(testbotJournalFile),
-      oracle: getOracleCfg().enabled ? {
+      oracle: (!isTestbotEdgeMode() && getOracleCfg().enabled) ? {
         ...summarizeOracleStats(getOracleCfg()),
         pending: getPendingCount(),
         pendingForecasts: getPendingForecastsSnapshot(12),
@@ -1753,8 +1815,16 @@ async function main() {
       const n = testbotExecutor.restoreAll(tbOpens);
       console.log(`[tb-worker] recovered ${n} testbot position(s): ${testbotExecutor.getOpenTrades().map((t) => t.pair).join(', ')}`);
     }
-    console.log(`[tb-worker] enabled minScore=${getTbCfg().minScore ?? 60} pairCd=${Math.round((getTbCfg().pairCooldownMs ?? 300000) / 60000)}m invert=${getTbCfg().invertDirection === true} maxSL=$${getTbCfg().maxStopLossUsd ?? 10}+comm target=$${getTbCfg().targetUsd ?? 1} partial=$${getTbCfg().partialUsd ?? 0.5}@${Math.round((getTbCfg().partialAfterMs ?? 600000) / 60000)}m maxOpen=${getTbCfg().maxOpenPositions ?? 20} oracle=${getOracleCfg().enabled === true}`);
-    if (getOracleCfg().enabled) {
+    console.log(`[tb-worker] enabled edgeMode=${isTestbotEdgeMode()} minScore=${getTbCfg().minScore ?? 60} pairCd=${Math.round((getTbCfg().pairCooldownMs ?? 300000) / 60000)}m invert=${getTbCfg().invertDirection === true} maxSL=$${getTbCfg().maxStopLossUsd ?? 10}+comm target=$${getTbCfg().targetUsd ?? 1} maxOpen=${getTbCfg().maxOpenPositions ?? 20} oracle=${!isTestbotEdgeMode() && getOracleCfg().enabled === true}`);
+    if (isTestbotEdgeMode()) {
+      const eg = evaluateTestbotEdgeGate(
+        getTestbotClosedTrades(getTbCfg().edgeWindow ?? 80, testbotJournalFile),
+        getTbCfg(),
+        null,
+      );
+      console.log(`[tb-edge] boot ${eg.ok ? 'ARMED' : 'HALT'} ${eg.reason}`);
+    }
+    if (!isTestbotEdgeMode() && getOracleCfg().enabled) {
       loadPendingFromDisk(getOracleCfg());
     }
   }

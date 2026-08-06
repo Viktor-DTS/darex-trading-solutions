@@ -360,6 +360,17 @@ module.exports = {
     longBias: process.env.FX_LONG_BIAS !== '0',
     shortMaxPUp: num('FX_SHORT_MAX_P_UP', 0.35),
     shortMinKappa: num('FX_SHORT_MIN_KAPPA', 0.55),
+    /**
+     * EDGE MODE — top-player principle: trade only if empirical E>0 and Kelly f*>0.
+     * Disables oracle/session/long-bias as entry masters; size scales with kelly.
+     */
+    edgeMode: process.env.FX_TESTBOT_EDGE_MODE === '1',
+    edgeMinTrades: num('FX_TESTBOT_EDGE_MIN_TRADES', 30),
+    edgeMinE: num('FX_TESTBOT_EDGE_MIN_E', 0),
+    edgeRequireKelly: process.env.FX_TESTBOT_EDGE_REQUIRE_KELLY !== '0',
+    edgeWindow: num('FX_TESTBOT_EDGE_WINDOW', 80),
+    edgePairMinTrades: num('FX_TESTBOT_EDGE_PAIR_MIN_TRADES', 8),
+    kellyFraction: num('FX_TESTBOT_KELLY_FRACTION', 0.25),
     entryIntervalMs: num('FX_TESTBOT_ENTRY_INTERVAL_MS', 2000),
     /** Min wait before re-entry on same pair after exit; then fresh re-analyze. */
     pairCooldownMs: num('FX_TESTBOT_PAIR_COOLDOWN_MS', 300000),
