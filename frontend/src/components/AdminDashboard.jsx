@@ -5,7 +5,6 @@ import CategoryManagement from './equipment/CategoryManagement';
 import ProductCardManagement from './equipment/ProductCardManagement';
 import SystemCoefficientsSettings from './SystemCoefficientsSettings';
 import OneCWorkerPanel from './onec/OneCWorkerPanel';
-import TradingDashboard from './TradingDashboard';
 import TaskExportPanel from './TaskExportPanel';
 import './AdminDashboard.css';
 
@@ -68,7 +67,6 @@ const ADMIN_TABS = [
   { id: 'productCards', label: '📇 Карточки продуктів', icon: '📇' },
   { id: 'systemCoefficients', label: '🔢 Системні коефіцієнти', icon: '🔢' },
   { id: 'onecAgent', label: '🤖 Агент 1С', icon: '🤖' },
-  { id: 'trading', label: '📈 Trading (IBKR)', icon: '📈', superAdminOnly: true },
 ];
 
 function AdminDashboard({ user }) {
@@ -2356,7 +2354,6 @@ function AdminDashboard({ user }) {
       case 'productCards': return <ProductCardManagement />;
       case 'systemCoefficients': return <SystemCoefficientsSettings />;
       case 'onecAgent': return <OneCWorkerPanel />;
-      case 'trading': return isSuperAdmin ? <TradingDashboard user={user} embedded /> : renderUsersTab();
       default: return renderUsersTab();
     }
   };
