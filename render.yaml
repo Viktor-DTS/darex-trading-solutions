@@ -294,7 +294,7 @@ services:
       - key: FX_TESTBOT_SESSION_END_UTC
         value: "15:00"
       - key: FX_TESTBOT_EDGE_MODE
-        value: "1"
+        value: "0"
       - key: FX_TESTBOT_EDGE_MIN_TRADES
         value: "30"
       - key: FX_TESTBOT_EDGE_MIN_E
@@ -307,6 +307,10 @@ services:
         value: "8"
       - key: FX_TESTBOT_KELLY_FRACTION
         value: "0.25"
+      - key: FX_TESTBOT_CHAMPION
+        value: "1"
+      - key: FX_TESTBOT_CHAMPION_ID
+        value: "BREAK-GBPUSD-R20m2"
       - key: FX_TESTBOT_ALLOW_DRAFT
         value: "0"
       - key: FX_TESTBOT_QUALITY_LOCK
