@@ -18391,6 +18391,8 @@ class TelegramService {
 📍 <b>Регіон:</b> ${task.serviceRegion || 'Н/Д'}
 👥 <b>Замовник:</b> ${task.client || 'Н/Д'}
 🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
+🧑 <b>Контактна особа:</b> ${task.contactPerson || 'Н/Д'}
+📞 <b>Тел. контактної особи:</b> ${task.contactPhone || 'Н/Д'}
 ⚙️ <b>Обладнання:</b> ${task.equipment || 'Н/Д'}${commentsInfo}`;
 
     const actions = {
@@ -18446,6 +18448,8 @@ class TelegramService {
 📍 Регіон: ${task.serviceRegion || 'Н/Д'}
 👥 Замовник: ${task.client || 'Н/Д'}
 🏠 Адреса: ${task.address || 'Н/Д'}
+🧑 Контактна особа: ${task.contactPerson || 'Н/Д'}
+📞 Тел. контактної особи: ${task.contactPhone || 'Н/Д'}
 ⚙️ Обладнання: ${task.equipment || 'Н/Д'}${commentsInfo}`;
 
     const actions = {
@@ -18674,6 +18678,8 @@ async function sendFcmTaskNotification(type, task, user) {
         region: task.serviceRegion != null ? String(task.serviceRegion) : '',
         customer: task.client != null ? String(task.client) : '',
         address: task.address != null ? String(task.address) : '',
+        contactPerson: task.contactPerson != null ? String(task.contactPerson) : '',
+        contactPhone: task.contactPhone != null ? String(task.contactPhone) : '',
         equipment: task.equipment != null ? String(task.equipment) : ''
       }
     });
