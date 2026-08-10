@@ -181,6 +181,8 @@ class PushNotificationService {
     addLine('📍', 'Регіон', 'region');
     addLine('👥', 'Замовник', 'customer', ['customerName', 'client', 'company']);
     addLine('🏠', 'Адреса', 'address');
+    addLine('🧑', 'Контактна особа', 'contactPerson', ['contact_person']);
+    addLine('📞', 'Тел. контактної особи', 'contactPhone', ['contact_phone']);
     addLine('⚙️', 'Обладнання', 'equipment', ['equipmentModel', 'model']);
 
     final action = _stringFrom(data, const ['actionHint', 'action', 'action_hint', 'hint']);
@@ -229,6 +231,8 @@ class PushNotificationService {
 📍 Регіон: Дніпровський
 👥 Замовник: ТОВ «ЮГОЙЛ»
 🏠 Адреса: вул. Соборна 104, м. Баштанка
+🧑 Контактна особа: Ярофенко І. П.
+📞 Тел. контактної особи: 0686836995
 ⚙️ Обладнання: DE70BDS
 
 💡 Дія: Розглянути та призначити виконавця''';
