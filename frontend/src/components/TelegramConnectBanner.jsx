@@ -77,7 +77,7 @@ export default function TelegramConnectBanner({ onOpenNotifications }) {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Підключити Telegram (@{prompt.botUsername || 'DTS_Service_Bot'})
+                Підключити Telegram — DTS-Service (@{prompt.botUsername || 'DarexServiceBot'})
               </a>
             ) : null}
             {onOpenNotifications ? (

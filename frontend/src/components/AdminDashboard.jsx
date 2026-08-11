@@ -1834,7 +1834,7 @@ function AdminDashboard({ user }) {
               🤖 Bot Token: {telegramStatus.botTokenConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}
             </div>
             <div className={`status-item ${telegramStatus.botUsername ? 'ok' : 'error'}`}>
-              📛 Бот: @{telegramStatus.botUsername || '—'}
+              📛 Бот: DTS-Service (@{telegramStatus.botUsername || '—'})
             </div>
             <div className={`status-item ${telegramStatus.smsConfigured ? 'ok' : 'error'}`}>
               📲 SMS API: {telegramStatus.smsConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}

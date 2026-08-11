@@ -29,21 +29,22 @@ function parseTelegramStartToken(token, secret) {
 }
 
 function getBotUsername() {
-  return String(process.env.TELEGRAM_BOT_USERNAME || 'DTS_Service_Bot').replace(/^@/, '');
+  return String(process.env.TELEGRAM_BOT_USERNAME || 'DarexServiceBot').replace(/^@/, '');
 }
 
-function buildTelegramInviteLink(login, secret) {
+function buildTelegramInviteLink(login, secret, botUsername) {
   const token = makeTelegramStartToken(login, secret);
-  return `https://t.me/${getBotUsername()}?start=${token}`;
+  const user = String(botUsername || getBotUsername()).replace(/^@/, '');
+  return `https://t.me/${user}?start=${token}`;
 }
 
 /**
  * Текст SMS для запрошення підключити Telegram-бота DTS / Гідра.
  * Детальний і зрозумілий — щоб людина не сприйняла посилання як фішинг.
  */
-function buildTelegramInviteSmsText({ name, login, inviteLink }) {
+function buildTelegramInviteSmsText({ name, login, inviteLink, botUsername }) {
   const displayName = (name || login || 'колега').trim();
-  const botName = getBotUsername();
+  const botName = String(botUsername || getBotUsername()).replace(/^@/, '');
   const supportContact = process.env.TELEGRAM_SUPPORT_CONTACT || 'адміністратора системи DTS';
 
   return [
@@ -53,7 +54,7 @@ function buildTelegramInviteSmsText({ name, login, inviteLink }) {
     '',
     'Вас зареєстровано в робочій системі «Гідра» (облік сервісних заявок та сповіщень DTS).',
     '',
-    'Щоб отримувати повідомлення про нові заявки та зміни їх статусу, підключіть офіційного Telegram-бота:',
+    'Щоб отримувати повідомлення про нові заявки та зміни їх статусу, підключіть офіційного Telegram-бота DTS-Service:',
     `@${botName}`,
     '',
     'Перейдіть за персональним посиланням і натисніть «Start» / «Запустити»:',
@@ -70,9 +71,9 @@ function buildTelegramInviteSmsText({ name, login, inviteLink }) {
 /**
  * Текст in-app сповіщення в «Гідрі» для користувачів без Telegram Chat ID.
  */
-function buildTelegramConnectNotificationBody({ name, login, inviteLink }) {
+function buildTelegramConnectNotificationBody({ name, login, inviteLink, botUsername }) {
   const displayName = (name || login || 'колего').trim();
-  const botName = getBotUsername();
+  const botName = String(botUsername || getBotUsername()).replace(/^@/, '');
   const supportContact = process.env.TELEGRAM_SUPPORT_CONTACT || 'адміністратора системи DTS';
 
   return [
@@ -81,7 +82,7 @@ function buildTelegramConnectNotificationBody({ name, login, inviteLink }) {
     'Ви працюєте в системі «Гідра» (DTS / Darex Trading Solutions) — внутрішній системі обліку сервісних заявок Darex.',
     '',
     '🔔 Навіщо підключати Telegram?',
-    `Колеги вашого відділу вже отримують робочі сповіщення через офіційного бота @${botName}:`,
+    `Колеги вашого відділу вже отримують робочі сповіщення через офіційного бота DTS-Service (@${botName}) — той самий, де ви бачите «Заявка виконана», «Нова заявка» тощо:`,
     '• нові заявки у вашому регіоні;',
     '• зміни статусу (затвердження, відхилення, виконання);',
     '• запити на рахунки та важливі системні повідомлення.',

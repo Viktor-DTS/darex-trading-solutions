@@ -1609,7 +1609,7 @@ async function createManagerNotificationDeduped(doc) {
 }
 
 /** In-app сповіщення «Підключіть Telegram» для користувачів без Chat ID */
-async function ensureTelegramConnectNotification(user) {
+async function ensureTelegramConnectNotification(user, botUsername) {
   if (!user?.login || user.dismissed) return { needed: false };
   if (!process.env.TELEGRAM_BOT_TOKEN) return { needed: false };
 
@@ -1621,11 +1621,13 @@ async function ensureTelegramConnectNotification(user) {
     return { needed: false };
   }
 
-  const inviteLink = buildTelegramInviteLink(user.login, JWT_SECRET);
+  const username = String(botUsername || getBotUsername()).replace(/^@/, '');
+  const inviteLink = buildTelegramInviteLink(user.login, JWT_SECRET, username);
   const body = buildTelegramConnectNotificationBody({
     name: user.name,
     login: user.login,
     inviteLink,
+    botUsername: username,
   });
 
   await ManagerUserNotification.findOneAndUpdate(
@@ -1633,7 +1635,7 @@ async function ensureTelegramConnectNotification(user) {
     {
       recipientLogin: user.login,
       kind: 'telegram_connect_invite',
-      title: '📱 Підключіть Telegram для робочих сповіщень',
+      title: '📱 Підключіть Telegram (бот DTS-Service)',
       body,
       read: false,
       dedupeKey: `telegram_connect:${user.login}`,
@@ -1644,8 +1646,8 @@ async function ensureTelegramConnectNotification(user) {
   return {
     needed: true,
     inviteLink,
-    botUsername: getBotUsername(),
-    title: '📱 Підключіть Telegram для робочих сповіщень',
+    botUsername: username,
+    title: '📱 Підключіть Telegram (бот DTS-Service)',
     body,
   };
 }
@@ -3770,9 +3772,11 @@ app.post('/api/auth', async (req, res) => {
     );
     
     logPerformance('POST /api/auth', startTime);
-    ensureTelegramConnectNotification(user).catch((e) => {
-      console.warn('[TELEGRAM] ensure connect notification on login:', e.message);
-    });
+    telegramService.resolveBotUsername()
+      .then((botUsername) => ensureTelegramConnectNotification(user, botUsername))
+      .catch((e) => {
+        console.warn('[TELEGRAM] ensure connect notification on login:', e.message);
+      });
     res.json({ 
       token, 
       user: { 
@@ -18215,8 +18219,25 @@ class TelegramService {
     return result;
   }
 
+  /** Username бота з токена (getMe) — завжди той самий бот, що надсилає сповіщення */
+  async resolveBotUsername() {
+    if (this._resolvedBotUsername) return this._resolvedBotUsername;
+    try {
+      const result = await this.apiCall('getMe');
+      const username = result.result?.username;
+      if (username) {
+        this._resolvedBotUsername = String(username).replace(/^@/, '');
+        return this._resolvedBotUsername;
+      }
+    } catch (e) {
+      console.warn('[TELEGRAM] getMe failed, fallback username:', e.message);
+    }
+    this._resolvedBotUsername = getBotUsername();
+    return this._resolvedBotUsername;
+  }
+
   async sendContactRequest(chatId) {
-    const botName = getBotUsername();
+    const botName = await this.resolveBotUsername();
     return this.sendMessage(
       chatId,
       `<b>DTS-Service — сповіщення системи «Гідра»</b>\n\n`
@@ -18327,16 +18348,19 @@ class TelegramService {
     }
   }
 
-  buildInviteLink(login) {
-    return buildTelegramInviteLink(login, JWT_SECRET);
+  async buildInviteLink(login) {
+    const botUsername = await this.resolveBotUsername();
+    return buildTelegramInviteLink(login, JWT_SECRET, botUsername);
   }
 
-  buildInviteSmsText(user) {
-    const inviteLink = this.buildInviteLink(user.login);
+  async buildInviteSmsText(user) {
+    const botUsername = await this.resolveBotUsername();
+    const inviteLink = await this.buildInviteLink(user.login);
     return buildTelegramInviteSmsText({
       name: user.name,
       login: user.login,
       inviteLink,
+      botUsername,
     });
   }
 
@@ -18754,7 +18778,8 @@ app.get('/api/telegram/connect-prompt', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ login: req.user.login }).lean();
     if (!user) return res.status(404).json({ error: 'Користувача не знайдено' });
-    const result = await ensureTelegramConnectNotification(user);
+    const botUsername = await telegramService.resolveBotUsername();
+    const result = await ensureTelegramConnectNotification(user, botUsername);
     res.json(result);
   } catch (error) {
     console.error('[TELEGRAM] connect-prompt:', error);
@@ -18766,16 +18791,19 @@ app.get('/api/telegram/connect-prompt', authenticateToken, async (req, res) => {
 app.get('/api/telegram/status', authenticateToken, async (req, res) => {
   try {
     let webhookInfo = null;
+    let botUsername = getBotUsername();
     if (process.env.TELEGRAM_BOT_TOKEN) {
       try {
         webhookInfo = await telegramService.getWebhookInfo();
+        botUsername = await telegramService.resolveBotUsername();
       } catch (e) {
         webhookInfo = { error: e.message };
       }
     }
     res.json({
       botTokenConfigured: !!process.env.TELEGRAM_BOT_TOKEN,
-      botUsername: getBotUsername(),
+      botUsername,
+      botDisplayName: 'DTS-Service',
       adminChatIdConfigured: !!process.env.ADMIN_TELEGRAM_CHAT_ID,
       smsConfigured: smsService.isConfigured(),
       publicApiUrlConfigured: !!process.env.PUBLIC_API_URL,
@@ -18827,11 +18855,13 @@ app.get('/api/telegram/invite-preview/:login', authenticateToken, async (req, re
     }
     const user = await User.findOne({ login: req.params.login }).lean();
     if (!user) return res.status(404).json({ error: 'Користувача не знайдено' });
+    const inviteLink = await telegramService.buildInviteLink(user.login);
+    const smsText = await telegramService.buildInviteSmsText(user);
     res.json({
       login: user.login,
       phone: user.phone || '',
-      inviteLink: telegramService.buildInviteLink(user.login),
-      smsText: telegramService.buildInviteSmsText(user),
+      inviteLink,
+      smsText,
       telegramConnected: isValidTelegramChatId(user.telegramChatId),
     });
   } catch (error) {
@@ -18879,7 +18909,7 @@ async function sendTelegramInviteSmsToUser(user, { force = false } = {}) {
     throw new Error('TELEGRAM_BOT_TOKEN не налаштовано');
   }
 
-  const smsText = telegramService.buildInviteSmsText(user);
+  const smsText = await telegramService.buildInviteSmsText(user);
   const result = await smsService.sendMessage(user.phone || phoneNorm, smsText);
   await User.updateOne(
     { login: user.login },
