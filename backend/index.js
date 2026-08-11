@@ -778,6 +778,7 @@ function normalizeEstimateSpecPayload(raw = {}) {
     templateStaticPath: String(raw.templateStaticPath || '').trim(),
     pricesAreNetOfVat: !!raw.pricesAreNetOfVat,
     vatRate: Number.isFinite(Number(raw.vatRate)) ? Number(raw.vatRate) : (raw.pricesAreNetOfVat ? 0.2 : 0),
+    generatedAt: raw.generatedAt || null,
   };
 }
 
@@ -849,17 +850,43 @@ async function ensureEstimateContractSpecsSeeded() {
   if (!defaults.length) return;
   const now = new Date();
   for (const spec of defaults) {
-    await EstimateContractSpec.findOneAndUpdate(
-      { specId: spec.specId },
-      {
-        $setOnInsert: {
-          ...spec,
-          updatedAt: now,
-          updatedByLogin: 'system',
+    const existing = await EstimateContractSpec.findOne({ specId: spec.specId }).lean();
+    if (!existing) {
+      await EstimateContractSpec.findOneAndUpdate(
+        { specId: spec.specId },
+        {
+          $setOnInsert: {
+            ...spec,
+            updatedAt: now,
+            updatedByLogin: 'system',
+          },
         },
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
+      continue;
+    }
+
+    const diskGeneratedAt = spec.generatedAt ? new Date(spec.generatedAt) : null;
+    const dbUpdatedAt = existing.updatedAt ? new Date(existing.updatedAt) : null;
+    const shouldSyncFromDisk =
+      diskGeneratedAt &&
+      Number.isFinite(diskGeneratedAt.getTime()) &&
+      (!dbUpdatedAt || !Number.isFinite(dbUpdatedAt.getTime()) || diskGeneratedAt > dbUpdatedAt);
+
+    if (shouldSyncFromDisk) {
+      await EstimateContractSpec.findOneAndUpdate(
+        { specId: spec.specId },
+        {
+          $set: {
+            categories: spec.categories,
+            transportRatePerKm: spec.transportRatePerKm,
+            itemCount: spec.itemCount,
+            updatedAt: now,
+            updatedByLogin: 'system',
+          },
+        }
+      );
+    }
   }
 }
 
