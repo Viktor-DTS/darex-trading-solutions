@@ -18192,6 +18192,76 @@ const notificationLogSchema = new mongoose.Schema({
 });
 const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
 
+/** Дата та час для Telegram/FCM: uk-UA, день.місяць.рік, год:хв */
+function formatTaskDateTimeUk(value) {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toLocaleString('uk-UA', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  const s = String(value).trim();
+  if (!s) return null;
+  const dateOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const d = new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 0, 0, 0);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleString('uk-UA', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/** Джерело дати залежно від типу сповіщення (нова заявка — autoCreatedAt). */
+function resolveTaskNotificationDateTime(type, task) {
+  const tryFields = (fields) => {
+    for (const f of fields) {
+      const fmt = formatTaskDateTimeUk(f);
+      if (fmt) return fmt;
+    }
+    return 'Н/Д';
+  };
+
+  switch (type) {
+    case 'task_created':
+      return tryFields([task.autoCreatedAt, task.requestDate, task.createdAt, task.date]);
+    case 'task_completed':
+    case 'task_approval':
+      return tryFields([task.autoCompletedAt, task.date, task.requestDate, task.autoCreatedAt]);
+    case 'accountant_approval':
+      return tryFields([task.autoWarehouseApprovedAt, task.autoCompletedAt, task.date, task.requestDate]);
+    case 'task_approved':
+      return tryFields([task.autoAccountantApprovedAt, task.date, task.requestDate]);
+    case 'task_rejected':
+      return tryFields([task.autoAccountantApprovedAt, task.autoWarehouseApprovedAt, task.date]);
+    case 'invoice_request':
+      return tryFields([task.invoiceRequestDate, task.autoCreatedAt, task.date]);
+    case 'invoice_completed':
+      return tryFields([task.invoiceRequestDate, task.date, task.autoCreatedAt]);
+    default:
+      return tryFields([task.date, task.requestDate, task.autoCreatedAt, task.autoCompletedAt]);
+  }
+}
+
 // Клас для роботи з Telegram
 class TelegramService {
   constructor() {
@@ -18454,13 +18524,15 @@ class TelegramService {
       'invoice_completed': '📄 Рахунок завантажено'
     };
 
+    const notificationDateTime = resolveTaskNotificationDateTime(type, task);
+
     const baseMessage = `
 <b>🔔 ${typeNames[type] || 'Оновлення'}</b>
 
 📋 <b>Номер:</b> ${task.requestNumber || 'Н/Д'}
 👤 <b>Створив:</b> ${createdBy}
 📊 <b>Статус:</b> ${displayStatus}
-📅 <b>Дата:</b> ${task.date || 'Н/Д'}
+📅 <b>Дата:</b> ${notificationDateTime}
 📍 <b>Регіон:</b> ${task.serviceRegion || 'Н/Д'}
 👥 <b>Замовник:</b> ${task.client || 'Н/Д'}
 🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
@@ -18512,12 +18584,13 @@ class TelegramService {
     };
 
     const header = `🔔 ${typeNames[type] || 'Оновлення'}`;
+    const notificationDateTime = resolveTaskNotificationDateTime(type, task);
     const baseMessage = `${header}
 
 📋 Номер: ${task.requestNumber || 'Н/Д'}
 👤 Створив: ${createdBy}
 📊 Статус: ${displayStatus}
-📅 Дата: ${task.date || 'Н/Д'}
+📅 Дата: ${notificationDateTime}
 📍 Регіон: ${task.serviceRegion || 'Н/Д'}
 👥 Замовник: ${task.client || 'Н/Д'}
 🏠 Адреса: ${task.address || 'Н/Д'}
@@ -18759,7 +18832,7 @@ async function sendFcmTaskNotification(type, task, user) {
         taskNumber: task.requestNumber != null ? String(task.requestNumber) : '',
         createdBy: createdBy ? String(createdBy) : '',
         status: displayStatus ? String(displayStatus) : '',
-        taskDate: task.date != null ? String(task.date) : '',
+        taskDate: resolveTaskNotificationDateTime(type, task),
         region: task.serviceRegion != null ? String(task.serviceRegion) : '',
         customer: task.client != null ? String(task.client) : '',
         address: task.address != null ? String(task.address) : '',
