@@ -2009,6 +2009,9 @@ function AdminDashboard({ user }) {
     { key: 'rejectedRequests', label: 'Відхилені заявки' },
     { key: 'invoiceRequests', label: 'Запити на рахунки' },
     { key: 'completedInvoices', label: 'Виконані рахунки' },
+    { key: 'procurementRequestCreated', label: 'VZ: нова заявка' },
+    { key: 'procurementExecutorCompleted', label: 'VZ: виконано (чекає склад)' },
+    { key: 'procurementWarehouseConfirmed', label: 'VZ: підтверджено складом' },
     { key: 'systemNotifications', label: 'Системні сповіщення' },
   ];
 
@@ -2274,6 +2277,10 @@ function AdminDashboard({ user }) {
         <>
           <div className="notifications-info">
             <span className="with-telegram">✅ Користувачів з Telegram: {usersWithTelegram.length}</span>
+            <p className="notifications-info-hint">
+              Колонки «VZ: …» — Telegram про заявки закупівель (створення, виконання відділом, підтвердження складом).
+              Лише для заявок, створених у системі (не імпортованих з Google Sheets).
+            </p>
           </div>
           <div className="notifications-table-wrapper">
             <table className="notifications-table">

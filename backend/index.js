@@ -105,6 +105,7 @@ const {
 const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
+const { sendProcurementTelegramNotifications } = require('./lib/procurementTelegram');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -514,7 +515,10 @@ const userSchema = new mongoose.Schema({
     rejectedRequests: { type: Boolean, default: false },      // Відхилені заявки
     invoiceRequests: { type: Boolean, default: false },       // Запити на рахунки
     completedInvoices: { type: Boolean, default: false },     // Виконані рахунки
-    systemNotifications: { type: Boolean, default: false }    // Системні сповіщення
+    systemNotifications: { type: Boolean, default: false },    // Системні сповіщення
+    procurementRequestCreated: { type: Boolean, default: false }, // Нова заявка закупівель
+    procurementExecutorCompleted: { type: Boolean, default: false }, // VZ виконано, чекає склад
+    procurementWarehouseConfirmed: { type: Boolean, default: false } // VZ підтверджено завскладом
   }
 }, { strict: false });
 
@@ -4783,6 +4787,7 @@ app.post(
       const out = await ProcurementRequest.findById(doc._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
       stripProcurementLineBinaryFields(out);
       await notifyVidZakupokNewProcurementRequest(out);
+      await dispatchProcurementTelegram('created', out);
       logPerformance('POST /api/procurement-requests', startTime);
       res.status(201).json(out);
     } catch (error) {
@@ -5060,6 +5065,7 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     await notifyWarehouseStaffProcurementIncoming(pr);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     stripProcurementLineBinaryFields(out);
+    await dispatchProcurementTelegram('executor_completed', out);
     logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
     res.json(out);
   } catch (error) {
@@ -5508,6 +5514,11 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
         await notifyProcurementExecutorReceiptPartial(pr);
       } else {
         await notifyProcurementRequesterCompleted(pr);
+        const outForTg = await ProcurementRequest.findById(pr._id)
+          .select(PROCUREMENT_DOC_LIST_PROJECTION)
+          .lean();
+        stripProcurementLineBinaryFields(outForTg);
+        await dispatchProcurementTelegram('warehouse_confirmed', outForTg);
       }
     }
 
@@ -8566,7 +8577,10 @@ app.post('/api/users', authenticateToken, async (req, res) => {
         rejectedRequests: false,
         invoiceRequests: false,
         completedInvoices: false,
-        systemNotifications: false
+        systemNotifications: false,
+        procurementRequestCreated: false,
+        procurementExecutorCompleted: false,
+        procurementWarehouseConfirmed: false
       },
       lastActivity: new Date()
     });
@@ -18660,6 +18674,18 @@ class SmsService {
 
 const telegramService = new TelegramService();
 const smsService = new SmsService();
+
+async function dispatchProcurementTelegram(event, pr) {
+  try {
+    await sendProcurementTelegramNotifications(
+      { telegramService, User, NotificationLog },
+      event,
+      pr
+    );
+  } catch (e) {
+    console.error('[procurement] dispatchProcurementTelegram:', e.message);
+  }
+}
 
 // Відправка push на мобільні пристрої
 async function sendPushToUsers(users, { title, body, data = {} }) {
