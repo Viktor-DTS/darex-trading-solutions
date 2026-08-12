@@ -528,6 +528,12 @@ function ProcurementDashboard({ user }) {
   }, [fetchProcurementNotifUnreadCount]);
 
   useEffect(() => {
+    const openNotifications = () => setActiveSection('notifications');
+    window.addEventListener('dts-open-notifications-tab', openNotifications);
+    return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
+  }, []);
+
+  useEffect(() => {
     return () => {
       const t = supplierNameLookupTimersRef.current;
       Object.keys(t).forEach((k) => clearTimeout(t[k]));

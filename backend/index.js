@@ -562,14 +562,41 @@ const PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS = [
   'procurement_request_new'
 ];
 
-function managerNotificationKindMongoFilter(
-  procurementOnly,
-  excludeProcurement,
-  excludeProcurementServiceFeed
-) {
-  if (procurementOnly) return { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
-  if (excludeProcurement) return { kind: { $nin: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
-  if (excludeProcurementServiceFeed) return { kind: { $nin: PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS } };
+/** Зав. склад / складський облік (zavsklad): відвантаження, надходження від закупівель, Telegram. */
+const WAREHOUSE_FEED_NOTIFICATION_KINDS = [
+  'shipment_request_new',
+  'procurement_incoming_to_warehouse',
+  'telegram_connect_invite'
+];
+
+/** Маркетинг: ліди з реклами + підключення Telegram. */
+const MARKETING_FEED_NOTIFICATION_KINDS = [
+  'external_ad_lead_new',
+  'external_ad_lead_assigned',
+  'telegram_connect_invite'
+];
+
+function parseManagerNotificationFeedQuery(req) {
+  return {
+    procurementOnly: req.query.procurement === '1' || req.query.procurement === 'true',
+    excludeProcurement:
+      req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true',
+    excludeProcurementServiceFeed:
+      req.query.excludeProcurementServiceFeed === '1' ||
+      req.query.excludeProcurementServiceFeed === 'true',
+    warehouseFeed: req.query.warehouseFeed === '1' || req.query.warehouseFeed === 'true',
+    marketingFeed: req.query.marketingFeed === '1' || req.query.marketingFeed === 'true'
+  };
+}
+
+function managerNotificationKindMongoFilter(feed) {
+  if (feed.warehouseFeed) return { kind: { $in: WAREHOUSE_FEED_NOTIFICATION_KINDS } };
+  if (feed.marketingFeed) return { kind: { $in: MARKETING_FEED_NOTIFICATION_KINDS } };
+  if (feed.procurementOnly) return { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
+  if (feed.excludeProcurement) return { kind: { $nin: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
+  if (feed.excludeProcurementServiceFeed) {
+    return { kind: { $nin: PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS } };
+  }
   return {};
 }
 
@@ -14371,17 +14398,7 @@ async function getRegionalManagerRecipientLogins() {
 app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
   try {
     const unreadOnly = req.query.unreadOnly === '1' || req.query.unreadOnly === 'true';
-    const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
-    const excludeProcurement =
-      req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
-    const excludeProcurementServiceFeed =
-      req.query.excludeProcurementServiceFeed === '1' ||
-      req.query.excludeProcurementServiceFeed === 'true';
-    const kindQ = managerNotificationKindMongoFilter(
-      procurementOnly,
-      excludeProcurement,
-      excludeProcurementServiceFeed
-    );
+    const kindQ = managerNotificationKindMongoFilter(parseManagerNotificationFeedQuery(req));
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length === 0) {
@@ -14404,17 +14421,7 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
 
 app.get('/api/manager-notifications/unread-count', authenticateToken, async (req, res) => {
   try {
-    const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
-    const excludeProcurement =
-      req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
-    const excludeProcurementServiceFeed =
-      req.query.excludeProcurementServiceFeed === '1' ||
-      req.query.excludeProcurementServiceFeed === 'true';
-    const kindFilter = managerNotificationKindMongoFilter(
-      procurementOnly,
-      excludeProcurement,
-      excludeProcurementServiceFeed
-    );
+    const kindFilter = managerNotificationKindMongoFilter(parseManagerNotificationFeedQuery(req));
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       const count =
@@ -14465,17 +14472,7 @@ app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, 
 
 app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (req, res) => {
   try {
-    const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
-    const excludeProcurement =
-      req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
-    const excludeProcurementServiceFeed =
-      req.query.excludeProcurementServiceFeed === '1' ||
-      req.query.excludeProcurementServiceFeed === 'true';
-    const kindFilter = managerNotificationKindMongoFilter(
-      procurementOnly,
-      excludeProcurement,
-      excludeProcurementServiceFeed
-    );
+    const kindFilter = managerNotificationKindMongoFilter(parseManagerNotificationFeedQuery(req));
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length > 0) {

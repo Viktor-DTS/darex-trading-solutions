@@ -38,6 +38,7 @@ function WarehouseDashboard({ user }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
   const [procurementPendingCount, setProcurementPendingCount] = useState(0);
+  const [warehouseNotifUnreadCount, setWarehouseNotifUnreadCount] = useState(0);
 
   const isInventoryView = isZavskladInventoryTab(activeTab);
 
@@ -49,7 +50,36 @@ function WarehouseDashboard({ user }) {
 
   const inventoryTabs = buildZavskladTabs({
     approvalBadge: inTransitCount + procurementPendingCount,
+    notificationsBadge: warehouseNotifUnreadCount,
   });
+
+  const fetchWarehouseNotifUnreadCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await authFetch(`${API_BASE_URL}/manager-notifications/unread-count?warehouseFeed=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWarehouseNotifUnreadCount(typeof data.count === 'number' ? data.count : 0);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWarehouseNotifUnreadCount();
+    const id = setInterval(fetchWarehouseNotifUnreadCount, 60000);
+    return () => clearInterval(id);
+  }, [fetchWarehouseNotifUnreadCount]);
+
+  useEffect(() => {
+    const openNotifications = () => setActiveTab('notifications');
+    window.addEventListener('dts-open-notifications-tab', openNotifications);
+    return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
+  }, []);
 
   useEffect(() => {
     try {
@@ -138,6 +168,9 @@ function WarehouseDashboard({ user }) {
     if (tabId === 'approval') {
       loadInTransitCount();
       loadProcurementPendingCount();
+    }
+    if (tabId === 'notifications') {
+      fetchWarehouseNotifUnreadCount();
     }
   };
 

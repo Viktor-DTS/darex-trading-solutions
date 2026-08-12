@@ -460,7 +460,14 @@ function App() {
                   </nav>
                   <TelegramConnectBanner
                     onOpenNotifications={() => {
-                      const panelsWithNotifications = ['service', 'regional', 'manager', 'warehouse', 'inventory'];
+                      const panelsWithNotifications = [
+                        'service',
+                        'regional',
+                        'manager',
+                        'warehouse',
+                        'procurement',
+                        'marketing',
+                      ];
                       const target = panelsWithNotifications.find((p) =>
                         getAvailablePanelsForRole(user.role, accessRules).some((ap) => ap.id === p)
                       );

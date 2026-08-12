@@ -73,6 +73,7 @@ function InventoryDashboard({
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
   const [procurementPendingCount, setProcurementPendingCount] = useState(0);
+  const [warehouseNotifUnreadCount, setWarehouseNotifUnreadCount] = useState(0);
   const [procurementReceiptFocusId, setProcurementReceiptFocusId] = useState(null);
   const [internalCategoryId, setInternalCategoryId] = useState(null);
   const selectedCategoryId =
@@ -145,6 +146,24 @@ function InventoryDashboard({
     }
   }, []);
 
+  const fetchWarehouseNotifUnreadCount = useCallback(async () => {
+    if (variant !== 'zavsklad') return;
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await authFetch(`${API_BASE_URL}/manager-notifications/unread-count?warehouseFeed=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) return;
+      if (res.ok) {
+        const data = await res.json();
+        setWarehouseNotifUnreadCount(typeof data.count === 'number' ? data.count : 0);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [variant]);
+
   useEffect(() => {
     loadWarehouses();
     loadInTransitCount();
@@ -155,6 +174,20 @@ function InventoryDashboard({
     }, 30000);
     return () => clearInterval(interval);
   }, [loadInTransitCount, loadProcurementPendingCount]);
+
+  useEffect(() => {
+    if (variant !== 'zavsklad') return;
+    fetchWarehouseNotifUnreadCount();
+    const id = setInterval(fetchWarehouseNotifUnreadCount, 60000);
+    return () => clearInterval(id);
+  }, [variant, fetchWarehouseNotifUnreadCount]);
+
+  useEffect(() => {
+    if (variant !== 'zavsklad') return;
+    const openNotifications = () => setActiveTab('notifications');
+    window.addEventListener('dts-open-notifications-tab', openNotifications);
+    return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
+  }, [variant, setActiveTab]);
 
   useEffect(() => {
     if (!showMoveModal) return;
@@ -228,7 +261,10 @@ function InventoryDashboard({
 
   const visibleTabs =
     variant === 'zavsklad'
-      ? buildZavskladTabs({ approvalBadge: inTransitCount + procurementPendingCount })
+      ? buildZavskladTabs({
+          approvalBadge: inTransitCount + procurementPendingCount,
+          notificationsBadge: warehouseNotifUnreadCount,
+        })
       : buildAccountingTabs();
 
   const handleTabClick = (tabId) => {
@@ -356,12 +392,14 @@ function InventoryDashboard({
         return (
           <div className="inventory-tab-content">
             <ManagerNotificationsTab
+              warehouseFeed
+              onUnreadCountChange={fetchWarehouseNotifUnreadCount}
               onOpenShipmentRequest={openShipmentFromNotification}
               onOpenProcurementRequest={(id) => {
                 setProcurementReceiptFocusId(id);
                 setActiveTab('approval');
               }}
-              description="Системні сповіщення: надходження від закупівель, запити на відвантаження від менеджерів тощо. Номер заявки закупівель відкриває картку у вкладці «Затвердження отримання товару»."
+              description="Складські сповіщення: запити на відвантаження від менеджерів, надходження товару від закупівель, підключення Telegram. Номер заявки закупівель відкриває картку у вкладці «Затвердження отримання товару»."
             />
           </div>
         );

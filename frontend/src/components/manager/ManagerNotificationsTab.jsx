@@ -22,6 +22,8 @@ const KIND_LABELS = {
   onec_move_receipt_partial: 'Частковий прийом переміщення (1С)',
   procurement_request_new: 'Нова заявка (для виконавців)',
   procurement_request_completed: 'Заявку виконано (для заявника)',
+  external_ad_lead_new: 'Новий лід з реклами',
+  external_ad_lead_assigned: 'Лід передано менеджеру',
   telegram_connect_invite: 'Підключення Telegram'
 };
 
@@ -68,6 +70,10 @@ function ManagerNotificationsTab({
   excludeProcurement = false,
   /** Для сервісу: приховати лише «складські» VZ-сповіщення; «Заявку виконано» лишається заявнику/адмінам */
   excludeProcurementServiceFeed = false,
+  /** Зав. склад: відвантаження, надходження від закупівель, Telegram */
+  warehouseFeed = false,
+  /** Маркетинг: ліди з реклами + Telegram */
+  marketingFeed = false,
   title = 'Системні сповіщення'
 }) {
   const [items, setItems] = useState([]);
@@ -79,9 +85,11 @@ function ManagerNotificationsTab({
     if (procurementOnly) p.set('procurement', '1');
     else if (excludeProcurement) p.set('excludeProcurement', '1');
     else if (excludeProcurementServiceFeed) p.set('excludeProcurementServiceFeed', '1');
+    else if (warehouseFeed) p.set('warehouseFeed', '1');
+    else if (marketingFeed) p.set('marketingFeed', '1');
     const s = p.toString();
     return s ? `?${s}` : '';
-  }, [globalFeed, procurementOnly, excludeProcurement, excludeProcurementServiceFeed]);
+  }, [globalFeed, procurementOnly, excludeProcurement, excludeProcurementServiceFeed, warehouseFeed, marketingFeed]);
 
   const load = useCallback(async () => {
     setLoading(true);
