@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import API_BASE_URL from '../../config';
+import { computeProcurementCrossRegionNotices } from '../../utils/procurementCrossRegionNotice';
 import './ReceiptApproval.css';
 
 /** Узгоджено з backend: основна кількість + аналог (якщо відвантажується аналог). */
@@ -64,6 +65,16 @@ function ReceiptApproval({
   /** Фінальне підтвердження прийому (як модалка після дії на вкладці «Надходження») */
   const [procurementConfirmModalPr, setProcurementConfirmModalPr] = useState(null);
   const procurementCardRefs = useRef({});
+
+  const crossRegionNoticesFor = useCallback(
+    (pr) => {
+      if (Array.isArray(pr?.crossRegionNotices) && pr.crossRegionNotices.length) {
+        return pr.crossRegionNotices;
+      }
+      return computeProcurementCrossRegionNotices(pr, warehouses);
+    },
+    [warehouses]
+  );
 
   const initReceiptDrafts = useCallback((rows) => {
     const next = {};
@@ -502,6 +513,21 @@ function ReceiptApproval({
 
   const procurementEmpty = !procurementLoading && procurementInbound.length === 0;
 
+  const renderCrossRegionNotices = (pr) => {
+    const notices = crossRegionNoticesFor(pr);
+    if (!notices.length) return null;
+    return (
+      <div className="procurement-cross-region-notice" role="alert">
+        <div className="procurement-cross-region-notice-title">⚠️ Потрібне переміщення між регіонами</div>
+        {notices.map((n, i) => (
+          <p key={`${n.lineIndex}-${i}`} className="procurement-cross-region-notice-text">
+            {n.text}
+          </p>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="receipt-approval">
       <div className="receipt-approval-topbar">
@@ -547,12 +573,19 @@ function ReceiptApproval({
                   <strong>№ заявки:</strong> {pr.requestNumber || '—'}
                 </span>
                 <span>
-                  <strong>Склад:</strong> {pr.actualWarehouse || '—'}
+                  <strong>Бажаний склад:</strong> {pr.desiredWarehouse || '—'}
+                </span>
+                <span>
+                  <strong>Фактичний склад:</strong> {pr.actualWarehouse || '—'}
+                </span>
+                <span>
+                  <strong>Замовник:</strong> {pr.requesterName || pr.requesterLogin || '—'}
                 </span>
                 <span>
                   <strong>Виконавець (закупівлі):</strong> {pr.executorName || pr.executorLogin || '—'}
                 </span>
               </div>
+              {renderCrossRegionNotices(pr)}
               <div className="procurement-receipt-table-wrap">
                 <table className="procurement-receipt-table">
                   <thead>
@@ -646,8 +679,20 @@ function ReceiptApproval({
             <div className="modal-body">
               <div className="document-info">
                 <div className="info-row">
-                  <span className="label">Склад:</span>
+                  <span className="label">Бажаний склад:</span>
+                  <span className="value">{procurementConfirmModalPr.desiredWarehouse || '—'}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Фактичний склад:</span>
                   <span className="value">{procurementConfirmModalPr.actualWarehouse || '—'}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Замовник:</span>
+                  <span className="value">
+                    {procurementConfirmModalPr.requesterName ||
+                      procurementConfirmModalPr.requesterLogin ||
+                      '—'}
+                  </span>
                 </div>
                 <div className="info-row">
                   <span className="label">Виконавець (закупівлі):</span>
@@ -656,6 +701,7 @@ function ReceiptApproval({
                   </span>
                 </div>
               </div>
+              {renderCrossRegionNotices(procurementConfirmModalPr)}
               <p className="procurement-confirm-modal-lead">
                 Перевірте фактичні кількості та завершіть прийом — товар буде обліковано на зазначеному складі.
               </p>

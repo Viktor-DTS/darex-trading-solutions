@@ -106,6 +106,7 @@ const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
 const { sendProcurementTelegramNotifications } = require('./lib/procurementTelegram');
+const { computeProcurementCrossRegionNotices, normalizeWarehouseName } = require('./lib/procurementCrossRegionNotice');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -2512,6 +2513,8 @@ function procurementReceiptAwaitingThisUserAction(reqUser, names, pr) {
 async function notifyWarehouseStaffProcurementIncoming(pr) {
   try {
     if (isImportedProcurementRequest(pr)) return;
+    const warehouseDocs = await Warehouse.find({ isActive: true }).select('name region').lean();
+    const crossRegionNotices = computeProcurementCrossRegionNotices(pr, warehouseDocs);
     const whSet = new Set();
     for (const line of pr.materials || []) {
       if (!procurementLineNeedsShipmentWarehouse(line)) continue;
@@ -2547,7 +2550,13 @@ async function notifyWarehouseStaffProcurementIncoming(pr) {
         .lean();
       if (!users.length) continue;
       const title = `Надходження від закупівель: ${rn}`;
-      const body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Зав. склад → Затвердження отримання товару.`;
+      let body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Зав. склад → Затвердження отримання товару.`;
+      const whNotices = crossRegionNotices.filter(
+        (n) => normalizeWarehouseName(n.actualWarehouse) === normalizeWarehouseName(whName)
+      );
+      if (whNotices.length) {
+        body += `\n\n⚠️ Переміщення між регіонами:\n${whNotices.map((n) => n.text).join('\n\n')}`;
+      }
       for (const u of users) {
         const login = u.login && String(u.login).trim();
         if (!login) continue;
@@ -5118,11 +5127,13 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
       .sort({ createdAt: -1 })
       .lean();
     const rows = rowsAll.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, names, pr));
+    const warehouseDocs = await Warehouse.find({ isActive: true }).select('name region').lean();
     for (const pr of rows) {
       const whNeeded = procurementRequestWhNeededNameSet(pr);
       for (const line of pr.materials || []) {
         line.receiptLineEditable = procurementLineInReceiptScopeForUser(req.user, names, whNeeded, pr, line);
       }
+      pr.crossRegionNotices = computeProcurementCrossRegionNotices(pr, warehouseDocs);
     }
     logPerformance('GET pending-warehouse-receipt', startTime, rows.length);
     stripProcurementLineBinaryFields(rows);

@@ -43,6 +43,32 @@
   color: var(--text-primary, #333);
 }
 
+.procurement-cross-region-notice {
+  margin: 0 0 12px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.procurement-cross-region-notice-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #b45309;
+  margin-bottom: 8px;
+}
+
+.procurement-cross-region-notice-text {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-primary, #333);
+}
+
+.procurement-cross-region-notice-text:last-child {
+  margin-bottom: 0;
+}
+
 .procurement-receipt-table-wrap {
   overflow-x: auto;
 }
