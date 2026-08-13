@@ -2025,6 +2025,7 @@ oneCMovementSchema.index(
   { docType: 1, docNumber: 1, docDate: 1, nomenclature: 1, qty: 1, direction: 1, warehouse1c: 1, serial: 1 },
   { unique: true, partialFilterExpression: { docNumber: { $type: 'string' } } }
 );
+oneCMovementSchema.index({ docType: 1, receiptConfirmedAt: 1, docDate: -1 });
 const OneCMovement = mongoose.model('OneCMovement', oneCMovementSchema);
 
 /** Прибрати застарілий unique-індекс без serial (ламає upsert після оновлення схеми). */
@@ -3885,6 +3886,18 @@ app.post('/api/files/upload-contract', authenticateToken, uploadContract.single(
 const PROCUREMENT_DOC_LIST_PROJECTION =
   '-attachments.data -executorAttachments.data -materials.invoiceFile.data -materials.deliveryNoteFile.data';
 
+/** Лише поля для лічильника прийому (ті самі правила, що й список, без файлів/описів). */
+const PROCUREMENT_RECEIPT_COUNT_PROJECTION = {
+  actualWarehouse: 1,
+  'materials.actualWarehouse': 1,
+  'materials.rejected': 1,
+  'materials.receivedQuantity': 1,
+  'materials.quantity': 1,
+  'materials.analogShipped': 1,
+  'materials.analogName': 1,
+  'materials.analogQuantity': 1,
+};
+
 function stripProcurementLineBinaryFields(docOrList) {
   const run = (d) => {
     if (!d || !d.materials) return;
@@ -5087,7 +5100,7 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
 app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req, res) => {
   const startTime = Date.now();
   try {
-    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const dbUser = await User.findOne({ login: req.user.login }).select('login role region').lean();
     const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
     if (names.length === 0) {
       logPerformance('GET pending-warehouse-receipt/count', startTime, 0);
@@ -5098,7 +5111,7 @@ app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req,
       ...procurementNotImportedMongoFilter(),
       $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
     })
-      .select(PROCUREMENT_DOC_LIST_PROJECTION)
+      .select(PROCUREMENT_RECEIPT_COUNT_PROJECTION)
       .lean();
     const count = candidates.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, names, pr)).length;
     logPerformance('GET pending-warehouse-receipt/count', startTime, count);
@@ -16730,7 +16743,7 @@ app.post('/api/equipment/approve-receipt', authenticateToken, async (req, res) =
 app.get('/api/equipment/in-transit/count', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const user = await User.findOne({ login: req.user.login }).lean();
+    const user = await User.findOne({ login: req.user.login }).select('login role region').lean();
     if (!user) return res.status(401).json({ error: 'Користувач не знайдено' });
     const scope = await buildReceiptScope(Warehouse, OneCWarehouseAlias, req.user, user, {
       loadActiveWarehouseIdsForUserRegion,
@@ -16738,7 +16751,7 @@ app.get('/api/equipment/in-transit/count', authenticateToken, async (req, res) =
       isRegionalWarehouseStaffRole,
     });
     const count = await countPendingMoveReceipts(OneCMovement, scope);
-    logPerformance('GET /api/equipment/in-transit/count', startTime);
+    logPerformance('GET /api/equipment/in-transit/count', startTime, count);
     res.json({ count, source: 'onec_move' });
   } catch (error) {
     console.error('[ERROR] GET /api/equipment/in-transit/count:', error);

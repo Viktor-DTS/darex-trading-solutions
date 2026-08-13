@@ -240,29 +240,55 @@ function buildMoveReceiptItem(g, lookup, scope) {
   };
 }
 
-async function listPendingMoveReceipts(OneCMovement, scope, { includeHistory = false } = {}) {
-  const { lookup } = scope;
+const PENDING_MOVE_LIST_LIMIT = 5000;
+const PENDING_MOVE_HISTORY_LIMIT = 8000;
+
+/** Поля, яких досить, щоб повторити правила списку (група + міжрегіон + видимість). */
+const PENDING_MOVE_COUNT_SELECT = [
+  'docNumber',
+  'docDate',
+  'nomenclature',
+  'qty',
+  'serial',
+  'direction',
+  'warehouse1c',
+  'warehouseId',
+  'fromWarehouse1c',
+  'toWarehouse1c',
+  'receiptConfirmedAt',
+].join(' ');
+
+function pendingMoveMongoQuery(includeHistory) {
   const query = { docType: 'move' };
   if (!includeHistory) {
     query.$or = [{ receiptConfirmedAt: { $exists: false } }, { receiptConfirmedAt: null }];
   }
+  return query;
+}
 
-  const rows = await OneCMovement.find(query)
+async function loadPendingMoveRows(OneCMovement, { includeHistory = false, select = null } = {}) {
+  const find = OneCMovement.find(pendingMoveMongoQuery(includeHistory))
     .sort({ docDate: -1, _id: -1 })
-    .limit(includeHistory ? 8000 : 5000)
-    .lean();
+    .limit(includeHistory ? PENDING_MOVE_HISTORY_LIMIT : PENDING_MOVE_LIST_LIMIT);
+  if (select) find.select(select);
+  return find.lean();
+}
 
+function itemsFromPendingMoveRows(rows, scope, { includeHistory = false } = {}) {
+  const { lookup } = scope;
   const rowsToGroup = includeHistory ? rows : rows.filter((r) => !r.receiptConfirmedAt);
   const grouped = groupMoveRows(rowsToGroup);
   const items = [];
-
   for (const g of grouped) {
     const item = buildMoveReceiptItem(g, lookup, scope);
     if (!item) continue;
     if (!includeHistory && item.isConfirmed) continue;
     items.push(item);
   }
+  return items;
+}
 
+function sortPendingMoveItems(items) {
   items.sort((a, b) => {
     if (a.isConfirmed !== b.isConfirmed) return a.isConfirmed ? 1 : -1;
     if (a.isConfirmed && b.isConfirmed) {
@@ -274,9 +300,17 @@ async function listPendingMoveReceipts(OneCMovement, scope, { includeHistory = f
   return items;
 }
 
+async function listPendingMoveReceipts(OneCMovement, scope, { includeHistory = false } = {}) {
+  const rows = await loadPendingMoveRows(OneCMovement, { includeHistory });
+  return sortPendingMoveItems(itemsFromPendingMoveRows(rows, scope, { includeHistory }));
+}
+
 async function countPendingMoveReceipts(OneCMovement, scope) {
-  const list = await listPendingMoveReceipts(OneCMovement, scope);
-  return list.length;
+  const rows = await loadPendingMoveRows(OneCMovement, {
+    includeHistory: false,
+    select: PENDING_MOVE_COUNT_SELECT,
+  });
+  return itemsFromPendingMoveRows(rows, scope, { includeHistory: false }).length;
 }
 
 function buildGroupMongoFilter(parsed) {
