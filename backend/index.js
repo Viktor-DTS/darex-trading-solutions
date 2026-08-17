@@ -3736,7 +3736,11 @@ async function addEquipmentToManagersLatestActiveSale(managerLogin, equipmentDoc
 // Публічні endpoints (без автентифікації)
 // Ping endpoint
 app.get('/api/ping', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null
+  });
 });
 
 // Версія мобільного додатку — для перевірки оновлень при вході (дистаційний апдейт)
