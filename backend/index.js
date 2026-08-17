@@ -4017,12 +4017,6 @@ function canUploadProcurementExecutorFiles(reqUser, pr) {
   return String(pr.executorLogin || '') === String(reqUser.login || '');
 }
 
-function procurementLineFileAction(req) {
-  const body = req.body || {};
-  const query = req.query || {};
-  return String(body.action || query.action || '').trim().toLowerCase();
-}
-
 function procurementLineFileDocKind(req) {
   const body = req.body || {};
   const query = req.query || {};
