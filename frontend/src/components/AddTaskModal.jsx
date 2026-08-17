@@ -13,6 +13,15 @@ import './AddTaskModal.css';
 
 const normalizeEdrpou = (s) => (s || '').toString().trim().toLowerCase();
 
+function isCashPaymentType(paymentType) {
+  return paymentType === 'Готівка';
+}
+
+/** Договір обовʼязковий лише для «Виконано» і не готівкової оплати. */
+function isContractRequiredWhenCompleted(status, paymentType) {
+  return status === 'Виконано' && !isCashPaymentType(paymentType);
+}
+
 function getContractFileUrlString(contractFile) {
   if (contractFile == null) return '';
   if (typeof contractFile === 'string') return contractFile.trim();
@@ -1589,11 +1598,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         if (!formData.paymentType || formData.paymentType === 'не вибрано') {
           missingFields.push('Вид оплати');
         }
-        const hasContract = !!getContractFileUrlString(formData.contractFile);
-        if (!hasContract && !formData.worksWithoutContract) {
-          alert('Просимо вибрати договір, додати новий або відмітити «Даний контрагент працює без договору»');
-          setLoading(false);
-          return;
+        if (isContractRequiredWhenCompleted(formData.status, formData.paymentType)) {
+          const hasContract = !!getContractFileUrlString(formData.contractFile);
+          if (!hasContract && !formData.worksWithoutContract) {
+            alert('Просимо вибрати договір, додати новий або відмітити «Даний контрагент працює без договору»');
+            setLoading(false);
+            return;
+          }
         }
         // Для сервісної служби - обов'язкове поле "Сервісний інженер №1"
         if (panelType === 'service' && !formData.engineer1) {
@@ -2489,7 +2500,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       </div>
                     )}
 
-                    {!selectedContractUrl && !formData.worksWithoutContract && !isReadOnly && (
+                    {!selectedContractUrl &&
+                      !formData.worksWithoutContract &&
+                      !isReadOnly &&
+                      isContractRequiredWhenCompleted(formData.status, formData.paymentType) && (
                       <p className="contract-file-pick-hint">Просимо вибрати договір або додати новий</p>
                     )}
 
@@ -2513,7 +2527,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       </div>
 
                       {!formData.edrpou?.trim() ? (
-                        <p className="contract-inline-empty">Вкажіть ЄДРПОУ для перегляду договорів контрагента</p>
+                        isCashPaymentType(formData.paymentType) ? (
+                          <p className="contract-inline-empty">Для готівкової оплати договір та ЄДРПОУ не обовʼязкові.</p>
+                        ) : (
+                          <p className="contract-inline-empty">Вкажіть ЄДРПОУ для перегляду договорів контрагента</p>
+                        )
                       ) : contractsLoading ? (
                         <div className="contract-selector-loading contract-inline-loading">
                           <p>Аналіз договорів...</p>
