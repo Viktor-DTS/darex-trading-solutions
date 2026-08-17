@@ -4017,6 +4017,18 @@ function canUploadProcurementExecutorFiles(reqUser, pr) {
   return String(pr.executorLogin || '') === String(reqUser.login || '');
 }
 
+function procurementLineFileAction(req) {
+  const body = req.body || {};
+  const query = req.query || {};
+  return String(body.action || query.action || '').trim().toLowerCase();
+}
+
+function procurementLineFileDocKind(req) {
+  const body = req.body || {};
+  const query = req.query || {};
+  return String(body.docKind || query.docKind || '').trim();
+}
+
 function validateProcurementMaterialsRejectionReasons(materials) {
   if (!materials || !materials.length) return null;
   for (let i = 0; i < materials.length; i++) {
@@ -4710,12 +4722,14 @@ function procurementUploadMiddleware(req, res, next) {
 }
 
 function procurementLineFileUploadMiddleware(req, res, next) {
+  if (procurementLineFileAction(req) === 'remove') {
+    return next();
+  }
   uploadProcurementFiles.single('file')(req, res, (err) => {
     if (err) {
       return res.status(400).json({ error: err.message || 'Помилка завантаження файлу' });
     }
-    const action = String((req.body && req.body.action) || '').trim().toLowerCase();
-    if (action === 'remove') {
+    if (procurementLineFileAction(req) === 'remove') {
       return next();
     }
     if (!req.file) {
@@ -5238,12 +5252,11 @@ app.post(
       if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
         return res.status(400).json({ error: 'Некоректний індекс позиції' });
       }
-      const docKind = String((req.body && req.body.docKind) || '').trim();
+      const docKind = procurementLineFileDocKind(req);
       if (docKind !== 'invoice' && docKind !== 'delivery_note') {
         return res.status(400).json({ error: 'docKind: invoice або delivery_note' });
       }
-      const action = String((req.body && req.body.action) || '').trim().toLowerCase();
-      if (action === 'remove') {
+      if (procurementLineFileAction(req) === 'remove') {
         const field = docKind === 'invoice' ? `materials.${idx}.invoiceFile` : `materials.${idx}.deliveryNoteFile`;
         await ProcurementRequest.updateOne({ _id: pr._id }, { $unset: { [field]: 1 } });
         const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
