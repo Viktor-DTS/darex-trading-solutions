@@ -338,7 +338,9 @@ app.use(cors({
     'http://localhost:5174',
     'https://darex-trading-solutions-f.onrender.com' // Render frontend
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json({
@@ -5263,7 +5265,7 @@ app.post(
   }
 );
 
-app.delete('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKind', async (req, res) => {
+async function removeProcurementLineExecutorFile(req, res, docKindRaw, perfLabel) {
   const startTime = Date.now();
   try {
     if (!isVidZakupokProcurementRole(req.user.role)) {
@@ -5288,7 +5290,7 @@ app.delete('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKin
     if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
       return res.status(400).json({ error: 'Некоректний індекс позиції' });
     }
-    const kind = String(req.params.docKind || '').toLowerCase();
+    const kind = String(docKindRaw || '').toLowerCase();
     if (kind !== 'invoice' && kind !== 'delivery_note') {
       return res.status(400).json({ error: 'Некоректний тип файлу' });
     }
@@ -5296,13 +5298,31 @@ app.delete('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKin
     await ProcurementRequest.updateOne({ _id: pr._id }, { $unset: { [field]: 1 } });
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     stripProcurementLineBinaryFields(out);
-    logPerformance('DELETE /api/.../line-executor-files', startTime);
+    logPerformance(perfLabel, startTime);
     res.json(out);
   } catch (error) {
-    logPerformance('DELETE /api/.../line-executor-files', startTime);
-    console.error('[ERROR] DELETE line-executor-files:', error);
+    logPerformance(perfLabel, startTime);
+    console.error(`[ERROR] ${perfLabel}:`, error);
     res.status(500).json({ error: error.message || 'Помилка видалення' });
   }
+}
+
+app.post('/api/procurement-requests/:id/line-executor-files/:lineIndex/remove', async (req, res) => {
+  await removeProcurementLineExecutorFile(
+    req,
+    res,
+    req.body && req.body.docKind,
+    'POST /api/.../line-executor-files/remove'
+  );
+});
+
+app.delete('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKind', async (req, res) => {
+  await removeProcurementLineExecutorFile(
+    req,
+    res,
+    req.params.docKind,
+    'DELETE /api/.../line-executor-files'
+  );
 });
 
 app.get('/api/procurement-requests/:id', async (req, res) => {

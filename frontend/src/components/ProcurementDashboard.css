@@ -1154,22 +1154,48 @@
 }
 
 .procurement-line-file-cell {
-  min-width: 9rem;
-  max-width: 14rem;
+  min-width: 12rem;
+  max-width: 20rem;
+  vertical-align: top;
 }
 
-.procurement-line-file-row {
+.procurement-line-file-stack {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 6px;
 }
 
-.procurement-line-file-remove {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  font-size: 16px;
-  line-height: 1;
+.procurement-line-file-name {
+  display: block;
+  width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.35;
+  font-size: 12px;
+  text-align: left;
+}
+
+.procurement-line-file-delete {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 4px 8px;
+}
+
+.procurement-line-file-delete:hover:not(:disabled) {
+  color: #e57373;
+  border-color: #e57373;
+}
+
+.procurement-line-file-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .procurement-line-file-cell--readonly .procurement-file-link--inline {
@@ -1184,14 +1210,35 @@
   font-size: 12px;
 }
 
-.procurement-line-file-pick {
-  display: block;
-  margin-top: 4px;
+.procurement-line-file-pick-btn {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
-.procurement-line-file-pick input[type='file'] {
-  font-size: 11px;
-  max-width: 100%;
+.procurement-line-file-pick-btn.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.procurement-line-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .procurement-file-link--inline {

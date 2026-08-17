@@ -169,6 +169,11 @@ function procurementFileNameLabel(name, fallback = 'файл') {
   return decodeProcurementFileName(name) || fallback;
 }
 
+function hasProcurementLineFile(file) {
+  if (!file || typeof file !== 'object') return false;
+  return Boolean(String(file.originalName || '').trim() || file._id || file.size);
+}
+
 function normalizeProcurementSearchText(value) {
   return String(value || '')
     .toLowerCase()
@@ -939,11 +944,13 @@ function ProcurementDashboard({ user }) {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
+      const pid = encodeURIComponent(String(requestId || ''));
       const res = await fetch(
-        `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/${docKind}`,
+        `${API_BASE_URL}/procurement-requests/${pid}/line-executor-files/${lineIndex}/remove`,
         {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ docKind })
         }
       );
       if (tryHandleUnauthorizedResponse(res)) return;
@@ -958,6 +965,63 @@ function ProcurementDashboard({ user }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const renderLineFileEditorCell = (lineIndex, docKind, file, rejected) => {
+    const isInvoice = docKind === 'invoice';
+    const fallback = isInvoice ? 'Рахунок' : 'Видаткова накладна';
+    const present = hasProcurementLineFile(file);
+    const name = procurementFileNameLabel(file?.originalName, fallback);
+    const inputId = `proc-line-file-${detail?._id || 'x'}-${lineIndex}-${docKind}`;
+    const pickLabel = present
+      ? isInvoice
+        ? 'Замінити рахунок'
+        : 'Замінити видаткову'
+      : isInvoice
+        ? 'Завантажити рахунок'
+        : 'Завантажити видаткову';
+    const deleteLabel = isInvoice ? 'Видалити рахунок' : 'Видалити видаткову';
+    return (
+      <td className="procurement-line-file-cell">
+        {present ? (
+          <div className="procurement-line-file-stack">
+            <button
+              type="button"
+              className="procurement-file-link procurement-file-link--inline procurement-line-file-name"
+              title={name}
+              onClick={() => downloadLineExecutorFile(detail._id, lineIndex, docKind)}
+            >
+              {name}
+            </button>
+            <button
+              type="button"
+              className="procurement-line-file-delete"
+              disabled={saving || rejected}
+              onClick={() => deleteLineExecutorFile(detail._id, lineIndex, docKind)}
+            >
+              {deleteLabel}
+            </button>
+          </div>
+        ) : (
+          <span className="procurement-line-file-missing">Файл не завантажено</span>
+        )}
+        <label className={`procurement-line-file-pick-btn${saving || rejected ? ' is-disabled' : ''}`} htmlFor={inputId}>
+          <input
+            id={inputId}
+            type="file"
+            className="procurement-line-file-input-hidden"
+            disabled={saving || rejected}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,image/jpeg"
+            onChange={(e) => {
+              const f = e.target.files && e.target.files[0];
+              if (f) uploadLineExecutorFile(detail._id, lineIndex, docKind, f);
+              e.target.value = '';
+            }}
+          />
+          {pickLabel}
+        </label>
+      </td>
+    );
   };
 
   const takeInWork = async (id) => {
@@ -2377,80 +2441,8 @@ function ProcurementDashboard({ user }) {
                                       spellCheck="false"
                                     />
                                   </td>
-                                  <td className="procurement-line-file-cell">
-                                    {savedLine?.invoiceFile ? (
-                                      <div className="procurement-line-file-row">
-                                        <button
-                                          type="button"
-                                          className="procurement-file-link procurement-file-link--inline"
-                                          title={procurementFileNameLabel(savedLine.invoiceFile.originalName, 'Рахунок')}
-                                          onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
-                                        >
-                                          {procurementFileNameLabel(savedLine.invoiceFile.originalName, 'Рахунок')}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="procurement-btn-icon procurement-line-file-remove"
-                                          title="Видалити рахунок"
-                                          disabled={saving || m.rejected}
-                                          onClick={() => deleteLineExecutorFile(detail._id, i, 'invoice')}
-                                        >
-                                          ×
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <span className="procurement-line-file-missing">—</span>
-                                    )}
-                                    <label className="procurement-line-file-pick">
-                                      <input
-                                        type="file"
-                                        disabled={saving || m.rejected}
-                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,image/jpeg"
-                                        onChange={(e) => {
-                                          const f = e.target.files && e.target.files[0];
-                                          if (f) uploadLineExecutorFile(detail._id, i, 'invoice', f);
-                                          e.target.value = '';
-                                        }}
-                                      />
-                                    </label>
-                                  </td>
-                                  <td className="procurement-line-file-cell">
-                                    {savedLine?.deliveryNoteFile ? (
-                                      <div className="procurement-line-file-row">
-                                        <button
-                                          type="button"
-                                          className="procurement-file-link procurement-file-link--inline"
-                                          title={procurementFileNameLabel(savedLine.deliveryNoteFile.originalName, 'ВН')}
-                                          onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
-                                        >
-                                          {procurementFileNameLabel(savedLine.deliveryNoteFile.originalName, 'ВН')}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="procurement-btn-icon procurement-line-file-remove"
-                                          title="Видалити видаткову накладну"
-                                          disabled={saving || m.rejected}
-                                          onClick={() => deleteLineExecutorFile(detail._id, i, 'delivery_note')}
-                                        >
-                                          ×
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <span className="procurement-line-file-missing">—</span>
-                                    )}
-                                    <label className="procurement-line-file-pick">
-                                      <input
-                                        type="file"
-                                        disabled={saving || m.rejected}
-                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,image/jpeg"
-                                        onChange={(e) => {
-                                          const f = e.target.files && e.target.files[0];
-                                          if (f) uploadLineExecutorFile(detail._id, i, 'delivery_note', f);
-                                          e.target.value = '';
-                                        }}
-                                      />
-                                    </label>
-                                  </td>
+                                  {renderLineFileEditorCell(i, 'invoice', savedLine?.invoiceFile, m.rejected)}
+                                  {renderLineFileEditorCell(i, 'delivery_note', savedLine?.deliveryNoteFile, m.rejected)}
                                   <td>
                                     <input
                                       type="text"
@@ -2706,27 +2698,29 @@ function ProcurementDashboard({ user }) {
                                   {m.supplierName ? m.supplierName : '—'}
                                 </td>
                                 <td className="procurement-line-file-cell procurement-line-file-cell--readonly">
-                                  {m.invoiceFile ? (
+                                  {hasProcurementLineFile(m.invoiceFile) ? (
                                     <button
                                       type="button"
-                                      className="procurement-file-link procurement-file-link--inline"
+                                      className="procurement-file-link procurement-file-link--inline procurement-line-file-name"
                                       title={procurementFileNameLabel(m.invoiceFile.originalName, 'Рахунок')}
                                       onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
                                     >
                                       {procurementFileNameLabel(m.invoiceFile.originalName, 'Рахунок')}
                                     </button>
                                   ) : null}
-                                  {m.deliveryNoteFile ? (
+                                  {hasProcurementLineFile(m.deliveryNoteFile) ? (
                                     <button
                                       type="button"
-                                      className="procurement-file-link procurement-file-link--inline"
-                                      title={procurementFileNameLabel(m.deliveryNoteFile.originalName, 'ВН')}
+                                      className="procurement-file-link procurement-file-link--inline procurement-line-file-name"
+                                      title={procurementFileNameLabel(m.deliveryNoteFile.originalName, 'Видаткова накладна')}
                                       onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
                                     >
-                                      {procurementFileNameLabel(m.deliveryNoteFile.originalName, 'ВН')}
+                                      {procurementFileNameLabel(m.deliveryNoteFile.originalName, 'Видаткова накладна')}
                                     </button>
                                   ) : null}
-                                  {!m.invoiceFile && !m.deliveryNoteFile ? '—' : null}
+                                  {!hasProcurementLineFile(m.invoiceFile) && !hasProcurementLineFile(m.deliveryNoteFile)
+                                    ? '—'
+                                    : null}
                                 </td>
                                 <td>{m.actualWarehouse ? m.actualWarehouse : '—'}</td>
                                 <td>{m.analogName || '—'}</td>
