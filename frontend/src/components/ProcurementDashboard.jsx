@@ -974,7 +974,7 @@ function ProcurementDashboard({ user }) {
         if (tryHandleUnauthorizedResponse(res)) return;
         if (res.ok) break;
         lastErr = await res.json().catch(() => ({}));
-        if (res.status !== 404) break;
+        if (res.status === 401 || res.status === 403) break;
       }
       if (!res || !res.ok) {
         alert((lastErr && lastErr.error) || 'Не вдалося видалити файл');
