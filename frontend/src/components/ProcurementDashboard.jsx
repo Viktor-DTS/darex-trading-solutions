@@ -944,21 +944,40 @@ function ProcurementDashboard({ user }) {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(
-        `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/remove`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ docKind })
-        }
-      );
-      if (tryHandleUnauthorizedResponse(res)) return;
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Не вдалося видалити файл');
+      const jsonHeaders = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      const attempts = [
+        () =>
+          fetch(`${API_BASE_URL}/procurement-requests/${requestId}/executor-materials`, {
+            method: 'PATCH',
+            headers: jsonHeaders,
+            body: JSON.stringify({ removeLineFile: { lineIndex, docKind } })
+          }),
+        () =>
+          fetch(`${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/remove`, {
+            method: 'POST',
+            headers: jsonHeaders,
+            body: JSON.stringify({ docKind })
+          }),
+        () =>
+          fetch(`${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/${docKind}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          })
+      ];
+      let res = null;
+      let lastErr = null;
+      for (const run of attempts) {
+        res = await run();
+        if (tryHandleUnauthorizedResponse(res)) return;
+        if (res.ok) break;
+        lastErr = await res.json().catch(() => ({}));
+        if (res.status !== 404) break;
+      }
+      if (!res || !res.ok) {
+        alert((lastErr && lastErr.error) || 'Не вдалося видалити файл');
         return;
       }
       const updated = await res.json();

@@ -4943,6 +4943,23 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
     if (!canUploadProcurementExecutorFiles(req.user, pr)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
+    const removeLineFile = req.body && req.body.removeLineFile;
+    if (removeLineFile && typeof removeLineFile === 'object') {
+      const idx = parseInt(removeLineFile.lineIndex, 10);
+      const kind = String(removeLineFile.docKind || '').trim().toLowerCase();
+      if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
+        return res.status(400).json({ error: 'Некоректний індекс позиції' });
+      }
+      if (kind !== 'invoice' && kind !== 'delivery_note') {
+        return res.status(400).json({ error: 'Некоректний тип файлу' });
+      }
+      const field = kind === 'invoice' ? `materials.${idx}.invoiceFile` : `materials.${idx}.deliveryNoteFile`;
+      await ProcurementRequest.updateOne({ _id: pr._id }, { $unset: { [field]: 1 } });
+      const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+      stripProcurementLineBinaryFields(out);
+      logPerformance('PATCH /api/procurement-requests/executor-materials removeLineFile', startTime);
+      return res.json(out);
+    }
     const incoming = req.body.materials;
     if (!Array.isArray(incoming)) {
       return res.status(400).json({ error: 'Очікується масив materials' });
