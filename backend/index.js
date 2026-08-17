@@ -12529,7 +12529,6 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
 // Інтеграція 1С: імпорт «Ведомости по товарам на складах» (залишки + рух) та мапінг складів
 // ============================================
 const { runVedomostImport } = require('./lib/vedomostImport');
-const { decodeMultipartFilename } = require('./lib/multipartFilename');
 
 // Імпорт звіту «Ведомость по товарам на складах» (оновлює залишки + журнал руху OneCMovement)
 app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req, res) => {
