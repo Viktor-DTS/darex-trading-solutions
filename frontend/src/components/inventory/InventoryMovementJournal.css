@@ -1,5 +1,15 @@
 .inventory-movement-journal {
-  padding: 0 0 24px;
+  padding: 0 0 8px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.inventory-movement-journal-header {
+  flex: 0 0 auto;
 }
 
 .inventory-movement-journal-header h2 {
@@ -39,7 +49,9 @@
 }
 
 .inventory-movement-table-wrap {
-  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
 }
@@ -62,6 +74,10 @@
   font-weight: 600;
   background: var(--surface-elevated, rgba(255, 255, 255, 0.04));
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--border, rgba(255, 255, 255, 0.1));
 }
 
 .inventory-movement-cell-address,
@@ -77,9 +93,10 @@
 }
 
 .inventory-movement-pager {
+  flex: 0 0 auto;
   display: flex;
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 /* Рядки реального руху товару з 1С — легке виділення */

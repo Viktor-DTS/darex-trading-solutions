@@ -444,7 +444,7 @@ function InventoryDashboard({
         return <EquipmentStatistics warehouses={warehouses} />;
       case 'movement-journal':
         return (
-          <div className="inventory-tab-content">
+          <div className="inventory-tab-content inventory-movement-journal-tab">
             <InventoryMovementJournal />
           </div>
         );

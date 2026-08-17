@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getOneCMovements } from '../../utils/onecMovementsAPI';
 import { extractRequestNumberFromOneC } from '../../utils/onecRequestNumber';
 import OneCRequestViewModal from './OneCRequestViewModal';
@@ -137,6 +137,8 @@ export default function OneCMovementsJournal({
   const [error, setError] = useState('');
   const [viewRequestNumber, setViewRequestNumber] = useState(null);
   const limit = 100;
+  const tableWrapRef = useRef(null);
+  const skipScrollOnMountRef = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,6 +176,17 @@ export default function OneCMovementsJournal({
   useEffect(() => {
     setSkip(0);
   }, [docType, from, to, warehouseId, search]);
+
+  useEffect(() => {
+    if (skipScrollOnMountRef.current) {
+      skipScrollOnMountRef.current = false;
+      return;
+    }
+    const wrap = tableWrapRef.current;
+    if (!wrap) return;
+    wrap.scrollTop = 0;
+    wrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [skip]);
 
   const canPrev = skip > 0;
   const canNext = skip + limit < data.total;
@@ -256,7 +269,7 @@ export default function OneCMovementsJournal({
       {error ? <div className="onec-movements-journal-error">{error}</div> : null}
 
       <div className="onec-movements-journal-body">
-        <div className="onec-movements-journal-table-wrap">
+        <div className="onec-movements-journal-table-wrap" ref={tableWrapRef}>
           <table className="onec-movements-journal-table">
             <thead>
               <tr>

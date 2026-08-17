@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getInventoryMovementLog } from '../../utils/inventoryMovementLogAPI';
 import './InventoryMovementJournal.css';
 
@@ -69,6 +69,8 @@ export default function InventoryMovementJournal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const limit = 100;
+  const tableWrapRef = useRef(null);
+  const skipScrollOnMountRef = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,6 +91,17 @@ export default function InventoryMovementJournal() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (skipScrollOnMountRef.current) {
+      skipScrollOnMountRef.current = false;
+      return;
+    }
+    const wrap = tableWrapRef.current;
+    if (!wrap) return;
+    wrap.scrollTop = 0;
+    wrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [skip]);
 
   const canPrev = skip > 0;
   const canNext = skip + limit < data.total;
@@ -123,7 +136,7 @@ export default function InventoryMovementJournal() {
         </p>
       ) : null}
 
-      <div className="inventory-movement-table-wrap">
+      <div className="inventory-movement-table-wrap" ref={tableWrapRef}>
         <table className="inventory-movement-table">
           <thead>
             <tr>
