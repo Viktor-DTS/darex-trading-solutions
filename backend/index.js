@@ -4714,6 +4714,10 @@ function procurementLineFileUploadMiddleware(req, res, next) {
     if (err) {
       return res.status(400).json({ error: err.message || 'Помилка завантаження файлу' });
     }
+    const action = String((req.body && req.body.action) || '').trim().toLowerCase();
+    if (action === 'remove') {
+      return next();
+    }
     if (!req.file) {
       return res.status(400).json({ error: 'Оберіть файл' });
     }
@@ -5238,7 +5242,19 @@ app.post(
       if (docKind !== 'invoice' && docKind !== 'delivery_note') {
         return res.status(400).json({ error: 'docKind: invoice або delivery_note' });
       }
+      const action = String((req.body && req.body.action) || '').trim().toLowerCase();
+      if (action === 'remove') {
+        const field = docKind === 'invoice' ? `materials.${idx}.invoiceFile` : `materials.${idx}.deliveryNoteFile`;
+        await ProcurementRequest.updateOne({ _id: pr._id }, { $unset: { [field]: 1 } });
+        const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+        stripProcurementLineBinaryFields(out);
+        logPerformance('POST /api/.../line-executor-files remove', startTime);
+        return res.json(out);
+      }
       const f = req.file;
+      if (!f) {
+        return res.status(400).json({ error: 'Оберіть файл' });
+      }
       const fileDoc = {
         originalName: decodeMultipartFilename(f.originalname) || 'file',
         mimeType: f.mimetype || '',

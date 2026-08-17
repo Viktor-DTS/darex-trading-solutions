@@ -1154,9 +1154,11 @@
 }
 
 .procurement-line-file-cell {
-  min-width: 12rem;
-  max-width: 20rem;
+  min-width: 14rem;
+  max-width: 24rem;
   vertical-align: top;
+  white-space: normal;
+  overflow: visible;
 }
 
 .procurement-line-file-stack {
@@ -1171,7 +1173,9 @@
   width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
-  white-space: normal;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
   line-height: 1.35;
   font-size: 12px;
   text-align: left;
