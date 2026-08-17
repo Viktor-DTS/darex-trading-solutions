@@ -943,17 +943,16 @@ function ProcurementDashboard({ user }) {
     if (!window.confirm(`Видалити ${label} з цієї позиції?`)) return;
     setSaving(true);
     try {
-      const fd = new FormData();
-      fd.append('docKind', docKind);
-      fd.append('action', 'remove');
       const token = localStorage.getItem('token');
-      const qs = new URLSearchParams({ action: 'remove', docKind }).toString();
       const res = await fetch(
-        `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}?${qs}`,
+        `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/remove`,
         {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ docKind })
         }
       );
       if (tryHandleUnauthorizedResponse(res)) return;

@@ -4722,15 +4722,9 @@ function procurementUploadMiddleware(req, res, next) {
 }
 
 function procurementLineFileUploadMiddleware(req, res, next) {
-  if (procurementLineFileAction(req) === 'remove') {
-    return next();
-  }
   uploadProcurementFiles.single('file')(req, res, (err) => {
     if (err) {
       return res.status(400).json({ error: err.message || 'Помилка завантаження файлу' });
-    }
-    if (procurementLineFileAction(req) === 'remove') {
-      return next();
     }
     if (!req.file) {
       return res.status(400).json({ error: 'Оберіть файл' });
@@ -5224,76 +5218,6 @@ app.get('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKind',
   }
 });
 
-app.post(
-  '/api/procurement-requests/:id/line-executor-files/:lineIndex',
-  procurementLineFileUploadMiddleware,
-  async (req, res) => {
-    const startTime = Date.now();
-    try {
-      if (!isVidZakupokProcurementRole(req.user.role)) {
-        return res.status(403).json({ error: 'Доступ заборонено' });
-      }
-      if (!mongoose.isValidObjectId(req.params.id)) {
-        return res.status(400).json({ error: 'Некоректний ідентифікатор заявки' });
-      }
-      const pr = await ProcurementRequest.findById(req.params.id);
-      if (!pr) {
-        return res.status(404).json({ error: 'Заявку не знайдено' });
-      }
-      if (!procurementExecutorCanEditWork(pr.status)) {
-        return res.status(400).json({
-          error: 'Завантаження файлів по позиції доступне для «Взята в роботу» або «Частково виконана»'
-        });
-      }
-      if (!canUploadProcurementExecutorFiles(req.user, pr)) {
-        return res.status(403).json({ error: 'Доступ заборонено' });
-      }
-      const idx = parseInt(req.params.lineIndex, 10);
-      if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
-        return res.status(400).json({ error: 'Некоректний індекс позиції' });
-      }
-      const docKind = procurementLineFileDocKind(req);
-      if (docKind !== 'invoice' && docKind !== 'delivery_note') {
-        return res.status(400).json({ error: 'docKind: invoice або delivery_note' });
-      }
-      if (procurementLineFileAction(req) === 'remove') {
-        const field = docKind === 'invoice' ? `materials.${idx}.invoiceFile` : `materials.${idx}.deliveryNoteFile`;
-        await ProcurementRequest.updateOne({ _id: pr._id }, { $unset: { [field]: 1 } });
-        const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
-        stripProcurementLineBinaryFields(out);
-        logPerformance('POST /api/.../line-executor-files remove', startTime);
-        return res.json(out);
-      }
-      const f = req.file;
-      if (!f) {
-        return res.status(400).json({ error: 'Оберіть файл' });
-      }
-      const fileDoc = {
-        originalName: decodeMultipartFilename(f.originalname) || 'file',
-        mimeType: f.mimetype || '',
-        size: f.size || 0,
-        data: f.buffer
-      };
-      const line = pr.materials[idx];
-      if (docKind === 'invoice') {
-        line.invoiceFile = fileDoc;
-      } else {
-        line.deliveryNoteFile = fileDoc;
-      }
-      pr.markModified('materials');
-      await pr.save();
-      const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
-      stripProcurementLineBinaryFields(out);
-      logPerformance('POST /api/.../line-executor-files', startTime);
-      res.json(out);
-    } catch (error) {
-      logPerformance('POST /api/.../line-executor-files', startTime);
-      console.error('[ERROR] POST line-executor-files:', error);
-      res.status(500).json({ error: error.message || 'Помилка збереження' });
-    }
-  }
-);
-
 async function removeProcurementLineExecutorFile(req, res, docKindRaw, perfLabel) {
   const startTime = Date.now();
   try {
@@ -5340,10 +5264,69 @@ app.post('/api/procurement-requests/:id/line-executor-files/:lineIndex/remove', 
   await removeProcurementLineExecutorFile(
     req,
     res,
-    req.body && req.body.docKind,
+    procurementLineFileDocKind(req),
     'POST /api/.../line-executor-files/remove'
   );
 });
+
+app.post(
+  '/api/procurement-requests/:id/line-executor-files/:lineIndex',
+  procurementLineFileUploadMiddleware,
+  async (req, res) => {
+    const startTime = Date.now();
+    try {
+      if (!isVidZakupokProcurementRole(req.user.role)) {
+        return res.status(403).json({ error: 'Доступ заборонено' });
+      }
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ error: 'Некоректний ідентифікатор заявки' });
+      }
+      const pr = await ProcurementRequest.findById(req.params.id);
+      if (!pr) {
+        return res.status(404).json({ error: 'Заявку не знайдено' });
+      }
+      if (!procurementExecutorCanEditWork(pr.status)) {
+        return res.status(400).json({
+          error: 'Завантаження файлів по позиції доступне для «Взята в роботу» або «Частково виконана»'
+        });
+      }
+      if (!canUploadProcurementExecutorFiles(req.user, pr)) {
+        return res.status(403).json({ error: 'Доступ заборонено' });
+      }
+      const idx = parseInt(req.params.lineIndex, 10);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
+        return res.status(400).json({ error: 'Некоректний індекс позиції' });
+      }
+      const docKind = procurementLineFileDocKind(req);
+      if (docKind !== 'invoice' && docKind !== 'delivery_note') {
+        return res.status(400).json({ error: 'docKind: invoice або delivery_note' });
+      }
+      const f = req.file;
+      const fileDoc = {
+        originalName: decodeMultipartFilename(f.originalname) || 'file',
+        mimeType: f.mimetype || '',
+        size: f.size || 0,
+        data: f.buffer
+      };
+      const line = pr.materials[idx];
+      if (docKind === 'invoice') {
+        line.invoiceFile = fileDoc;
+      } else {
+        line.deliveryNoteFile = fileDoc;
+      }
+      pr.markModified('materials');
+      await pr.save();
+      const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+      stripProcurementLineBinaryFields(out);
+      logPerformance('POST /api/.../line-executor-files', startTime);
+      res.json(out);
+    } catch (error) {
+      logPerformance('POST /api/.../line-executor-files', startTime);
+      console.error('[ERROR] POST line-executor-files:', error);
+      res.status(500).json({ error: error.message || 'Помилка збереження' });
+    }
+  }
+);
 
 app.delete('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKind', async (req, res) => {
   await removeProcurementLineExecutorFile(
