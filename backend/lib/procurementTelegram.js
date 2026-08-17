@@ -2,6 +2,8 @@
  * Telegram-сповіщення по заявках закупівель (VZ) — форматування та розсилка за notificationSettings.
  */
 
+const { decodeMultipartFilename } = require('./multipartFilename');
+
 const PRIORITY_LABELS = {
   '1_workday': 'На протязі 1 робочого дня',
   '5_workdays': 'На протязі 5 робочих днів',
@@ -125,7 +127,7 @@ function formatMaterialsBlock(pr, { includeExecutorFields = false } = {}) {
 
 function formatAttachmentsBlock(attachments, title) {
   const names = (attachments || [])
-    .map((a) => String(a?.originalName || '').trim())
+    .map((a) => decodeMultipartFilename(a?.originalName || '').trim())
     .filter(Boolean);
   if (!names.length) return '';
   return `\n📎 <b>${escapeHtml(title)}:</b>\n${names.map((n) => `• ${escapeHtml(n)}`).join('\n')}`;
@@ -134,7 +136,7 @@ function formatAttachmentsBlock(attachments, title) {
 function formatExecutorAttachmentsBlock(attachments) {
   const rows = (attachments || [])
     .map((a) => {
-      const name = String(a?.originalName || '').trim();
+      const name = decodeMultipartFilename(a?.originalName || '').trim();
       if (!name) return '';
       const kind = EXECUTOR_DOC_LABELS[String(a?.docKind || '')] || '';
       return kind ? `• ${escapeHtml(name)} (${escapeHtml(kind)})` : `• ${escapeHtml(name)}`;

@@ -140,6 +140,35 @@ function procurementExecutorRowLabel(r) {
   return '—';
 }
 
+function decodeProcurementFileName(name) {
+  let s = String(name || '').trim();
+  if (!s) return '';
+  for (let i = 0; i < 2; i++) {
+    if (!/%[0-9A-Fa-f]{2}/.test(s)) break;
+    try {
+      const next = decodeURIComponent(s);
+      if (!next || next === s) break;
+      s = next;
+    } catch {
+      break;
+    }
+  }
+  if (/[а-яіїєґА-ЯІЇЄҐ]/i.test(s)) return s;
+  if (!/[ÐÑÂÃĐ]/.test(s)) return s;
+  try {
+    const bytes = Uint8Array.from(s, (ch) => ch.charCodeAt(0) & 0xff);
+    const decoded = new TextDecoder('utf-8').decode(bytes);
+    if (decoded && /[а-яіїєґА-ЯІЇЄҐ]/i.test(decoded)) return decoded;
+  } catch {
+    /* ignore */
+  }
+  return s;
+}
+
+function procurementFileNameLabel(name, fallback = 'файл') {
+  return decodeProcurementFileName(name) || fallback;
+}
+
 function normalizeProcurementSearchText(value) {
   return String(value || '')
     .toLowerCase()
@@ -832,7 +861,7 @@ function ProcurementDashboard({ user }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = att.originalName || 'file';
+      a.download = procurementFileNameLabel(att.originalName, 'file');
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -866,7 +895,7 @@ function ProcurementDashboard({ user }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = name;
+      a.download = procurementFileNameLabel(name, 'file');
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -894,6 +923,33 @@ function ProcurementDashboard({ user }) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         alert(err.error || 'Не вдалося завантажити файл');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteLineExecutorFile = async (requestId, lineIndex, docKind) => {
+    const label = docKind === 'invoice' ? 'рахунок' : 'видаткову накладну';
+    if (!window.confirm(`Видалити ${label} з цієї позиції?`)) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(
+        `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/${docKind}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося видалити файл');
         return;
       }
       const updated = await res.json();
@@ -2323,13 +2379,25 @@ function ProcurementDashboard({ user }) {
                                   </td>
                                   <td className="procurement-line-file-cell">
                                     {savedLine?.invoiceFile ? (
-                                      <button
-                                        type="button"
-                                        className="procurement-file-link procurement-file-link--inline"
-                                        onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
-                                      >
-                                        {savedLine.invoiceFile.originalName || 'Рахунок'}
-                                      </button>
+                                      <div className="procurement-line-file-row">
+                                        <button
+                                          type="button"
+                                          className="procurement-file-link procurement-file-link--inline"
+                                          title={procurementFileNameLabel(savedLine.invoiceFile.originalName, 'Рахунок')}
+                                          onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
+                                        >
+                                          {procurementFileNameLabel(savedLine.invoiceFile.originalName, 'Рахунок')}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="procurement-btn-icon procurement-line-file-remove"
+                                          title="Видалити рахунок"
+                                          disabled={saving || m.rejected}
+                                          onClick={() => deleteLineExecutorFile(detail._id, i, 'invoice')}
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
                                     ) : (
                                       <span className="procurement-line-file-missing">—</span>
                                     )}
@@ -2348,13 +2416,25 @@ function ProcurementDashboard({ user }) {
                                   </td>
                                   <td className="procurement-line-file-cell">
                                     {savedLine?.deliveryNoteFile ? (
-                                      <button
-                                        type="button"
-                                        className="procurement-file-link procurement-file-link--inline"
-                                        onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
-                                      >
-                                        {savedLine.deliveryNoteFile.originalName || 'ВН'}
-                                      </button>
+                                      <div className="procurement-line-file-row">
+                                        <button
+                                          type="button"
+                                          className="procurement-file-link procurement-file-link--inline"
+                                          title={procurementFileNameLabel(savedLine.deliveryNoteFile.originalName, 'ВН')}
+                                          onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
+                                        >
+                                          {procurementFileNameLabel(savedLine.deliveryNoteFile.originalName, 'ВН')}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="procurement-btn-icon procurement-line-file-remove"
+                                          title="Видалити видаткову накладну"
+                                          disabled={saving || m.rejected}
+                                          onClick={() => deleteLineExecutorFile(detail._id, i, 'delivery_note')}
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
                                     ) : (
                                       <span className="procurement-line-file-missing">—</span>
                                     )}
@@ -2630,18 +2710,20 @@ function ProcurementDashboard({ user }) {
                                     <button
                                       type="button"
                                       className="procurement-file-link procurement-file-link--inline"
+                                      title={procurementFileNameLabel(m.invoiceFile.originalName, 'Рахунок')}
                                       onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
                                     >
-                                      {m.invoiceFile.originalName || 'Рахунок'}
+                                      {procurementFileNameLabel(m.invoiceFile.originalName, 'Рахунок')}
                                     </button>
                                   ) : null}
                                   {m.deliveryNoteFile ? (
                                     <button
                                       type="button"
                                       className="procurement-file-link procurement-file-link--inline"
+                                      title={procurementFileNameLabel(m.deliveryNoteFile.originalName, 'ВН')}
                                       onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
                                     >
-                                      {m.deliveryNoteFile.originalName || 'ВН'}
+                                      {procurementFileNameLabel(m.deliveryNoteFile.originalName, 'ВН')}
                                     </button>
                                   ) : null}
                                   {!m.invoiceFile && !m.deliveryNoteFile ? '—' : null}
@@ -2683,7 +2765,7 @@ function ProcurementDashboard({ user }) {
                       className="procurement-file-link"
                       onClick={() => downloadAttachment(detail._id, a, 'requester')}
                     >
-                      {a.originalName}
+                      {procurementFileNameLabel(a.originalName, 'файл')}
                       {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
                     </button>
                   ))}
@@ -2703,7 +2785,7 @@ function ProcurementDashboard({ user }) {
                         onClick={() => downloadAttachment(detail._id, a, 'executor')}
                       >
                         {a.docKind ? `[${executorAttachmentDocLabel(a.docKind)}] ` : ''}
-                        {a.originalName}
+                        {procurementFileNameLabel(a.originalName, 'файл')}
                         {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
                       </button>
                     ))}

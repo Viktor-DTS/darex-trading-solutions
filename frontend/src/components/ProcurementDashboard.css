@@ -1155,7 +1155,21 @@
 
 .procurement-line-file-cell {
   min-width: 9rem;
-  max-width: 12rem;
+  max-width: 14rem;
+}
+
+.procurement-line-file-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.procurement-line-file-remove {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .procurement-line-file-cell--readonly .procurement-file-link--inline {
@@ -1190,6 +1204,9 @@
   cursor: pointer;
   text-decoration: underline;
   font: inherit;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: left;
 }
 
 .procurement-edrpou-cell {

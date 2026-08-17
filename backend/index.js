@@ -79,6 +79,7 @@ const {
   DEFAULT_SPREADSHEET_ID,
   DEFAULT_SHEET_NAMES_2026,
 } = require('./lib/procurementGoogleSheetImport');
+const { decodeMultipartFilename } = require('./lib/multipartFilename');
 const {
   buildReceiptScope,
   listPendingMoveReceipts,
@@ -4656,7 +4657,7 @@ app.get('/api/procurement-requests/:id/attachments/:attachmentId', async (req, r
       logPerformance('GET /api/procurement-requests/.../attachments', startTime);
       return res.status(404).json({ error: 'Файл не знайдено' });
     }
-    const name = String(att.originalName || 'file').replace(/[\r\n"]/g, '_');
+    const name = String(decodeMultipartFilename(att.originalName) || 'file').replace(/[\r\n"]/g, '_');
     res.setHeader('Content-Type', att.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
     res.send(att.data);
@@ -4685,7 +4686,7 @@ app.get('/api/procurement-requests/:id/executor-attachments/:attachmentId', asyn
       logPerformance('GET executor-attachment', startTime);
       return res.status(404).json({ error: 'Файл не знайдено' });
     }
-    const name = String(att.originalName || 'file').replace(/[\r\n"]/g, '_');
+    const name = String(decodeMultipartFilename(att.originalName) || 'file').replace(/[\r\n"]/g, '_');
     res.setHeader('Content-Type', att.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
     res.send(att.data);
@@ -4786,7 +4787,7 @@ app.post(
       }
       const dbUser = await User.findOne({ login: req.user.login }).lean();
       const attachments = (req.files || []).map((f) => ({
-        originalName: f.originalname,
+        originalName: decodeMultipartFilename(f.originalname) || 'file',
         mimeType: f.mimetype || '',
         size: f.size || 0,
         data: f.buffer
@@ -5191,7 +5192,7 @@ app.get('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKind',
       logPerformance('GET line-executor-file', startTime);
       return res.status(404).json({ error: 'Файл не знайдено' });
     }
-    const name = String(fileObj.originalName || 'file').replace(/[\r\n"]/g, '_');
+    const name = String(decodeMultipartFilename(fileObj.originalName) || 'file').replace(/[\r\n"]/g, '_');
     res.setHeader('Content-Type', fileObj.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
     res.send(fileObj.data);
@@ -5237,7 +5238,7 @@ app.post(
       }
       const f = req.file;
       const fileDoc = {
-        originalName: f.originalname,
+        originalName: decodeMultipartFilename(f.originalname) || 'file',
         mimeType: f.mimetype || '',
         size: f.size || 0,
         data: f.buffer
@@ -5261,6 +5262,48 @@ app.post(
     }
   }
 );
+
+app.delete('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKind', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Некоректний ідентифікатор заявки' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) {
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    if (!procurementExecutorCanEditWork(pr.status)) {
+      return res.status(400).json({
+        error: 'Видалення файлів по позиції доступне для «Взята в роботу» або «Частково виконана»'
+      });
+    }
+    if (!canUploadProcurementExecutorFiles(req.user, pr)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const idx = parseInt(req.params.lineIndex, 10);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
+      return res.status(400).json({ error: 'Некоректний індекс позиції' });
+    }
+    const kind = String(req.params.docKind || '').toLowerCase();
+    if (kind !== 'invoice' && kind !== 'delivery_note') {
+      return res.status(400).json({ error: 'Некоректний тип файлу' });
+    }
+    const field = kind === 'invoice' ? `materials.${idx}.invoiceFile` : `materials.${idx}.deliveryNoteFile`;
+    await ProcurementRequest.updateOne({ _id: pr._id }, { $unset: { [field]: 1 } });
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    logPerformance('DELETE /api/.../line-executor-files', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('DELETE /api/.../line-executor-files', startTime);
+    console.error('[ERROR] DELETE line-executor-files:', error);
+    res.status(500).json({ error: error.message || 'Помилка видалення' });
+  }
+});
 
 app.get('/api/procurement-requests/:id', async (req, res) => {
   const startTime = Date.now();
@@ -5719,7 +5762,7 @@ app.post(
       const docKind = PROCUREMENT_EXECUTOR_DOC_KINDS.includes(docKindRaw) ? docKindRaw : 'other';
       for (const f of files) {
         pr.executorAttachments.push({
-          originalName: f.originalname,
+          originalName: decodeMultipartFilename(f.originalname) || 'file',
           mimeType: f.mimetype || '',
           size: f.size || 0,
           data: f.buffer,
