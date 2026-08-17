@@ -2186,6 +2186,8 @@ const procurementRequestSchema = new mongoose.Schema(
     requesterLogin: { type: String, required: true },
     requesterName: { type: String, default: '' },
     desiredWarehouse: { type: String, default: '' },
+    /** Під який проект/об'єкт — необовʼязково */
+    projectObject: { type: String, default: '' },
     actualWarehouse: { type: String, default: '' },
     executorLogin: { type: String, default: '' },
     executorName: { type: String, default: '' },
@@ -4726,6 +4728,7 @@ app.post(
       const priority = String(req.body.priority || '').trim();
       const desiredWarehouse = String(req.body.desiredWarehouse || '').trim();
       const payerCompany = String(req.body.payerCompany || '').trim();
+      const projectObject = String(req.body.projectObject || '').trim();
       const notes = String(req.body.notes || '').trim();
       if (!applicationKind || !PROCUREMENT_APPLICATION_KINDS.includes(applicationKind)) {
         return res.status(400).json({ error: 'Оберіть тип заявки: Закупівля або Визначення ціни' });
@@ -4796,6 +4799,7 @@ app.post(
         description: '',
         priority,
         desiredWarehouse: desiredWarehouse || '',
+        projectObject: projectObject.slice(0, 500),
         notes: notes.slice(0, 50000),
         materials,
         requesterLogin: req.user.login,

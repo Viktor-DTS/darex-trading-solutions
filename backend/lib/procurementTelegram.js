@@ -164,6 +164,10 @@ function formatProcurementTelegramMessage(pr, event) {
   if (pr.desiredWarehouse) {
     body += `🏭 <b>Бажаний склад відвантаження:</b> ${escapeHtml(pr.desiredWarehouse)}\n`;
   }
+  const projectObject = String(pr.projectObject || '').trim();
+  if (projectObject) {
+    body += `🏗 <b>Під який проект/об'єкт:</b> ${escapeHtml(projectObject)}\n`;
+  }
   if (includeExecutor && pr.actualWarehouse) {
     body += `🏭 <b>Фактичні склади (загалом):</b> ${escapeHtml(pr.actualWarehouse)}\n`;
   }

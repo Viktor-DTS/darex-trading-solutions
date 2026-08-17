@@ -93,6 +93,12 @@ function ProcurementRequestView({ data }) {
         <dd>{data.priority || '—'}</dd>
         <dt>Склад</dt>
         <dd>{data.desiredWarehouse || data.actualWarehouse || '—'}</dd>
+        {String(data.projectObject || '').trim() ? (
+          <>
+            <dt>Під який проект/об'єкт</dt>
+            <dd>{data.projectObject}</dd>
+          </>
+        ) : null}
         <dt>Виконавець</dt>
         <dd>{data.executorName || data.executorLogin || '—'}</dd>
         <dt>Створено</dt>

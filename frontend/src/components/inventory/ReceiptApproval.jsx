@@ -575,6 +575,11 @@ function ReceiptApproval({
                 <span>
                   <strong>Бажаний склад:</strong> {pr.desiredWarehouse || '—'}
                 </span>
+                {String(pr.projectObject || '').trim() ? (
+                  <span>
+                    <strong>Під який проект/об'єкт:</strong> {pr.projectObject}
+                  </span>
+                ) : null}
                 <span>
                   <strong>Фактичний склад:</strong> {pr.actualWarehouse || '—'}
                 </span>
@@ -682,6 +687,12 @@ function ReceiptApproval({
                   <span className="label">Бажаний склад:</span>
                   <span className="value">{procurementConfirmModalPr.desiredWarehouse || '—'}</span>
                 </div>
+                {String(procurementConfirmModalPr.projectObject || '').trim() ? (
+                  <div className="info-row">
+                    <span className="label">Під який проект/об'єкт:</span>
+                    <span className="value">{procurementConfirmModalPr.projectObject}</span>
+                  </div>
+                ) : null}
                 <div className="info-row">
                   <span className="label">Фактичний склад:</span>
                   <span className="value">{procurementConfirmModalPr.actualWarehouse || '—'}</span>

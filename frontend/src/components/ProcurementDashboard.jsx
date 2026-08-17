@@ -158,6 +158,7 @@ function procurementRequestSearchBlob(r) {
     r.requesterLogin,
     priorityLabel(r.priority),
     r.desiredWarehouse,
+    r.projectObject,
     r.actualWarehouse,
     r.executorName,
     r.executorLogin,
@@ -403,6 +404,7 @@ function ProcurementDashboard({ user }) {
     payerCompany: '',
     priority: '5_workdays',
     desiredWarehouse: '',
+    projectObject: '',
     materials: [defaultMaterialRow('шт.')],
     notes: '',
     files: []
@@ -599,6 +601,7 @@ function ProcurementDashboard({ user }) {
       payerCompany: '',
       priority: '5_workdays',
       desiredWarehouse: '',
+      projectObject: '',
       materials: [defaultMaterialRow(firstUom)],
       notes: '',
       files: []
@@ -780,6 +783,7 @@ function ProcurementDashboard({ user }) {
       }
       fd.append('priority', createForm.priority);
       fd.append('desiredWarehouse', dw);
+      fd.append('projectObject', String(createForm.projectObject || '').trim());
       fd.append('notes', String(createForm.notes || '').trim());
       fd.append('materials', JSON.stringify(materialsPayload));
       (createForm.files || []).forEach((f) => fd.append('files', f));
@@ -1797,6 +1801,16 @@ function ProcurementDashboard({ user }) {
                   ))}
                 </select>
               </label>
+              <label className="procurement-field">
+                <span>Під який проект/об'єкт</span>
+                <input
+                  type="text"
+                  value={createForm.projectObject}
+                  onChange={(e) => setCreateForm({ ...createForm, projectObject: e.target.value })}
+                  placeholder="Назва проекту або об'єкта"
+                  maxLength={500}
+                />
+              </label>
 
               <div className="procurement-field procurement-materials-block">
                 <span>Найменування матеріалів</span>
@@ -2053,6 +2067,12 @@ function ProcurementDashboard({ user }) {
                 <span className="procurement-detail-k">Бажаний склад відвантаження</span>
                 <span className="procurement-detail-v">{detail.desiredWarehouse || '—'}</span>
               </div>
+              {String(detail.projectObject || '').trim() ? (
+                <div className="procurement-detail-row">
+                  <span className="procurement-detail-k">Під який проект/об'єкт</span>
+                  <span className="procurement-detail-v">{detail.projectObject}</span>
+                </div>
+              ) : null}
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Фактичний склад відвантаження</span>
                 <span className="procurement-detail-v">{detail.actualWarehouse || '—'}</span>
