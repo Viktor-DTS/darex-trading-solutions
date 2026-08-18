@@ -682,6 +682,7 @@ function registerVedRoutes(app, deps = {}) {
       const body = req.body || {};
       const result = await runRegistrySearch(
         {
+          equipmentTypes: body.equipmentTypes,
           equipmentType: body.equipmentType,
           equipmentName: body.equipmentName,
           technicalRequirements: body.technicalRequirements,

@@ -46,11 +46,35 @@ function defaultTechnicalRequirements(type) {
   return DEFAULT_TECHNICAL_REQUIREMENTS[normalizeEquipmentType(type)] || DEFAULT_TECHNICAL_REQUIREMENTS.other;
 }
 
+function normalizeEquipmentTypes(input) {
+  let raw = [];
+  if (Array.isArray(input?.equipmentTypes)) raw = input.equipmentTypes;
+  else if (input?.equipmentType) raw = [input.equipmentType];
+
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const t = normalizeEquipmentType(item);
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out.length ? out : ['other'];
+}
+
+function buildDefaultTechnicalRequirementsForTypes(types) {
+  return normalizeEquipmentTypes({ equipmentTypes: types })
+    .map((t) => `${equipmentTypeLabel(t)}: ${defaultTechnicalRequirements(t)}`)
+    .join('\n');
+}
+
 module.exports = {
   VED_EQUIPMENT_TYPE_LABELS,
   EQUIPMENT_TYPES,
   DEFAULT_TECHNICAL_REQUIREMENTS,
   normalizeEquipmentType,
+  normalizeEquipmentTypes,
   equipmentTypeLabel,
   defaultTechnicalRequirements,
+  buildDefaultTechnicalRequirementsForTypes,
 };

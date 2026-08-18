@@ -99,8 +99,11 @@ function VedDashboard({ user }) {
   const [registryFilterType, setRegistryFilterType] = useState('');
   const [registryLoading, setRegistryLoading] = useState(false);
   const [lastSearchResult, setLastSearchResult] = useState(null);
+  const [searchFormExpanded, setSearchFormExpanded] = useState(true);
+  const [registryExpanded, setRegistryExpanded] = useState(true);
+  const [autoSearchInfoExpanded, setAutoSearchInfoExpanded] = useState(false);
   const [searchForm, setSearchForm] = useState({
-    equipmentType: 'generator_diesel',
+    equipmentTypes: ['generator_diesel'],
     equipmentName: '',
     technicalRequirements: '',
     quantity: 1,
@@ -581,8 +584,25 @@ function VedDashboard({ user }) {
     );
   };
 
+  const toggleSearchEquipmentType = (key) => {
+    setSearchForm((f) => {
+      const set = new Set(f.equipmentTypes || []);
+      if (set.has(key)) {
+        if (set.size <= 1) return f;
+        set.delete(key);
+      } else {
+        set.add(key);
+      }
+      return { ...f, equipmentTypes: [...set] };
+    });
+  };
+
   const runStandaloneSearch = async (e) => {
     e.preventDefault();
+    if (!searchForm.equipmentTypes?.length) {
+      alert('Оберіть хоча б один тип обладнання');
+      return;
+    }
     if (aiConfig?.remainingToday === 0) {
       alert(`Денний ліміт ШІ-пошуків (${aiConfig?.dailyLimit || 8}) вичерпано.`);
       return;
@@ -1006,10 +1026,54 @@ function VedDashboard({ user }) {
   const renderSupplierSearch = () => (
     <div className="ved-list-panel ved-supplier-registry-panel">
       <div className="ved-card ved-ai-card ved-supplier-search-card">
-        <h2 style={{ marginTop: 0 }}>🔍 Режим пошуку постачальника</h2>
+        <button
+          type="button"
+          className="ved-collapsible-header"
+          onClick={() => setSearchFormExpanded((v) => !v)}
+          aria-expanded={searchFormExpanded}
+        >
+          <h2 style={{ margin: 0 }}>🔍 Режим пошуку постачальника</h2>
+          <span className="ved-collapsible-toggle">{searchFormExpanded ? '▼' : '▶'}</span>
+        </button>
+
+        {searchFormExpanded && (
+          <>
         <p className="ved-ai-disclaimer">
           Реєстр постачальників наповнюється поступово: автоматично {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. Дублікати постачальників не додаються.
         </p>
+        {registryMeta?.autoSearch && (
+          <div className="ved-auto-search-info">
+            <button
+              type="button"
+              className="ved-auto-search-info-toggle"
+              onClick={() => setAutoSearchInfoExpanded((v) => !v)}
+            >
+              {autoSearchInfoExpanded ? '▼' : '▶'} Критерії автопошуку о 02:00
+            </button>
+            {autoSearchInfoExpanded && (
+              <div className="ved-auto-search-info-body">
+                <p>{registryMeta.autoSearch.description}</p>
+                <p>
+                  <strong>Наступної ночі:</strong> {registryMeta.autoSearch.nextEquipmentType}
+                </p>
+                <p>
+                  <strong>Технічні вимоги (шаблон):</strong> {registryMeta.autoSearch.nextTechnicalRequirements}
+                </p>
+                <p>
+                  <strong>Акцент пошуку:</strong> {registryMeta.autoSearch.nextExtraSearchHint}
+                </p>
+                <p className="ved-auto-search-rotation-title">Ротація типів (по одному на ніч):</p>
+                <ul className="ved-auto-search-rotation">
+                  {registryMeta.autoSearch.rotation?.map((row) => (
+                    <li key={row.equipmentType}>
+                      <strong>{row.label}</strong> — {row.technicalRequirements}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
         {!meta?.aiEnabled && !aiConfig?.enabled ? (
           <p className="ved-ai-error">
             ШІ не налаштовано на сервері. Додайте OPENAI_API_KEY на Render і перезапустіть backend.
@@ -1039,18 +1103,23 @@ function VedDashboard({ user }) {
 
             <form className="ved-new-form ved-registry-search-form" onSubmit={runStandaloneSearch}>
               <div className="ved-registry-form-grid">
-                <div className="ved-form-row">
-                  <label>Тип обладнання *</label>
-                  <select
-                    value={searchForm.equipmentType}
-                    onChange={(e) => setSearchForm((f) => ({ ...f, equipmentType: e.target.value }))}
-                  >
-                    {Object.entries(equipmentTypesMap).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
+                <div className="ved-form-row ved-form-row-wide">
+                  <label>Тип обладнання * (можна кілька)</label>
+                  <div className="ved-equipment-type-grid">
+                    {Object.entries(equipmentTypesMap).map(([k, v]) => {
+                      const checked = (searchForm.equipmentTypes || []).includes(k);
+                      return (
+                        <label key={k} className={`ved-equipment-type-chip ${checked ? 'checked' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSearchEquipmentType(k)}
+                          />
+                          <span>{v}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="ved-form-row">
                   <label>Найменування / модель</label>
@@ -1100,17 +1169,31 @@ function VedDashboard({ user }) {
 
             {lastSearchResult && (
               <p className="ved-registry-search-result">
-                Останній пошук: знайдено {lastSearchResult.candidatesFound ?? 0}, додано в таблицю{' '}
+                Останній пошук
+                {lastSearchResult.equipmentTypes?.length
+                  ? ` (${lastSearchResult.equipmentTypes.map((t) => equipmentLabel(t)).join(', ')})`
+                  : ''}
+                : знайдено {lastSearchResult.candidatesFound ?? 0}, додано в таблицю{' '}
                 {lastSearchResult.added?.length ?? 0}, пропущено дублікатів {lastSearchResult.skipped ?? 0}.
               </p>
             )}
+          </>
+        )}
           </>
         )}
       </div>
 
       <div className="ved-card ved-registry-table-card">
         <div className="ved-registry-table-toolbar">
-          <h3 style={{ margin: 0 }}>Реєстр постачальників</h3>
+          <button
+            type="button"
+            className="ved-collapsible-header ved-collapsible-header-inline"
+            onClick={() => setRegistryExpanded((v) => !v)}
+            aria-expanded={registryExpanded}
+          >
+            <h3 style={{ margin: 0 }}>Реєстр постачальників</h3>
+            <span className="ved-collapsible-toggle">{registryExpanded ? '▼' : '▶'}</span>
+          </button>
           <div className="ved-registry-table-filters">
             <label>
               Фільтр типу:
@@ -1132,6 +1215,8 @@ function VedDashboard({ user }) {
           </div>
         </div>
 
+        {registryExpanded && (
+          <>
         {registryLoading && supplierRegistry.length === 0 ? (
           <div className="ved-loading">Завантаження реєстру…</div>
         ) : supplierRegistry.length === 0 ? (
@@ -1189,6 +1274,8 @@ function VedDashboard({ user }) {
               </tbody>
             </table>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

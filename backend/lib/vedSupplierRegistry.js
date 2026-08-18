@@ -7,7 +7,11 @@ const {
   EQUIPMENT_TYPES,
   DEFAULT_TECHNICAL_REQUIREMENTS,
   normalizeEquipmentType,
+  normalizeEquipmentTypes,
   defaultTechnicalRequirements,
+  buildDefaultTechnicalRequirementsForTypes,
+  equipmentTypeLabel,
+  VED_EQUIPMENT_TYPE_LABELS,
 } = require('./vedEquipmentTypes');
 
 const AUTO_SEARCH_PROFILES = EQUIPMENT_TYPES.map((equipmentType) => ({
@@ -244,6 +248,7 @@ async function getRegistryMeta() {
     VedSupplierRegistry.countDocuments({}),
     getRegistryState(),
   ]);
+  const { profile: nextProfile } = pickAutoSearchProfile(state.rotationIndex || 0);
   return {
     total,
     lastScheduledRunAt: state.lastScheduledRunAt || null,
@@ -253,6 +258,22 @@ async function getRegistryMeta() {
     lastScheduledError: state.lastScheduledError || '',
     nextRunHint: nextRegistryRunHint(),
     autoEnabled: String(process.env.VED_REGISTRY_AUTO_ENABLED || '1').trim() !== '0',
+    autoSearch: {
+      schedule: nextRegistryRunHint(),
+      mode: 'rotation',
+      description:
+        'Щоночі о 02:00 (Kyiv) один ШІ-пошук за фіксованим профілем обраного типу обладнання; наступної ночі — наступний тип по колу. Дублікати постачальників пропускаються.',
+      nextEquipmentType: equipmentTypeLabel(nextProfile.equipmentType),
+      nextEquipmentTypeKey: nextProfile.equipmentType,
+      nextTechnicalRequirements: nextProfile.technicalRequirements,
+      nextExtraSearchHint: nextProfile.extraSearchHint,
+      rotation: AUTO_SEARCH_PROFILES.map((p) => ({
+        equipmentType: p.equipmentType,
+        label: equipmentTypeLabel(p.equipmentType),
+        technicalRequirements: p.technicalRequirements,
+        extraSearchHint: p.extraSearchHint,
+      })),
+    },
   };
 }
 
@@ -270,11 +291,12 @@ async function runRegistrySearch(params, options = {}) {
     throw new Error('ШІ-модуль ВЕД не налаштовано (потрібен OPENAI_API_KEY)');
   }
 
-  const equipmentType = normalizeEquipmentType(params?.equipmentType);
+  const equipmentTypes = normalizeEquipmentTypes(params);
+  const equipmentType = equipmentTypes[0];
   const equipmentName = String(params?.equipmentName || '').trim();
   let technicalRequirements = String(params?.technicalRequirements || '').trim();
   if (!technicalRequirements) {
-    technicalRequirements = defaultTechnicalRequirements(equipmentType);
+    technicalRequirements = buildDefaultTechnicalRequirementsForTypes(equipmentTypes);
   }
   const extraSearchHint = String(params?.extraSearchHint || '').trim().slice(0, 200);
   let quantity = Number(params?.quantity);
@@ -283,6 +305,7 @@ async function runRegistrySearch(params, options = {}) {
   const virtualDoc = {
     requestNumber: options.source === 'scheduled' ? 'АВТО-РЕЄСТР' : 'РЕЄСТР',
     equipmentType,
+    equipmentTypes,
     equipmentName,
     technicalRequirements,
     quantity,
@@ -312,7 +335,7 @@ async function runRegistrySearch(params, options = {}) {
   try {
     const result = await runVedSupplierResearch(virtualDoc, { extraSearchHint, excludeSuppliers });
     const mergeResult = await mergeCandidatesIntoRegistry(result.candidates, {
-      equipmentType,
+      equipmentType: equipmentTypes.length > 1 ? equipmentTypes.join(',') : equipmentType,
       equipmentName,
       source: options.source || 'manual',
       researchSessionId: session?._id || null,
@@ -341,6 +364,7 @@ async function runRegistrySearch(params, options = {}) {
       skipped: mergeResult.skipped,
       candidatesFound: (result.candidates || []).length,
       summary: result.summary || '',
+      equipmentTypes,
     };
   } catch (runErr) {
     if (session) {

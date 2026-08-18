@@ -10,7 +10,7 @@
  */
 const { resolveLlmApiKey } = require('../productCardAssistantLlm');
 const { resolveSerpApiKey } = require('../productCardAssistantSerpApiImages');
-const { VED_EQUIPMENT_TYPE_LABELS, normalizeEquipmentType } = require('./vedEquipmentTypes');
+const { VED_EQUIPMENT_TYPE_LABELS, normalizeEquipmentType, normalizeEquipmentTypes } = require('./vedEquipmentTypes');
 
 const SERPAPI_ENDPOINT = 'https://serpapi.com/search.json';
 const DEFAULT_BASE = 'https://api.openai.com/v1';
@@ -145,23 +145,17 @@ function vedAiMaxCandidates() {
   return Math.min(8, Math.max(3, n || 5));
 }
 
-function buildSearchQueries(requestDoc, extraHint = '') {
-  const type = normalizeEquipmentType(requestDoc.equipmentType);
+function buildSearchQueriesForType(requestDoc, type, extraHint = '') {
   const hint = EQUIPMENT_SEARCH_HINTS[type] || EQUIPMENT_SEARCH_HINTS.other;
   const name = String(requestDoc.equipmentName || '').trim().slice(0, 120);
   const tech = String(requestDoc.technicalRequirements || '').trim().slice(0, 200);
   const extra = String(extraHint || '').trim().slice(0, 120);
   const parts = [name, tech, extra].filter(Boolean).join(' ').slice(0, 220);
 
-  const seen = new Set();
-  const out = [];
+  const queries = [];
   const push = (q) => {
     const t = String(q || '').trim().slice(0, 200);
-    if (t.length < 8) return;
-    const k = t.toLowerCase();
-    if (seen.has(k)) return;
-    seen.add(k);
-    out.push(t);
+    if (t.length >= 8) queries.push(t);
   };
 
   push(`${parts} ${hint} manufacturer export contact`);
@@ -176,14 +170,30 @@ function buildSearchQueries(requestDoc, extraHint = '') {
     push(`${parts} solar PV Tier-1 CE TUV export factory`);
   }
   push(`${parts} Alibaba Europages supplier`);
+  return queries;
+}
 
-  return out.slice(0, 4);
+function buildSearchQueries(requestDoc, extraHint = '') {
+  const types = normalizeEquipmentTypes(requestDoc);
+  const seen = new Set();
+  const out = [];
+  for (const type of types) {
+    for (const q of buildSearchQueriesForType(requestDoc, type, extraHint)) {
+      const k = q.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(q);
+    }
+  }
+  return out.slice(0, Math.min(8, 4 * types.length));
 }
 
 function buildUserPrompt(requestDoc, webContext, maxCandidates, excludeSuppliers = []) {
+  const types = normalizeEquipmentTypes(requestDoc);
+  const typeLabels = types.map((t) => EQUIPMENT_LABELS_UK[t] || t).join(', ');
   const lines = [
     `Заявка: ${requestDoc.requestNumber || ''}`,
-    `Тип: ${EQUIPMENT_LABELS_UK[requestDoc.equipmentType] || requestDoc.equipmentType}`,
+    `Тип${types.length > 1 ? 'и' : ''} обладнання: ${typeLabels}`,
     `Найменування: ${requestDoc.equipmentName || '—'}`,
     `Кількість: ${requestDoc.quantity ?? 1}`,
     `Технічні вимоги:\n${requestDoc.technicalRequirements || '—'}`,
