@@ -4,6 +4,22 @@ import { tryHandleUnauthorizedResponse } from '../utils/authSession';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './VedDashboard.css';
 
+const VED_EQUIPMENT_TYPE_LABELS = {
+  generator_diesel: 'Дизель-генератор',
+  generator_benzin_gas: 'Бензин/газовий генератор',
+  generator_gas: 'Газовий генератор',
+  inverter_lifepo4: 'Інвертор + LiFePO4',
+  inverter_hybrid: 'Гібридний інвертор',
+  batteries_lifepo4: 'Батареї LiFePO4',
+  ups: 'ДБЖ / UPS',
+  ats: 'АВР / ATS',
+  solar_panels: 'Сонячні панелі',
+  solar_inverter: 'Сонячний інвертор',
+  charging_ev: 'Зарядна станція EV',
+  spare_parts: 'Запчастини / комплектуючі',
+  other: 'Інше обладнання',
+};
+
 const EMPTY_PROPOSAL = {
   supplierName: '',
   country: '',
@@ -268,7 +284,8 @@ function VedDashboard({ user }) {
   }, [selectedId, loadDetail]);
 
   const statusLabel = (status) => meta?.statuses?.[status] || status || '—';
-  const equipmentLabel = (type) => meta?.equipmentTypes?.[type] || type || '—';
+  const equipmentTypesMap = meta?.equipmentTypes || VED_EQUIPMENT_TYPE_LABELS;
+  const equipmentLabel = (type) => equipmentTypesMap[type] || type || '—';
   const priorityLabel = (p) => meta?.priorities?.[p] || p || '—';
 
   const openRequest = (id) => {
@@ -568,10 +585,6 @@ function VedDashboard({ user }) {
     e.preventDefault();
     if (aiConfig?.remainingToday === 0) {
       alert(`Денний ліміт ШІ-пошуків (${aiConfig?.dailyLimit || 8}) вичерпано.`);
-      return;
-    }
-    if (!searchForm.equipmentName.trim() && !searchForm.technicalRequirements.trim()) {
-      alert('Вкажіть найменування або технічні вимоги');
       return;
     }
     setAiRunning(true);
@@ -1032,7 +1045,7 @@ function VedDashboard({ user }) {
                     value={searchForm.equipmentType}
                     onChange={(e) => setSearchForm((f) => ({ ...f, equipmentType: e.target.value }))}
                   >
-                    {Object.entries(meta?.equipmentTypes || {}).map(([k, v]) => (
+                    {Object.entries(equipmentTypesMap).map(([k, v]) => (
                       <option key={k} value={k}>
                         {v}
                       </option>
@@ -1048,11 +1061,11 @@ function VedDashboard({ user }) {
                   />
                 </div>
                 <div className="ved-form-row ved-form-row-wide">
-                  <label>Технічні вимоги *</label>
+                  <label>Технічні вимоги</label>
                   <textarea
                     value={searchForm.technicalRequirements}
                     onChange={(e) => setSearchForm((f) => ({ ...f, technicalRequirements: e.target.value }))}
-                    placeholder="кВт, напруга, бренд, країна постачальника…"
+                    placeholder="кВт, напруга, бренд, країна постачальника… (необов’язково — можна лише тип обладнання)"
                     rows={2}
                   />
                 </div>
@@ -1106,7 +1119,7 @@ function VedDashboard({ user }) {
                 onChange={(e) => setRegistryFilterType(e.target.value)}
               >
                 <option value="">Усі типи</option>
-                {Object.entries(meta?.equipmentTypes || {}).map(([k, v]) => (
+                {Object.entries(equipmentTypesMap).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
                   </option>
@@ -1194,7 +1207,7 @@ function VedDashboard({ user }) {
             value={newForm.equipmentType}
             onChange={(e) => setNewForm((f) => ({ ...f, equipmentType: e.target.value }))}
           >
-            {Object.entries(meta?.equipmentTypes || {}).map(([k, v]) => (
+            {Object.entries(equipmentTypesMap).map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
               </option>

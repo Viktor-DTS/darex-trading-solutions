@@ -3,47 +3,19 @@
  */
 const mongoose = require('mongoose');
 const { vedAiEnabled, runVedSupplierResearch } = require('./vedAiResearch');
+const {
+  EQUIPMENT_TYPES,
+  DEFAULT_TECHNICAL_REQUIREMENTS,
+  normalizeEquipmentType,
+  defaultTechnicalRequirements,
+} = require('./vedEquipmentTypes');
 
-const EQUIPMENT_TYPES = [
-  'generator_diesel',
-  'generator_benzin_gas',
-  'inverter_lifepo4',
-  'batteries_lifepo4',
-  'other',
-];
-
-const AUTO_SEARCH_PROFILES = [
-  {
-    equipmentType: 'generator_diesel',
-    equipmentName: '',
-    technicalRequirements: 'Промислові дизель-генератори 20–500 kVA, silent canopy, export OEM',
-    extraSearchHint: 'CE ISO9001 export manufacturer',
-  },
-  {
-    equipmentType: 'inverter_lifepo4',
-    equipmentName: '',
-    technicalRequirements: 'Гібридні інвертори + LiFePO4 ESS, 5–50 kW, промислові системи накопичення',
-    extraSearchHint: 'OEM factory CE UL',
-  },
-  {
-    equipmentType: 'batteries_lifepo4',
-    equipmentName: '',
-    technicalRequirements: 'LiFePO4 rack battery BMS, 48V/51.2V, промислові системи',
-    extraSearchHint: 'export supplier certification',
-  },
-  {
-    equipmentType: 'generator_benzin_gas',
-    equipmentName: '',
-    technicalRequirements: 'Портативні бензин/газові генератори 3–15 kW для export',
-    extraSearchHint: 'OEM supplier',
-  },
-  {
-    equipmentType: 'other',
-    equipmentName: '',
-    technicalRequirements: 'Промислове енергетичне обладнання, export manufacturer',
-    extraSearchHint: 'international supplier',
-  },
-];
+const AUTO_SEARCH_PROFILES = EQUIPMENT_TYPES.map((equipmentType) => ({
+  equipmentType,
+  equipmentName: '',
+  technicalRequirements: DEFAULT_TECHNICAL_REQUIREMENTS[equipmentType] || DEFAULT_TECHNICAL_REQUIREMENTS.other,
+  extraSearchHint: 'export OEM CE certification',
+}));
 
 const vedSupplierRegistrySchema = new mongoose.Schema(
   {
@@ -298,16 +270,15 @@ async function runRegistrySearch(params, options = {}) {
     throw new Error('ШІ-модуль ВЕД не налаштовано (потрібен OPENAI_API_KEY)');
   }
 
-  const equipmentType = EQUIPMENT_TYPES.includes(params?.equipmentType) ? params.equipmentType : 'other';
+  const equipmentType = normalizeEquipmentType(params?.equipmentType);
   const equipmentName = String(params?.equipmentName || '').trim();
-  const technicalRequirements = String(params?.technicalRequirements || '').trim();
+  let technicalRequirements = String(params?.technicalRequirements || '').trim();
+  if (!technicalRequirements) {
+    technicalRequirements = defaultTechnicalRequirements(equipmentType);
+  }
   const extraSearchHint = String(params?.extraSearchHint || '').trim().slice(0, 200);
   let quantity = Number(params?.quantity);
   if (!Number.isFinite(quantity) || quantity <= 0) quantity = 1;
-
-  if (!equipmentName && !technicalRequirements) {
-    throw new Error('Вкажіть найменування обладнання або технічні вимоги для пошуку');
-  }
 
   const virtualDoc = {
     requestNumber: options.source === 'scheduled' ? 'АВТО-РЕЄСТР' : 'РЕЄСТР',

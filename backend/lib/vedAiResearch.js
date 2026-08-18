@@ -10,6 +10,7 @@
  */
 const { resolveLlmApiKey } = require('../productCardAssistantLlm');
 const { resolveSerpApiKey } = require('../productCardAssistantSerpApiImages');
+const { VED_EQUIPMENT_TYPE_LABELS, normalizeEquipmentType } = require('./vedEquipmentTypes');
 
 const SERPAPI_ENDPOINT = 'https://serpapi.com/search.json';
 const DEFAULT_BASE = 'https://api.openai.com/v1';
@@ -20,18 +21,20 @@ const MAX_USER_PROMPT = 6000;
 const EQUIPMENT_SEARCH_HINTS = {
   generator_diesel: 'diesel generator genset industrial silent canopy export manufacturer supplier',
   generator_benzin_gas: 'gasoline portable generator LP gas dual fuel export supplier OEM',
+  generator_gas: 'natural gas generator industrial genset export supplier OEM',
   inverter_lifepo4: 'hybrid inverter LiFePO4 battery energy storage ESS supplier OEM export',
+  inverter_hybrid: 'hybrid solar inverter off-grid on-grid supplier OEM export',
   batteries_lifepo4: 'LiFePO4 lithium battery rack BMS supplier OEM export manufacturer',
+  ups: 'industrial UPS three phase backup power supplier export',
+  ats: 'automatic transfer switch ATS AMF panel supplier export',
+  solar_panels: 'solar panel monocrystalline Tier-1 manufacturer export',
+  solar_inverter: 'solar inverter string hybrid supplier OEM export',
+  charging_ev: 'EV charging station AC DC supplier export manufacturer',
+  spare_parts: 'generator spare parts engine alternator controller export supplier',
   other: 'power equipment industrial supplier export manufacturer',
 };
 
-const EQUIPMENT_LABELS_UK = {
-  generator_diesel: 'Дизель-генератор',
-  generator_benzin_gas: 'Бензин/газовий генератор',
-  inverter_lifepo4: 'Інвертор + LiFePO4',
-  batteries_lifepo4: 'Батареї LiFePO4',
-  other: 'Інше обладнання',
-};
+const EQUIPMENT_LABELS_UK = VED_EQUIPMENT_TYPE_LABELS;
 
 const SYSTEM_PROMPT = `Ти аналітик відділу зовнішньоекономічної діяльності (ВЕД) компанії з України.
 Завдання: за описом заявки на імпорт обладнання підібрати 3–5 зарубіжних постачальників-кандидатів для подальшої перевірки людиною.
@@ -143,7 +146,8 @@ function vedAiMaxCandidates() {
 }
 
 function buildSearchQueries(requestDoc, extraHint = '') {
-  const hint = EQUIPMENT_SEARCH_HINTS[requestDoc.equipmentType] || EQUIPMENT_SEARCH_HINTS.other;
+  const type = normalizeEquipmentType(requestDoc.equipmentType);
+  const hint = EQUIPMENT_SEARCH_HINTS[type] || EQUIPMENT_SEARCH_HINTS.other;
   const name = String(requestDoc.equipmentName || '').trim().slice(0, 120);
   const tech = String(requestDoc.technicalRequirements || '').trim().slice(0, 200);
   const extra = String(extraHint || '').trim().slice(0, 120);
@@ -162,11 +166,14 @@ function buildSearchQueries(requestDoc, extraHint = '') {
 
   push(`${parts} ${hint} manufacturer export contact`);
   push(`${parts} supplier FOB CIF price MOQ`);
-  if (requestDoc.equipmentType === 'inverter_lifepo4' || requestDoc.equipmentType === 'batteries_lifepo4') {
+  if (type === 'inverter_lifepo4' || type === 'batteries_lifepo4' || type === 'inverter_hybrid') {
     push(`${parts} LiFePO4 OEM factory CE UL certification`);
   }
-  if (requestDoc.equipmentType === 'generator_diesel') {
+  if (type === 'generator_diesel' || type === 'generator_gas') {
     push(`${parts} diesel genset Perkins Cummins OEM export`);
+  }
+  if (type === 'solar_panels' || type === 'solar_inverter') {
+    push(`${parts} solar PV Tier-1 CE TUV export factory`);
   }
   push(`${parts} Alibaba Europages supplier`);
 

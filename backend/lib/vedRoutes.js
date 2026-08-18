@@ -17,6 +17,12 @@ const {
   VedSupplierRegistry,
   scheduleVedSupplierRegistryJob,
 } = require('./vedSupplierRegistry');
+const {
+  VED_EQUIPMENT_TYPE_LABELS,
+  EQUIPMENT_TYPES,
+  normalizeEquipmentType,
+  defaultTechnicalRequirements,
+} = require('./vedEquipmentTypes');
 
 const VED_STATUSES = [
   'pending_review',
@@ -38,13 +44,7 @@ const VED_ACTIVE_STATUSES = [
 
 const VED_ARCHIVE_STATUSES = ['completed', 'rejected'];
 
-const EQUIPMENT_TYPES = [
-  'generator_diesel',
-  'generator_benzin_gas',
-  'inverter_lifepo4',
-  'batteries_lifepo4',
-  'other',
-];
+const EQUIPMENT_TYPES_LIST = EQUIPMENT_TYPES;
 
 const INCOTERMS_OPTIONS = ['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP'];
 
@@ -86,7 +86,7 @@ const vedImportRequestSchema = new mongoose.Schema(
     },
     equipmentType: {
       type: String,
-      enum: EQUIPMENT_TYPES,
+      enum: EQUIPMENT_TYPES_LIST,
       default: 'other',
     },
     equipmentName: { type: String, trim: true, default: '' },
@@ -355,9 +355,12 @@ async function countVedAiSessionsToday(login) {
 }
 
 function buildVirtualRequestForSupplierSearch(body) {
-  const equipmentType = EQUIPMENT_TYPES.includes(body?.equipmentType) ? body.equipmentType : 'other';
+  const equipmentType = normalizeEquipmentType(body?.equipmentType);
   const equipmentName = String(body?.equipmentName || '').trim();
-  const technicalRequirements = String(body?.technicalRequirements || '').trim();
+  let technicalRequirements = String(body?.technicalRequirements || '').trim();
+  if (!technicalRequirements) {
+    technicalRequirements = defaultTechnicalRequirements(equipmentType);
+  }
   let quantity = Number(body?.quantity);
   if (!Number.isFinite(quantity) || quantity <= 0) quantity = 1;
   return {
@@ -451,13 +454,7 @@ function registerVedRoutes(app, deps = {}) {
         rejected: 'Відхилено',
         completed: 'Завершено',
       },
-      equipmentTypes: {
-        generator_diesel: 'Дизель-генератор',
-        generator_benzin_gas: 'Бензин/газовий генератор',
-        inverter_lifepo4: 'Інвертор + LiFePO4',
-        batteries_lifepo4: 'Батареї LiFePO4',
-        other: 'Інше',
-      },
+      equipmentTypes: VED_EQUIPMENT_TYPE_LABELS,
       priorities: {
         low: 'Низький',
         normal: 'Звичайний',
@@ -641,7 +638,7 @@ function registerVedRoutes(app, deps = {}) {
       }
       const equipmentType = String(req.query.equipmentType || '').trim();
       const q = {};
-      if (equipmentType && EQUIPMENT_TYPES.includes(equipmentType)) q.equipmentType = equipmentType;
+      if (equipmentType && EQUIPMENT_TYPES_LIST.includes(equipmentType)) q.equipmentType = equipmentType;
       const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit || '200'), 10) || 200));
       const rows = await VedSupplierRegistry.find(q).sort({ createdAt: -1 }).limit(limit).lean();
       res.json(rows);
@@ -790,7 +787,7 @@ function registerVedRoutes(app, deps = {}) {
         return res.status(403).json({ error: 'Немає доступу' });
       }
       const body = req.body || {};
-      const equipmentType = EQUIPMENT_TYPES.includes(body.equipmentType) ? body.equipmentType : 'other';
+      const equipmentType = normalizeEquipmentType(body.equipmentType);
       const equipmentName = String(body.equipmentName || '').trim();
       const technicalRequirements = String(body.technicalRequirements || '').trim();
       const managerComment = String(body.managerComment || '').trim();
