@@ -549,6 +549,11 @@
   min-height: 0;
 }
 
+.procurement-modal-detail-layout .procurement-modal-body.procurement-detail-grid {
+  border-right: 1px solid var(--border);
+  padding: 16px 18px 28px;
+}
+
 .procurement-modal-create-form {
   padding: 16px 18px 20px;
   overflow-y: auto;
@@ -649,6 +654,11 @@
   }
 
   .procurement-modal-create-form {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .procurement-modal-detail-layout .procurement-modal-body.procurement-detail-grid {
     border-right: none;
     border-bottom: 1px solid var(--border);
   }

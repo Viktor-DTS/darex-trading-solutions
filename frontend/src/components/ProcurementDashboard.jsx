@@ -634,6 +634,25 @@ function ProcurementDashboard({ user }) {
     [procurementAllowedWarehouseNames]
   );
 
+  const nomenclatureStockSourceMaterials = useMemo(() => {
+    if (createOpen) return createForm.materials || [];
+    if (!detail) return [];
+    const executorEditing =
+      !!materialsDraft &&
+      isProcurementExecutorWorkStatus(detail.status) &&
+      isVidZakupok &&
+      (isAdmin || String(detail.executorLogin || '') === String(user?.login || ''));
+    return executorEditing ? materialsDraft : detail.materials || [];
+  }, [
+    createOpen,
+    createForm.materials,
+    detail,
+    materialsDraft,
+    isVidZakupok,
+    isAdmin,
+    user?.login,
+  ]);
+
   const resetCreateForm = () => {
     setCreateForm({
       applicationKind: 'purchase',
@@ -653,10 +672,14 @@ function ProcurementDashboard({ user }) {
   };
 
   useEffect(() => {
-    if (!createOpen) return undefined;
+    if (!createOpen && !detail) {
+      setNomenclatureStockItems([]);
+      setNomenclatureStockLoading(false);
+      return undefined;
+    }
 
     const seen = new Set();
-    const items = createForm.materials
+    const items = nomenclatureStockSourceMaterials
       .map((m) => ({
         name: String(m.name || '').trim(),
         productId: String(m.productId || '').trim(),
@@ -725,7 +748,13 @@ function ProcurementDashboard({ user }) {
     return () => {
       if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
     };
-  }, [createOpen, createForm.materials, authHeaders, filterStockWarehousesForProcurement]);
+  }, [
+    createOpen,
+    detail,
+    nomenclatureStockSourceMaterials,
+    authHeaders,
+    filterStockWarehousesForProcurement,
+  ]);
 
   const requestNomenclatureHints = useCallback(
     (rowIndex, query) => {
@@ -1455,6 +1484,58 @@ function ProcurementDashboard({ user }) {
     setListDateFrom('');
     setListDateTo('');
   };
+
+  const renderNomenclatureStockPanel = (emptyHint) => (
+    <aside className="procurement-modal-nomenclature-panel" aria-label="Інформація по номенклатурі">
+      <h3 className="procurement-nomenclature-panel-title">Інформація по номенклатурі</h3>
+      <p className="procurement-nomenclature-panel-note">
+        Залишки лише на складах зі списку «Бажаний склад відвантаження».
+      </p>
+      {nomenclatureStockLoading ? (
+        <p className="procurement-nomenclature-panel-empty">Завантаження…</p>
+      ) : !nomenclatureStockItems.length ? (
+        <p className="procurement-nomenclature-panel-empty">{emptyHint}</p>
+      ) : (
+        <div className="procurement-nomenclature-stock-list">
+          {nomenclatureStockItems.map((item) => (
+            <section
+              key={`${item.label}-${item.productId || ''}`}
+              className="procurement-nomenclature-stock-item"
+            >
+              <p className="procurement-nomenclature-panel-name">{item.label}</p>
+              {item.totalQuantity > 0 ? (
+                <>
+                  <p className="procurement-nomenclature-panel-total">
+                    Загалом: <strong>{item.totalQuantity}</strong>
+                  </p>
+                  <div className="procurement-nomenclature-stock-wrap">
+                    <table className="procurement-nomenclature-stock-table">
+                      <thead>
+                        <tr>
+                          <th>Склад</th>
+                          <th>Кількість</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {item.warehouses.map((w) => (
+                          <tr key={`${item.label}-${w.warehouseId}-${w.warehouseName}`}>
+                            <td>{w.warehouseName}</td>
+                            <td>{w.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <p className="procurement-nomenclature-panel-empty">Залишків на дозволених складах не знайдено.</p>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
+    </aside>
+  );
 
   const renderProcurementListFilters = (shownCount, totalCount) => (
     <div className="procurement-list-filters">
@@ -2202,57 +2283,9 @@ function ProcurementDashboard({ user }) {
               </div>
               </form>
 
-              <aside className="procurement-modal-nomenclature-panel" aria-label="Інформація по номенклатурі">
-                <h3 className="procurement-nomenclature-panel-title">Інформація по номенклатурі</h3>
-                <p className="procurement-nomenclature-panel-note">
-                  Залишки лише на складах зі списку «Бажаний склад відвантаження».
-                </p>
-                {nomenclatureStockLoading ? (
-                  <p className="procurement-nomenclature-panel-empty">Завантаження…</p>
-                ) : !nomenclatureStockItems.length ? (
-                  <p className="procurement-nomenclature-panel-empty">
-                    Додайте найменування матеріалів (від 2 символів) — залишки відобразяться для всіх позицій.
-                  </p>
-                ) : (
-                  <div className="procurement-nomenclature-stock-list">
-                    {nomenclatureStockItems.map((item) => (
-                      <section
-                        key={`${item.label}-${item.productId || ''}`}
-                        className="procurement-nomenclature-stock-item"
-                      >
-                        <p className="procurement-nomenclature-panel-name">{item.label}</p>
-                        {item.totalQuantity > 0 ? (
-                          <>
-                            <p className="procurement-nomenclature-panel-total">
-                              Загалом: <strong>{item.totalQuantity}</strong>
-                            </p>
-                            <div className="procurement-nomenclature-stock-wrap">
-                              <table className="procurement-nomenclature-stock-table">
-                                <thead>
-                                  <tr>
-                                    <th>Склад</th>
-                                    <th>Кількість</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {item.warehouses.map((w) => (
-                                    <tr key={`${item.label}-${w.warehouseId}-${w.warehouseName}`}>
-                                      <td>{w.warehouseName}</td>
-                                      <td>{w.quantity}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </>
-                        ) : (
-                          <p className="procurement-nomenclature-panel-empty">Залишків на дозволених складах не знайдено.</p>
-                        )}
-                      </section>
-                    ))}
-                  </div>
-                )}
-              </aside>
+              {renderNomenclatureStockPanel(
+                'Додайте найменування матеріалів (від 2 символів) — залишки відобразяться для всіх позицій.'
+              )}
             </div>
           </div>
         </div>
@@ -2272,7 +2305,8 @@ function ProcurementDashboard({ user }) {
                 ×
               </button>
             </div>
-            <div className="procurement-modal-body procurement-detail-grid">
+            <div className="procurement-modal-create-layout procurement-modal-detail-layout">
+              <div className="procurement-modal-body procurement-detail-grid">
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Номер заявки</span>
                 <span className="procurement-detail-v">{detail.requestNumber || '—'}</span>
@@ -2985,6 +3019,10 @@ function ProcurementDashboard({ user }) {
                   </p>
                 )}
               </div>
+            </div>
+              {renderNomenclatureStockPanel(
+                'Для позицій заявки залишки на дозволених складах відобразяться тут.'
+              )}
             </div>
           </div>
         </div>
