@@ -10,6 +10,13 @@ const {
   resolveSerpApiKey,
   resolveLlmApiKey,
 } = require('./vedAiResearch');
+const {
+  bindResearchSessionModel,
+  runRegistrySearch,
+  getRegistryMeta,
+  VedSupplierRegistry,
+  scheduleVedSupplierRegistryJob,
+} = require('./vedSupplierRegistry');
 
 const VED_STATUSES = [
   'pending_review',
@@ -198,6 +205,8 @@ try {
 } catch {
   VedResearchSession = mongoose.model('VedResearchSession', vedResearchSessionSchema);
 }
+
+bindResearchSessionModel(VedResearchSession);
 
 async function getNextVedRequestNumber() {
   const doc = await VedCounter.findOneAndUpdate(
@@ -625,6 +634,78 @@ function registerVedRoutes(app, deps = {}) {
     }
   });
 
+  app.get('/api/ved/supplier-registry', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      const equipmentType = String(req.query.equipmentType || '').trim();
+      const q = {};
+      if (equipmentType && EQUIPMENT_TYPES.includes(equipmentType)) q.equipmentType = equipmentType;
+      const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit || '200'), 10) || 200));
+      const rows = await VedSupplierRegistry.find(q).sort({ createdAt: -1 }).limit(limit).lean();
+      res.json(rows);
+    } catch (e) {
+      console.error('[ved] GET supplier-registry:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/ved/supplier-registry/meta', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      res.json(await getRegistryMeta());
+    } catch (e) {
+      console.error('[ved] GET supplier-registry meta:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/ved/supplier-registry/search', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Доступ заборонено' });
+      }
+      if (!vedAiEnabled()) {
+        return res.status(503).json({ error: 'ШІ-модуль ВЕД не налаштовано (потрібен OPENAI_API_KEY)' });
+      }
+
+      const login = String(req.user.login || '').trim();
+      const usedToday = await countVedAiSessionsToday(login);
+      const dailyLimit = vedAiDailyLimit();
+      if (usedToday >= dailyLimit) {
+        return res.status(429).json({
+          error: `Денний ліміт ШІ-пошуків (${dailyLimit}) вичерпано. Спробуйте завтра.`,
+        });
+      }
+
+      const dbUser = await User.findOne({ login: req.user.login }).lean();
+      const body = req.body || {};
+      const result = await runRegistrySearch(
+        {
+          equipmentType: body.equipmentType,
+          equipmentName: body.equipmentName,
+          technicalRequirements: body.technicalRequirements,
+          quantity: body.quantity,
+          extraSearchHint: body.extraSearchHint,
+        },
+        {
+          source: 'manual',
+          addedByLogin: login,
+          addedByName: String(dbUser?.name || req.user.name || login).trim(),
+        }
+      );
+
+      res.status(201).json(result);
+    } catch (e) {
+      console.error('[ved] POST supplier-registry search:', e.message);
+      const status = /Вкажіть найменування/.test(e.message) ? 400 : 502;
+      res.status(status).json({ error: e.message });
+    }
+  });
+
   app.get('/api/ved/supplier-search/sessions', authenticateToken, async (req, res) => {
     try {
       if (!canManageVedRequests(req.user)) {
@@ -651,13 +732,6 @@ function registerVedRoutes(app, deps = {}) {
         return res.status(503).json({ error: 'ШІ-модуль ВЕД не налаштовано (потрібен OPENAI_API_KEY)' });
       }
 
-      const virtualDoc = buildVirtualRequestForSupplierSearch(req.body || {});
-      const equipmentName = virtualDoc.equipmentName;
-      const technicalRequirements = virtualDoc.technicalRequirements;
-      if (!equipmentName && !technicalRequirements) {
-        return res.status(400).json({ error: 'Вкажіть найменування обладнання або технічні вимоги для пошуку' });
-      }
-
       const login = String(req.user.login || '').trim();
       const usedToday = await countVedAiSessionsToday(login);
       const dailyLimit = vedAiDailyLimit();
@@ -668,46 +742,17 @@ function registerVedRoutes(app, deps = {}) {
       }
 
       const dbUser = await User.findOne({ login: req.user.login }).lean();
-      const extraSearchHint = String(req.body?.extraSearchHint || '').trim().slice(0, 200);
-
-      const session = await VedResearchSession.create({
-        vedImportRequestId: null,
-        requestNumber: '',
-        mode: 'standalone',
-        equipmentType: virtualDoc.equipmentType,
-        equipmentName: virtualDoc.equipmentName,
-        technicalRequirements: virtualDoc.technicalRequirements,
-        quantity: virtualDoc.quantity,
-        status: 'running',
-        extraSearchHint,
-        createdByLogin: login,
-        createdByName: String(dbUser?.name || req.user.name || login).trim(),
+      const body = req.body || {};
+      const result = await runRegistrySearch(body, {
+        source: 'manual',
+        addedByLogin: login,
+        addedByName: String(dbUser?.name || req.user.name || login).trim(),
       });
-
-      try {
-        const result = await runVedSupplierResearch(virtualDoc, { extraSearchHint });
-        session.status = 'completed';
-        session.searchQueries = result.searchQueries || [];
-        session.webContextPreview = result.webContextPreview || '';
-        session.userPromptPreview = result.userPromptPreview || '';
-        session.sources = result.sources || [];
-        session.summary = result.summary || '';
-        session.recommendations = result.recommendations || [];
-        session.candidates = result.candidates || [];
-        session.llmModel = result.llmModel || '';
-        session.disclaimer = result.disclaimer || '';
-        session.hasWebSearch = Boolean(result.hasWebSearch);
-        await session.save();
-        res.status(201).json(session.toObject());
-      } catch (runErr) {
-        session.status = 'failed';
-        session.error = String(runErr.message || runErr).slice(0, 500);
-        await session.save();
-        return res.status(502).json({ error: session.error, sessionId: session._id });
-      }
+      res.status(201).json(result);
     } catch (e) {
       console.error('[ved] POST supplier-search:', e.message);
-      res.status(500).json({ error: e.message });
+      const status = /Вкажіть найменування/.test(e.message) ? 400 : 502;
+      res.status(status).json({ error: e.message, sessionId: null });
     }
   });
 
@@ -1026,6 +1071,7 @@ function registerVedRoutes(app, deps = {}) {
 
 module.exports = {
   registerVedRoutes,
+  scheduleVedSupplierRegistryJob,
   VED_STATUSES,
   isVedStaffRole,
   isVedManagerRole,

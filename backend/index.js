@@ -106,7 +106,7 @@ const {
 const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
-const { registerVedRoutes } = require('./lib/vedRoutes');
+const { registerVedRoutes, scheduleVedSupplierRegistryJob } = require('./lib/vedRoutes');
 const { sendProcurementTelegramNotifications } = require('./lib/procurementTelegram');
 const { computeProcurementCrossRegionNotices, normalizeWarehouseName } = require('./lib/procurementCrossRegionNotice');
 
@@ -19883,6 +19883,7 @@ registerVedRoutes(app, {
   createManagerNotificationDeduped,
   authenticateToken,
 });
+scheduleVedSupplierRegistryJob();
 
 registerTradingRoutes(app, { getAssistantConnection });
 scheduleTradingScanJob(getAssistantConnection);

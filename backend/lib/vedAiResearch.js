@@ -48,14 +48,19 @@ const SYSTEM_PROMPT = `Ти аналітик відділу зовнішньое
       "contact": "email або телефон або порожній",
       "productModel": "модель / лінійка продукції",
       "productSummary": "коротко що пропонують",
-      "priceEstimate": null або число,
+      "priceFrom": null або число (мінімальна орієнтовна ціна),
+      "priceTo": null або число (максимальна орієнтовна ціна),
+      "priceEstimate": null або число (якщо один діапазон — дублюй у priceFrom/priceTo),
       "priceStatus": "unverified | estimated | quoted",
       "currency": "USD|EUR|CNY|... або порожній",
+      "certificates": "наявність сертифікатів текстом (CE, ISO, UL…) або порожній",
+      "powerLineup": "лінійка по потужності (діапазони kW/kVA) або порожній",
       "incotermsHint": "FOB/CIF/EXW або порожній — лише якщо знайдено в джерелах",
       "moqHint": "MOQ текстом або порожній",
       "leadTimeHint": "термін поставки текстом або порожній",
       "prepaymentPercentHint": null або число 0–100,
       "riskNotes": ["ризик 1", "..."],
+      "riskDescription": "короткий опис ризиків співпраці українською (1–3 речення)",
       "strengths": ["перевага 1", "..."],
       "sourceUrls": ["https://...", "..."]
     }
@@ -168,7 +173,7 @@ function buildSearchQueries(requestDoc, extraHint = '') {
   return out.slice(0, 4);
 }
 
-function buildUserPrompt(requestDoc, webContext, maxCandidates) {
+function buildUserPrompt(requestDoc, webContext, maxCandidates, excludeSuppliers = []) {
   const lines = [
     `Заявка: ${requestDoc.requestNumber || ''}`,
     `Тип: ${EQUIPMENT_LABELS_UK[requestDoc.equipmentType] || requestDoc.equipmentType}`,
@@ -179,6 +184,11 @@ function buildUserPrompt(requestDoc, webContext, maxCandidates) {
     `Бажаний термін: ${requestDoc.desiredDeliveryDate || '—'}`,
     `\nПотрібно до ${maxCandidates} кандидатів-постачальників.`,
   ];
+  if (excludeSuppliers.length) {
+    lines.push(
+      `\n--- У базі ВЕД вже є ці постачальники (НЕ пропонуй їх повторно, шукай інших): ---\n${excludeSuppliers.slice(0, 80).join('\n')}`
+    );
+  }
   if (webContext) {
     lines.push(`\n--- Уривки з веб-пошуку (SerpApi). Використовуй як джерело; не вигадуй поза контекстом. ---\n${webContext}`);
   } else {
@@ -262,6 +272,24 @@ function normalizeCandidate(raw, idx) {
   } else {
     priceEstimate = null;
   }
+  let priceFrom = raw?.priceFrom;
+  let priceTo = raw?.priceTo;
+  if (priceFrom != null) {
+    const n = Number(priceFrom);
+    priceFrom = Number.isFinite(n) && n >= 0 ? n : null;
+  } else {
+    priceFrom = null;
+  }
+  if (priceTo != null) {
+    const n = Number(priceTo);
+    priceTo = Number.isFinite(n) && n >= 0 ? n : null;
+  } else {
+    priceTo = null;
+  }
+  if (priceFrom == null && priceTo == null && priceEstimate != null) {
+    priceFrom = priceEstimate;
+    priceTo = priceEstimate;
+  }
   let prep = raw?.prepaymentPercentHint;
   if (prep != null) {
     const n = Number(prep);
@@ -280,9 +308,14 @@ function normalizeCandidate(raw, idx) {
     contact: String(raw?.contact || '').trim().slice(0, 300),
     productModel: String(raw?.productModel || '').trim().slice(0, 300),
     productSummary: String(raw?.productSummary || '').trim().slice(0, 800),
+    priceFrom,
+    priceTo,
     priceEstimate,
     priceStatus,
     currency: String(raw?.currency || '').trim().slice(0, 12).toUpperCase(),
+    certificates: String(raw?.certificates || raw?.certificatesHint || '').trim().slice(0, 400),
+    powerLineup: String(raw?.powerLineup || raw?.powerLineupHint || '').trim().slice(0, 400),
+    riskDescription: String(raw?.riskDescription || '').trim().slice(0, 2000),
     incotermsHint: String(raw?.incotermsHint || '').trim().slice(0, 40).toUpperCase(),
     moqHint: String(raw?.moqHint || '').trim().slice(0, 120),
     leadTimeHint: String(raw?.leadTimeHint || '').trim().slice(0, 120),
@@ -381,7 +414,8 @@ async function runVedSupplierResearch(requestDoc, options = {}) {
   const maxCandidates = vedAiMaxCandidates();
   const searchQueries = buildSearchQueries(requestDoc, options.extraSearchHint);
   const { context: webContext, sources } = await fetchVedWebContext(searchQueries);
-  const userPrompt = buildUserPrompt(requestDoc, webContext, maxCandidates);
+  const excludeSuppliers = Array.isArray(options.excludeSuppliers) ? options.excludeSuppliers : [];
+  const userPrompt = buildUserPrompt(requestDoc, webContext, maxCandidates, excludeSuppliers);
   const llmResult = await callVedLlm(userPrompt, maxCandidates);
 
   return {

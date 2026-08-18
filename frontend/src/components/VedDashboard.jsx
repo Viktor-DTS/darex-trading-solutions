@@ -43,6 +43,22 @@ function formatDt(iso) {
   }
 }
 
+function formatPriceRange(from, to, currency) {
+  const cur = currency ? ` ${currency}` : '';
+  if (from != null && to != null && from !== to) return `${from} – ${to}${cur}`;
+  if (from != null) return `${from}${cur}`;
+  if (to != null) return `${to}${cur}`;
+  return '—';
+}
+
+function formatWebsite(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return null;
+  const href = raw.startsWith('http') ? raw : `https://${raw}`;
+  const label = raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '').slice(0, 48);
+  return { href, label: label || href };
+}
+
 function VedDashboard({ user }) {
   const canManage = isVedStaff(user);
   const canCreate = canManage || ['manager', 'mgradm'].includes(normalizeRole(user?.role));
@@ -62,7 +78,11 @@ function VedDashboard({ user }) {
   const [aiSessionDetail, setAiSessionDetail] = useState(null);
   const [aiExtraHint, setAiExtraHint] = useState('');
   const [aiRunning, setAiRunning] = useState(false);
-  const [standaloneSessions, setStandaloneSessions] = useState([]);
+  const [supplierRegistry, setSupplierRegistry] = useState([]);
+  const [registryMeta, setRegistryMeta] = useState(null);
+  const [registryFilterType, setRegistryFilterType] = useState('');
+  const [registryLoading, setRegistryLoading] = useState(false);
+  const [lastSearchResult, setLastSearchResult] = useState(null);
   const [searchForm, setSearchForm] = useState({
     equipmentType: 'generator_diesel',
     equipmentName: '',
@@ -134,15 +154,30 @@ function VedDashboard({ user }) {
     [authHeaders]
   );
 
-  const loadStandaloneSessions = useCallback(async () => {
+  const loadSupplierRegistry = useCallback(async () => {
+    if (!canManage) return;
+    setRegistryLoading(true);
+    try {
+      const qs = registryFilterType ? `?equipmentType=${encodeURIComponent(registryFilterType)}` : '';
+      const res = await fetch(`${API_BASE_URL}/ved/supplier-registry${qs}`, { headers: authHeaders });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (res.ok) setSupplierRegistry(await res.json());
+      else setSupplierRegistry([]);
+    } catch {
+      setSupplierRegistry([]);
+    } finally {
+      setRegistryLoading(false);
+    }
+  }, [authHeaders, canManage, registryFilterType]);
+
+  const loadRegistryMeta = useCallback(async () => {
     if (!canManage) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/ved/supplier-search/sessions`, { headers: authHeaders });
+      const res = await fetch(`${API_BASE_URL}/ved/supplier-registry/meta`, { headers: authHeaders });
       if (tryHandleUnauthorizedResponse(res)) return;
-      if (res.ok) setStandaloneSessions(await res.json());
-      else setStandaloneSessions([]);
+      if (res.ok) setRegistryMeta(await res.json());
     } catch {
-      setStandaloneSessions([]);
+      /* ignore */
     }
   }, [authHeaders, canManage]);
 
@@ -152,9 +187,10 @@ function VedDashboard({ user }) {
 
   useEffect(() => {
     if (section === 'supplier-search' && canManage) {
-      loadStandaloneSessions();
+      loadSupplierRegistry();
+      loadRegistryMeta();
     }
-  }, [section, canManage, loadStandaloneSessions]);
+  }, [section, canManage, loadSupplierRegistry, loadRegistryMeta]);
 
   useEffect(() => {
     if (selectedId && canManage) loadAiSessions(selectedId);
@@ -539,8 +575,9 @@ function VedDashboard({ user }) {
       return;
     }
     setAiRunning(true);
+    setLastSearchResult(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/ved/supplier-search`, {
+      const res = await fetch(`${API_BASE_URL}/ved/supplier-registry/search`, {
         method: 'POST',
         headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify(searchForm),
@@ -549,11 +586,11 @@ function VedDashboard({ user }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data.error || 'Помилка ШІ-пошуку');
-        if (data.sessionId) await loadAiSessionDetail(data.sessionId);
         return;
       }
-      setAiSessionDetail(data);
-      await loadStandaloneSessions();
+      setLastSearchResult(data);
+      await loadSupplierRegistry();
+      await loadRegistryMeta();
       await loadAiConfig();
     } finally {
       setAiRunning(false);
@@ -954,11 +991,11 @@ function VedDashboard({ user }) {
   };
 
   const renderSupplierSearch = () => (
-    <div className="ved-list-panel">
+    <div className="ved-list-panel ved-supplier-registry-panel">
       <div className="ved-card ved-ai-card ved-supplier-search-card">
         <h2 style={{ marginTop: 0 }}>🔍 Режим пошуку постачальника</h2>
         <p className="ved-ai-disclaimer">
-          Автономний ШІ-пошук без заявки менеджера. Результати — чернетки для перевірки; менеджери їх не бачать.
+          Реєстр постачальників наповнюється поступово: автоматично {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. Дублікати постачальників не додаються.
         </p>
         {!meta?.aiEnabled && !aiConfig?.enabled ? (
           <p className="ved-ai-error">
@@ -971,55 +1008,71 @@ function VedDashboard({ user }) {
                 {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi)' : '⚠ Без веб-пошуку — лише LLM'}
                 {' · '}
                 Залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
+                {registryMeta && (
+                  <>
+                    {' · '}
+                    У реєстрі: {registryMeta.total}
+                    {registryMeta.lastScheduledRunAt && (
+                      <>
+                        {' · '}
+                        Останнє авто: {formatDt(registryMeta.lastScheduledRunAt)}
+                        {registryMeta.lastScheduledAdded > 0 && ` (+${registryMeta.lastScheduledAdded})`}
+                      </>
+                    )}
+                  </>
+                )}
               </p>
             )}
-            <form className="ved-new-form" onSubmit={runStandaloneSearch}>
-              <div className="ved-form-row">
-                <label>Тип обладнання *</label>
-                <select
-                  value={searchForm.equipmentType}
-                  onChange={(e) => setSearchForm((f) => ({ ...f, equipmentType: e.target.value }))}
-                >
-                  {Object.entries(meta?.equipmentTypes || {}).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="ved-form-row">
-                <label>Найменування / модель</label>
-                <input
-                  value={searchForm.equipmentName}
-                  onChange={(e) => setSearchForm((f) => ({ ...f, equipmentName: e.target.value }))}
-                  placeholder="Напр. Perkins 50 kVA silent"
-                />
-              </div>
-              <div className="ved-form-row">
-                <label>Технічні вимоги *</label>
-                <textarea
-                  value={searchForm.technicalRequirements}
-                  onChange={(e) => setSearchForm((f) => ({ ...f, technicalRequirements: e.target.value }))}
-                  placeholder="кВт, напруга, бренд, країна постачальника…"
-                  rows={4}
-                />
-              </div>
-              <div className="ved-form-row">
-                <label>Кількість</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={searchForm.quantity}
-                  onChange={(e) => setSearchForm((f) => ({ ...f, quantity: e.target.value }))}
-                />
-              </div>
-              <div className="ved-form-row">
-                <label>Додатковий акцент (країна, Alibaba, CE…)</label>
-                <input
-                  value={searchForm.extraSearchHint}
-                  onChange={(e) => setSearchForm((f) => ({ ...f, extraSearchHint: e.target.value }))}
-                  placeholder="Напр. Китай, OEM, CE certified"
-                />
+
+            <form className="ved-new-form ved-registry-search-form" onSubmit={runStandaloneSearch}>
+              <div className="ved-registry-form-grid">
+                <div className="ved-form-row">
+                  <label>Тип обладнання *</label>
+                  <select
+                    value={searchForm.equipmentType}
+                    onChange={(e) => setSearchForm((f) => ({ ...f, equipmentType: e.target.value }))}
+                  >
+                    {Object.entries(meta?.equipmentTypes || {}).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="ved-form-row">
+                  <label>Найменування / модель</label>
+                  <input
+                    value={searchForm.equipmentName}
+                    onChange={(e) => setSearchForm((f) => ({ ...f, equipmentName: e.target.value }))}
+                    placeholder="Напр. Perkins 50 kVA silent"
+                  />
+                </div>
+                <div className="ved-form-row ved-form-row-wide">
+                  <label>Технічні вимоги *</label>
+                  <textarea
+                    value={searchForm.technicalRequirements}
+                    onChange={(e) => setSearchForm((f) => ({ ...f, technicalRequirements: e.target.value }))}
+                    placeholder="кВт, напруга, бренд, країна постачальника…"
+                    rows={2}
+                  />
+                </div>
+                <div className="ved-form-row">
+                  <label>Кількість</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={searchForm.quantity}
+                    onChange={(e) => setSearchForm((f) => ({ ...f, quantity: e.target.value }))}
+                  />
+                </div>
+                <div className="ved-form-row">
+                  <label>Додатковий акцент</label>
+                  <input
+                    value={searchForm.extraSearchHint}
+                    onChange={(e) => setSearchForm((f) => ({ ...f, extraSearchHint: e.target.value }))}
+                    placeholder="Напр. Китай, OEM, CE"
+                  />
+                </div>
               </div>
               <div className="ved-actions">
                 <button
@@ -1027,34 +1080,102 @@ function VedDashboard({ user }) {
                   className="ved-btn ved-btn-primary"
                   disabled={aiRunning || aiConfig?.remainingToday === 0}
                 >
-                  {aiRunning ? 'Пошук… (до 1–2 хв)' : '🔍 Пошук постачальників (ШІ)'}
+                  {aiRunning ? 'Пошук… (до 1–2 хв)' : '🔍 Пошук вручну'}
                 </button>
               </div>
             </form>
 
-            {standaloneSessions.length > 0 && (
-              <div className="ved-ai-sessions">
-                <h4>Останні пошуки</h4>
-                <ul className="ved-ai-session-list">
-                  {standaloneSessions.map((s) => (
-                    <li key={s._id}>
-                      <button
-                        type="button"
-                        className={`ved-ai-session-btn ${aiSessionDetail?._id === s._id ? 'active' : ''}`}
-                        onClick={() => loadAiSessionDetail(s._id)}
-                      >
-                        {formatDt(s.createdAt)} —{' '}
-                        {s.equipmentName || equipmentLabel(s.equipmentType)} —{' '}
-                        {s.status === 'completed' ? `✓ ${(s.candidates || []).length} канд.` : s.status}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {lastSearchResult && (
+              <p className="ved-registry-search-result">
+                Останній пошук: знайдено {lastSearchResult.candidatesFound ?? 0}, додано в таблицю{' '}
+                {lastSearchResult.added?.length ?? 0}, пропущено дублікатів {lastSearchResult.skipped ?? 0}.
+              </p>
             )}
-
-            {renderAiSessionResults(aiSessionDetail)}
           </>
+        )}
+      </div>
+
+      <div className="ved-card ved-registry-table-card">
+        <div className="ved-registry-table-toolbar">
+          <h3 style={{ margin: 0 }}>Реєстр постачальників</h3>
+          <div className="ved-registry-table-filters">
+            <label>
+              Фільтр типу:
+              <select
+                value={registryFilterType}
+                onChange={(e) => setRegistryFilterType(e.target.value)}
+              >
+                <option value="">Усі типи</option>
+                {Object.entries(meta?.equipmentTypes || {}).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="ved-btn" onClick={loadSupplierRegistry} disabled={registryLoading}>
+              {registryLoading ? '…' : '↻ Оновити'}
+            </button>
+          </div>
+        </div>
+
+        {registryLoading && supplierRegistry.length === 0 ? (
+          <div className="ved-loading">Завантаження реєстру…</div>
+        ) : supplierRegistry.length === 0 ? (
+          <div className="ved-empty">
+            Реєстр порожній. Запустіть ручний пошук або дочекайтеся автоматичного оновлення о 02:00.
+          </div>
+        ) : (
+          <div className="ved-registry-table-wrap">
+            <table className="ved-table ved-registry-table">
+              <thead>
+                <tr>
+                  <th>Найменування товару</th>
+                  <th>Постачальник</th>
+                  <th>Країна</th>
+                  <th>Ціна від – до</th>
+                  <th>Сайт</th>
+                  <th>Контакти</th>
+                  <th>Сертифікати</th>
+                  <th>Лінійка потужності</th>
+                  <th>Ризики співпраці</th>
+                  <th>Джерело</th>
+                </tr>
+              </thead>
+              <tbody>
+                {supplierRegistry.map((row) => {
+                  const site = formatWebsite(row.website);
+                  return (
+                    <tr key={row._id}>
+                      <td>{row.productName || '—'}</td>
+                      <td>{row.supplierName || '—'}</td>
+                      <td>{row.country || '—'}</td>
+                      <td>{formatPriceRange(row.priceFrom, row.priceTo, row.currency)}</td>
+                      <td>
+                        {site ? (
+                          <a href={site.href} target="_blank" rel="noopener noreferrer">
+                            {site.label}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="ved-registry-cell-wrap">{row.contacts || '—'}</td>
+                      <td className="ved-registry-cell-wrap">{row.certificates || '—'}</td>
+                      <td className="ved-registry-cell-wrap">{row.powerLineup || '—'}</td>
+                      <td className="ved-registry-cell-wrap">{row.riskDescription || '—'}</td>
+                      <td>
+                        <span className={`ved-registry-source ved-registry-source-${row.source || 'manual'}`}>
+                          {row.source === 'scheduled' ? 'авто' : 'ручний'}
+                        </span>
+                        <div className="ved-registry-added-at">{formatDt(row.createdAt)}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

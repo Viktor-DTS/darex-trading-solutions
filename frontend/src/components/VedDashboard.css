@@ -324,7 +324,111 @@
 }
 
 .ved-supplier-search-card {
-  max-width: 920px;
+  max-width: none;
+}
+
+.ved-supplier-registry-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ved-registry-search-form {
+  max-width: 100%;
+}
+
+.ved-registry-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 14px;
+}
+
+.ved-form-row-wide {
+  grid-column: 1 / -1;
+}
+
+.ved-registry-search-result {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #2e7d32;
+}
+
+.ved-registry-table-card {
+  padding: 12px 16px 16px;
+}
+
+.ved-registry-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ved-registry-table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ved-registry-table-filters label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ved-registry-table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 340px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.ved-registry-table {
+  min-width: 1200px;
+  font-size: 12px;
+}
+
+.ved-registry-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.ved-registry-cell-wrap {
+  max-width: 220px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: top;
+}
+
+.ved-registry-source {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ved-registry-source-manual {
+  background: rgba(33, 150, 243, 0.15);
+  color: #1565c0;
+}
+
+.ved-registry-source-scheduled {
+  background: rgba(76, 175, 80, 0.15);
+  color: #2e7d32;
+}
+
+.ved-registry-added-at {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
 }
 
 .ved-supplier-search-card .ved-new-form {
