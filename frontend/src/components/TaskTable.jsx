@@ -274,6 +274,12 @@ function taskMatchesEngineerColumnFilters(task, engineerEntries, getFilterTypeFo
   return true;
 }
 
+function formatServiceTotalSum(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0';
+  return num.toLocaleString('uk-UA', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -315,8 +321,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   
   // Пагінація для оператора та панелей бухгалтера (швидше завантаження)
   const enablePagination = ['operator', 'accountant-invoice', 'accountant-approval'].includes(columnsArea);
+  const showServiceTotalSum = columnsArea === 'accountant-invoice' || columnsArea === 'accountant-approval';
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [serviceTotalSum, setServiceTotalSum] = useState(null);
   const PAGE_SIZE = 30;
 
   // Дебаунс фільтрації: 2 с для серверних запитів (пагінація), 300 мс для клієнтської
@@ -652,10 +660,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         if (enablePagination && data && typeof data === 'object' && Array.isArray(data.tasks)) {
           setTasks(data.tasks);
           setTotal(data.total ?? 0);
+          setServiceTotalSum(showServiceTotalSum ? (data.serviceTotalSum ?? 0) : null);
           if (onTasksLoaded) onTasksLoaded(data.tasks);
         } else {
           setTasks(Array.isArray(data) ? data : []);
           setTotal(Array.isArray(data) ? data.length : 0);
+          setServiceTotalSum(null);
           setCachedTasks(url, Array.isArray(data) ? data : []);
           if (onTasksLoaded) onTasksLoaded(Array.isArray(data) ? data : []);
         }
@@ -1344,6 +1354,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         </div>
         <div className="toolbar-info">
           <span>Знайдено: {enablePagination ? total : filteredAndSortedTasks.length}</span>
+          {showServiceTotalSum && serviceTotalSum != null && (
+            <span className="toolbar-service-total">
+              Загальна сума послуг по відфільтрованим заявкам: {formatServiceTotalSum(serviceTotalSum)} грн
+            </span>
+          )}
         </div>
       </div>
 

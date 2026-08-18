@@ -7628,6 +7628,22 @@ app.get('/api/tasks/filter', async (req, res) => {
   try {
     const { status, statuses, region, sort = '-requestDate', page, limit, filter, sortField, sortDirection, columnFilters } = req.query;
     const isPaginated = page !== undefined && limit !== undefined && !isNaN(parseInt(limit));
+    const SERVICE_TOTAL_SUM_FACET = [{
+      $group: {
+        _id: null,
+        sum: {
+          $sum: {
+            $convert: {
+              input: { $ifNull: ['$serviceTotal', 0] },
+              to: 'double',
+              onError: 0,
+              onNull: 0,
+            },
+          },
+        },
+      },
+    }];
+    const extractServiceTotalSum = (facetResult) => facetResult?.serviceTotalSum?.[0]?.sum ?? 0;
     // Універсальний пошук — всі текстопошукові поля Task (відповідно до колонок таблиці)
     const UNIVERSAL_SEARCH_FIELDS = [
       'requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work',
@@ -7810,6 +7826,7 @@ app.get('/api/tasks/filter', async (req, res) => {
         irPipeline.push({
           $facet: {
             total: [{ $count: 'count' }],
+            serviceTotalSum: SERVICE_TOTAL_SUM_FACET,
             data: [
               { $skip: (pageNum - 1) * limitNum },
               { $limit: limitNum }
@@ -7821,7 +7838,13 @@ app.get('/api/tasks/filter', async (req, res) => {
         const total = (result?.total?.[0]?.count) || 0;
         const tasks = result?.data || [];
         logPerformance('GET /api/tasks/filter (accountantInvoiceRequests optimized)', startTime, tasks.length);
-        return res.json({ tasks, total, page: pageNum, limit: limitNum });
+        return res.json({
+          tasks,
+          total,
+          serviceTotalSum: extractServiceTotalSum(result),
+          page: pageNum,
+          limit: limitNum,
+        });
       }
 
       // Без пагінації: застосовуємо filter і columnFilters
@@ -8192,6 +8215,7 @@ app.get('/api/tasks/filter', async (req, res) => {
       pipeline.push({
         $facet: {
           total: [{ $count: 'count' }],
+          serviceTotalSum: SERVICE_TOTAL_SUM_FACET,
           data: [
             { $sort: facetSort },
             { $skip: (pageNum - 1) * limitNum },
@@ -8210,7 +8234,13 @@ app.get('/api/tasks/filter', async (req, res) => {
       const total = (result?.total?.[0]?.count) || 0;
       const tasks = result?.data || [];
       logPerformance('GET /api/tasks/filter (paginated)', startTime, tasks.length);
-      return res.json({ tasks, total, page: pageNum, limit: limitNum });
+      return res.json({
+        tasks,
+        total,
+        serviceTotalSum: extractServiceTotalSum(result),
+        page: pageNum,
+        limit: limitNum,
+      });
     }
 
     const tasks = aggResult;
