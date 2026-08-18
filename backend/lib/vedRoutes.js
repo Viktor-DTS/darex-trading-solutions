@@ -14,6 +14,7 @@ const {
   bindResearchSessionModel,
   runRegistrySearch,
   getRegistryMeta,
+  enrichRegistryRow,
   VedSupplierRegistry,
   scheduleVedSupplierRegistryJob,
 } = require('./vedSupplierRegistry');
@@ -638,10 +639,12 @@ function registerVedRoutes(app, deps = {}) {
       }
       const equipmentType = String(req.query.equipmentType || '').trim();
       const q = {};
-      if (equipmentType && EQUIPMENT_TYPES_LIST.includes(equipmentType)) q.equipmentType = equipmentType;
+      if (equipmentType && EQUIPMENT_TYPES_LIST.includes(equipmentType)) {
+        q.$or = [{ equipmentTypes: equipmentType }, { equipmentType }];
+      }
       const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit || '200'), 10) || 200));
       const rows = await VedSupplierRegistry.find(q).sort({ createdAt: -1 }).limit(limit).lean();
-      res.json(rows);
+      res.json(rows.map((row) => enrichRegistryRow(row)));
     } catch (e) {
       console.error('[ved] GET supplier-registry:', e.message);
       res.status(500).json({ error: e.message });

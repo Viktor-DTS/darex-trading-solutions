@@ -50,6 +50,7 @@ const SYSTEM_PROMPT = `Ти аналітик відділу зовнішньое
       "website": "https://... або порожній рядок",
       "contact": "email або телефон або порожній",
       "productModel": "модель / лінійка продукції",
+      "equipmentTypeHints": ["generator_diesel"] — один або кілька ключів категорії товару з переліку в заявці,
       "productSummary": "коротко що пропонують",
       "priceFrom": null або число (мінімальна орієнтовна ціна),
       "priceTo": null або число (максимальна орієнтовна ціна),
@@ -75,6 +76,7 @@ const SYSTEM_PROMPT = `Ти аналітик відділу зовнішньое
 - sourceUrls — лише URL, що згадані в контексті пошуку або логічно випливають з відомих сайтів компаній; не більше 5 на кандидата.
 - riskNotes — гіпотези (санкції, prepayment 100%, новий домен, відсутність сертифікатів) — не категоричні висновки.
 - candidates: від 3 до MAX_CANDIDATES, різні країни/профілі де можливо.
+- equipmentTypeHints — лише ключі з переліку типів у заявці; якщо постачальник покриває кілька категорій — вкажи всі.
 - Це чернетка для ВЕД-фахівця, не договірна пропозиція.`;
 
 function stripJsonFence(text) {
@@ -191,9 +193,11 @@ function buildSearchQueries(requestDoc, extraHint = '') {
 function buildUserPrompt(requestDoc, webContext, maxCandidates, excludeSuppliers = []) {
   const types = normalizeEquipmentTypes(requestDoc);
   const typeLabels = types.map((t) => EQUIPMENT_LABELS_UK[t] || t).join(', ');
+  const typeKeys = types.join(', ');
   const lines = [
     `Заявка: ${requestDoc.requestNumber || ''}`,
     `Тип${types.length > 1 ? 'и' : ''} обладнання: ${typeLabels}`,
+    `Ключі категорій (для equipmentTypeHints): ${typeKeys}`,
     `Найменування: ${requestDoc.equipmentName || '—'}`,
     `Кількість: ${requestDoc.quantity ?? 1}`,
     `Технічні вимоги:\n${requestDoc.technicalRequirements || '—'}`,
@@ -317,6 +321,12 @@ function normalizeCandidate(raw, idx) {
   const sourceUrls = Array.isArray(raw?.sourceUrls)
     ? raw.sourceUrls.map((u) => String(u || '').trim()).filter((u) => /^https?:\/\//i.test(u)).slice(0, 5)
     : [];
+  const hintRaw = Array.isArray(raw?.equipmentTypeHints)
+    ? raw.equipmentTypeHints
+    : raw?.equipmentTypeHint
+      ? [raw.equipmentTypeHint]
+      : [];
+  const equipmentTypeHints = normalizeEquipmentTypes({ equipmentTypes: hintRaw });
 
   return {
     supplierName: String(raw?.supplierName || '').trim().slice(0, 200),
@@ -333,6 +343,7 @@ function normalizeCandidate(raw, idx) {
     certificates: String(raw?.certificates || raw?.certificatesHint || '').trim().slice(0, 400),
     powerLineup: String(raw?.powerLineup || raw?.powerLineupHint || '').trim().slice(0, 400),
     riskDescription: String(raw?.riskDescription || '').trim().slice(0, 2000),
+    equipmentTypeHints,
     incotermsHint: String(raw?.incotermsHint || '').trim().slice(0, 40).toUpperCase(),
     moqHint: String(raw?.moqHint || '').trim().slice(0, 120),
     leadTimeHint: String(raw?.leadTimeHint || '').trim().slice(0, 120),

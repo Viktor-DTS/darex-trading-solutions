@@ -68,6 +68,23 @@ function buildDefaultTechnicalRequirementsForTypes(types) {
     .join('\n');
 }
 
+/** Розбирає equipmentType (рядок або масив) у масив ключів категорій. */
+function parseStoredEquipmentTypes(value) {
+  if (Array.isArray(value)) {
+    return normalizeEquipmentTypes({ equipmentTypes: value });
+  }
+  const raw = String(value || '').trim();
+  if (!raw) return ['other'];
+  if (raw.includes(',')) {
+    return normalizeEquipmentTypes({ equipmentTypes: raw.split(',') });
+  }
+  return [normalizeEquipmentType(raw)];
+}
+
+function formatEquipmentTypeLabels(types, labelsMap = VED_EQUIPMENT_TYPE_LABELS) {
+  return parseStoredEquipmentTypes(types).map((t) => labelsMap[t] || t);
+}
+
 module.exports = {
   VED_EQUIPMENT_TYPE_LABELS,
   EQUIPMENT_TYPES,
@@ -77,4 +94,6 @@ module.exports = {
   equipmentTypeLabel,
   defaultTechnicalRequirements,
   buildDefaultTechnicalRequirementsForTypes,
+  parseStoredEquipmentTypes,
+  formatEquipmentTypeLabels,
 };

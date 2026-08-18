@@ -492,6 +492,24 @@
   white-space: nowrap;
 }
 
+.ved-registry-categories {
+  min-width: 140px;
+  max-width: 220px;
+  vertical-align: top;
+}
+
+.ved-registry-category-chip {
+  display: inline-block;
+  margin: 0 4px 4px 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.35;
+  background: rgba(33, 150, 243, 0.12);
+  color: #1565c0;
+  white-space: normal;
+}
+
 .ved-registry-cell-wrap {
   max-width: 220px;
   white-space: pre-wrap;

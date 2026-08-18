@@ -67,6 +67,20 @@ function formatPriceRange(from, to, currency) {
   return '—';
 }
 
+function formatRegistryCategories(row, equipmentTypesMap) {
+  const labels =
+    Array.isArray(row.categoryLabels) && row.categoryLabels.length
+      ? row.categoryLabels
+      : (Array.isArray(row.equipmentTypes) && row.equipmentTypes.length
+          ? row.equipmentTypes
+          : String(row.equipmentType || '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+        ).map((t) => equipmentTypesMap[t] || t);
+  return labels.filter(Boolean);
+}
+
 function formatWebsite(url) {
   const raw = String(url || '').trim();
   if (!raw) return null;
@@ -1228,6 +1242,7 @@ function VedDashboard({ user }) {
             <table className="ved-table ved-registry-table">
               <thead>
                 <tr>
+                  <th>Категорія товару</th>
                   <th>Найменування товару</th>
                   <th>Постачальник</th>
                   <th>Країна</th>
@@ -1243,8 +1258,20 @@ function VedDashboard({ user }) {
               <tbody>
                 {supplierRegistry.map((row) => {
                   const site = formatWebsite(row.website);
+                  const categories = formatRegistryCategories(row, equipmentTypesMap);
                   return (
                     <tr key={row._id}>
+                      <td className="ved-registry-categories">
+                        {categories.length ? (
+                          categories.map((label) => (
+                            <span key={`${row._id}-${label}`} className="ved-registry-category-chip">
+                              {label}
+                            </span>
+                          ))
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td>{row.productName || '—'}</td>
                       <td>{row.supplierName || '—'}</td>
                       <td>{row.country || '—'}</td>

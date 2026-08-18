@@ -12,6 +12,8 @@ const {
   buildDefaultTechnicalRequirementsForTypes,
   equipmentTypeLabel,
   VED_EQUIPMENT_TYPE_LABELS,
+  parseStoredEquipmentTypes,
+  formatEquipmentTypeLabels,
 } = require('./vedEquipmentTypes');
 
 const AUTO_SEARCH_PROFILES = EQUIPMENT_TYPES.map((equipmentType) => ({
@@ -35,6 +37,7 @@ const vedSupplierRegistrySchema = new mongoose.Schema(
     powerLineup: { type: String, trim: true, default: '' },
     riskDescription: { type: String, trim: true, default: '' },
     equipmentType: { type: String, default: 'other', index: true },
+    equipmentTypes: { type: [String], default: [] },
     dedupKey: { type: String, trim: true, required: true, unique: true, index: true },
     source: { type: String, enum: ['manual', 'scheduled'], default: 'manual', index: true },
     researchSessionId: { type: mongoose.Schema.Types.ObjectId, default: null },
@@ -106,6 +109,20 @@ function buildSupplierDedupKey(supplierName, website) {
   return '';
 }
 
+function resolveRowEquipmentTypes(candidate, context = {}) {
+  const fromCandidate = normalizeEquipmentTypes({
+    equipmentTypes: candidate.equipmentTypeHints,
+  });
+  const contextTypes = normalizeEquipmentTypes({
+    equipmentTypes: context.equipmentTypes,
+    equipmentType: context.equipmentType,
+  });
+  if (fromCandidate.length && !(fromCandidate.length === 1 && fromCandidate[0] === 'other' && contextTypes.length)) {
+    return fromCandidate;
+  }
+  return contextTypes;
+}
+
 function candidateToRegistryRow(candidate, context = {}) {
   const productName = [context.equipmentName, candidate.productModel].filter(Boolean).join(' · ').trim()
     || candidate.productModel
@@ -128,6 +145,9 @@ function candidateToRegistryRow(candidate, context = {}) {
   const dedupKey = buildSupplierDedupKey(candidate.supplierName, candidate.website);
   if (!dedupKey) return null;
 
+  const equipmentTypes = resolveRowEquipmentTypes(candidate, context);
+  const equipmentType = equipmentTypes[0] || 'other';
+
   return {
     productName: String(productName).slice(0, 400),
     supplierName: String(candidate.supplierName || '').slice(0, 200),
@@ -140,7 +160,8 @@ function candidateToRegistryRow(candidate, context = {}) {
     certificates: String(candidate.certificates || candidate.certificatesHint || '').slice(0, 400),
     powerLineup: String(candidate.powerLineup || candidate.powerLineupHint || '').slice(0, 400),
     riskDescription: riskParts.join('\n').slice(0, 2000),
-    equipmentType: context.equipmentType || 'other',
+    equipmentType,
+    equipmentTypes,
     dedupKey,
     source: context.source || 'manual',
     researchSessionId: context.researchSessionId || null,
@@ -187,6 +208,19 @@ async function mergeCandidatesIntoRegistry(candidates, context = {}) {
   }
 
   return { added, skipped };
+}
+
+function enrichRegistryRow(row) {
+  const equipmentTypes =
+    Array.isArray(row.equipmentTypes) && row.equipmentTypes.length
+      ? normalizeEquipmentTypes({ equipmentTypes: row.equipmentTypes })
+      : parseStoredEquipmentTypes(row.equipmentType);
+  return {
+    ...row,
+    equipmentTypes,
+    equipmentType: equipmentTypes[0] || row.equipmentType || 'other',
+    categoryLabels: formatEquipmentTypeLabels(equipmentTypes),
+  };
 }
 
 function registryCronHour() {
@@ -335,7 +369,8 @@ async function runRegistrySearch(params, options = {}) {
   try {
     const result = await runVedSupplierResearch(virtualDoc, { extraSearchHint, excludeSuppliers });
     const mergeResult = await mergeCandidatesIntoRegistry(result.candidates, {
-      equipmentType: equipmentTypes.length > 1 ? equipmentTypes.join(',') : equipmentType,
+      equipmentTypes,
+      equipmentType,
       equipmentName,
       source: options.source || 'manual',
       researchSessionId: session?._id || null,
@@ -446,6 +481,7 @@ function scheduleVedSupplierRegistryJob() {
 }
 
 module.exports = {
+  enrichRegistryRow,
   VedSupplierRegistry,
   bindResearchSessionModel,
   buildSupplierDedupKey,
