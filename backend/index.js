@@ -4122,6 +4122,74 @@ function escapeRegExpForProcurementHint(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Артикули/коди з назви (P554403, 6T105, AE7346XA) для fallback-пошуку залишків. */
+function extractProcurementCatalogTokens(label) {
+  const s = String(label || '').trim();
+  if (!s) return [];
+  const tokens = [];
+  const re = /\b(?=[A-Z0-9]*\d)[A-Z0-9][A-Z0-9-]{3,}\b/gi;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const t = m[0].trim();
+    if (t.length >= 4) tokens.push(t);
+  }
+  const seen = new Set();
+  return tokens
+    .filter((t) => {
+      const k = t.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort((a, b) => b.length - a.length);
+}
+
+async function aggregateProcurementNomenclatureStock(match) {
+  const rows = await Equipment.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: {
+          warehouseId: '$currentWarehouse',
+          warehouseName: '$currentWarehouseName',
+        },
+        quantity: { $sum: { $ifNull: ['$quantity', 1] } },
+      },
+    },
+    { $sort: { quantity: -1, '_id.warehouseName': 1 } },
+  ]);
+
+  return rows
+    .map((r) => ({
+      warehouseId: r._id?.warehouseId ? String(r._id.warehouseId) : '',
+      warehouseName: String(r._id?.warehouseName || r._id?.warehouseId || '—').trim() || '—',
+      quantity: Number(r.quantity) || 0,
+    }))
+    .filter((w) => w.quantity > 0);
+}
+
+function buildProcurementNomenclatureStockMatch(label, productId) {
+  const match = {
+    isDeleted: { $ne: true },
+    status: { $in: ['in_stock', 'reserved'] },
+  };
+
+  const pid = String(productId || '').trim();
+  if (pid && mongoose.isValidObjectId(pid)) {
+    const oid = new mongoose.Types.ObjectId(pid);
+    const typeRx = new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i');
+    match.$or = [
+      { productId: oid },
+      { productId: null, type: typeRx },
+      { productId: { $exists: false }, type: typeRx },
+    ];
+    return match;
+  }
+
+  match.type = new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i');
+  return match;
+}
+
 /** Підказки номенклатури для заявок на закупівлю: карточки продуктів + позиції зі складських залишків. */
 async function buildProcurementNomenclatureHints(query) {
   const q = String(query || '').trim();
@@ -4207,45 +4275,24 @@ async function buildProcurementNomenclatureStock(name, productId) {
     return { label: '', totalQuantity: 0, warehouses: [] };
   }
 
-  const match = {
+  const baseMatch = {
     isDeleted: { $ne: true },
     status: { $in: ['in_stock', 'reserved'] },
   };
 
-  const pid = String(productId || '').trim();
-  if (pid && mongoose.isValidObjectId(pid)) {
-    const oid = new mongoose.Types.ObjectId(pid);
-    const typeRx = new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i');
-    match.$or = [
-      { productId: oid },
-      { productId: null, type: typeRx },
-      { productId: { $exists: false }, type: typeRx },
-    ];
-  } else {
-    match.type = new RegExp(`^${escapeRegExpForProcurementHint(label)}$`, 'i');
+  let warehouses = await aggregateProcurementNomenclatureStock(
+    buildProcurementNomenclatureStockMatch(label, productId)
+  );
+
+  if (!warehouses.length) {
+    for (const token of extractProcurementCatalogTokens(label)) {
+      warehouses = await aggregateProcurementNomenclatureStock({
+        ...baseMatch,
+        type: new RegExp(escapeRegExpForProcurementHint(token), 'i'),
+      });
+      if (warehouses.length) break;
+    }
   }
-
-  const rows = await Equipment.aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: {
-          warehouseId: '$currentWarehouse',
-          warehouseName: '$currentWarehouseName',
-        },
-        quantity: { $sum: { $ifNull: ['$quantity', 1] } },
-      },
-    },
-    { $sort: { quantity: -1, '_id.warehouseName': 1 } },
-  ]);
-
-  const warehouses = rows
-    .map((r) => ({
-      warehouseId: r._id?.warehouseId ? String(r._id.warehouseId) : '',
-      warehouseName: String(r._id?.warehouseName || r._id?.warehouseId || '—').trim() || '—',
-      quantity: Number(r.quantity) || 0,
-    }))
-    .filter((w) => w.quantity > 0);
 
   const totalQuantity = warehouses.reduce((sum, w) => sum + w.quantity, 0);
   return { label, totalQuantity, warehouses };
