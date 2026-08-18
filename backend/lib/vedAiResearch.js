@@ -5,6 +5,8 @@
  * VED_AI_ENABLED=0 — вимкнути модуль
  * VED_AI_DAILY_LIMIT — ліміт сесій на користувача на добу (типово 8)
  * VED_AI_MAX_CANDIDATES — скільки кандидатів просити у LLM (типово 5)
+ * VED_AI_LLM_MODEL — модель для ВЕД (типово gpt-4o-mini; не успадковує Groq/llama з асистента)
+ * VED_AI_LLM_BASE_URL — опційно окремий OpenAI-сумісний endpoint для ВЕД
  */
 const { resolveLlmApiKey } = require('../productCardAssistantLlm');
 const { resolveSerpApiKey } = require('../productCardAssistantSerpApiImages');
@@ -71,6 +73,39 @@ function stripJsonFence(text) {
   const s = String(text || '').trim();
   const m = s.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   return m ? m[1].trim() : s;
+}
+
+function resolveVedLlmBaseUrl() {
+  return String(process.env.VED_AI_LLM_BASE_URL || process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(
+    /\/$/,
+    ''
+  );
+}
+
+/** Не підхоплює Groq/llama з PRODUCT_ASSISTANT_LLM_MODEL, якщо endpoint — OpenAI. */
+function resolveVedLlmModel(baseUrl) {
+  const explicit = String(process.env.VED_AI_LLM_MODEL || '').trim();
+  if (explicit) return explicit;
+
+  const inherited = String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || '').trim();
+  const isOpenAiHost = /api\.openai\.com/i.test(baseUrl);
+  const looksNonOpenAiModel = /llama|groq|mixtral|gemma|claude|deepseek/i.test(inherited);
+
+  if (inherited && !(isOpenAiHost && looksNonOpenAiModel)) {
+    return inherited;
+  }
+  return DEFAULT_MODEL;
+}
+
+function formatLlmHttpError(status, errText) {
+  const raw = String(errText || '').slice(0, 400);
+  if (status === 404 && /model.*does not exist|model_not_found/i.test(raw)) {
+    return (
+      'Модель LLM недоступна на цьому API. Для OpenAI на Render задайте VED_AI_LLM_MODEL=gpt-4o-mini ' +
+      '(або приберіть PRODUCT_ASSISTANT_LLM_MODEL=llama… якщо ключ OpenAI).'
+    );
+  }
+  return `LLM HTTP ${status}: ${raw}`;
 }
 
 function vedAiEnabled() {
@@ -274,8 +309,8 @@ async function callVedLlm(userPrompt, maxCandidates) {
   const apiKey = resolveLlmApiKey();
   if (!apiKey) throw new Error('LLM не налаштовано (OPENAI_API_KEY або PRODUCT_ASSISTANT_LLM_API_KEY)');
 
-  const base = String(process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
-  const model = String(process.env.VED_AI_LLM_MODEL || process.env.PRODUCT_ASSISTANT_LLM_MODEL || DEFAULT_MODEL).trim();
+  const base = resolveVedLlmBaseUrl();
+  const model = resolveVedLlmModel(base);
   const timeoutMs = Math.min(
     120000,
     Math.max(15000, parseInt(String(process.env.VED_AI_LLM_TIMEOUT_MS || '90000'), 10) || 90000)
@@ -306,7 +341,7 @@ async function callVedLlm(userPrompt, maxCandidates) {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`LLM HTTP ${res.status}: ${errText.slice(0, 200)}`);
+    throw new Error(formatLlmHttpError(res.status, errText));
   }
 
   const data = await res.json();
