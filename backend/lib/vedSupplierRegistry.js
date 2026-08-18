@@ -520,9 +520,28 @@ function scheduleVedSupplierRegistryJob() {
   console.log(`[ved-registry] scheduler active — ${nextRegistryRunHint()}, check every ${intervalMs / 60000} min`);
 }
 
+async function deleteRegistryByIds(rawIds) {
+  const ids = [
+    ...new Set(
+      (Array.isArray(rawIds) ? rawIds : [])
+        .map((id) => String(id || '').trim())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    ),
+  ];
+  if (!ids.length) {
+    throw new Error('Не обрано жодного запису для видалення');
+  }
+  if (ids.length > 200) {
+    throw new Error('За один раз можна видалити не більше 200 записів');
+  }
+  const result = await VedSupplierRegistry.deleteMany({ _id: { $in: ids } });
+  return { deleted: result.deletedCount || 0, requested: ids.length };
+}
+
 module.exports = {
   enrichRegistryRow,
   VedSupplierRegistry,
+  deleteRegistryByIds,
   bindResearchSessionModel,
   buildSupplierDedupKey,
   candidateToRegistryRow,

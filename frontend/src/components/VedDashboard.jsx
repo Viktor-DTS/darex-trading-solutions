@@ -44,6 +44,10 @@ function isVedStaff(user) {
   return ['admin', 'administrator', 'ved', 'vidved'].includes(normalizeRole(user?.role));
 }
 
+function isVedAdmin(user) {
+  return ['admin', 'administrator'].includes(normalizeRole(user?.role));
+}
+
 function formatDt(iso) {
   if (!iso) return '—';
   try {
@@ -86,6 +90,7 @@ function formatWebsite(url) {
 
 function VedDashboard({ user }) {
   const canManage = isVedStaff(user);
+  const canAdminRegistry = isVedAdmin(user);
   const canCreate = canManage || ['manager', 'mgradm'].includes(normalizeRole(user?.role));
 
   const [meta, setMeta] = useState(null);
@@ -111,6 +116,8 @@ function VedDashboard({ user }) {
   const [searchFormExpanded, setSearchFormExpanded] = useState(true);
   const [registryExpanded, setRegistryExpanded] = useState(true);
   const [autoSearchInfoExpanded, setAutoSearchInfoExpanded] = useState(false);
+  const [selectedRegistryIds, setSelectedRegistryIds] = useState([]);
+  const [registryDeleting, setRegistryDeleting] = useState(false);
   const [searchForm, setSearchForm] = useState({
     equipmentTypes: ['generator_diesel'],
     equipmentName: '',
@@ -604,6 +611,68 @@ function VedDashboard({ user }) {
       }
       return { ...f, equipmentTypes: [...set] };
     });
+  };
+
+  const visibleRegistryIds = useMemo(
+    () => supplierRegistry.map((r) => r._id).filter(Boolean),
+    [supplierRegistry]
+  );
+
+  const allVisibleRegistrySelected =
+    visibleRegistryIds.length > 0 && visibleRegistryIds.every((id) => selectedRegistryIds.includes(id));
+
+  const toggleRegistrySelection = (id) => {
+    setSelectedRegistryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const toggleRegistrySelectAll = () => {
+    if (allVisibleRegistrySelected) {
+      setSelectedRegistryIds((prev) => prev.filter((id) => !visibleRegistryIds.includes(id)));
+    } else {
+      setSelectedRegistryIds((prev) => [...new Set([...prev, ...visibleRegistryIds])]);
+    }
+  };
+
+  const deleteRegistryEntries = async (ids) => {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length) return;
+
+    const names = supplierRegistry
+      .filter((r) => unique.includes(r._id))
+      .map((r) => r.supplierName || r.productName || '—')
+      .slice(0, 5);
+    const preview = names.join(', ');
+    const msg =
+      unique.length === 1
+        ? `Видалити постачальника «${preview}» з реєстру?`
+        : `Видалити ${unique.length} записів з реєстру?\n${preview}${unique.length > 5 ? '…' : ''}`;
+    if (!window.confirm(msg)) return;
+
+    setRegistryDeleting(true);
+    try {
+      const res =
+        unique.length === 1
+          ? await fetch(`${API_BASE_URL}/ved/supplier-registry/${unique[0]}`, {
+              method: 'DELETE',
+              headers: authHeaders,
+            })
+          : await fetch(`${API_BASE_URL}/ved/supplier-registry/bulk-delete`, {
+              method: 'POST',
+              headers: { ...authHeaders, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: unique }),
+            });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || 'Не вдалося видалити');
+        return;
+      }
+      setSelectedRegistryIds((prev) => prev.filter((id) => !unique.includes(id)));
+      await loadSupplierRegistry();
+      await loadRegistryMeta();
+    } finally {
+      setRegistryDeleting(false);
+    }
   };
 
   const runStandaloneSearch = async (e) => {
@@ -1221,6 +1290,16 @@ function VedDashboard({ user }) {
             <button type="button" className="ved-btn" onClick={loadSupplierRegistry} disabled={registryLoading}>
               {registryLoading ? '…' : '↻ Оновити'}
             </button>
+            {canAdminRegistry && selectedRegistryIds.length > 0 && (
+              <button
+                type="button"
+                className="ved-btn ved-btn-danger"
+                disabled={registryDeleting}
+                onClick={() => deleteRegistryEntries(selectedRegistryIds)}
+              >
+                {registryDeleting ? '…' : `🗑 Видалити обрані (${selectedRegistryIds.length})`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1237,6 +1316,16 @@ function VedDashboard({ user }) {
             <table className="ved-table ved-registry-table">
               <thead>
                 <tr>
+                  {canAdminRegistry && (
+                    <th className="ved-registry-select-col">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleRegistrySelected}
+                        onChange={toggleRegistrySelectAll}
+                        title="Обрати всі на сторінці"
+                      />
+                    </th>
+                  )}
                   <th>Категорія товару</th>
                   <th>Найменування товару</th>
                   <th>Постачальник</th>
@@ -1248,6 +1337,7 @@ function VedDashboard({ user }) {
                   <th>Лінійка потужності</th>
                   <th>Ризики співпраці</th>
                   <th>Джерело</th>
+                  {canAdminRegistry && <th className="ved-registry-actions-col">Дії</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1255,7 +1345,17 @@ function VedDashboard({ user }) {
                   const site = formatWebsite(row.website);
                   const categories = formatRegistryCategories(row);
                   return (
-                    <tr key={row._id}>
+                    <tr key={row._id} className={selectedRegistryIds.includes(row._id) ? 'ved-registry-row-selected' : ''}>
+                      {canAdminRegistry && (
+                        <td className="ved-registry-select-col">
+                          <input
+                            type="checkbox"
+                            checked={selectedRegistryIds.includes(row._id)}
+                            onChange={() => toggleRegistrySelection(row._id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </td>
+                      )}
                       <td className="ved-registry-categories">
                         {categories.length ? (
                           categories.map((label) => (
@@ -1290,6 +1390,19 @@ function VedDashboard({ user }) {
                         </span>
                         <div className="ved-registry-added-at">{formatDt(row.createdAt)}</div>
                       </td>
+                      {canAdminRegistry && (
+                        <td className="ved-registry-actions-col">
+                          <button
+                            type="button"
+                            className="ved-btn ved-btn-danger ved-btn-small"
+                            disabled={registryDeleting}
+                            onClick={() => deleteRegistryEntries([row._id])}
+                            title="Видалити постачальника"
+                          >
+                            🗑
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

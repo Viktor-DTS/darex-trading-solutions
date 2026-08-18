@@ -484,6 +484,37 @@
   font-size: 12px;
 }
 
+.ved-registry-table tbody tr {
+  cursor: default;
+}
+
+.ved-registry-row-selected {
+  background: rgba(220, 53, 69, 0.08);
+}
+
+.ved-registry-select-col {
+  width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ved-registry-select-col input {
+  cursor: pointer;
+}
+
+.ved-registry-actions-col {
+  width: 52px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ved-btn-small {
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+  min-width: 36px;
+}
+
 .ved-registry-table th {
   position: sticky;
   top: 0;
@@ -501,13 +532,25 @@
 .ved-registry-category-chip {
   display: inline-block;
   margin: 0 4px 4px 0;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 11px;
   line-height: 1.35;
-  background: rgba(33, 150, 243, 0.12);
-  color: #1565c0;
+  background: rgba(100, 181, 246, 0.2);
+  border: 1px solid rgba(129, 212, 250, 0.45);
+  color: #e3f2fd;
   white-space: normal;
+}
+
+.ved-registry-table td a,
+.ved-registry-table td a:visited {
+  color: #81d4fa;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ved-registry-table td a:hover {
+  color: #e1f5fe;
 }
 
 .ved-registry-cell-wrap {

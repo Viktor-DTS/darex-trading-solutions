@@ -16,6 +16,7 @@ const {
   getRegistryMeta,
   enrichRegistryRow,
   VedSupplierRegistry,
+  deleteRegistryByIds,
   scheduleVedSupplierRegistryJob,
 } = require('./vedSupplierRegistry');
 const {
@@ -238,6 +239,10 @@ function canCreateVedRequest(user) {
 
 function canManageVedRequests(user) {
   return isVedStaffRole(user?.role);
+}
+
+function canAdminVedRegistry(user) {
+  return ['admin', 'administrator'].includes(normalizeRole(user?.role));
 }
 
 function userCanReadVedRequest(user, doc) {
@@ -660,6 +665,41 @@ function registerVedRoutes(app, deps = {}) {
     } catch (e) {
       console.error('[ved] GET supplier-registry meta:', e.message);
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/ved/supplier-registry/:id', authenticateToken, async (req, res) => {
+    try {
+      if (!canAdminVedRegistry(req.user)) {
+        return res.status(403).json({ error: 'Видалення доступне лише адміністратору' });
+      }
+      const id = String(req.params.id || '').trim();
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ error: 'Невірний ідентифікатор запису' });
+      }
+      const result = await deleteRegistryByIds([id]);
+      if (!result.deleted) {
+        return res.status(404).json({ error: 'Запис не знайдено' });
+      }
+      res.json(result);
+    } catch (e) {
+      console.error('[ved] DELETE supplier-registry:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/ved/supplier-registry/bulk-delete', authenticateToken, async (req, res) => {
+    try {
+      if (!canAdminVedRegistry(req.user)) {
+        return res.status(403).json({ error: 'Видалення доступне лише адміністратору' });
+      }
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      const result = await deleteRegistryByIds(ids);
+      res.json(result);
+    } catch (e) {
+      console.error('[ved] POST supplier-registry bulk-delete:', e.message);
+      const status = /Не обрано|Невірний/.test(e.message) ? 400 : 500;
+      res.status(status).json({ error: e.message });
     }
   });
 
