@@ -24,7 +24,9 @@ const KIND_LABELS = {
   procurement_request_completed: 'Заявку виконано (для заявника)',
   external_ad_lead_new: 'Новий лід з реклами',
   external_ad_lead_assigned: 'Лід передано менеджеру',
-  telegram_connect_invite: 'Підключення Telegram'
+  telegram_connect_invite: 'Підключення Telegram',
+  ved_request_new: 'Нова заявка ВЕД',
+  ved_request_status: 'Статус заявки ВЕД'
 };
 
 function notificationTaskId(n) {
@@ -38,6 +40,15 @@ function notificationTaskId(n) {
 function notificationProcurementId(n) {
   if (!n?.procurementRequestId) return null;
   const id = n.procurementRequestId;
+  if (typeof id === 'string') return id;
+  if (id && typeof id === 'object' && id.$oid) return id.$oid;
+  if (id && typeof id === 'object' && id._id) return String(id._id);
+  return String(id);
+}
+
+function notificationVedId(n) {
+  if (!n?.vedImportRequestId) return null;
+  const id = n.vedImportRequestId;
   if (typeof id === 'string') return id;
   if (id && typeof id === 'object' && id.$oid) return id.$oid;
   if (id && typeof id === 'object' && id._id) return String(id._id);
@@ -62,6 +73,7 @@ function ManagerNotificationsTab({
   onOpenTask,
   onOpenShipmentRequest,
   onOpenProcurementRequest,
+  onOpenVedRequest,
   description = DEFAULT_DESCRIPTION,
   globalFeed = false,
   /** Лише сповіщення модуля закупівель (частковий прийом, надходження) — без резервів і заявок менеджерів */
@@ -72,6 +84,8 @@ function ManagerNotificationsTab({
   excludeProcurementServiceFeed = false,
   /** Зав. склад: відвантаження, надходження від закупівель, Telegram */
   warehouseFeed = false,
+  /** Лише сповіщення модуля ВЕД */
+  vedOnly = false,
   /** Маркетинг: ліди з реклами + Telegram */
   marketingFeed = false,
   title = 'Системні сповіщення'
@@ -83,13 +97,14 @@ function ManagerNotificationsTab({
     const p = new URLSearchParams();
     if (globalFeed) p.set('serviceGlobal', '1');
     if (procurementOnly) p.set('procurement', '1');
+    else if (vedOnly) p.set('ved', '1');
     else if (excludeProcurement) p.set('excludeProcurement', '1');
     else if (excludeProcurementServiceFeed) p.set('excludeProcurementServiceFeed', '1');
     else if (warehouseFeed) p.set('warehouseFeed', '1');
     else if (marketingFeed) p.set('marketingFeed', '1');
     const s = p.toString();
     return s ? `?${s}` : '';
-  }, [globalFeed, procurementOnly, excludeProcurement, excludeProcurementServiceFeed, warehouseFeed, marketingFeed]);
+  }, [globalFeed, procurementOnly, vedOnly, excludeProcurement, excludeProcurementServiceFeed, warehouseFeed, marketingFeed]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -185,8 +200,23 @@ function ManagerNotificationsTab({
                 <span className="manager-notification-meta-right">
                   {(() => {
                     const pid = notificationProcurementId(n);
+                    const vid = notificationVedId(n);
                     const tid = notificationTaskId(n);
                     const rn = n.requestNumber && String(n.requestNumber).trim();
+                    if (vid && onOpenVedRequest) {
+                      return (
+                        <button
+                          type="button"
+                          className="manager-notification-request-link"
+                          onClick={() => {
+                            markRead(n._id);
+                            onOpenVedRequest(vid);
+                          }}
+                        >
+                          № {rn || 'Заявка'}
+                        </button>
+                      );
+                    }
                     if (pid && onOpenProcurementRequest) {
                       return (
                         <button

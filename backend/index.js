@@ -106,6 +106,7 @@ const {
 const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
+const { registerVedRoutes } = require('./lib/vedRoutes');
 const { sendProcurementTelegramNotifications } = require('./lib/procurementTelegram');
 const { computeProcurementCrossRegionNotices, normalizeWarehouseName } = require('./lib/procurementCrossRegionNotice');
 
@@ -554,7 +555,9 @@ const MANAGER_NOTIFICATION_KINDS = [
   'assistant_accountant_relay_reply',
   'external_ad_lead_new',
   'external_ad_lead_assigned',
-  'telegram_connect_invite'
+  'telegram_connect_invite',
+  'ved_request_new',
+  'ved_request_status'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -565,6 +568,9 @@ const PROCUREMENT_ONLY_NOTIFICATION_KINDS = [
   'procurement_request_new',
   'procurement_request_completed'
 ];
+
+/** Лише для GET/POST manager-notifications з ?ved=1 (вкладка «Відділ ВЕД») */
+const VED_ONLY_NOTIFICATION_KINDS = ['ved_request_new', 'ved_request_status'];
 
 /** Для панелі сервісу: без «закупівельних» для складу/виконавця; «Заявку виконано» лишається (заявнику та адмінам). */
 const PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS = [
@@ -590,6 +596,7 @@ const MARKETING_FEED_NOTIFICATION_KINDS = [
 function parseManagerNotificationFeedQuery(req) {
   return {
     procurementOnly: req.query.procurement === '1' || req.query.procurement === 'true',
+    vedOnly: req.query.ved === '1' || req.query.ved === 'true',
     excludeProcurement:
       req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true',
     excludeProcurementServiceFeed:
@@ -603,6 +610,7 @@ function parseManagerNotificationFeedQuery(req) {
 function managerNotificationKindMongoFilter(feed) {
   if (feed.warehouseFeed) return { kind: { $in: WAREHOUSE_FEED_NOTIFICATION_KINDS } };
   if (feed.marketingFeed) return { kind: { $in: MARKETING_FEED_NOTIFICATION_KINDS } };
+  if (feed.vedOnly) return { kind: { $in: VED_ONLY_NOTIFICATION_KINDS } };
   if (feed.procurementOnly) return { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
   if (feed.excludeProcurement) return { kind: { $nin: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
   if (feed.excludeProcurementServiceFeed) {
@@ -621,6 +629,7 @@ const managerUserNotificationSchema = new mongoose.Schema({
   equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
   taskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
   procurementRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProcurementRequest', default: null },
+  vedImportRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'VedImportRequest', default: null },
   requestNumber: { type: String, default: '' },
   title: { type: String, required: true },
   body: { type: String, default: '' },
@@ -19864,6 +19873,12 @@ initAssistantAccountantRelay({
 scheduleCashlessPendingJob();
 
 registerTenderRoutes(app, {
+  User,
+  createManagerNotificationDeduped,
+  authenticateToken,
+});
+
+registerVedRoutes(app, {
   User,
   createManagerNotificationDeduped,
   authenticateToken,

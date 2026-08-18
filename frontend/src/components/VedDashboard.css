@@ -1,0 +1,444 @@
+.ved-dashboard {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  background: var(--background);
+}
+
+.ved-dashboard-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ved-sidebar {
+  width: 240px;
+  min-width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ved-sidebar-inner {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+
+.ved-sidebar-section-title {
+  padding: 0 14px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ved-sidebar-tab {
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+
+.ved-sidebar-tab:hover {
+  background: var(--hover);
+}
+
+.ved-sidebar-tab.active {
+  background: rgba(25, 118, 210, 0.12);
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.ved-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ved-hero {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ved-hero h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.ved-hero p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 720px;
+}
+
+.ved-list-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+}
+
+.ved-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ved-table th,
+.ved-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ved-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  z-index: 1;
+}
+
+.ved-table tbody tr {
+  cursor: pointer;
+}
+
+.ved-table tbody tr:hover {
+  background: var(--hover);
+}
+
+.ved-table tbody tr.selected {
+  background: rgba(25, 118, 210, 0.1);
+}
+
+.ved-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ved-status-pending_review { background: #fff3cd; color: #856404; }
+.ved-status-in_progress { background: #cce5ff; color: #004085; }
+.ved-status-supplier_selection { background: #e2e3ff; color: #383d7a; }
+.ved-status-proposals_ready { background: #d4edda; color: #155724; }
+.ved-status-supplier_chosen { background: #c3e6cb; color: #0f5132; }
+.ved-status-rejected { background: #f8d7da; color: #721c24; }
+.ved-status-completed { background: #e2e3e5; color: #383d41; }
+
+.ved-detail-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px 24px;
+}
+
+.ved-detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ved-detail-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.ved-back-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ved-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.ved-card h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.ved-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 16px;
+  font-size: 13px;
+}
+
+.ved-grid label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.ved-form-row {
+  margin-bottom: 12px;
+}
+
+.ved-form-row label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ved-form-row input,
+.ved-form-row select,
+.ved-form-row textarea {
+  width: 100%;
+  max-width: 480px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--background);
+  color: var(--text);
+}
+
+.ved-form-row textarea {
+  max-width: 100%;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.ved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ved-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ved-btn-primary {
+  background: #1976d2;
+  color: #fff;
+}
+
+.ved-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ved-btn-secondary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.ved-btn-danger {
+  background: #dc3545;
+  color: #fff;
+}
+
+.ved-proposals-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ved-proposals-table th,
+.ved-proposals-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.ved-proposals-table th {
+  background: var(--background);
+  font-size: 11px;
+}
+
+.ved-proposal-invalid {
+  background: rgba(220, 53, 69, 0.06);
+}
+
+.ved-proposal-chosen {
+  background: rgba(40, 167, 69, 0.12);
+}
+
+.ved-proposal-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ved-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.ved-notifications-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+}
+
+.ved-new-form {
+  max-width: 640px;
+}
+
+.ved-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.ved-ai-card {
+  border-color: #7e57c2;
+  background: linear-gradient(180deg, rgba(126, 87, 194, 0.06) 0%, var(--surface) 48px);
+}
+
+.ved-ai-disclaimer,
+.ved-ai-disclaimer-small {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.ved-ai-meta {
+  font-size: 12px;
+  margin: 0 0 12px;
+  color: #5e35b1;
+}
+
+.ved-ai-sessions h4 {
+  margin: 16px 0 8px;
+  font-size: 13px;
+}
+
+.ved-ai-session-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ved-ai-session-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ved-ai-session-btn.active {
+  border-color: #7e57c2;
+  background: rgba(126, 87, 194, 0.12);
+}
+
+.ved-ai-result {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.ved-ai-summary {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.ved-ai-recs {
+  font-size: 12px;
+  margin: 0 0 10px 18px;
+  color: var(--text-secondary);
+}
+
+.ved-ai-candidate {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: var(--background);
+}
+
+.ved-ai-candidate-head {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.ved-ai-candidate-body {
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.ved-ai-price-tag {
+  color: #856404;
+  font-weight: 600;
+}
+
+.ved-ai-risks {
+  color: #721c24;
+  margin-top: 4px;
+}
+
+.ved-ai-sources a {
+  margin-right: 6px;
+}
+
+.ved-ai-added {
+  font-size: 12px;
+  color: #155724;
+  font-weight: 600;
+}
+
+.ved-ai-error {
+  color: #721c24;
+  font-size: 13px;
+}

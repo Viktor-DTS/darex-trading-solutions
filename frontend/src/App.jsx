@@ -22,6 +22,7 @@ import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import ProcurementDashboard from './components/ProcurementDashboard';
 import MarketingDashboard from './components/MarketingDashboard';
 import TenderDepartmentDashboard from './components/TenderDepartmentDashboard';
+import VedDashboard from './components/VedDashboard';
 import AssistantChatWidget from './components/AssistantChatWidget';
 import TaskExportOverlay from './components/TaskExportOverlay';
 import TelegramConnectBanner from './components/TelegramConnectBanner';
@@ -32,8 +33,8 @@ import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './u
 // Права доступу за замовчуванням (резервні, якщо база недоступна).
 // Перелік панелей (`PANELS`) — constants/panelsCatalog.js.
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'tenders', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'tenders', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'tenders', 'ved', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'marketing', 'tenders', 'ved', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
   operator: ['operator'],
   accountant: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
@@ -44,7 +45,7 @@ const DEFAULT_ACCESS_RULES = {
   service: ['service'],
   testing: ['testing'],
   tester: ['testing'],
-  manager: ['manager', 'inventory'],
+  manager: ['manager', 'inventory', 'ved'],
   finance: ['finance'],
   /** Лише фінпанель; список панелей примусово фіксується після завантаження правил (deny-by-default). Роль: GolovnKervServ. */
   golovnkervserv: ['finance'],
@@ -56,7 +57,10 @@ const DEFAULT_ACCESS_RULES = {
   tenderviddil: ['tenders'],
   tender: ['tenders'],
   tendervid: ['tenders'],
-  mgradm: ['manager', 'marketing', 'inventory'],
+  /** Відділ ВЕД — імпорт обладнання від зарубіжних постачальників. */
+  ved: ['ved'],
+  vidved: ['ved'],
+  mgradm: ['manager', 'marketing', 'inventory', 'ved'],
 };
 
 // Функція для конвертації правил з бази { role: { panel: 'full'|'read'|'none' } } в масив панелей
@@ -406,6 +410,8 @@ function App() {
         return <ProcurementDashboard user={user} />;
       case 'tenders':
         return <TenderDepartmentDashboard user={user} />;
+      case 'ved':
+        return <VedDashboard user={user} />;
       case 'admin':
         return <AdminDashboard user={user} />;
       case 'service':
@@ -466,6 +472,7 @@ function App() {
                         'manager',
                         'warehouse',
                         'procurement',
+                        'ved',
                         'marketing',
                       ];
                       const target = panelsWithNotifications.find((p) =>
@@ -478,12 +485,12 @@ function App() {
                     }}
                   />
                   {/* Основний вміст */}
-                  <div className={`panel-content with-selector ${!['manager', 'inventory', 'marketing', 'tenders'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
+                  <div className={`panel-content with-selector ${!['manager', 'inventory', 'marketing', 'tenders', 'ved'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
                     {renderPanel()}
                   </div>
                   
                   {/* Панель статистики заявок — приховано лише в Менеджери та Складський облік */}
-                  {!['manager', 'inventory', 'marketing', 'tenders'].includes(currentPanel) && (
+                  {!['manager', 'inventory', 'marketing', 'tenders', 'ved'].includes(currentPanel) && (
                     <TasksStatisticsBar user={user} />
                   )}
                   <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />
