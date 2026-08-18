@@ -62,6 +62,14 @@ function VedDashboard({ user }) {
   const [aiSessionDetail, setAiSessionDetail] = useState(null);
   const [aiExtraHint, setAiExtraHint] = useState('');
   const [aiRunning, setAiRunning] = useState(false);
+  const [standaloneSessions, setStandaloneSessions] = useState([]);
+  const [searchForm, setSearchForm] = useState({
+    equipmentType: 'generator_diesel',
+    equipmentName: '',
+    technicalRequirements: '',
+    quantity: 1,
+    extraSearchHint: '',
+  });
 
   const [newForm, setNewForm] = useState({
     equipmentType: 'generator_diesel',
@@ -126,9 +134,27 @@ function VedDashboard({ user }) {
     [authHeaders]
   );
 
+  const loadStandaloneSessions = useCallback(async () => {
+    if (!canManage) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/ved/supplier-search/sessions`, { headers: authHeaders });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (res.ok) setStandaloneSessions(await res.json());
+      else setStandaloneSessions([]);
+    } catch {
+      setStandaloneSessions([]);
+    }
+  }, [authHeaders, canManage]);
+
   useEffect(() => {
     loadAiConfig();
   }, [loadAiConfig]);
+
+  useEffect(() => {
+    if (section === 'supplier-search' && canManage) {
+      loadStandaloneSessions();
+    }
+  }, [section, canManage, loadStandaloneSessions]);
 
   useEffect(() => {
     if (selectedId && canManage) loadAiSessions(selectedId);
@@ -149,7 +175,7 @@ function VedDashboard({ user }) {
   }, [authHeaders]);
 
   const loadRequests = useCallback(async () => {
-    if (section === 'new' || section === 'notifications') {
+    if (section === 'new' || section === 'notifications' || section === 'supplier-search') {
       setLoading(false);
       return;
     }
@@ -424,6 +450,116 @@ function VedDashboard({ user }) {
     return 'не перевірено';
   };
 
+  const renderAiSessionResults = (session, { allowAddToProposal = false } = {}) => {
+    if (!session) return null;
+    return (
+      <div className="ved-ai-result">
+        {session.status === 'failed' && (
+          <p className="ved-ai-error">Помилка: {session.error || 'невідома'}</p>
+        )}
+        {session.status === 'completed' && (
+          <>
+            {session.summary && <p className="ved-ai-summary">{session.summary}</p>}
+            {session.recommendations?.length > 0 && (
+              <ul className="ved-ai-recs">
+                {session.recommendations.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            )}
+            <p className="ved-ai-disclaimer-small">{session.disclaimer}</p>
+            {(session.candidates || []).map((c) => (
+              <div key={c._id} className="ved-ai-candidate">
+                <div className="ved-ai-candidate-head">
+                  <strong>{c.supplierName || '—'}</strong>
+                  {c.country ? ` · ${c.country}` : ''}
+                </div>
+                <div className="ved-ai-candidate-body">
+                  {c.productModel && <div>Модель: {c.productModel}</div>}
+                  {c.productSummary && <div>{c.productSummary}</div>}
+                  {(c.priceEstimate != null || c.currency) && (
+                    <div>
+                      Ціна: {c.priceEstimate != null ? `${c.priceEstimate} ${c.currency || ''}` : '—'}{' '}
+                      <span className="ved-ai-price-tag">({priceStatusLabel(c.priceStatus)})</span>
+                    </div>
+                  )}
+                  {(c.website || c.contact) && (
+                    <div>
+                      {c.website && (
+                        <a href={c.website} target="_blank" rel="noopener noreferrer">
+                          {c.website}
+                        </a>
+                      )}
+                      {c.contact ? ` · ${c.contact}` : ''}
+                    </div>
+                  )}
+                  {c.riskNotes?.length > 0 && (
+                    <div className="ved-ai-risks">Ризики: {c.riskNotes.join('; ')}</div>
+                  )}
+                  {c.sourceUrls?.length > 0 && (
+                    <div className="ved-ai-sources">
+                      Джерела:{' '}
+                      {c.sourceUrls.map((u, i) => (
+                        <a key={i} href={u} target="_blank" rel="noopener noreferrer">
+                          [{i + 1}]
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {allowAddToProposal &&
+                  (!c.addedToProposalId ? (
+                    <button
+                      type="button"
+                      className="ved-btn ved-btn-secondary"
+                      disabled={saving}
+                      onClick={() => addCandidateFromAi(session._id, c._id)}
+                    >
+                      Додати в пропозиції заявки (чернетка)
+                    </button>
+                  ) : (
+                    <span className="ved-ai-added">✓ Додано в пропозиції</span>
+                  ))}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const runStandaloneSearch = async (e) => {
+    e.preventDefault();
+    if (aiConfig?.remainingToday === 0) {
+      alert(`Денний ліміт ШІ-пошуків (${aiConfig?.dailyLimit || 8}) вичерпано.`);
+      return;
+    }
+    if (!searchForm.equipmentName.trim() && !searchForm.technicalRequirements.trim()) {
+      alert('Вкажіть найменування або технічні вимоги');
+      return;
+    }
+    setAiRunning(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/ved/supplier-search`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify(searchForm),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || 'Помилка ШІ-пошуку');
+        if (data.sessionId) await loadAiSessionDetail(data.sessionId);
+        return;
+      }
+      setAiSessionDetail(data);
+      await loadStandaloneSessions();
+      await loadAiConfig();
+    } finally {
+      setAiRunning(false);
+    }
+  };
+
   const renderList = () => (
     <div className="ved-list-panel">
       {loading ? (
@@ -692,81 +828,7 @@ function VedDashboard({ user }) {
               </div>
             )}
 
-            {aiSessionDetail && (
-              <div className="ved-ai-result">
-                {aiSessionDetail.status === 'failed' && (
-                  <p className="ved-ai-error">Помилка: {aiSessionDetail.error || 'невідома'}</p>
-                )}
-                {aiSessionDetail.status === 'completed' && (
-                  <>
-                    {aiSessionDetail.summary && (
-                      <p className="ved-ai-summary">{aiSessionDetail.summary}</p>
-                    )}
-                    {aiSessionDetail.recommendations?.length > 0 && (
-                      <ul className="ved-ai-recs">
-                        {aiSessionDetail.recommendations.map((r, i) => (
-                          <li key={i}>{r}</li>
-                        ))}
-                      </ul>
-                    )}
-                    <p className="ved-ai-disclaimer-small">{aiSessionDetail.disclaimer}</p>
-                    {(aiSessionDetail.candidates || []).map((c) => (
-                      <div key={c._id} className="ved-ai-candidate">
-                        <div className="ved-ai-candidate-head">
-                          <strong>{c.supplierName || '—'}</strong>
-                          {c.country ? ` · ${c.country}` : ''}
-                        </div>
-                        <div className="ved-ai-candidate-body">
-                          {c.productModel && <div>Модель: {c.productModel}</div>}
-                          {c.productSummary && <div>{c.productSummary}</div>}
-                          {(c.priceEstimate != null || c.currency) && (
-                            <div>
-                              Ціна: {c.priceEstimate != null ? `${c.priceEstimate} ${c.currency || ''}` : '—'}{' '}
-                              <span className="ved-ai-price-tag">({priceStatusLabel(c.priceStatus)})</span>
-                            </div>
-                          )}
-                          {(c.website || c.contact) && (
-                            <div>
-                              {c.website && (
-                                <a href={c.website} target="_blank" rel="noopener noreferrer">
-                                  {c.website}
-                                </a>
-                              )}
-                              {c.contact ? ` · ${c.contact}` : ''}
-                            </div>
-                          )}
-                          {c.riskNotes?.length > 0 && (
-                            <div className="ved-ai-risks">Ризики: {c.riskNotes.join('; ')}</div>
-                          )}
-                          {c.sourceUrls?.length > 0 && (
-                            <div className="ved-ai-sources">
-                              Джерела:{' '}
-                              {c.sourceUrls.map((u, i) => (
-                                <a key={i} href={u} target="_blank" rel="noopener noreferrer">
-                                  [{i + 1}]
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {!c.addedToProposalId ? (
-                          <button
-                            type="button"
-                            className="ved-btn ved-btn-secondary"
-                            disabled={saving}
-                            onClick={() => addCandidateFromAi(aiSessionDetail._id, c._id)}
-                          >
-                            Додати в пропозиції (чернетка)
-                          </button>
-                        ) : (
-                          <span className="ved-ai-added">✓ Додано в пропозиції</span>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
+            {renderAiSessionResults(aiSessionDetail, { allowAddToProposal: true })}
           </div>
         )}
 
@@ -890,6 +952,113 @@ function VedDashboard({ user }) {
       </div>
     );
   };
+
+  const renderSupplierSearch = () => (
+    <div className="ved-list-panel">
+      <div className="ved-card ved-ai-card ved-supplier-search-card">
+        <h2 style={{ marginTop: 0 }}>🔍 Режим пошуку постачальника</h2>
+        <p className="ved-ai-disclaimer">
+          Автономний ШІ-пошук без заявки менеджера. Результати — чернетки для перевірки; менеджери їх не бачать.
+        </p>
+        {!meta?.aiEnabled && !aiConfig?.enabled ? (
+          <p className="ved-ai-error">
+            ШІ не налаштовано на сервері. Додайте OPENAI_API_KEY на Render і перезапустіть backend.
+          </p>
+        ) : (
+          <>
+            {aiConfig && (
+              <p className="ved-ai-meta">
+                {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi)' : '⚠ Без веб-пошуку — лише LLM'}
+                {' · '}
+                Залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
+              </p>
+            )}
+            <form className="ved-new-form" onSubmit={runStandaloneSearch}>
+              <div className="ved-form-row">
+                <label>Тип обладнання *</label>
+                <select
+                  value={searchForm.equipmentType}
+                  onChange={(e) => setSearchForm((f) => ({ ...f, equipmentType: e.target.value }))}
+                >
+                  {Object.entries(meta?.equipmentTypes || {}).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="ved-form-row">
+                <label>Найменування / модель</label>
+                <input
+                  value={searchForm.equipmentName}
+                  onChange={(e) => setSearchForm((f) => ({ ...f, equipmentName: e.target.value }))}
+                  placeholder="Напр. Perkins 50 kVA silent"
+                />
+              </div>
+              <div className="ved-form-row">
+                <label>Технічні вимоги *</label>
+                <textarea
+                  value={searchForm.technicalRequirements}
+                  onChange={(e) => setSearchForm((f) => ({ ...f, technicalRequirements: e.target.value }))}
+                  placeholder="кВт, напруга, бренд, країна постачальника…"
+                  rows={4}
+                />
+              </div>
+              <div className="ved-form-row">
+                <label>Кількість</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={searchForm.quantity}
+                  onChange={(e) => setSearchForm((f) => ({ ...f, quantity: e.target.value }))}
+                />
+              </div>
+              <div className="ved-form-row">
+                <label>Додатковий акцент (країна, Alibaba, CE…)</label>
+                <input
+                  value={searchForm.extraSearchHint}
+                  onChange={(e) => setSearchForm((f) => ({ ...f, extraSearchHint: e.target.value }))}
+                  placeholder="Напр. Китай, OEM, CE certified"
+                />
+              </div>
+              <div className="ved-actions">
+                <button
+                  type="submit"
+                  className="ved-btn ved-btn-primary"
+                  disabled={aiRunning || aiConfig?.remainingToday === 0}
+                >
+                  {aiRunning ? 'Пошук… (до 1–2 хв)' : '🔍 Пошук постачальників (ШІ)'}
+                </button>
+              </div>
+            </form>
+
+            {standaloneSessions.length > 0 && (
+              <div className="ved-ai-sessions">
+                <h4>Останні пошуки</h4>
+                <ul className="ved-ai-session-list">
+                  {standaloneSessions.map((s) => (
+                    <li key={s._id}>
+                      <button
+                        type="button"
+                        className={`ved-ai-session-btn ${aiSessionDetail?._id === s._id ? 'active' : ''}`}
+                        onClick={() => loadAiSessionDetail(s._id)}
+                      >
+                        {formatDt(s.createdAt)} —{' '}
+                        {s.equipmentName || equipmentLabel(s.equipmentType)} —{' '}
+                        {s.status === 'completed' ? `✓ ${(s.candidates || []).length} канд.` : s.status}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {renderAiSessionResults(aiSessionDetail)}
+          </>
+        )}
+      </div>
+    </div>
+  );
 
   const renderNewForm = () => (
     <div className="ved-list-panel">
@@ -1015,6 +1184,20 @@ function VedDashboard({ user }) {
                 ➕ Нова заявка
               </button>
             )}
+            {canManage && (
+              <button
+                type="button"
+                className={`ved-sidebar-tab ${section === 'supplier-search' ? 'active' : ''}`}
+                onClick={() => {
+                  setSection('supplier-search');
+                  setSelectedId(null);
+                  setDetail(null);
+                  setAiSessionDetail(null);
+                }}
+              >
+                🔍 Пошук постачальника
+              </button>
+            )}
             <button
               type="button"
               className={`ved-sidebar-tab ${section === 'notifications' ? 'active' : ''}`}
@@ -1040,6 +1223,7 @@ function VedDashboard({ user }) {
 
           {section === 'detail' && renderDetail()}
           {section === 'new' && renderNewForm()}
+          {section === 'supplier-search' && renderSupplierSearch()}
           {section === 'notifications' && (
             <div className="ved-notifications-wrap">
               <ManagerNotificationsTab

@@ -165,6 +165,11 @@ const vedResearchSessionSchema = new mongoose.Schema(
     disclaimer: String,
     hasWebSearch: { type: Boolean, default: false },
     error: { type: String, default: '' },
+    mode: { type: String, enum: ['request', 'standalone'], default: 'request', index: true },
+    equipmentType: { type: String, default: '' },
+    equipmentName: { type: String, default: '' },
+    technicalRequirements: { type: String, default: '' },
+    quantity: { type: Number, default: 1 },
     createdByLogin: { type: String, index: true },
     createdByName: String,
   },
@@ -173,6 +178,7 @@ const vedResearchSessionSchema = new mongoose.Schema(
 
 vedResearchSessionSchema.index({ vedImportRequestId: 1, createdAt: -1 });
 vedResearchSessionSchema.index({ createdByLogin: 1, createdAt: -1 });
+vedResearchSessionSchema.index({ mode: 1, createdAt: -1 });
 
 let VedImportRequest;
 let VedCounter;
@@ -339,6 +345,23 @@ async function countVedAiSessionsToday(login) {
   });
 }
 
+function buildVirtualRequestForSupplierSearch(body) {
+  const equipmentType = EQUIPMENT_TYPES.includes(body?.equipmentType) ? body.equipmentType : 'other';
+  const equipmentName = String(body?.equipmentName || '').trim();
+  const technicalRequirements = String(body?.technicalRequirements || '').trim();
+  let quantity = Number(body?.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) quantity = 1;
+  return {
+    requestNumber: 'ПОШУК',
+    equipmentType,
+    equipmentName,
+    technicalRequirements,
+    quantity,
+    managerComment: '',
+    desiredDeliveryDate: '',
+  };
+}
+
 function registerVedRoutes(app, deps = {}) {
   const { User, createManagerNotificationDeduped, authenticateToken } = deps;
 
@@ -495,6 +518,7 @@ function registerVedRoutes(app, deps = {}) {
       const session = await VedResearchSession.create({
         vedImportRequestId: doc._id,
         requestNumber: doc.requestNumber,
+        mode: 'request',
         status: 'running',
         extraSearchHint,
         createdByLogin: login,
@@ -597,6 +621,92 @@ function registerVedRoutes(app, deps = {}) {
       });
     } catch (e) {
       console.error('[ved] add-proposal from AI:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/ved/supplier-search/sessions', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      const sessions = await VedResearchSession.find({ mode: 'standalone' })
+        .select('-webContextPreview -userPromptPreview')
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean();
+      res.json(sessions);
+    } catch (e) {
+      console.error('[ved] GET supplier-search sessions:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/ved/supplier-search', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Доступ заборонено' });
+      }
+      if (!vedAiEnabled()) {
+        return res.status(503).json({ error: 'ШІ-модуль ВЕД не налаштовано (потрібен OPENAI_API_KEY)' });
+      }
+
+      const virtualDoc = buildVirtualRequestForSupplierSearch(req.body || {});
+      const equipmentName = virtualDoc.equipmentName;
+      const technicalRequirements = virtualDoc.technicalRequirements;
+      if (!equipmentName && !technicalRequirements) {
+        return res.status(400).json({ error: 'Вкажіть найменування обладнання або технічні вимоги для пошуку' });
+      }
+
+      const login = String(req.user.login || '').trim();
+      const usedToday = await countVedAiSessionsToday(login);
+      const dailyLimit = vedAiDailyLimit();
+      if (usedToday >= dailyLimit) {
+        return res.status(429).json({
+          error: `Денний ліміт ШІ-пошуків (${dailyLimit}) вичерпано. Спробуйте завтра.`,
+        });
+      }
+
+      const dbUser = await User.findOne({ login: req.user.login }).lean();
+      const extraSearchHint = String(req.body?.extraSearchHint || '').trim().slice(0, 200);
+
+      const session = await VedResearchSession.create({
+        vedImportRequestId: null,
+        requestNumber: '',
+        mode: 'standalone',
+        equipmentType: virtualDoc.equipmentType,
+        equipmentName: virtualDoc.equipmentName,
+        technicalRequirements: virtualDoc.technicalRequirements,
+        quantity: virtualDoc.quantity,
+        status: 'running',
+        extraSearchHint,
+        createdByLogin: login,
+        createdByName: String(dbUser?.name || req.user.name || login).trim(),
+      });
+
+      try {
+        const result = await runVedSupplierResearch(virtualDoc, { extraSearchHint });
+        session.status = 'completed';
+        session.searchQueries = result.searchQueries || [];
+        session.webContextPreview = result.webContextPreview || '';
+        session.userPromptPreview = result.userPromptPreview || '';
+        session.sources = result.sources || [];
+        session.summary = result.summary || '';
+        session.recommendations = result.recommendations || [];
+        session.candidates = result.candidates || [];
+        session.llmModel = result.llmModel || '';
+        session.disclaimer = result.disclaimer || '';
+        session.hasWebSearch = Boolean(result.hasWebSearch);
+        await session.save();
+        res.status(201).json(session.toObject());
+      } catch (runErr) {
+        session.status = 'failed';
+        session.error = String(runErr.message || runErr).slice(0, 500);
+        await session.save();
+        return res.status(502).json({ error: session.error, sessionId: session._id });
+      }
+    } catch (e) {
+      console.error('[ved] POST supplier-search:', e.message);
       res.status(500).json({ error: e.message });
     }
   });

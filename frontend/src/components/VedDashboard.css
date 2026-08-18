@@ -323,8 +323,12 @@
   padding: 12px 16px;
 }
 
-.ved-new-form {
-  max-width: 640px;
+.ved-supplier-search-card {
+  max-width: 920px;
+}
+
+.ved-supplier-search-card .ved-new-form {
+  max-width: 100%;
 }
 
 .ved-loading {
