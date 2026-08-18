@@ -14,10 +14,45 @@ const OP_LABEL = {
   other: 'Інше',
 };
 
+const OP_BADGE = {
+  sale: { short: 'Реал.', cls: 'sale' },
+  writeoff: { short: 'Спис.', cls: 'writeoff' },
+  receipt: { short: 'Надх.', cls: 'receipt' },
+  move: { short: 'Перем.', cls: 'move' },
+  return: { short: 'Пов.', cls: 'return' },
+  inventory: { short: 'Інв.', cls: 'inventory' },
+  assembly: { short: 'Комп.', cls: 'assembly' },
+  other: { short: 'Ін.', cls: 'other' },
+};
+
 function fmtDate(d) {
   if (!d) return '—';
   const dt = new Date(d);
   return Number.isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('uk-UA');
+}
+
+function abbreviateWarehouse(name) {
+  const s = String(name || '').trim();
+  if (!s) return '—';
+  const withoutPrefix = s.replace(/^склад\s+/i, '').trim();
+  const candidate = withoutPrefix.length >= 3 ? withoutPrefix : s;
+  if (candidate.length <= 14) return candidate;
+  return `${candidate.slice(0, 12)}…`;
+}
+
+function warehouseFullName(row) {
+  return String(row.warehouse1c || row.fromWarehouse1c || row.toWarehouse1c || '').trim();
+}
+
+function typeBadgeMeta(row) {
+  const docType = row.docType;
+  const preset = OP_BADGE[docType];
+  if (preset) {
+    return { short: preset.short, cls: preset.cls, title: OP_LABEL[docType] || row.docTypeName || docType };
+  }
+  const label = row.docTypeName || docType || '—';
+  const short = label.length > 6 ? `${label.slice(0, 5)}.` : label;
+  return { short, cls: 'other', title: label };
 }
 
 export default function TaskOneCMovementsPanel({ requestNumber, task = null }) {
@@ -124,39 +159,51 @@ export default function TaskOneCMovementsPanel({ requestNumber, task = null }) {
           <table className="task-onec-panel__table">
             <thead>
               <tr>
-                <th>Тип</th>
-                <th>Документ</th>
-                <th>Дата</th>
-                <th>Номенклатура</th>
-                <th>К-сть</th>
-                <th>Склад</th>
+                <th className="task-onec-panel__col-type">Тип</th>
+                <th className="task-onec-panel__col-doc">Документ</th>
+                <th className="task-onec-panel__col-nom">Номенклатура</th>
+                <th className="task-onec-panel__col-qty">К-сть</th>
+                <th className="task-onec-panel__col-wh">Склад</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((row) => (
-                <tr
-                  key={row._id}
-                  className={
-                    row.docType === 'writeoff'
-                      ? 'task-onec-row--writeoff'
-                      : row.docType === 'sale'
-                        ? 'task-onec-row--sale'
-                        : ''
-                  }
-                >
-                  <td>{OP_LABEL[row.docType] || row.docTypeName || row.docType || '—'}</td>
-                  <td title={row.comment || ''}>
-                    <div>{row.docNumber || '—'}</div>
-                    {row.comment ? (
-                      <div className="task-onec-panel__comment">{String(row.comment).slice(0, 120)}</div>
-                    ) : null}
-                  </td>
-                  <td>{fmtDate(row.docDate)}</td>
-                  <td>{row.nomenclature || '—'}</td>
-                  <td>{row.qty != null ? row.qty : '—'}</td>
-                  <td>{row.warehouse1c || row.fromWarehouse1c || row.toWarehouse1c || '—'}</td>
-                </tr>
-              ))}
+              {items.map((row) => {
+                const badge = typeBadgeMeta(row);
+                const whFull = warehouseFullName(row);
+                const docTitle = [row.docNumber, row.comment].filter(Boolean).join('\n');
+                return (
+                  <tr
+                    key={row._id}
+                    className={
+                      row.docType === 'writeoff'
+                        ? 'task-onec-row--writeoff'
+                        : row.docType === 'sale'
+                          ? 'task-onec-row--sale'
+                          : ''
+                    }
+                  >
+                    <td className="task-onec-panel__col-type">
+                      <span
+                        className={`task-onec-badge task-onec-badge--${badge.cls}`}
+                        title={badge.title}
+                      >
+                        {badge.short}
+                      </span>
+                    </td>
+                    <td className="task-onec-panel__col-doc" title={docTitle || undefined}>
+                      <span className="task-onec-panel__doc-line">
+                        <span className="task-onec-panel__doc-num">{row.docNumber || '—'}</span>
+                        <span className="task-onec-panel__doc-date">{fmtDate(row.docDate)}</span>
+                      </span>
+                    </td>
+                    <td className="task-onec-panel__col-nom">{row.nomenclature || '—'}</td>
+                    <td className="task-onec-panel__col-qty">{row.qty != null ? row.qty : '—'}</td>
+                    <td className="task-onec-panel__col-wh" title={whFull || undefined}>
+                      {abbreviateWarehouse(whFull)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
