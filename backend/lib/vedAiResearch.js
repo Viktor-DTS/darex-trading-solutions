@@ -75,34 +75,46 @@ function stripJsonFence(text) {
   return m ? m[1].trim() : s;
 }
 
-function resolveVedLlmBaseUrl() {
-  return String(process.env.VED_AI_LLM_BASE_URL || process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(
+function resolveVedLlmClient() {
+  const vedKey = String(process.env.VED_AI_LLM_API_KEY || '').trim();
+  const openAiKey = String(process.env.OPENAI_API_KEY || '').trim();
+
+  if (vedKey) {
+    return {
+      apiKey: vedKey,
+      base: String(process.env.VED_AI_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, ''),
+      model: String(process.env.VED_AI_LLM_MODEL || DEFAULT_MODEL).trim(),
+    };
+  }
+
+  // Якщо додали OpenAI ключ для VED — не змішуємо з Groq/llama налаштуваннями асистента.
+  if (openAiKey) {
+    return {
+      apiKey: openAiKey,
+      base: String(process.env.VED_AI_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, ''),
+      model: String(process.env.VED_AI_LLM_MODEL || DEFAULT_MODEL).trim(),
+    };
+  }
+
+  const base = String(process.env.VED_AI_LLM_BASE_URL || process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(
     /\/$/,
     ''
   );
+  const inheritedModel = String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || '').trim();
+  return {
+    apiKey: resolveLlmApiKey(),
+    base,
+    model: String(process.env.VED_AI_LLM_MODEL || inheritedModel || DEFAULT_MODEL).trim(),
+  };
 }
 
-/** Не підхоплює Groq/llama з PRODUCT_ASSISTANT_LLM_MODEL, якщо endpoint — OpenAI. */
-function resolveVedLlmModel(baseUrl) {
-  const explicit = String(process.env.VED_AI_LLM_MODEL || '').trim();
-  if (explicit) return explicit;
-
-  const inherited = String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || '').trim();
-  const isOpenAiHost = /api\.openai\.com/i.test(baseUrl);
-  const looksNonOpenAiModel = /llama|groq|mixtral|gemma|claude|deepseek/i.test(inherited);
-
-  if (inherited && !(isOpenAiHost && looksNonOpenAiModel)) {
-    return inherited;
-  }
-  return DEFAULT_MODEL;
-}
-
-function formatLlmHttpError(status, errText) {
+function formatLlmHttpError(status, errText, model, base) {
   const raw = String(errText || '').slice(0, 400);
   if (status === 404 && /model.*does not exist|model_not_found/i.test(raw)) {
+    console.warn('[ved-ai] model not found:', { model, base });
     return (
-      'Модель LLM недоступна на цьому API. Для OpenAI на Render задайте VED_AI_LLM_MODEL=gpt-4o-mini ' +
-      '(або приберіть PRODUCT_ASSISTANT_LLM_MODEL=llama… якщо ключ OpenAI).'
+      `Модель «${model}» недоступна на ${base}. ` +
+      'Для OpenAI на Render: OPENAI_API_KEY + VED_AI_LLM_MODEL=gpt-4o-mini (без Groq/llama в PRODUCT_ASSISTANT_LLM_MODEL).'
     );
   }
   return `LLM HTTP ${status}: ${raw}`;
@@ -111,7 +123,8 @@ function formatLlmHttpError(status, errText) {
 function vedAiEnabled() {
   const v = String(process.env.VED_AI_ENABLED || '').trim().toLowerCase();
   if (v === '0' || v === 'false' || v === 'off' || v === 'no') return false;
-  return Boolean(resolveLlmApiKey());
+  const client = resolveVedLlmClient();
+  return Boolean(client.apiKey);
 }
 
 function vedAiDailyLimit() {
@@ -306,11 +319,9 @@ function normalizeLlmResult(parsed, model, maxCandidates) {
 }
 
 async function callVedLlm(userPrompt, maxCandidates) {
-  const apiKey = resolveLlmApiKey();
+  const { apiKey, base, model } = resolveVedLlmClient();
   if (!apiKey) throw new Error('LLM не налаштовано (OPENAI_API_KEY або PRODUCT_ASSISTANT_LLM_API_KEY)');
 
-  const base = resolveVedLlmBaseUrl();
-  const model = resolveVedLlmModel(base);
   const timeoutMs = Math.min(
     120000,
     Math.max(15000, parseInt(String(process.env.VED_AI_LLM_TIMEOUT_MS || '90000'), 10) || 90000)
@@ -341,7 +352,7 @@ async function callVedLlm(userPrompt, maxCandidates) {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(formatLlmHttpError(res.status, errText));
+    throw new Error(formatLlmHttpError(res.status, errText, model, base));
   }
 
   const data = await res.json();
