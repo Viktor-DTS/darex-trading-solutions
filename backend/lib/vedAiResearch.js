@@ -445,6 +445,19 @@ function vedAiMaxCandidates() {
   return Math.min(8, Math.max(3, n || 5));
 }
 
+function formatSearchQueryForStorage(item) {
+  if (typeof item === 'string') return String(item).trim().slice(0, 500);
+  if (!item || typeof item !== 'object') return '';
+  const locale = item.locale ? `[${item.locale}] ` : '';
+  return `${locale}${String(item.q || '').trim()}`.slice(0, 500);
+}
+
+function serializeSearchQueriesForStorage(queries) {
+  return (Array.isArray(queries) ? queries : [])
+    .map(formatSearchQueryForStorage)
+    .filter((s) => s.length >= 8);
+}
+
 function makeSearchQuery(q, localeKey = 'global') {
   const base = String(q || '').trim();
   const text = `${base} ${SEARCH_QUERY_EXCLUSIONS}`.trim().slice(0, 200);
@@ -906,7 +919,7 @@ async function runVedSupplierResearch(requestDoc, options = {}) {
   const llmResult = await callVedLlm(userPrompt, maxCandidates);
 
   return {
-    searchQueries,
+    searchQueries: serializeSearchQueriesForStorage(searchQueries),
     webContextPreview: webContext.slice(0, 4000),
     sources,
     userPromptPreview: userPrompt.slice(0, 4000),
