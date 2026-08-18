@@ -31,6 +31,7 @@ const STATUS_LABELS = {
   pending_review: 'Очікує розгляду',
   in_progress: 'Взята в роботу',
   awaiting_warehouse: 'Чекає відвантаження на склад',
+  awaiting_documents: 'Очікує підтвердження документів',
   partially_fulfilled: 'Частково виконана',
   completed: 'Повністю виконана',
   blocked: 'Заблоковано'
@@ -59,6 +60,7 @@ const PROCUREMENT_BLOCKABLE_STATUSES = [
   'pending_review',
   'in_progress',
   'awaiting_warehouse',
+  'awaiting_documents',
   'partially_fulfilled'
 ];
 
@@ -172,6 +174,13 @@ function procurementFileNameLabel(name, fallback = 'файл') {
 function hasProcurementLineFile(file) {
   if (!file || typeof file !== 'object') return false;
   return Boolean(String(file.originalName || '').trim() || file._id || file.size);
+}
+
+function lineNeedsExecutorDocuments(m) {
+  if (!m || m.rejected) return false;
+  const rq = m.receivedQuantity;
+  const received = rq === undefined || rq === null || rq === '' ? 0 : Number(rq);
+  return Number.isFinite(received) && received > 0;
 }
 
 function normalizeProcurementSearchText(value) {
@@ -1280,6 +1289,35 @@ function ProcurementDashboard({ user }) {
     }
   };
 
+  const confirmExecutorDocuments = async (id) => {
+    if (
+      !window.confirm(
+        'Підтвердити наявність усіх документів (рахунки, видаткові накладні) по позиціях і завершити заявку?'
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${id}/confirm-documents`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Помилка');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      setActiveSection('archive');
+      await loadRequests();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const openProcurementRequestById = async (id) => {
     if (!id) return;
     setSaving(true);
@@ -1394,6 +1432,13 @@ function ProcurementDashboard({ user }) {
   /** Виконавець (або адмін) під час статусу «Взята в роботу» */
   const canActAsExecutorOnRequest = (d) => {
     if (!d || !isProcurementExecutorWorkStatus(d.status)) return false;
+    if (!isVidZakupok) return false;
+    if (isAdmin) return true;
+    return String(d.executorLogin || '') === String(user?.login || '');
+  };
+
+  const canActAsExecutorOnDocuments = (d) => {
+    if (!d || d.status !== 'awaiting_documents') return false;
     if (!isVidZakupok) return false;
     if (isAdmin) return true;
     return String(d.executorLogin || '') === String(user?.login || '');
@@ -1979,6 +2024,9 @@ function ProcurementDashboard({ user }) {
                         <li>
                           На складі: <strong>{importResult.byStatus.awaiting_warehouse ?? 0}</strong>
                         </li>
+                        <li>
+                          Документи: <strong>{importResult.byStatus.awaiting_documents ?? 0}</strong>
+                        </li>
                       </ul>
                     </div>
                   ) : null}
@@ -2039,8 +2087,9 @@ function ProcurementDashboard({ user }) {
               </div>
               <p className="procurement-hint">
                 Статус заявки змінюється автоматично за подіями (розгляд → робота → очікування на складі →
-                виконано; за потреби після часткового прийому завскладом — «частково виконана» і знову робота
-                виконавця з оновленими залишками). Поле статусу не редагується вручну.
+                підтвердження документів виконавцем → архів; за потреби після часткового прийому завскладом —
+                «частково виконана» і знову робота виконавця з оновленими залишками). Поле статусу не редагується
+                вручну.
               </p>
               {!isVidZakupok && (
                 <p className="procurement-hint">
@@ -2398,6 +2447,12 @@ function ProcurementDashboard({ user }) {
                     '—'}
                 </span>
               </div>
+              {detail.executorDocumentsConfirmedAt ? (
+                <div className="procurement-detail-row">
+                  <span className="procurement-detail-k">Дата підтвердження документів (відділ закупівель)</span>
+                  <span className="procurement-detail-v">{formatDt(detail.executorDocumentsConfirmedAt)}</span>
+                </div>
+              ) : null}
 
               {(detail.materials || []).length > 0 && (
                 <div className="procurement-detail-materials procurement-detail-materials--full">
@@ -2798,6 +2853,49 @@ function ProcurementDashboard({ user }) {
                           Зберегти зміни по матеріалах
                         </button>
                       </div>
+                    ) : canActAsExecutorOnDocuments(detail) ? (
+                      <div className="procurement-executor-materials-editor procurement-executor-documents-editor">
+                        <p className="procurement-field-hint">
+                          Завсклад підтвердив прийом. Для кожної позиції з прийнятою кількістю завантажте{' '}
+                          <strong>рахунок</strong> та <strong>видаткову накладну</strong>, потім натисніть кнопку
+                          підтвердження документів внизу картки заявки.
+                        </p>
+                        <div className="procurement-exec-table-wrap">
+                          <table className="procurement-exec-materials-table">
+                            <thead>
+                              <tr>
+                                <th>Найменування</th>
+                                <th className="procurement-col-uom">Од. вим.</th>
+                                <th>Прийнято на складі</th>
+                                <th>Рахунок *</th>
+                                <th>Видаткова накладна *</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(detail.materials || []).map((m, i) => {
+                                if (!lineNeedsExecutorDocuments(m)) return null;
+                                const u = normUom(m.unitOfMeasure);
+                                return (
+                                  <tr key={i}>
+                                    <td>{m.name}</td>
+                                    <td className="procurement-col-uom">{u}</td>
+                                    <td>
+                                      <strong>{String(m.receivedQuantity)}</strong> {u}
+                                    </td>
+                                    {renderLineFileEditorCell(i, 'invoice', m.invoiceFile, false)}
+                                    {renderLineFileEditorCell(i, 'delivery_note', m.deliveryNoteFile, false)}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        {(detail.materials || []).every((m) => !lineNeedsExecutorDocuments(m)) ? (
+                          <p className="procurement-field-hint">
+                            Немає позицій з прийнятою кількістю — документи не потрібні.
+                          </p>
+                        ) : null}
+                      </div>
                     ) : (
                       <>
                         {isProcurementExecutorWorkStatus(detail.status) && !canActAsExecutorOnRequest(detail) ? (
@@ -2811,8 +2909,9 @@ function ProcurementDashboard({ user }) {
                             <strong>Як змінити матеріал на аналог:</strong> це робить виконавець (VidZakupok), коли заявка
                             у статусі <strong>«Взята в роботу»</strong> або <strong>«Частково виконана»</strong> — у
                             колонках «Аналог», «К-сть аналогу», за потреби «Відвант. аналог», потім «Зберегти зміни по
-                            матеріалах» і «Підтвердити відвантаження». Після переходу в «Чекає відвантаження на склад»
-                            або «Повністю виконана» таблиця стає лише для перегляду.
+                            матеріалах» і «Підтвердити відвантаження». Після переходу в «Чекає відвантаження на склад»,
+                            «Очікує підтвердження документів» або «Повністю виконана» таблиця стає лише для
+                            перегляду.
                           </p>
                         ) : null}
                         <div className="procurement-exec-table-wrap">
@@ -3009,6 +3108,24 @@ function ProcurementDashboard({ user }) {
                         : 'Підтвердити відвантаження (завершити етап закупівель)'}
                     </button>
                   </div>
+                )}
+                {canActAsExecutorOnDocuments(detail) && (
+                  <div className="procurement-executor-block">
+                    <button
+                      type="button"
+                      className="procurement-btn-primary"
+                      disabled={saving}
+                      onClick={() => confirmExecutorDocuments(detail._id)}
+                    >
+                      Підтвердити документи та завершити заявку
+                    </button>
+                  </div>
+                )}
+                {detail.status === 'awaiting_documents' && !canActAsExecutorOnDocuments(detail) && (
+                  <p className="procurement-field-hint" style={{ marginTop: 12 }}>
+                    Заявка очікує підтвердження документів від виконавця відділу закупівель (рахунки, видаткові
+                    накладні).
+                  </p>
                 )}
                 {detail.status === 'awaiting_warehouse' &&
                   isWarehouseConfirmer &&

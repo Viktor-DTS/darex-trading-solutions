@@ -545,6 +545,7 @@ const MANAGER_NOTIFICATION_KINDS = [
   'shipment_request_new',
   'procurement_incoming_to_warehouse',
   'procurement_receipt_partial',
+  'procurement_awaiting_documents',
   'onec_move_receipt_partial',
   'procurement_request_new',
   'procurement_request_completed',
@@ -560,6 +561,7 @@ const MANAGER_NOTIFICATION_KINDS = [
 const PROCUREMENT_ONLY_NOTIFICATION_KINDS = [
   'procurement_incoming_to_warehouse',
   'procurement_receipt_partial',
+  'procurement_awaiting_documents',
   'procurement_request_new',
   'procurement_request_completed'
 ];
@@ -2263,7 +2265,15 @@ const procurementRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending_review', 'in_progress', 'awaiting_warehouse', 'partially_fulfilled', 'completed', 'blocked'],
+      enum: [
+        'pending_review',
+        'in_progress',
+        'awaiting_warehouse',
+        'awaiting_documents',
+        'partially_fulfilled',
+        'completed',
+        'blocked',
+      ],
       default: 'pending_review'
     },
     requesterLogin: { type: String, required: true },
@@ -2275,6 +2285,8 @@ const procurementRequestSchema = new mongoose.Schema(
     executorLogin: { type: String, default: '' },
     executorName: { type: String, default: '' },
     executorCompletedAt: { type: Date, default: null },
+    /** Підтвердження наявності рахунків / видаткових накладних по позиціях */
+    executorDocumentsConfirmedAt: { type: Date, default: null },
     warehouseReceivedAt: { type: Date, default: null },
     warehouseConfirmerLogin: { type: String, default: '' },
     warehouseConfirmerName: { type: String, default: '' },
@@ -2707,6 +2719,36 @@ async function notifyProcurementExecutorReceiptPartial(pr) {
   }
 }
 
+async function notifyProcurementExecutorDocumentsPending(pr) {
+  try {
+    const rn = pr.requestNumber || String(pr._id);
+    const body =
+      'Завсклад підтвердив прийом товару. Завантажте рахунки та видаткові накладні по позиціях і натисніть «Підтвердити документи та завершити заявку» у відділі закупівель.';
+    const logins = new Set();
+    const execLogin = String(pr.executorLogin || '').trim();
+    if (execLogin) logins.add(execLogin);
+    const buyers = await User.find(procurementNotifyRoleQuery()).select('login').lean();
+    for (const u of buyers) {
+      const login = String(u.login || '').trim();
+      if (login) logins.add(login);
+    }
+    for (const login of logins) {
+      await createManagerNotificationDeduped({
+        recipientLogin: login,
+        kind: 'procurement_awaiting_documents',
+        procurementRequestId: pr._id,
+        requestNumber: rn,
+        title: `Підтвердіть документи: ${rn}`,
+        body,
+        read: false,
+        dedupeKey: `proc_docs:${pr._id}:${login}`
+      });
+    }
+  } catch (e) {
+    console.error('[procurement] notifyProcurementExecutorDocumentsPending:', e.message);
+  }
+}
+
 /**
  * Після часткового прийому: залишок по позиціях (очікуване мінус прийняте), повернення в роботу виконавцю.
  * Очікувана кількість береться з полів до зміни quantity/analogQuantity.
@@ -2968,9 +3010,9 @@ async function notifyProcurementRequesterCompleted(pr) {
     const rn = pr.requestNumber || String(pr._id);
     const reqLogin = String(pr.requesterLogin || '').trim();
     const greet = String(pr.requesterName || reqLogin || 'Заявник').trim();
-    const bodyRequester = `${greet}, заявку ${rn} повністю виконано: прийом на складі підтверджено.`;
+    const bodyRequester = `${greet}, заявку ${rn} повністю виконано: документи підтверджено, прийом на складі завершено.`;
     const requesterLabel = String(pr.requesterName || pr.requesterLogin || '—').trim();
-    const bodyAdmin = `Заявку ${rn} повністю виконано: прийом на складі підтверджено. Заявник: ${requesterLabel}.`;
+    const bodyAdmin = `Заявку ${rn} повністю виконано: документи підтверджено, прийом на складі завершено. Заявник: ${requesterLabel}.`;
 
     const seenNorm = new Set();
 
@@ -4015,11 +4057,13 @@ function stripProcurementLineBinaryFields(docOrList) {
 
 /** Редагування матеріалів / відвантаження виконавцем після взяття в роботу або після часткового прийому на складі */
 const PROCUREMENT_EXECUTOR_WORK_STATUSES = ['in_progress', 'partially_fulfilled'];
+const PROCUREMENT_AWAITING_DOCUMENTS_STATUS = 'awaiting_documents';
 
 const PROCUREMENT_BLOCKABLE_STATUSES = [
   'pending_review',
   'in_progress',
   'awaiting_warehouse',
+  'awaiting_documents',
   'partially_fulfilled',
 ];
 
@@ -4092,6 +4136,46 @@ async function repairImportedProcurementStuckAwaitingWarehouse() {
 
 function procurementExecutorCanEditWork(status) {
   return PROCUREMENT_EXECUTOR_WORK_STATUSES.includes(status);
+}
+
+function procurementExecutorCanManageLineFiles(status) {
+  return procurementExecutorCanEditWork(status) || status === PROCUREMENT_AWAITING_DOCUMENTS_STATUS;
+}
+
+function procurementExecutorCanConfirmDocuments(reqUser, pr) {
+  if (!pr || pr.status !== PROCUREMENT_AWAITING_DOCUMENTS_STATUS) return false;
+  if (!isVidZakupokProcurementRole(reqUser.role)) return false;
+  const r = String(reqUser.role || '').toLowerCase();
+  if (['admin', 'administrator'].includes(r)) return true;
+  return String(pr.executorLogin || '') === String(reqUser.login || '');
+}
+
+function hasProcurementLineExecutorFileStored(file) {
+  if (!file || typeof file !== 'object') return false;
+  if (file.data && file.data.length) return true;
+  return Boolean(String(file.originalName || '').trim() && file._id);
+}
+
+function procurementLineNeedsExecutorDocuments(line) {
+  if (!line || line.rejected) return false;
+  const rq = line.receivedQuantity;
+  const received = rq === undefined || rq === null || rq === '' ? 0 : Number(rq);
+  return Number.isFinite(received) && received > 0;
+}
+
+function validateProcurementExecutorDocuments(materials) {
+  if (!materials || !materials.length) return null;
+  for (let i = 0; i < materials.length; i++) {
+    const line = materials[i];
+    if (!procurementLineNeedsExecutorDocuments(line)) continue;
+    if (!hasProcurementLineExecutorFileStored(line.invoiceFile)) {
+      return `Позиція ${i + 1}: завантажте рахунок (файл по рядку)`;
+    }
+    if (!hasProcurementLineExecutorFileStored(line.deliveryNoteFile)) {
+      return `Позиція ${i + 1}: завантажте видаткову накладну (файл по рядку)`;
+    }
+  }
+  return null;
 }
 
 function canUploadProcurementExecutorFiles(reqUser, pr) {
@@ -5261,6 +5345,46 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
   }
 });
 
+app.patch('/api/procurement-requests/:id/confirm-documents', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (isImportedProcurementRequest(pr)) {
+      return res.status(400).json({
+        error: 'Імпортовані заявки закриваються без окремого підтвердження документів',
+      });
+    }
+    if (pr.status !== PROCUREMENT_AWAITING_DOCUMENTS_STATUS) {
+      return res.status(400).json({
+        error: 'Підтвердження документів доступне лише після прийому на складі (статус «Очікує підтвердження документів»)',
+      });
+    }
+    if (!procurementExecutorCanConfirmDocuments(req.user, pr)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const docErr = validateProcurementExecutorDocuments(pr.materials);
+    if (docErr) {
+      return res.status(400).json({ error: docErr });
+    }
+    pr.status = 'completed';
+    pr.executorDocumentsConfirmedAt = new Date();
+    await pr.save();
+    await notifyProcurementRequesterCompleted(pr);
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    logPerformance('PATCH /api/procurement-requests/confirm-documents', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('PATCH /api/procurement-requests/confirm-documents', startTime);
+    console.error('[ERROR] confirm-documents:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req, res) => {
   const startTime = Date.now();
   try {
@@ -5376,9 +5500,10 @@ async function removeProcurementLineExecutorFile(req, res, docKindRaw, perfLabel
     if (!pr) {
       return res.status(404).json({ error: 'Заявку не знайдено' });
     }
-    if (!procurementExecutorCanEditWork(pr.status)) {
+    if (!procurementExecutorCanManageLineFiles(pr.status)) {
       return res.status(400).json({
-        error: 'Видалення файлів по позиції доступне для «Взята в роботу» або «Частково виконана»'
+        error:
+          'Видалення файлів по позиції доступне для «Взята в роботу», «Частково виконана» або «Очікує підтвердження документів»'
       });
     }
     if (!canUploadProcurementExecutorFiles(req.user, pr)) {
@@ -5430,9 +5555,10 @@ app.post(
       if (!pr) {
         return res.status(404).json({ error: 'Заявку не знайдено' });
       }
-      if (!procurementExecutorCanEditWork(pr.status)) {
+      if (!procurementExecutorCanManageLineFiles(pr.status)) {
         return res.status(400).json({
-          error: 'Завантаження файлів по позиції доступне для «Взята в роботу» або «Частково виконана»'
+          error:
+            'Завантаження файлів по позиції доступне для «Взята в роботу», «Частково виконана» або «Очікує підтвердження документів»'
         });
       }
       if (!canUploadProcurementExecutorFiles(req.user, pr)) {
@@ -5729,7 +5855,7 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
         applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr);
       } else {
         pr.receiptOutcome = 'full';
-        pr.status = 'completed';
+        pr.status = PROCUREMENT_AWAITING_DOCUMENTS_STATUS;
         const atW = pr.warehouseReceivedAt;
         const cnW = pr.warehouseConfirmerName;
         const clW = pr.warehouseConfirmerLogin;
@@ -5801,7 +5927,7 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       if (partial) {
         await notifyProcurementExecutorReceiptPartial(pr);
       } else {
-        await notifyProcurementRequesterCompleted(pr);
+        await notifyProcurementExecutorDocumentsPending(pr);
         const outForTg = await ProcurementRequest.findById(pr._id)
           .select(PROCUREMENT_DOC_LIST_PROJECTION)
           .lean();
@@ -5910,7 +6036,7 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
     pr.warehouseReceivedAt = new Date();
     pr.warehouseConfirmerLogin = req.user.login;
     pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
-    pr.status = 'completed';
+    pr.status = PROCUREMENT_AWAITING_DOCUMENTS_STATUS;
     pr.markModified('materials');
     await pr.save();
 
@@ -5939,7 +6065,10 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
       }
     }
 
-    await notifyProcurementRequesterCompleted(pr);
+    await notifyProcurementExecutorDocumentsPending(pr);
+    const outForTg = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(outForTg);
+    await dispatchProcurementTelegram('warehouse_confirmed', outForTg);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     stripProcurementLineBinaryFields(out);
     logPerformance('POST /api/procurement-requests/warehouse-confirm', startTime);

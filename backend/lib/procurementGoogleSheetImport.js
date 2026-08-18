@@ -253,6 +253,7 @@ async function importProcurementFromGoogleSheet(deps, options = {}) {
       pending_review: 0,
       in_progress: 0,
       awaiting_warehouse: 0,
+      awaiting_documents: 0,
       partially_fulfilled: 0,
     },
     errors: [],
