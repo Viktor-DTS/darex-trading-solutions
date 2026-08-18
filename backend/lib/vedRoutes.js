@@ -17,6 +17,8 @@ const {
   enrichRegistryRow,
   VedSupplierRegistry,
   deleteRegistryByIds,
+  updateRegistryWorkflowStatus,
+  workflowStatusQuery,
   scheduleVedSupplierRegistryJob,
 } = require('./vedSupplierRegistry');
 const {
@@ -643,10 +645,12 @@ function registerVedRoutes(app, deps = {}) {
         return res.status(403).json({ error: 'Немає доступу' });
       }
       const equipmentType = String(req.query.equipmentType || '').trim();
-      const q = {};
+      const workflowStatus = String(req.query.workflowStatus || 'registry').trim();
+      const qParts = [workflowStatusQuery(workflowStatus)];
       if (equipmentType && EQUIPMENT_TYPES_LIST.includes(equipmentType)) {
-        q.$or = [{ equipmentTypes: equipmentType }, { equipmentType }];
+        qParts.push({ $or: [{ equipmentTypes: equipmentType }, { equipmentType }] });
       }
+      const q = qParts.length === 1 ? qParts[0] : { $and: qParts };
       const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit || '200'), 10) || 200));
       const rows = await VedSupplierRegistry.find(q).sort({ createdAt: -1 }).limit(limit).lean();
       res.json(rows.map((row) => enrichRegistryRow(row)));
@@ -700,6 +704,28 @@ function registerVedRoutes(app, deps = {}) {
       console.error('[ved] POST supplier-registry bulk-delete:', e.message);
       const status = /Не обрано|Невірний/.test(e.message) ? 400 : 500;
       res.status(status).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/ved/supplier-registry/:id/workflow-status', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      const status = String(req.body?.status || '').trim();
+      if (!['registry', 'active', 'review', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Невірний статус постачальника' });
+      }
+      const dbUser = await User.findOne({ login: req.user.login }).lean();
+      const row = await updateRegistryWorkflowStatus(req.params.id, status, {
+        login: req.user.login,
+        name: String(dbUser?.name || req.user.name || req.user.login).trim(),
+      });
+      res.json(row);
+    } catch (e) {
+      console.error('[ved] POST supplier-registry workflow-status:', e.message);
+      const code = /не знайдено|Невірний/i.test(e.message) ? 404 : 500;
+      res.status(code).json({ error: e.message });
     }
   });
 

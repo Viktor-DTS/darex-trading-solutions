@@ -23,6 +23,8 @@ const AUTO_SEARCH_PROFILES = EQUIPMENT_TYPES.map((equipmentType) => ({
   extraSearchHint: 'export OEM CE certification',
 }));
 
+const REGISTRY_WORKFLOW_STATUSES = ['registry', 'active', 'review', 'rejected'];
+
 const vedSupplierRegistrySchema = new mongoose.Schema(
   {
     productName: { type: String, trim: true, default: '' },
@@ -40,6 +42,15 @@ const vedSupplierRegistrySchema = new mongoose.Schema(
     equipmentTypes: { type: [String], default: [] },
     tradeCategories: { type: [String], default: [] },
     dedupKey: { type: String, trim: true, required: true, unique: true, index: true },
+    workflowStatus: {
+      type: String,
+      enum: REGISTRY_WORKFLOW_STATUSES,
+      default: 'registry',
+      index: true,
+    },
+    statusChangedAt: Date,
+    statusChangedByLogin: { type: String, default: '' },
+    statusChangedByName: { type: String, default: '' },
     source: { type: String, enum: ['manual', 'scheduled'], default: 'manual', index: true },
     researchSessionId: { type: mongoose.Schema.Types.ObjectId, default: null },
     addedByLogin: { type: String, default: '' },
@@ -48,7 +59,7 @@ const vedSupplierRegistrySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-vedSupplierRegistrySchema.index({ createdAt: -1 });
+vedSupplierRegistrySchema.index({ workflowStatus: 1, createdAt: -1 });
 
 const vedRegistryStateSchema = new mongoose.Schema(
   {
@@ -186,6 +197,7 @@ function candidateToRegistryRow(candidate, context = {}) {
     equipmentTypes,
     tradeCategories,
     dedupKey,
+    workflowStatus: 'registry',
     source: context.source || 'manual',
     researchSessionId: context.researchSessionId || null,
     addedByLogin: context.addedByLogin || '',
@@ -194,7 +206,7 @@ function candidateToRegistryRow(candidate, context = {}) {
 }
 
 async function loadExistingDedupKeys() {
-  const rows = await VedSupplierRegistry.find({}).select('dedupKey supplierName website').lean();
+  const rows = await VedSupplierRegistry.find({}).select('dedupKey supplierName website workflowStatus').lean();
   const keys = new Set();
   const labels = [];
   for (const row of rows) {
@@ -233,6 +245,26 @@ async function mergeCandidatesIntoRegistry(candidates, context = {}) {
   return { added, skipped };
 }
 
+function normalizeWorkflowStatus(value) {
+  const s = String(value || 'registry').trim();
+  return REGISTRY_WORKFLOW_STATUSES.includes(s) ? s : 'registry';
+}
+
+function workflowStatusQuery(status) {
+  const normalized = normalizeWorkflowStatus(status);
+  if (normalized === 'registry') {
+    return {
+      $or: [
+        { workflowStatus: 'registry' },
+        { workflowStatus: { $exists: false } },
+        { workflowStatus: null },
+        { workflowStatus: '' },
+      ],
+    };
+  }
+  return { workflowStatus: normalized };
+}
+
 function enrichRegistryRow(row) {
   let tradeCategories = Array.isArray(row.tradeCategories)
     ? row.tradeCategories.map((x) => String(x || '').trim()).filter(Boolean)
@@ -256,6 +288,7 @@ function enrichRegistryRow(row) {
 
   return {
     ...row,
+    workflowStatus: normalizeWorkflowStatus(row.workflowStatus),
     tradeCategories,
     equipmentTypes,
     equipmentType: equipmentTypes[0] || row.equipmentType || 'other',
@@ -318,13 +351,40 @@ async function getRegistryState() {
 }
 
 async function getRegistryMeta() {
-  const [total, state] = await Promise.all([
+  const [total, state, statusRows] = await Promise.all([
     VedSupplierRegistry.countDocuments({}),
     getRegistryState(),
+    VedSupplierRegistry.aggregate([
+      {
+        $group: {
+          _id: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ['$workflowStatus', 'registry'] },
+                  { $eq: ['$workflowStatus', null] },
+                  { $eq: ['$workflowStatus', ''] },
+                  { $not: ['$workflowStatus'] },
+                ],
+              },
+              'registry',
+              '$workflowStatus',
+            ],
+          },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
   ]);
+  const workflowCounts = { registry: 0, active: 0, review: 0, rejected: 0 };
+  for (const row of statusRows) {
+    const key = normalizeWorkflowStatus(row._id);
+    workflowCounts[key] = (workflowCounts[key] || 0) + (row.count || 0);
+  }
   const { profile: nextProfile } = pickAutoSearchProfile(state.rotationIndex || 0);
   return {
     total,
+    workflowCounts,
     lastScheduledRunAt: state.lastScheduledRunAt || null,
     lastScheduledEquipmentType: state.lastScheduledEquipmentType || '',
     lastScheduledAdded: state.lastScheduledAdded || 0,
@@ -538,10 +598,34 @@ async function deleteRegistryByIds(rawIds) {
   return { deleted: result.deletedCount || 0, requested: ids.length };
 }
 
+async function updateRegistryWorkflowStatus(id, status, userMeta = {}) {
+  const objectId = String(id || '').trim();
+  if (!mongoose.Types.ObjectId.isValid(objectId)) {
+    throw new Error('Невірний ідентифікатор запису');
+  }
+  const workflowStatus = normalizeWorkflowStatus(status);
+  const doc = await VedSupplierRegistry.findByIdAndUpdate(
+    objectId,
+    {
+      workflowStatus,
+      statusChangedAt: new Date(),
+      statusChangedByLogin: String(userMeta.login || '').trim(),
+      statusChangedByName: String(userMeta.name || '').trim(),
+    },
+    { new: true }
+  ).lean();
+  if (!doc) throw new Error('Запис не знайдено');
+  return enrichRegistryRow(doc);
+}
+
 module.exports = {
   enrichRegistryRow,
   VedSupplierRegistry,
   deleteRegistryByIds,
+  updateRegistryWorkflowStatus,
+  workflowStatusQuery,
+  normalizeWorkflowStatus,
+  REGISTRY_WORKFLOW_STATUSES,
   bindResearchSessionModel,
   buildSupplierDedupKey,
   candidateToRegistryRow,

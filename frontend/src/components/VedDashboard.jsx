@@ -20,6 +20,33 @@ const VED_EQUIPMENT_TYPE_LABELS = {
   other: 'Інше обладнання',
 };
 
+const SUPPLIER_REGISTRY_SECTIONS = {
+  'supplier-search': {
+    workflowStatus: 'registry',
+    title: 'Реєстр постачальників',
+    emptyText: 'Реєстр порожній. Запустіть ручний пошук або дочекайтеся автоматичного оновлення о 02:00.',
+  },
+  'suppliers-active': {
+    workflowStatus: 'active',
+    title: 'Активні постачальники',
+    emptyText: 'Немає активних постачальників.',
+  },
+  'suppliers-review': {
+    workflowStatus: 'review',
+    title: 'Постачальники на розгляді',
+    emptyText: 'Немає постачальників на розгляді.',
+  },
+  'suppliers-rejected': {
+    workflowStatus: 'rejected',
+    title: 'Відхилені постачальники',
+    emptyText: 'Немає відхилених постачальників.',
+  },
+};
+
+function isSupplierRegistrySection(section) {
+  return Object.prototype.hasOwnProperty.call(SUPPLIER_REGISTRY_SECTIONS, section);
+}
+
 const EMPTY_PROPOSAL = {
   supplierName: '',
   country: '',
@@ -118,6 +145,7 @@ function VedDashboard({ user }) {
   const [autoSearchInfoExpanded, setAutoSearchInfoExpanded] = useState(false);
   const [selectedRegistryIds, setSelectedRegistryIds] = useState([]);
   const [registryDeleting, setRegistryDeleting] = useState(false);
+  const [registryWorkflowChanging, setRegistryWorkflowChanging] = useState(null);
   const [searchForm, setSearchForm] = useState({
     equipmentTypes: ['generator_diesel'],
     equipmentName: '',
@@ -191,10 +219,12 @@ function VedDashboard({ user }) {
 
   const loadSupplierRegistry = useCallback(async () => {
     if (!canManage) return;
+    const workflowStatus = SUPPLIER_REGISTRY_SECTIONS[section]?.workflowStatus || 'registry';
     setRegistryLoading(true);
     try {
-      const qs = registryFilterType ? `?equipmentType=${encodeURIComponent(registryFilterType)}` : '';
-      const res = await fetch(`${API_BASE_URL}/ved/supplier-registry${qs}`, { headers: authHeaders });
+      const params = new URLSearchParams({ workflowStatus });
+      if (registryFilterType) params.set('equipmentType', registryFilterType);
+      const res = await fetch(`${API_BASE_URL}/ved/supplier-registry?${params}`, { headers: authHeaders });
       if (tryHandleUnauthorizedResponse(res)) return;
       if (res.ok) setSupplierRegistry(await res.json());
       else setSupplierRegistry([]);
@@ -203,7 +233,7 @@ function VedDashboard({ user }) {
     } finally {
       setRegistryLoading(false);
     }
-  }, [authHeaders, canManage, registryFilterType]);
+  }, [authHeaders, canManage, registryFilterType, section]);
 
   const loadRegistryMeta = useCallback(async () => {
     if (!canManage) return;
@@ -221,7 +251,12 @@ function VedDashboard({ user }) {
   }, [loadAiConfig]);
 
   useEffect(() => {
-    if (section === 'supplier-search' && canManage) {
+    if (canManage) loadRegistryMeta();
+  }, [canManage, loadRegistryMeta]);
+
+  useEffect(() => {
+    if (isSupplierRegistrySection(section) && canManage) {
+      setSelectedRegistryIds([]);
       loadSupplierRegistry();
       loadRegistryMeta();
     }
@@ -246,7 +281,7 @@ function VedDashboard({ user }) {
   }, [authHeaders]);
 
   const loadRequests = useCallback(async () => {
-    if (section === 'new' || section === 'notifications' || section === 'supplier-search') {
+    if (section === 'new' || section === 'notifications' || isSupplierRegistrySection(section)) {
       setLoading(false);
       return;
     }
@@ -672,6 +707,38 @@ function VedDashboard({ user }) {
       await loadRegistryMeta();
     } finally {
       setRegistryDeleting(false);
+    }
+  };
+
+  const changeRegistryWorkflowStatus = async (id, status, supplierName) => {
+    const statusLabels = {
+      review: 'постачальники на розгляді',
+      rejected: 'відхилені постачальники',
+      active: 'активні постачальники',
+      registry: 'реєстр постачальників',
+    };
+    const label = statusLabels[status] || status;
+    const name = supplierName || 'постачальника';
+    if (!window.confirm(`Перевести «${name}» у розділ «${label}»?`)) return;
+
+    setRegistryWorkflowChanging(id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/ved/supplier-registry/${id}/workflow-status`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || 'Не вдалося змінити статус');
+        return;
+      }
+      setSelectedRegistryIds((prev) => prev.filter((x) => x !== id));
+      await loadSupplierRegistry();
+      await loadRegistryMeta();
+    } finally {
+      setRegistryWorkflowChanging(null);
     }
   };
 
@@ -1101,6 +1168,235 @@ function VedDashboard({ user }) {
     );
   };
 
+  const renderRegistryRowActions = (row, workflowStatus) => {
+    const busy = registryWorkflowChanging === row._id || registryDeleting;
+    const name = row.supplierName || row.productName || '—';
+    return (
+      <div className="ved-registry-workflow-actions">
+        {workflowStatus === 'registry' && canManage && (
+          <>
+            <button
+              type="button"
+              className="ved-btn ved-btn-secondary ved-btn-small"
+              disabled={busy}
+              onClick={() => changeRegistryWorkflowStatus(row._id, 'review', name)}
+              title="Перевести на розгляд"
+            >
+              На розгляд
+            </button>
+            <button
+              type="button"
+              className="ved-btn ved-btn-warning ved-btn-small"
+              disabled={busy}
+              onClick={() => changeRegistryWorkflowStatus(row._id, 'rejected', name)}
+              title="Відхилити постачальника"
+            >
+              Відхилити
+            </button>
+          </>
+        )}
+        {workflowStatus === 'review' && canManage && (
+          <>
+            <button
+              type="button"
+              className="ved-btn ved-btn-primary ved-btn-small"
+              disabled={busy}
+              onClick={() => changeRegistryWorkflowStatus(row._id, 'active', name)}
+              title="Активувати постачальника"
+            >
+              Активувати
+            </button>
+            <button
+              type="button"
+              className="ved-btn ved-btn-warning ved-btn-small"
+              disabled={busy}
+              onClick={() => changeRegistryWorkflowStatus(row._id, 'rejected', name)}
+              title="Відхилити постачальника"
+            >
+              Відхилити
+            </button>
+          </>
+        )}
+        {canAdminRegistry && (
+          <button
+            type="button"
+            className="ved-btn ved-btn-danger ved-btn-small"
+            disabled={busy}
+            onClick={() => deleteRegistryEntries([row._id])}
+            title="Видалити постачальника"
+          >
+            🗑
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const renderSupplierRegistryTableCard = (sectionKey) => {
+    const sectionConfig = SUPPLIER_REGISTRY_SECTIONS[sectionKey];
+    const workflowStatus = sectionConfig?.workflowStatus || 'registry';
+    const tableTitle = sectionConfig?.title || 'Реєстр постачальників';
+    const emptyText = sectionConfig?.emptyText || 'Немає записів';
+    const showActionsCol = canManage || canAdminRegistry;
+    const isSearchSection = sectionKey === 'supplier-search';
+
+    return (
+      <div className="ved-card ved-registry-table-card">
+        <div className="ved-registry-table-toolbar">
+          {isSearchSection ? (
+            <button
+              type="button"
+              className="ved-collapsible-header ved-collapsible-header-inline"
+              onClick={() => setRegistryExpanded((v) => !v)}
+              aria-expanded={registryExpanded}
+            >
+              <h3 style={{ margin: 0 }}>{tableTitle}</h3>
+              <span className="ved-collapsible-toggle">{registryExpanded ? '▼' : '▶'}</span>
+            </button>
+          ) : (
+            <h3 style={{ margin: 0 }}>{tableTitle}</h3>
+          )}
+          <div className="ved-registry-table-filters">
+            <label>
+              Фільтр типу:
+              <select
+                value={registryFilterType}
+                onChange={(e) => setRegistryFilterType(e.target.value)}
+              >
+                <option value="">Усі типи</option>
+                {Object.entries(equipmentTypesMap).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="ved-btn" onClick={loadSupplierRegistry} disabled={registryLoading}>
+              {registryLoading ? '…' : '↻ Оновити'}
+            </button>
+            {canAdminRegistry && selectedRegistryIds.length > 0 && (
+              <button
+                type="button"
+                className="ved-btn ved-btn-danger"
+                disabled={registryDeleting}
+                onClick={() => deleteRegistryEntries(selectedRegistryIds)}
+              >
+                {registryDeleting ? '…' : `🗑 Видалити обрані (${selectedRegistryIds.length})`}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {(isSearchSection ? registryExpanded : true) && (
+          <>
+            {registryLoading && supplierRegistry.length === 0 ? (
+              <div className="ved-loading">Завантаження…</div>
+            ) : supplierRegistry.length === 0 ? (
+              <div className="ved-empty">{emptyText}</div>
+            ) : (
+              <div className="ved-registry-table-wrap">
+                <table className="ved-table ved-registry-table">
+                  <thead>
+                    <tr>
+                      {canAdminRegistry && (
+                        <th className="ved-registry-select-col">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleRegistrySelected}
+                            onChange={toggleRegistrySelectAll}
+                            title="Обрати всі на сторінці"
+                          />
+                        </th>
+                      )}
+                      <th>Категорія товару</th>
+                      <th>Найменування товару</th>
+                      <th>Постачальник</th>
+                      <th>Країна</th>
+                      <th>Ціна від – до</th>
+                      <th>Сайт</th>
+                      <th>Контакти</th>
+                      <th>Сертифікати</th>
+                      <th>Лінійка потужності</th>
+                      <th>Ризики співпраці</th>
+                      <th>Джерело</th>
+                      {showActionsCol && <th className="ved-registry-actions-col">Дії</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supplierRegistry.map((row) => {
+                      const site = formatWebsite(row.website);
+                      const categories = formatRegistryCategories(row);
+                      return (
+                        <tr
+                          key={row._id}
+                          className={selectedRegistryIds.includes(row._id) ? 'ved-registry-row-selected' : ''}
+                        >
+                          {canAdminRegistry && (
+                            <td className="ved-registry-select-col">
+                              <input
+                                type="checkbox"
+                                checked={selectedRegistryIds.includes(row._id)}
+                                onChange={() => toggleRegistrySelection(row._id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </td>
+                          )}
+                          <td className="ved-registry-categories">
+                            {categories.length ? (
+                              categories.map((label) => (
+                                <span key={`${row._id}-${label}`} className="ved-registry-category-chip">
+                                  {label}
+                                </span>
+                              ))
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td>{row.productName || '—'}</td>
+                          <td>{row.supplierName || '—'}</td>
+                          <td>{row.country || '—'}</td>
+                          <td>{formatPriceRange(row.priceFrom, row.priceTo, row.currency)}</td>
+                          <td>
+                            {site ? (
+                              <a href={site.href} target="_blank" rel="noopener noreferrer">
+                                {site.label}
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="ved-registry-cell-wrap">{row.contacts || '—'}</td>
+                          <td className="ved-registry-cell-wrap">{row.certificates || '—'}</td>
+                          <td className="ved-registry-cell-wrap">{row.powerLineup || '—'}</td>
+                          <td className="ved-registry-cell-wrap">{row.riskDescription || '—'}</td>
+                          <td>
+                            <span className={`ved-registry-source ved-registry-source-${row.source || 'manual'}`}>
+                              {row.source === 'scheduled' ? 'авто' : 'ручний'}
+                            </span>
+                            <div className="ved-registry-added-at">{formatDt(row.createdAt)}</div>
+                          </td>
+                          {showActionsCol && (
+                            <td className="ved-registry-actions-col">
+                              {renderRegistryRowActions(row, workflowStatus)}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderSupplierWorkflowSection = (sectionKey) => (
+    <div className="ved-list-panel ved-supplier-registry-panel">{renderSupplierRegistryTableCard(sectionKey)}</div>
+  );
+
   const renderSupplierSearch = () => (
     <div className="ved-list-panel ved-supplier-registry-panel">
       <div className="ved-card ved-ai-card ved-supplier-search-card">
@@ -1117,7 +1413,7 @@ function VedDashboard({ user }) {
         {searchFormExpanded && (
           <>
         <p className="ved-ai-disclaimer">
-          Реєстр постачальників наповнюється поступово: автоматично {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. Дублікати постачальників не додаються.
+          Реєстр постачальників наповнюється поступово: автоматично {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. Дублікати не додаються — ураховуються постачальники з реєстру, на розгляді, активні та відхилені.
         </p>
         {registryMeta?.autoSearch && (
           <div className="ved-auto-search-info">
@@ -1166,7 +1462,17 @@ function VedDashboard({ user }) {
                 {registryMeta && (
                   <>
                     {' · '}
-                    У реєстрі: {registryMeta.total}
+                    У реєстрі: {registryMeta.workflowCounts?.registry ?? registryMeta.total}
+                    {registryMeta.workflowCounts && (
+                      <>
+                        {' · '}
+                        на розгляді: {registryMeta.workflowCounts.review || 0}
+                        {' · '}
+                        активні: {registryMeta.workflowCounts.active || 0}
+                        {' · '}
+                        відхилені: {registryMeta.workflowCounts.rejected || 0}
+                      </>
+                    )}
                     {registryMeta.lastScheduledRunAt && (
                       <>
                         {' · '}
@@ -1261,158 +1567,7 @@ function VedDashboard({ user }) {
         )}
       </div>
 
-      <div className="ved-card ved-registry-table-card">
-        <div className="ved-registry-table-toolbar">
-          <button
-            type="button"
-            className="ved-collapsible-header ved-collapsible-header-inline"
-            onClick={() => setRegistryExpanded((v) => !v)}
-            aria-expanded={registryExpanded}
-          >
-            <h3 style={{ margin: 0 }}>Реєстр постачальників</h3>
-            <span className="ved-collapsible-toggle">{registryExpanded ? '▼' : '▶'}</span>
-          </button>
-          <div className="ved-registry-table-filters">
-            <label>
-              Фільтр типу:
-              <select
-                value={registryFilterType}
-                onChange={(e) => setRegistryFilterType(e.target.value)}
-              >
-                <option value="">Усі типи</option>
-                {Object.entries(equipmentTypesMap).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" className="ved-btn" onClick={loadSupplierRegistry} disabled={registryLoading}>
-              {registryLoading ? '…' : '↻ Оновити'}
-            </button>
-            {canAdminRegistry && selectedRegistryIds.length > 0 && (
-              <button
-                type="button"
-                className="ved-btn ved-btn-danger"
-                disabled={registryDeleting}
-                onClick={() => deleteRegistryEntries(selectedRegistryIds)}
-              >
-                {registryDeleting ? '…' : `🗑 Видалити обрані (${selectedRegistryIds.length})`}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {registryExpanded && (
-          <>
-        {registryLoading && supplierRegistry.length === 0 ? (
-          <div className="ved-loading">Завантаження реєстру…</div>
-        ) : supplierRegistry.length === 0 ? (
-          <div className="ved-empty">
-            Реєстр порожній. Запустіть ручний пошук або дочекайтеся автоматичного оновлення о 02:00.
-          </div>
-        ) : (
-          <div className="ved-registry-table-wrap">
-            <table className="ved-table ved-registry-table">
-              <thead>
-                <tr>
-                  {canAdminRegistry && (
-                    <th className="ved-registry-select-col">
-                      <input
-                        type="checkbox"
-                        checked={allVisibleRegistrySelected}
-                        onChange={toggleRegistrySelectAll}
-                        title="Обрати всі на сторінці"
-                      />
-                    </th>
-                  )}
-                  <th>Категорія товару</th>
-                  <th>Найменування товару</th>
-                  <th>Постачальник</th>
-                  <th>Країна</th>
-                  <th>Ціна від – до</th>
-                  <th>Сайт</th>
-                  <th>Контакти</th>
-                  <th>Сертифікати</th>
-                  <th>Лінійка потужності</th>
-                  <th>Ризики співпраці</th>
-                  <th>Джерело</th>
-                  {canAdminRegistry && <th className="ved-registry-actions-col">Дії</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {supplierRegistry.map((row) => {
-                  const site = formatWebsite(row.website);
-                  const categories = formatRegistryCategories(row);
-                  return (
-                    <tr key={row._id} className={selectedRegistryIds.includes(row._id) ? 'ved-registry-row-selected' : ''}>
-                      {canAdminRegistry && (
-                        <td className="ved-registry-select-col">
-                          <input
-                            type="checkbox"
-                            checked={selectedRegistryIds.includes(row._id)}
-                            onChange={() => toggleRegistrySelection(row._id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </td>
-                      )}
-                      <td className="ved-registry-categories">
-                        {categories.length ? (
-                          categories.map((label) => (
-                            <span key={`${row._id}-${label}`} className="ved-registry-category-chip">
-                              {label}
-                            </span>
-                          ))
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td>{row.productName || '—'}</td>
-                      <td>{row.supplierName || '—'}</td>
-                      <td>{row.country || '—'}</td>
-                      <td>{formatPriceRange(row.priceFrom, row.priceTo, row.currency)}</td>
-                      <td>
-                        {site ? (
-                          <a href={site.href} target="_blank" rel="noopener noreferrer">
-                            {site.label}
-                          </a>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="ved-registry-cell-wrap">{row.contacts || '—'}</td>
-                      <td className="ved-registry-cell-wrap">{row.certificates || '—'}</td>
-                      <td className="ved-registry-cell-wrap">{row.powerLineup || '—'}</td>
-                      <td className="ved-registry-cell-wrap">{row.riskDescription || '—'}</td>
-                      <td>
-                        <span className={`ved-registry-source ved-registry-source-${row.source || 'manual'}`}>
-                          {row.source === 'scheduled' ? 'авто' : 'ручний'}
-                        </span>
-                        <div className="ved-registry-added-at">{formatDt(row.createdAt)}</div>
-                      </td>
-                      {canAdminRegistry && (
-                        <td className="ved-registry-actions-col">
-                          <button
-                            type="button"
-                            className="ved-btn ved-btn-danger ved-btn-small"
-                            disabled={registryDeleting}
-                            onClick={() => deleteRegistryEntries([row._id])}
-                            title="Видалити постачальника"
-                          >
-                            🗑
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-          </>
-        )}
-      </div>
+      {renderSupplierRegistryTableCard('supplier-search')}
     </div>
   );
 
@@ -1541,18 +1696,68 @@ function VedDashboard({ user }) {
               </button>
             )}
             {canManage && (
-              <button
-                type="button"
-                className={`ved-sidebar-tab ${section === 'supplier-search' ? 'active' : ''}`}
-                onClick={() => {
-                  setSection('supplier-search');
-                  setSelectedId(null);
-                  setDetail(null);
-                  setAiSessionDetail(null);
-                }}
-              >
-                🔍 Пошук постачальника
-              </button>
+              <>
+                <button
+                  type="button"
+                  className={`ved-sidebar-tab ${section === 'supplier-search' ? 'active' : ''}`}
+                  onClick={() => {
+                    setSection('supplier-search');
+                    setSelectedId(null);
+                    setDetail(null);
+                    setAiSessionDetail(null);
+                  }}
+                >
+                  🔍 Пошук постачальника
+                  {registryMeta?.workflowCounts?.registry != null && (
+                    <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.registry}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className={`ved-sidebar-tab ${section === 'suppliers-active' ? 'active' : ''}`}
+                  onClick={() => {
+                    setSection('suppliers-active');
+                    setSelectedId(null);
+                    setDetail(null);
+                    setAiSessionDetail(null);
+                  }}
+                >
+                  ✅ Активні постачальники
+                  {registryMeta?.workflowCounts?.active != null && (
+                    <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.active}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className={`ved-sidebar-tab ${section === 'suppliers-review' ? 'active' : ''}`}
+                  onClick={() => {
+                    setSection('suppliers-review');
+                    setSelectedId(null);
+                    setDetail(null);
+                    setAiSessionDetail(null);
+                  }}
+                >
+                  🕐 Постачальники на розгляді
+                  {registryMeta?.workflowCounts?.review != null && (
+                    <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.review}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className={`ved-sidebar-tab ${section === 'suppliers-rejected' ? 'active' : ''}`}
+                  onClick={() => {
+                    setSection('suppliers-rejected');
+                    setSelectedId(null);
+                    setDetail(null);
+                    setAiSessionDetail(null);
+                  }}
+                >
+                  ✕ Відхилені постачальники
+                  {registryMeta?.workflowCounts?.rejected != null && (
+                    <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.rejected}</span>
+                  )}
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -1580,6 +1785,9 @@ function VedDashboard({ user }) {
           {section === 'detail' && renderDetail()}
           {section === 'new' && renderNewForm()}
           {section === 'supplier-search' && renderSupplierSearch()}
+          {section === 'suppliers-active' && renderSupplierWorkflowSection('suppliers-active')}
+          {section === 'suppliers-review' && renderSupplierWorkflowSection('suppliers-review')}
+          {section === 'suppliers-rejected' && renderSupplierWorkflowSection('suppliers-rejected')}
           {section === 'notifications' && (
             <div className="ved-notifications-wrap">
               <ManagerNotificationsTab
