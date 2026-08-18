@@ -465,6 +465,7 @@ function ProcurementDashboard({ user }) {
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [listDateFrom, setListDateFrom] = useState('');
   const [listDateTo, setListDateTo] = useState('');
+  const [selectedRequestIds, setSelectedRequestIds] = useState(() => new Set());
 
   const { units: uomList } = useUnitsOfMeasure();
   const normUom = useCallback((v) => normalizeUomLabel(v, uomList), [uomList]);
@@ -568,6 +569,10 @@ function ProcurementDashboard({ user }) {
     window.addEventListener('dts-open-notifications-tab', openNotifications);
     return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
   }, []);
+
+  useEffect(() => {
+    setSelectedRequestIds(new Set());
+  }, [activeSection]);
 
   useEffect(() => {
     return () => {
@@ -1271,30 +1276,90 @@ function ProcurementDashboard({ user }) {
     setDetail(row);
   };
 
-  const deleteProcurementRequest = async (e, r) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const label = r.requestNumber || r._id;
-    if (!window.confirm(`Видалити заявку ${label} безповоротно?`)) return;
+  const removeDeletedRequestsFromSelection = useCallback((deletedIds) => {
+    const deletedSet = new Set(deletedIds.map(String));
+    setSelectedRequestIds((prev) => {
+      const next = new Set(prev);
+      deletedSet.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, []);
+
+  const deleteProcurementRequestsByIds = async (ids, confirmLabel) => {
+    const uniqueIds = [...new Set(ids.map(String))].filter(Boolean);
+    if (!uniqueIds.length) return;
+    if (!window.confirm(confirmLabel)) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/procurement-requests/${r._id}`, {
-        method: 'DELETE',
-        headers: authHeaders
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/bulk-delete`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: uniqueIds }),
       });
       if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Не вдалося видалити заявку');
+        alert(data.error || 'Не вдалося видалити заявки');
         return;
       }
-      if (detail && String(detail._id) === String(r._id)) setDetail(null);
+      if (detail && uniqueIds.includes(String(detail._id))) setDetail(null);
+      removeDeletedRequestsFromSelection(uniqueIds);
       await loadRequests();
+      if (typeof data.notFound === 'number' && data.notFound > 0) {
+        alert(`Видалено ${data.deleted ?? uniqueIds.length}. Не знайдено: ${data.notFound}.`);
+      }
     } catch (err) {
       alert(err.message || 'Помилка');
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteProcurementRequest = async (e, r) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const label = r.requestNumber || r._id;
+    await deleteProcurementRequestsByIds([r._id], `Видалити заявку ${label} безповоротно?`);
+  };
+
+  const deleteSelectedProcurementRequests = async (requestList) => {
+    const ids = requestList
+      .map((r) => String(r._id))
+      .filter((id) => selectedRequestIds.has(id));
+    if (!ids.length) return;
+    const confirmLabel =
+      ids.length === 1
+        ? 'Видалити обрану заявку безповоротно?'
+        : `Видалити ${ids.length} обраних заявок безповоротно?`;
+    await deleteProcurementRequestsByIds(ids, confirmLabel);
+  };
+
+  const toggleRequestSelection = (e, requestId) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const id = String(requestId);
+    setSelectedRequestIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllInList = (requestList) => {
+    const ids = requestList.map((r) => String(r._id));
+    if (!ids.length) return;
+    const allSelected = ids.every((id) => selectedRequestIds.has(id));
+    setSelectedRequestIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const clearSelectedRequests = () => {
+    setSelectedRequestIds(new Set());
   };
 
   /** Виконавець (або адмін) під час статусу «Взята в роботу» */
@@ -1441,11 +1506,51 @@ function ProcurementDashboard({ user }) {
     </div>
   );
 
-  const renderProcurementRequestsTable = (requestList, emptyMessage) => (
+  const renderProcurementRequestsTable = (requestList, emptyMessage) => {
+    const listIds = requestList.map((r) => String(r._id));
+    const selectedInListCount = listIds.filter((id) => selectedRequestIds.has(id)).length;
+    const allInListSelected = listIds.length > 0 && selectedInListCount === listIds.length;
+
+    return (
+    <>
+      {isAdmin && selectedInListCount > 0 ? (
+        <div className="procurement-bulk-actions">
+          <span className="procurement-bulk-actions-count">
+            Обрано: <strong>{selectedInListCount}</strong>
+          </span>
+          <button
+            type="button"
+            className="procurement-btn-bulk-delete"
+            disabled={saving}
+            onClick={() => void deleteSelectedProcurementRequests(requestList)}
+          >
+            🗑️ Видалити обрані ({selectedInListCount})
+          </button>
+          <button
+            type="button"
+            className="procurement-btn-bulk-clear"
+            disabled={saving}
+            onClick={clearSelectedRequests}
+          >
+            Скасувати вибір
+          </button>
+        </div>
+      ) : null}
     <div className="procurement-table-wrap procurement-table-wrap--scroll">
       <table className="procurement-table">
         <thead>
           <tr>
+            {isAdmin ? (
+              <th className="procurement-th-select">
+                <input
+                  type="checkbox"
+                  aria-label="Обрати всі заявки в списку"
+                  checked={allInListSelected}
+                  disabled={!listIds.length || saving}
+                  onChange={() => toggleSelectAllInList(requestList)}
+                />
+              </th>
+            ) : null}
             <th>№ заявки</th>
             <th>Статус</th>
             <th>Тип заявки</th>
@@ -1474,6 +1579,21 @@ function ProcurementDashboard({ user }) {
                 }
               }}
             >
+              {isAdmin ? (
+                <td
+                  className="procurement-td-select"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={`Обрати заявку ${r.requestNumber || r._id}`}
+                    checked={selectedRequestIds.has(String(r._id))}
+                    disabled={saving}
+                    onChange={(e) => toggleRequestSelection(e, r._id)}
+                  />
+                </td>
+              ) : null}
               <td>{r.requestNumber || '—'}</td>
               <td>
                 <span className={`procurement-status procurement-status--${r.status}`}>
@@ -1514,7 +1634,9 @@ function ProcurementDashboard({ user }) {
       </table>
       {!requestList.length && <div className="procurement-empty">{emptyMessage}</div>}
     </div>
-  );
+    </>
+    );
+  };
 
   const runGoogleSheetImport = useCallback(async () => {
     const sheetNames = importSheetNames

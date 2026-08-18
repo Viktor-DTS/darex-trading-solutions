@@ -288,6 +288,72 @@
   vertical-align: middle;
 }
 
+.procurement-th-select,
+.procurement-td-select {
+  width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.procurement-th-select input,
+.procurement-td-select input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.procurement-bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(211, 47, 47, 0.35);
+  border-radius: 8px;
+  background: rgba(211, 47, 47, 0.08);
+}
+
+.procurement-bulk-actions-count {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.procurement-btn-bulk-delete {
+  padding: 6px 12px;
+  border: 1px solid rgba(211, 47, 47, 0.55);
+  border-radius: 6px;
+  background: rgba(211, 47, 47, 0.18);
+  color: #ff8a80;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.procurement-btn-bulk-delete:hover:not(:disabled) {
+  background: rgba(211, 47, 47, 0.28);
+}
+
+.procurement-btn-bulk-clear {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.procurement-btn-bulk-clear:hover:not(:disabled) {
+  background: var(--surface-dark, rgba(255, 255, 255, 0.04));
+}
+
+.procurement-btn-bulk-delete:disabled,
+.procurement-btn-bulk-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .procurement-btn-delete-row {
   padding: 4px 10px;
   border: 1px solid rgba(211, 47, 47, 0.45);

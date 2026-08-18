@@ -5459,6 +5459,46 @@ app.get('/api/procurement-requests/:id', async (req, res) => {
   }
 });
 
+/** Масове видалення заявок — лише адміністратор (admin / administrator). */
+app.post('/api/procurement-requests/bulk-delete', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const r = String(req.user.role || '').toLowerCase();
+    if (!['admin', 'administrator'].includes(r)) {
+      return res.status(403).json({ error: 'Видалення заявок доступне лише адміністратору' });
+    }
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const validIds = [...new Set(
+      ids
+        .map((id) => String(id || '').trim())
+        .filter((id) => mongoose.isValidObjectId(id))
+    )];
+    if (!validIds.length) {
+      return res.status(400).json({ error: 'Передайте масив ids з коректними ідентифікаторами заявок' });
+    }
+    const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id));
+    const found = await ProcurementRequest.find({ _id: { $in: objectIds } }).select('_id').lean();
+    const foundIds = found.map((doc) => doc._id);
+    if (!foundIds.length) {
+      logPerformance('POST /api/procurement-requests/bulk-delete', startTime);
+      return res.status(404).json({ error: 'Заявки не знайдено' });
+    }
+    await ProcurementRequest.deleteMany({ _id: { $in: foundIds } });
+    await ManagerUserNotification.deleteMany({ procurementRequestId: { $in: foundIds } });
+    logPerformance('POST /api/procurement-requests/bulk-delete', startTime, foundIds.length);
+    res.json({
+      ok: true,
+      deleted: foundIds.length,
+      requested: validIds.length,
+      notFound: validIds.length - foundIds.length,
+    });
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/bulk-delete', startTime);
+    console.error('[ERROR] POST procurement-requests/bulk-delete:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /** Видалення заявки — лише адміністратор (admin / administrator). */
 app.delete('/api/procurement-requests/:id', async (req, res) => {
   const startTime = Date.now();
