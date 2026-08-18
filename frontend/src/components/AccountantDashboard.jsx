@@ -6,6 +6,25 @@ import API_BASE_URL from '../config';
 import './Dashboard.css';
 import './AccountantUpload.css';
 
+function collectInvoiceFiles(task) {
+  if (!task) return [];
+  const seen = new Set();
+  const files = [];
+  const add = (url, fileName, invoiceNumber) => {
+    const u = String(url || '').trim();
+    if (!u || seen.has(u)) return;
+    seen.add(u);
+    files.push({ url: u, fileName: fileName || 'file', invoiceNumber: invoiceNumber || '' });
+  };
+  if (Array.isArray(task.invoiceFiles)) {
+    task.invoiceFiles.forEach((f) => {
+      add(f?.url || f?.invoiceFile, f?.fileName || f?.invoiceFileName, f?.invoiceNumber);
+    });
+  }
+  add(task.invoiceFile, task.invoiceFileName, task.invoice || task.invoiceNumber);
+  return files;
+}
+
 // Панель "Бух рахунки" - робота із заявками на рахунок
 function AccountantDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('invoiceRequests');
@@ -191,24 +210,30 @@ function AccountantDashboard({ user }) {
   };
 
   // Видалення файлу рахунку
-  const handleDeleteInvoiceFile = async () => {
+  const handleDeleteInvoiceFile = async (fileIndex) => {
     if (!selectedRequest?.invoiceRequestId && !selectedRequest?._id) return;
     
-    if (!window.confirm('Ви впевнені, що хочете видалити файл рахунку?')) return;
+    if (!window.confirm('Ви впевнені, що хочете видалити цей файл рахунку?')) return;
     
-    setUploadingId('delete-invoice');
+    setUploadingId(`delete-invoice-${fileIndex}`);
     try {
       const token = localStorage.getItem('token');
       const requestId = selectedRequest.invoiceRequestId || selectedRequest._id;
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/invoice`, {
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/invoice?index=${fileIndex}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
+        const updatedTaskResponse = await fetch(`${API_BASE_URL}/tasks/${selectedRequest._id || selectedRequest.taskId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (updatedTaskResponse.ok) {
+          const updatedTask = await updatedTaskResponse.json();
+          setSelectedRequest(updatedTask);
+        }
         alert('✅ Файл рахунку видалено!');
-        handleCloseUploadModal();
         setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
@@ -258,8 +283,9 @@ function AccountantDashboard({ user }) {
   const handleConfirmInvoice = async () => {
     if (!selectedRequest?.invoiceRequestId && !selectedRequest?._id) return;
     
-    // Перевіряємо чи є завантажений файл рахунку
-    if (!selectedRequest.invoiceFile && selectedRequest.needInvoice !== false) {
+    // Перевіряємо чи є хоча б один завантажений файл рахунку
+    const invoiceFiles = collectInvoiceFiles(selectedRequest);
+    if (!invoiceFiles.length && selectedRequest.needInvoice !== false) {
       alert('❌ Спочатку завантажте файл рахунку!');
       return;
     }
@@ -570,7 +596,9 @@ function AccountantDashboard({ user }) {
       )}
 
       {/* Модальне вікно завантаження файлів рахунку */}
-      {showUploadModal && selectedRequest && (
+      {showUploadModal && selectedRequest && (() => {
+        const invoiceFiles = collectInvoiceFiles(selectedRequest);
+        return (
         <div className="upload-modal-overlay">
           <div className="upload-modal">
             <div className="upload-modal-header">
@@ -589,66 +617,68 @@ function AccountantDashboard({ user }) {
               {(selectedRequest.needInvoice !== false) && (
                 <div className="upload-section">
                   <h4>📄 Рахунок</h4>
-                  {selectedRequest.invoiceFile ? (
-                    <div className="file-exists">
-                      <span>✅ Завантажено: {selectedRequest.invoiceFileName}</span>
+                  {invoiceFiles.map((file, index) => (
+                    <div key={`${file.url}-${index}`} className="file-exists">
+                      <span>✅ Завантажено{invoiceFiles.length > 1 ? ` (${index + 1})` : ''}: {file.fileName}</span>
                       <div className="file-actions">
                         <button 
                           className="btn-view"
-                          onClick={() => window.open(selectedRequest.invoiceFile, '_blank')}
+                          onClick={() => window.open(file.url, '_blank')}
                         >
                           👁️ Переглянути
                         </button>
                         <button 
                           className="btn-delete"
-                          onClick={handleDeleteInvoiceFile}
-                          disabled={uploadingId === 'delete-invoice'}
+                          onClick={() => handleDeleteInvoiceFile(index)}
+                          disabled={uploadingId === `delete-invoice-${index}`}
                         >
-                          {uploadingId === 'delete-invoice' ? '⏳...' : '🗑️ Видалити'}
+                          {uploadingId === `delete-invoice-${index}` ? '⏳...' : '🗑️ Видалити'}
                         </button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="upload-controls">
-                      <input
-                        type="text"
-                        placeholder="Номер рахунку (автозаповнення з назви файлу)"
-                        id="invoiceNumber"
-                        className="invoice-number-input"
-                      />
-                      <input
-                        type="file"
-                        ref={invoiceFileRef}
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (file) {
-                            // Автогенерація номера рахунку: дата + назва файлу
-                            const currentDate = new Date().toISOString().split('T')[0];
-                            const fileName = file.name.replace(/\.[^/.]+$/, ""); // Без розширення
-                            const generatedInvoiceNumber = `${currentDate}_${fileName}`;
-                            
-                            // Заповнюємо поле номера рахунку
-                            const inputEl = document.getElementById('invoiceNumber');
-                            if (inputEl && !inputEl.value) {
-                              inputEl.value = generatedInvoiceNumber;
-                            }
-                            
-                            const invoiceNumber = inputEl?.value || generatedInvoiceNumber;
-                            handleUploadInvoice(file, invoiceNumber);
+                  ))}
+                  <div className="upload-controls">
+                    <input
+                      type="text"
+                      placeholder="Номер рахунку (автозаповнення з назви файлу)"
+                      id="invoiceNumber"
+                      className="invoice-number-input"
+                    />
+                    <input
+                      type="file"
+                      ref={invoiceFileRef}
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const currentDate = new Date().toISOString().split('T')[0];
+                          const fileName = file.name.replace(/\.[^/.]+$/, "");
+                          const generatedInvoiceNumber = `${currentDate}_${fileName}`;
+                          
+                          const inputEl = document.getElementById('invoiceNumber');
+                          if (inputEl && !inputEl.value) {
+                            inputEl.value = generatedInvoiceNumber;
                           }
-                        }}
-                      />
-                      <button 
-                        className="btn-upload"
-                        onClick={() => invoiceFileRef.current?.click()}
-                        disabled={uploadingId === 'invoice'}
-                      >
-                        {uploadingId === 'invoice' ? '⏳ Завантаження...' : '📤 Завантажити рахунок'}
-                      </button>
-                    </div>
-                  )}
+                          
+                          const invoiceNumber = inputEl?.value || generatedInvoiceNumber;
+                          handleUploadInvoice(file, invoiceNumber);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <button 
+                      className="btn-upload"
+                      onClick={() => invoiceFileRef.current?.click()}
+                      disabled={uploadingId === 'invoice'}
+                    >
+                      {uploadingId === 'invoice'
+                        ? '⏳ Завантаження...'
+                        : invoiceFiles.length
+                          ? '📤 Додати ще один рахунок'
+                          : '📤 Завантажити рахунок'}
+                    </button>
+                  </div>
                 </div>
               )}
               
@@ -729,7 +759,7 @@ function AccountantDashboard({ user }) {
                   className="btn-confirm"
                   onClick={handleConfirmInvoice}
                   disabled={uploadingId === 'confirm' || 
-                    (!selectedRequest.invoiceFile && selectedRequest.needInvoice !== false)}
+                    (!invoiceFiles.length && selectedRequest.needInvoice !== false)}
                 >
                   {uploadingId === 'confirm' ? '⏳ Підтвердження...' : '✅ Підтвердити виконання'}
                 </button>
@@ -740,7 +770,8 @@ function AccountantDashboard({ user }) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

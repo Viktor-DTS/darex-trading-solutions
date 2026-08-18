@@ -24,6 +24,62 @@ function buildComments(userComments, worksWithoutContract) {
   return `${trimmed}\n${WITHOUT_CONTRACT_COMMENT}`;
 }
 
+function collectInvoiceFiles(task, invoiceRequest) {
+  const sources = [invoiceRequest, task].filter(Boolean);
+  const seen = new Set();
+  const files = [];
+
+  sources.forEach((src) => {
+    if (Array.isArray(src.invoiceFiles)) {
+      src.invoiceFiles.forEach((f) => {
+        const url = f?.url || f?.invoiceFile || '';
+        if (!url || seen.has(url)) return;
+        seen.add(url);
+        files.push({
+          url,
+          fileName: f.fileName || f.invoiceFileName || 'file',
+          invoiceNumber: f.invoiceNumber || '',
+        });
+      });
+    }
+    const url = src.invoiceFile || '';
+    if (url && !seen.has(url)) {
+      seen.add(url);
+      files.push({
+        url,
+        fileName: src.invoiceFileName || 'file',
+        invoiceNumber: src.invoiceNumber || src.invoice || '',
+      });
+    }
+  });
+
+  return files;
+}
+
+function InvoiceFileList({ files, viewFile, downloadFile }) {
+  if (!files.length) return null;
+
+  return (
+    <>
+      {files.map((file, index) => (
+        <div key={`${file.url}-${index}`} className="invoice-file-block">
+          <div className="invoice-file-info">
+            <strong>📄 Файл рахунку{files.length > 1 ? ` ${index + 1}` : ''}:</strong> {file.fileName}
+          </div>
+          <div className="invoice-file-actions">
+            <button type="button" className="btn-view" onClick={() => viewFile(file.url)}>
+              👁️ Переглянути
+            </button>
+            <button type="button" className="btn-download" onClick={() => downloadFile(file.url, file.fileName)}>
+              📥 Завантажити
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 const InvoiceRequestBlock = ({
   task,
   user,
@@ -136,7 +192,8 @@ const InvoiceRequestBlock = ({
       });
       
       if (response.ok) {
-        alert('✅ Запит на рахунок успішно створено!');
+        const data = await response.json();
+        alert(data.message || '✅ Запит на рахунок успішно створено!');
         closeModal();
         loadInvoiceRequest();
         if (onRequest) onRequest();
@@ -182,10 +239,14 @@ const InvoiceRequestBlock = ({
     return null;
   }
 
-  const invoiceFile = task.invoiceFile || invoiceRequest?.invoiceFile;
-  const invoiceFileName = task.invoiceFileName || invoiceRequest?.invoiceFileName;
+  const invoiceFiles = collectInvoiceFiles(task, invoiceRequest);
   const actFile = task.actFile || invoiceRequest?.actFile;
   const actFileName = task.actFileName || invoiceRequest?.actFileName;
+  const canSubmitAdditionalRequest =
+    !readOnly &&
+    (!invoiceRequest || ['completed', 'rejected'].includes(invoiceRequest.status));
+  const requestInProgress =
+    invoiceRequest && ['pending', 'processing'].includes(invoiceRequest.status);
 
   return (
     <>
@@ -216,30 +277,8 @@ const InvoiceRequestBlock = ({
             </div>
 
 
-            {/* Файл рахунку */}
-            {invoiceFile && (
-              <div className="invoice-file-block">
-                <div className="invoice-file-info">
-                  <strong>📄 Файл рахунку:</strong> {invoiceFileName}
-                </div>
-                <div className="invoice-file-actions">
-                  <button 
-                    type="button"
-                    className="btn-view"
-                    onClick={() => viewFile(invoiceFile)}
-                  >
-                    👁️ Переглянути
-                  </button>
-                  <button 
-                    type="button"
-                    className="btn-download"
-                    onClick={() => downloadFile(invoiceFile, invoiceFileName)}
-                  >
-                    📥 Завантажити
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Файли рахунку */}
+            <InvoiceFileList files={invoiceFiles} viewFile={viewFile} downloadFile={downloadFile} />
 
             {/* Файл акту */}
             {actFile && (
@@ -266,15 +305,30 @@ const InvoiceRequestBlock = ({
               </div>
             )}
 
-            {/* Кнопка повторного запиту при відмові */}
-            {invoiceRequest.status === 'rejected' && !readOnly && (
-              <button 
-                type="button"
-                className="btn-request-again"
-                onClick={openRequestModal}
-              >
-                🔄 Подати запит знову
-              </button>
+            {/* Повторний запит після виконання або відмови */}
+            {canSubmitAdditionalRequest && (
+              <>
+                <p className="invoice-request-desc">
+                  {invoiceRequest?.status === 'completed'
+                    ? 'Заявка на рахунок виконана. Якщо потрібен додатковий рахунок — подайте запит повторно. Попередні файли залишаться доступними.'
+                    : 'Виправте зауваження та подайте запит повторно.'}
+                </p>
+                <button
+                  type="button"
+                  className="btn-request-again"
+                  onClick={openRequestModal}
+                >
+                  {invoiceRequest?.status === 'completed'
+                    ? '📋 Подати додатковий запит на рахунок'
+                    : '🔄 Подати запит знову'}
+                </button>
+              </>
+            )}
+
+            {requestInProgress && (
+              <p className="invoice-request-desc">
+                Запит на рахунок уже в обробці у бухгалтерії. Дочекайтеся виконання або додавання нового файлу.
+              </p>
             )}
           </div>
         ) : (
@@ -305,21 +359,7 @@ const InvoiceRequestBlock = ({
             )}
 
             {/* Показуємо файли якщо є */}
-            {invoiceFile && (
-              <div className="invoice-file-block">
-                <div className="invoice-file-info">
-                  <strong>📄 Файл рахунку:</strong> {invoiceFileName}
-                </div>
-                <div className="invoice-file-actions">
-                  <button type="button" className="btn-view" onClick={() => viewFile(invoiceFile)}>
-                    👁️ Переглянути
-                  </button>
-                  <button type="button" className="btn-download" onClick={() => downloadFile(invoiceFile, invoiceFileName)}>
-                    📥 Завантажити
-                  </button>
-                </div>
-              </div>
-            )}
+            <InvoiceFileList files={invoiceFiles} viewFile={viewFile} downloadFile={downloadFile} />
             
             {actFile && (
               <div className="invoice-file-block act-file">
@@ -345,7 +385,7 @@ const InvoiceRequestBlock = ({
               </p>
             )}
             
-            {!readOnly && (
+            {!readOnly && canSubmitAdditionalRequest && (
               <button 
                 type="button"
                 className={task.invoiceRejectionReason ? 'btn-request-again' : 'btn-request'}

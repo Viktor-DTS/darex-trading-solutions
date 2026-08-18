@@ -1366,6 +1366,85 @@ invoiceRequestSchema.index({ status: 1 });
 
 const InvoiceRequest = mongoose.model('InvoiceRequest', invoiceRequestSchema);
 
+function normalizeInvoiceFiles(source) {
+  if (!source) return [];
+  const files = [];
+  const seen = new Set();
+  const add = (url, fileName, invoiceNumber, uploadedAt) => {
+    const u = String(url || '').trim();
+    if (!u || seen.has(u)) return;
+    seen.add(u);
+    files.push({
+      url: u,
+      fileName: fileName || '',
+      invoiceNumber: invoiceNumber || '',
+      uploadedAt: uploadedAt || null,
+    });
+  };
+  if (Array.isArray(source.invoiceFiles)) {
+    source.invoiceFiles.forEach((f) => {
+      add(f?.url || f?.invoiceFile, f?.fileName || f?.invoiceFileName, f?.invoiceNumber, f?.uploadedAt);
+    });
+  }
+  add(
+    source.invoiceFile,
+    source.invoiceFileName,
+    source.invoiceNumber || source.invoice,
+    source.invoiceUploadDate
+  );
+  return files;
+}
+
+function appendInvoiceFileToRequest(request, filePath, fileName, invoiceNumber) {
+  const existing = normalizeInvoiceFiles(request);
+  existing.push({
+    url: filePath,
+    fileName,
+    invoiceNumber: invoiceNumber || '',
+    uploadedAt: new Date(),
+  });
+  request.invoiceFiles = existing;
+  const latest = existing[existing.length - 1];
+  request.invoiceFile = latest.url;
+  request.invoiceFileName = latest.fileName;
+  request.invoiceNumber = latest.invoiceNumber;
+  return existing;
+}
+
+function buildTaskInvoiceUpdateFromFiles(invoiceFiles) {
+  const latest = invoiceFiles.length ? invoiceFiles[invoiceFiles.length - 1] : null;
+  const taskUpdateData = {
+    invoiceFiles,
+    invoiceUploadDate: new Date(),
+  };
+  if (latest) {
+    taskUpdateData.invoiceFile = latest.url;
+    taskUpdateData.invoiceFileName = latest.fileName;
+    taskUpdateData.invoice = latest.invoiceNumber || '';
+  } else {
+    taskUpdateData.invoiceFile = '';
+    taskUpdateData.invoiceFileName = '';
+    taskUpdateData.invoice = '';
+  }
+  return taskUpdateData;
+}
+
+async function deleteCloudinaryFileByUrl(fileUrl) {
+  if (!fileUrl || !fileUrl.includes('cloudinary.com')) return;
+  try {
+    const urlParts = fileUrl.split('/');
+    const fileNameWithExt = urlParts[urlParts.length - 1];
+    const fileName = fileNameWithExt.split('.')[0];
+    const folder = urlParts[urlParts.length - 2];
+    const publicId = `${folder}/${fileName}`;
+    console.log('[INVOICE] Видаляємо файл з Cloudinary, public_id:', publicId);
+    const result = await cloudinary.uploader.destroy(publicId);
+    console.log('[INVOICE] Результат видалення з Cloudinary:', result);
+  } catch (cloudinaryError) {
+    console.error('[INVOICE] Помилка видалення з Cloudinary:', cloudinaryError);
+  }
+}
+
 // ============================================
 // МОДЕЛЬ ОБЛАДНАННЯ ДЛЯ СКЛАДСЬКОГО ОБЛІКУ
 // ============================================
@@ -10374,29 +10453,47 @@ app.post('/api/invoice-requests', authenticateToken, async (req, res) => {
       });
     }
     
-    // Перевіряємо чи не існує вже запит для цієї заявки
     const existingRequest = await InvoiceRequest.findOne({ taskId });
+    let invoiceRequest;
+    let isReopenedRequest = false;
+
     if (existingRequest) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Запит на рахунок для цієї заявки вже існує' 
+      if (['pending', 'processing'].includes(existingRequest.status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Запит на рахунок для цієї заявки вже в обробці',
+        });
+      }
+
+      existingRequest.requesterId = requesterId;
+      existingRequest.requesterName = requesterName;
+      existingRequest.companyDetails = companyDetails;
+      existingRequest.needInvoice = needInvoice !== false;
+      existingRequest.needAct = needAct === true;
+      existingRequest.status = 'pending';
+      existingRequest.completedAt = null;
+      existingRequest.completedBy = null;
+      existingRequest.rejectionReason = null;
+      existingRequest.rejectedBy = null;
+      existingRequest.rejectedAt = null;
+      existingRequest.reopenedAt = new Date();
+      await existingRequest.save();
+      invoiceRequest = existingRequest;
+      isReopenedRequest = true;
+    } else {
+      invoiceRequest = new InvoiceRequest({
+        taskId,
+        requestNumber: task.requestNumber || taskId,
+        requesterId,
+        requesterName,
+        companyDetails,
+        needInvoice: needInvoice !== false,
+        needAct: needAct === true,
+        status: 'pending',
+        createdAt: new Date(),
       });
+      await invoiceRequest.save();
     }
-    
-    // Створюємо новий запит
-    const invoiceRequest = new InvoiceRequest({
-      taskId,
-      requestNumber: task.requestNumber || taskId,
-      requesterId,
-      requesterName,
-      companyDetails,
-      needInvoice: needInvoice !== false,
-      needAct: needAct === true,
-      status: 'pending',
-      createdAt: new Date()
-    });
-    
-    await invoiceRequest.save();
     
     // Оновлюємо Task з посиланням на InvoiceRequest та датою запиту
     // Також очищаємо поля відхилення (якщо це повторна подача після відмови)
@@ -10423,7 +10520,9 @@ app.post('/api/invoice-requests', authenticateToken, async (req, res) => {
     logPerformance('POST /api/invoice-requests', startTime);
     res.json({ 
       success: true, 
-      message: 'Запит на рахунок створено успішно',
+      message: isReopenedRequest
+        ? 'Додатковий запит на рахунок подано успішно'
+        : 'Запит на рахунок створено успішно',
       data: invoiceRequest 
     });
     
@@ -10448,8 +10547,8 @@ app.get('/api/invoice-requests', authenticateToken, async (req, res) => {
     if (requesterId) filter.requesterId = requesterId;
     if (taskId) filter.taskId = taskId;
     
-    // Якщо showAll не встановлено або false, показуємо тільки pending запити
-    if (!showAll || showAll === 'false') {
+    // Для конкретної заявки повертаємо всі запити; інакше — лише pending (якщо showAll не вказано)
+    if ((!showAll || showAll === 'false') && !taskId) {
       filter.status = 'pending';
     }
     
@@ -10658,20 +10757,15 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
         needInvoice: true,
         needAct: false,
         status: 'processing',  // Не completed - потрібно підтвердити окремо
-        invoiceFile: req.file.path,
-        invoiceFileName: correctedFileName,
-        invoiceNumber: invoiceNumber,
         createdAt: new Date()
       });
+      appendInvoiceFileToRequest(request, req.file.path, correctedFileName, invoiceNumber);
       await request.save();
       
       // Оновлюємо Task з посиланням на InvoiceRequest
       const taskUpdateData = {
         invoiceRequestId: request._id.toString(),
-        invoiceFile: req.file.path,
-        invoiceFileName: correctedFileName,
-        invoice: invoiceNumber,
-        invoiceUploadDate: new Date() // Це дата завантаження рахунку
+        ...buildTaskInvoiceUpdateFromFiles(request.invoiceFiles),
       };
       // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
       // (якщо користувач завантажує рахунок без попереднього створення запиту, це фактично заявка на рахунок)
@@ -10694,23 +10788,18 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
       }
       
       // Оновлюємо існуючий InvoiceRequest
-      request.invoiceFile = req.file.path;
-      request.invoiceFileName = correctedFileName;
-      request.invoiceNumber = invoiceNumber;
-      // Статус на 'processing' якщо був pending, інакше залишаємо як є
-      if (request.status === 'pending') {
+      appendInvoiceFileToRequest(request, req.file.path, correctedFileName, invoiceNumber);
+      // Статус на 'processing' якщо був pending або completed, інакше залишаємо як є
+      if (request.status === 'pending' || request.status === 'completed') {
         request.status = 'processing';
+        request.completedAt = null;
+        request.completedBy = null;
       }
       await request.save();
       
       // Оновлюємо Task
       if (request.taskId) {
-        const taskUpdateData = {
-          invoiceFile: req.file.path,
-          invoiceFileName: correctedFileName,
-          invoice: invoiceNumber,
-          invoiceUploadDate: new Date() // Це дата завантаження рахунку
-        };
+        const taskUpdateData = buildTaskInvoiceUpdateFromFiles(request.invoiceFiles);
         // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
         // (якщо користувач завантажує рахунок без попереднього створення запиту, це фактично заявка на рахунок)
         const currentTask = await Task.findById(request.taskId);
@@ -10749,9 +10838,10 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
       success: true,
       message: 'Файл рахунку завантажено',
       data: {
-        invoiceFile: req.file.path,
+        invoiceFile: request.invoiceFile,
         invoiceFileName: request.invoiceFileName,
-        invoiceNumber: invoiceNumber
+        invoiceNumber: request.invoiceNumber,
+        invoiceFiles: request.invoiceFiles || normalizeInvoiceFiles(request),
       }
     });
     
@@ -10957,46 +11047,36 @@ app.delete('/api/invoice-requests/:id/invoice', authenticateToken, async (req, r
       return res.status(404).json({ success: false, message: 'Запит не знайдено' });
     }
     
-    // Видаляємо файл з Cloudinary
-    if (request.invoiceFile && request.invoiceFile.includes('cloudinary.com')) {
-      try {
-        // Витягуємо public_id з URL
-        // URL формат: https://res.cloudinary.com/cloud/image/upload/v123/folder/filename.ext
-        const urlParts = request.invoiceFile.split('/');
-        const fileNameWithExt = urlParts[urlParts.length - 1];
-        const fileName = fileNameWithExt.split('.')[0];
-        const folder = urlParts[urlParts.length - 2];
-        const publicId = folder + '/' + fileName;
-        
-        console.log('[INVOICE] Видаляємо файл з Cloudinary, public_id:', publicId);
-        const result = await cloudinary.uploader.destroy(publicId);
-        console.log('[INVOICE] Результат видалення з Cloudinary:', result);
-      } catch (cloudinaryError) {
-        console.error('[INVOICE] Помилка видалення з Cloudinary:', cloudinaryError);
-        // Продовжуємо навіть якщо не вдалося видалити з Cloudinary
-      }
+    const fileIndex = req.query.index != null ? parseInt(req.query.index, 10) : -1;
+    const files = normalizeInvoiceFiles(request);
+    if (!files.length) {
+      return res.status(404).json({ success: false, message: 'Файл рахунку не знайдено' });
     }
-    
-    // Оновлюємо InvoiceRequest
-    request.invoiceFile = '';
-    request.invoiceFileName = '';
-    request.invoiceNumber = '';
+    const idx = Number.isInteger(fileIndex) && fileIndex >= 0 && fileIndex < files.length
+      ? fileIndex
+      : files.length - 1;
+    const toDelete = files[idx];
+
+    await deleteCloudinaryFileByUrl(toDelete.url);
+
+    files.splice(idx, 1);
+    request.invoiceFiles = files;
+    const latest = files.length ? files[files.length - 1] : null;
+    request.invoiceFile = latest?.url || '';
+    request.invoiceFileName = latest?.fileName || '';
+    request.invoiceNumber = latest?.invoiceNumber || '';
     // Не змінюємо статус на pending - залишаємо як є
     await request.save();
     
     // Оновлюємо Task
     if (request.taskId) {
-      await Task.findByIdAndUpdate(request.taskId, {
-        invoiceFile: '',
-        invoiceFileName: '',
-        invoice: ''
-      });
+      await Task.findByIdAndUpdate(request.taskId, buildTaskInvoiceUpdateFromFiles(files));
     }
     
-    res.json({ success: true, message: 'Файл рахунку видалено' });
+    res.json({ success: true, message: 'Файл рахунку видалено', data: { invoiceFiles: files } });
     
   } catch (error) {
-    console.error('[INVOICE] Error deleting invoice:', error);
+    console.error('[INVOICE] Error deleting invoice file:', error);
     res.status(500).json({ success: false, message: 'Помилка видалення файлу', error: error.message });
   }
 });
