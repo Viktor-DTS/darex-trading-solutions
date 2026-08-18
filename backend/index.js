@@ -522,7 +522,8 @@ const userSchema = new mongoose.Schema({
     systemNotifications: { type: Boolean, default: false },    // Системні сповіщення
     procurementRequestCreated: { type: Boolean, default: false }, // Нова заявка закупівель
     procurementExecutorCompleted: { type: Boolean, default: false }, // VZ виконано, чекає склад
-    procurementWarehouseConfirmed: { type: Boolean, default: false } // VZ підтверджено завскладом
+    procurementWarehouseConfirmed: { type: Boolean, default: false }, // VZ підтверджено завскладом
+    procurementRequestRejected: { type: Boolean, default: false } // VZ відхилено / заблоковано
   }
 }, { strict: false });
 
@@ -4970,6 +4971,9 @@ app.post('/api/procurement-requests/:id/block', async (req, res) => {
     await pr.save();
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     stripProcurementLineBinaryFields(out);
+    if (!isImportedProcurementRequest(out)) {
+      await dispatchProcurementTelegram('rejected', out);
+    }
     logPerformance('POST /api/procurement-requests/block', startTime);
     res.json(out);
   } catch (error) {
@@ -8817,7 +8821,8 @@ app.post('/api/users', authenticateToken, async (req, res) => {
         systemNotifications: false,
         procurementRequestCreated: false,
         procurementExecutorCompleted: false,
-        procurementWarehouseConfirmed: false
+        procurementWarehouseConfirmed: false,
+        procurementRequestRejected: false
       },
       lastActivity: new Date()
     });

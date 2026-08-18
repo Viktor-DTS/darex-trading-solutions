@@ -2012,6 +2012,7 @@ function AdminDashboard({ user }) {
     { key: 'procurementRequestCreated', label: 'VZ: нова заявка' },
     { key: 'procurementExecutorCompleted', label: 'VZ: виконано (чекає склад)' },
     { key: 'procurementWarehouseConfirmed', label: 'VZ: підтверджено складом' },
+    { key: 'procurementRequestRejected', label: 'VZ: відхилено' },
     { key: 'systemNotifications', label: 'Системні сповіщення' },
   ];
 
@@ -2278,7 +2279,8 @@ function AdminDashboard({ user }) {
           <div className="notifications-info">
             <span className="with-telegram">✅ Користувачів з Telegram: {usersWithTelegram.length}</span>
             <p className="notifications-info-hint">
-              Колонки «VZ: …» — Telegram про заявки закупівель (створення, виконання відділом, підтвердження складом).
+              Колонки «VZ: …» — Telegram про заявки закупівель (створення, виконання, підтвердження складом, відхилення).
+              «VZ: відхилено» — заявнику (якщо увімкнено) та адміністраторам завжди (навіть якщо вони заявники).
               Лише для заявок, створених у системі (не імпортованих з Google Sheets).
             </p>
           </div>
