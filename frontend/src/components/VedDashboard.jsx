@@ -995,7 +995,7 @@ function VedDashboard({ user }) {
             </p>
             {aiConfig && (
               <p className="ved-ai-meta">
-                {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi)' : '⚠ Без веб-пошуку — лише LLM'}
+                {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi, Азія + Європа)' : '⚠ Без веб-пошуку — лише LLM'}
                 {' · '}
                 Залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
               </p>
@@ -1413,7 +1413,7 @@ function VedDashboard({ user }) {
         {searchFormExpanded && (
           <>
         <p className="ved-ai-disclaimer">
-          Реєстр постачальників наповнюється поступово: автоматично {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. Дублікати не додаються — ураховуються постачальники з реєстру, на розгляді, активні та відхилені.
+          Реєстр постачальників наповнюється поступово: автоматично {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. ШІ шукає виробників по всьому світу, зокрема в Азії та Європі (різні мови), а в таблицю опис додає українською. Постачальники з РФ виключені. Дублікати не додаються — ураховуються постачальники з реєстру, на розгляді, активні та відхилені.
         </p>
         {registryMeta?.autoSearch && (
           <div className="ved-auto-search-info">
@@ -1456,7 +1456,7 @@ function VedDashboard({ user }) {
           <>
             {aiConfig && (
               <p className="ved-ai-meta">
-                {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi)' : '⚠ Без веб-пошуку — лише LLM'}
+                {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi, Азія + Європа)' : '⚠ Без веб-пошуку — лише LLM'}
                 {' · '}
                 Залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
                 {registryMeta && (
@@ -1536,7 +1536,7 @@ function VedDashboard({ user }) {
                   <input
                     value={searchForm.extraSearchHint}
                     onChange={(e) => setSearchForm((f) => ({ ...f, extraSearchHint: e.target.value }))}
-                    placeholder="Напр. Китай, OEM, CE"
+                    placeholder="Напр. Азія, Європа, Німеччина, Японія, OEM, CE"
                   />
                 </div>
               </div>

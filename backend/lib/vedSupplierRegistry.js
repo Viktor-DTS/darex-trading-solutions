@@ -2,7 +2,7 @@
  * Реєстр постачальників ВЕД — поступове наповнення таблиці (ручний + щоденний cron о 02:00 Kyiv).
  */
 const mongoose = require('mongoose');
-const { vedAiEnabled, runVedSupplierResearch } = require('./vedAiResearch');
+const { vedAiEnabled, runVedSupplierResearch, isExcludedSupplierCandidate } = require('./vedAiResearch');
 const {
   EQUIPMENT_TYPES,
   DEFAULT_TECHNICAL_REQUIREMENTS,
@@ -20,7 +20,7 @@ const AUTO_SEARCH_PROFILES = EQUIPMENT_TYPES.map((equipmentType) => ({
   equipmentType,
   equipmentName: '',
   technicalRequirements: DEFAULT_TECHNICAL_REQUIREMENTS[equipmentType] || DEFAULT_TECHNICAL_REQUIREMENTS.other,
-  extraSearchHint: 'export OEM CE certification',
+  extraSearchHint: 'Asia Europe manufacturer OEM export CE',
 }));
 
 const REGISTRY_WORKFLOW_STATUSES = ['registry', 'active', 'review', 'rejected'];
@@ -223,6 +223,10 @@ async function mergeCandidatesIntoRegistry(candidates, context = {}) {
   let skipped = 0;
 
   for (const candidate of candidates || []) {
+    if (isExcludedSupplierCandidate(candidate)) {
+      skipped += 1;
+      continue;
+    }
     const row = candidateToRegistryRow(candidate, context);
     if (!row) {
       skipped += 1;
@@ -396,7 +400,7 @@ async function getRegistryMeta() {
       schedule: nextRegistryRunHint(),
       mode: 'rotation',
       description:
-        'Щоночі о 02:00 (Kyiv) один ШІ-пошук за фіксованим профілем обраного типу обладнання; наступної ночі — наступний тип по колу. Дублікати постачальників пропускаються.',
+        'Щоночі о 02:00 (Kyiv) один ШІ-пошук за фіксованим профілем обраного типу обладнання; наступної ночі — наступний тип по колу. Пошук охоплює виробників з Азії та Європи (різні мови); опис у реєстрі — українською. Дублікати постачальників пропускаються.',
       nextEquipmentType: equipmentTypeLabel(nextProfile.equipmentType),
       nextEquipmentTypeKey: nextProfile.equipmentType,
       nextTechnicalRequirements: nextProfile.technicalRequirements,
