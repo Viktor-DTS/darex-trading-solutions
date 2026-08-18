@@ -38,6 +38,7 @@ const vedSupplierRegistrySchema = new mongoose.Schema(
     riskDescription: { type: String, trim: true, default: '' },
     equipmentType: { type: String, default: 'other', index: true },
     equipmentTypes: { type: [String], default: [] },
+    tradeCategories: { type: [String], default: [] },
     dedupKey: { type: String, trim: true, required: true, unique: true, index: true },
     source: { type: String, enum: ['manual', 'scheduled'], default: 'manual', index: true },
     researchSessionId: { type: mongoose.Schema.Types.ObjectId, default: null },
@@ -112,15 +113,35 @@ function buildSupplierDedupKey(supplierName, website) {
 function resolveRowEquipmentTypes(candidate, context = {}) {
   const fromCandidate = normalizeEquipmentTypes({
     equipmentTypes: candidate.equipmentTypeHints,
-  });
+  }).slice(0, 3);
+  if (fromCandidate.length && fromCandidate[0] !== 'other') {
+    return fromCandidate;
+  }
   const contextTypes = normalizeEquipmentTypes({
     equipmentTypes: context.equipmentTypes,
     equipmentType: context.equipmentType,
   });
-  if (fromCandidate.length && !(fromCandidate.length === 1 && fromCandidate[0] === 'other' && contextTypes.length)) {
-    return fromCandidate;
+  return contextTypes.length ? [contextTypes[0]] : ['other'];
+}
+
+function resolveTradeCategories(candidate) {
+  const fromLlm = Array.isArray(candidate.tradeCategories)
+    ? candidate.tradeCategories.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 5)
+    : [];
+  if (fromLlm.length) return fromLlm;
+
+  const hints = normalizeEquipmentTypes({ equipmentTypes: candidate.equipmentTypeHints }).slice(0, 3);
+  if (hints.length && hints[0] !== 'other') {
+    return formatEquipmentTypeLabels(hints);
   }
-  return contextTypes;
+
+  const summary = String(candidate.productSummary || '').trim();
+  if (summary) return [summary.slice(0, 120)];
+
+  const model = String(candidate.productModel || '').trim();
+  if (model) return [model.slice(0, 80)];
+
+  return [];
 }
 
 function candidateToRegistryRow(candidate, context = {}) {
@@ -147,6 +168,7 @@ function candidateToRegistryRow(candidate, context = {}) {
 
   const equipmentTypes = resolveRowEquipmentTypes(candidate, context);
   const equipmentType = equipmentTypes[0] || 'other';
+  const tradeCategories = resolveTradeCategories(candidate);
 
   return {
     productName: String(productName).slice(0, 400),
@@ -162,6 +184,7 @@ function candidateToRegistryRow(candidate, context = {}) {
     riskDescription: riskParts.join('\n').slice(0, 2000),
     equipmentType,
     equipmentTypes,
+    tradeCategories,
     dedupKey,
     source: context.source || 'manual',
     researchSessionId: context.researchSessionId || null,
@@ -211,15 +234,32 @@ async function mergeCandidatesIntoRegistry(candidates, context = {}) {
 }
 
 function enrichRegistryRow(row) {
-  const equipmentTypes =
-    Array.isArray(row.equipmentTypes) && row.equipmentTypes.length
+  let tradeCategories = Array.isArray(row.tradeCategories)
+    ? row.tradeCategories.map((x) => String(x || '').trim()).filter(Boolean)
+    : [];
+
+  if (!tradeCategories.length) {
+    const stored = Array.isArray(row.equipmentTypes) && row.equipmentTypes.length
       ? normalizeEquipmentTypes({ equipmentTypes: row.equipmentTypes })
       : parseStoredEquipmentTypes(row.equipmentType);
+    if (stored.length > 0 && stored.length <= 3) {
+      tradeCategories = formatEquipmentTypeLabels(stored);
+    } else if (row.productName) {
+      tradeCategories = [String(row.productName).split('·')[0].trim().slice(0, 100)];
+    }
+  }
+
+  const equipmentTypes =
+    Array.isArray(row.equipmentTypes) && row.equipmentTypes.length
+      ? normalizeEquipmentTypes({ equipmentTypes: row.equipmentTypes }).slice(0, 3)
+      : parseStoredEquipmentTypes(row.equipmentType).slice(0, 1);
+
   return {
     ...row,
+    tradeCategories,
     equipmentTypes,
     equipmentType: equipmentTypes[0] || row.equipmentType || 'other',
-    categoryLabels: formatEquipmentTypeLabels(equipmentTypes),
+    categoryLabels: tradeCategories,
   };
 }
 

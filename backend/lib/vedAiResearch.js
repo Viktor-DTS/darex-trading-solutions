@@ -50,7 +50,8 @@ const SYSTEM_PROMPT = `Ти аналітик відділу зовнішньое
       "website": "https://... або порожній рядок",
       "contact": "email або телефон або порожній",
       "productModel": "модель / лінійка продукції",
-      "equipmentTypeHints": ["generator_diesel"] — один або кілька ключів категорії товару з переліку в заявці,
+      "tradeCategories": ["Дизель-генератори", "ЗИП до генераторів"] — 1–3 короткі категорії товарів, якими РЕАЛЬНО торгує цей постачальник (українською),
+      "equipmentTypeHints": ["generator_diesel"] — опційно, 1 ключ для фільтра (лише категорії цього постачальника),
       "productSummary": "коротко що пропонують",
       "priceFrom": null або число (мінімальна орієнтовна ціна),
       "priceTo": null або число (максимальна орієнтовна ціна),
@@ -76,7 +77,8 @@ const SYSTEM_PROMPT = `Ти аналітик відділу зовнішньое
 - sourceUrls — лише URL, що згадані в контексті пошуку або логічно випливають з відомих сайтів компаній; не більше 5 на кандидата.
 - riskNotes — гіпотези (санкції, prepayment 100%, новий домен, відсутність сертифікатів) — не категоричні висновки.
 - candidates: від 3 до MAX_CANDIDATES, різні країни/профілі де можливо.
-- equipmentTypeHints — лише ключі з переліку типів у заявці; якщо постачальник покриває кілька категорій — вкажи всі.
+- tradeCategories — ОБОВ'ЯЗКОВО: чим саме торгує ця компанія за джерелами; НЕ копіюй усі типи з заявки.
+- equipmentTypeHints — лише 1–2 ключі з переліку типів заявки, що відповідають асортименту постачальника.
 - Це чернетка для ВЕД-фахівця, не договірна пропозиція.`;
 
 function stripJsonFence(text) {
@@ -326,7 +328,16 @@ function normalizeCandidate(raw, idx) {
     : raw?.equipmentTypeHint
       ? [raw.equipmentTypeHint]
       : [];
-  const equipmentTypeHints = normalizeEquipmentTypes({ equipmentTypes: hintRaw });
+  const equipmentTypeHints = normalizeEquipmentTypes({ equipmentTypes: hintRaw }).slice(0, 3);
+  const tradeCategoriesRaw = Array.isArray(raw?.tradeCategories)
+    ? raw.tradeCategories
+    : raw?.tradeCategory
+      ? [raw.tradeCategory]
+      : [];
+  const tradeCategories = tradeCategoriesRaw
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .slice(0, 5);
 
   return {
     supplierName: String(raw?.supplierName || '').trim().slice(0, 200),
@@ -344,6 +355,7 @@ function normalizeCandidate(raw, idx) {
     powerLineup: String(raw?.powerLineup || raw?.powerLineupHint || '').trim().slice(0, 400),
     riskDescription: String(raw?.riskDescription || '').trim().slice(0, 2000),
     equipmentTypeHints,
+    tradeCategories,
     incotermsHint: String(raw?.incotermsHint || '').trim().slice(0, 40).toUpperCase(),
     moqHint: String(raw?.moqHint || '').trim().slice(0, 120),
     leadTimeHint: String(raw?.leadTimeHint || '').trim().slice(0, 120),

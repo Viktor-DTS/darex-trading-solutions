@@ -67,18 +67,13 @@ function formatPriceRange(from, to, currency) {
   return '—';
 }
 
-function formatRegistryCategories(row, equipmentTypesMap) {
-  const labels =
-    Array.isArray(row.categoryLabels) && row.categoryLabels.length
+function formatRegistryCategories(row) {
+  const labels = Array.isArray(row.tradeCategories) && row.tradeCategories.length
+    ? row.tradeCategories
+    : Array.isArray(row.categoryLabels) && row.categoryLabels.length
       ? row.categoryLabels
-      : (Array.isArray(row.equipmentTypes) && row.equipmentTypes.length
-          ? row.equipmentTypes
-          : String(row.equipmentType || '')
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-        ).map((t) => equipmentTypesMap[t] || t);
-  return labels.filter(Boolean);
+      : [];
+  return labels.map((x) => String(x || '').trim()).filter(Boolean);
 }
 
 function formatWebsite(url) {
@@ -1258,7 +1253,7 @@ function VedDashboard({ user }) {
               <tbody>
                 {supplierRegistry.map((row) => {
                   const site = formatWebsite(row.website);
-                  const categories = formatRegistryCategories(row, equipmentTypesMap);
+                  const categories = formatRegistryCategories(row);
                   return (
                     <tr key={row._id}>
                       <td className="ved-registry-categories">
