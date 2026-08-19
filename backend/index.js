@@ -15468,6 +15468,42 @@ app.post('/api/equipment/:id/return-testing', authenticateToken, async (req, res
 });
 
 const { linkEquipmentToProductCardsByName } = require('./lib/linkEquipmentProductCards');
+const { bulkCreateProductCardsFromEquipment } = require('./lib/bulkCreateProductCardsFromEquipment');
+
+// Масове створення карточок продукту для залишків без productId (асистент → чернетка → прив’язка)
+app.post('/api/equipment/bulk-create-product-cards', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const dryRun =
+      req.query.dryRun === '1' ||
+      req.query.dryRun === 'true' ||
+      req.body?.dryRun === true;
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.body?.limit ?? 15), 10) || 15));
+    const importImages = req.body?.importImages !== false;
+    const linkAfter = req.body?.linkAfter !== false && !dryRun;
+
+    const summary = await bulkCreateProductCardsFromEquipment({
+      Equipment,
+      ProductCard,
+      suggest: productCardAssistantSuggest,
+      importImageFromUrl: productCardAssistantImportImage,
+      dryRun: !!dryRun,
+      limit,
+      importImages,
+      linkAfter,
+      user: { login: req.user.login, name: req.user.name || req.user.login },
+    });
+    logPerformance('POST /api/equipment/bulk-create-product-cards', startTime, summary.created ?? summary.wouldCreate);
+    res.json(summary);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/bulk-create-product-cards:', error);
+    logPerformance('POST /api/equipment/bulk-create-product-cards', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Прив’язка залишків без карточки до ProductCard за точним збігом назви (type ↔ type/displayName)
 app.post('/api/equipment/link-product-cards-by-name', authenticateToken, async (req, res) => {

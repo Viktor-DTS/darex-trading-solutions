@@ -12,6 +12,7 @@ import EquipmentQRModal from './EquipmentQRModal';
 import EquipmentDeleteModal from './EquipmentDeleteModal';
 import EquipmentDetailsModal from './EquipmentDetailsModal';
 import EquipmentEditModal from './EquipmentEditModal';
+import BulkCreateProductCardsModal from './BulkCreateProductCardsModal';
 import './EquipmentList.css';
 
 // Функції для обробки статусів (винесені за межі компонента)
@@ -247,6 +248,7 @@ const EquipmentList = forwardRef(({
   const [warehouseFilterOpen, setWarehouseFilterOpen] = useState(false);
   const [linkingProductCards, setLinkingProductCards] = useState(false);
   const [backfillingRootCategory, setBackfillingRootCategory] = useState(false);
+  const [showBulkCreateProductCards, setShowBulkCreateProductCards] = useState(false);
 
   // Фільтри колонок
   const [columnFilters, setColumnFilters] = useState(() => {
@@ -1002,6 +1004,19 @@ const EquipmentList = forwardRef(({
           <button
             type="button"
             className="btn-link-product-cards"
+            onClick={() => setShowBulkCreateProductCards(true)}
+            disabled={
+              linkingProductCards || backfillingRootCategory || refreshing || showBulkCreateProductCards
+            }
+            title="Створити чернетки карточок для унікальних назв залишків без карточки (AI-асистент)"
+          >
+            📋 Масово карточки
+          </button>
+        )}
+        {showNomenclatureMaintenanceTools && (
+          <button
+            type="button"
+            className="btn-link-product-cards"
             onClick={handleLinkProductCardsByName}
             disabled={linkingProductCards || backfillingRootCategory || refreshing}
             title="Прив’язати позиції без карточки до довідника за точним збігом назви"
@@ -1433,6 +1448,13 @@ const EquipmentList = forwardRef(({
               alert(`Видалено: ${deleted}. Не вдалося: ${failed}.`);
             }
           }}
+        />
+      )}
+
+      {showBulkCreateProductCards && (
+        <BulkCreateProductCardsModal
+          onClose={() => setShowBulkCreateProductCards(false)}
+          onDone={() => refreshEquipment()}
         />
       )}
 
