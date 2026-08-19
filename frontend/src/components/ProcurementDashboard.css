@@ -1,10 +1,18 @@
 .procurement-dashboard {
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f3f4f6;
+  --text: #111111;
+  --text-secondary: #4b5563;
+  --border: #d1d5db;
+  --primary: #1565c0;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   height: 100%;
-  background: var(--background);
+  background: #ffffff;
+  color: #111111;
 }
 
 .procurement-dashboard-main {
@@ -258,13 +266,14 @@
 }
 
 .procurement-table th {
-  background: var(--background);
+  background: #f9fafb;
   font-weight: 600;
   white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 2;
   box-shadow: 0 1px 0 var(--border);
+  color: #111111;
 }
 
 .procurement-table tbody tr:hover {
@@ -323,8 +332,8 @@
   padding: 6px 12px;
   border: 1px solid rgba(211, 47, 47, 0.55);
   border-radius: 6px;
-  background: rgba(211, 47, 47, 0.18);
-  color: #ff8a80;
+  background: rgba(211, 47, 47, 0.1);
+  color: #b71c1c;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -358,8 +367,8 @@
   padding: 4px 10px;
   border: 1px solid rgba(211, 47, 47, 0.45);
   border-radius: 6px;
-  background: rgba(211, 47, 47, 0.12);
-  color: #e57373;
+  background: rgba(211, 47, 47, 0.08);
+  color: #c62828;
   font-size: 12px;
   cursor: pointer;
 }
@@ -382,6 +391,20 @@
 .procurement-table-col-executor {
   max-width: 200px;
   word-break: break-word;
+}
+
+.procurement-table-col-materials {
+  min-width: 180px;
+  max-width: 320px;
+  word-break: break-word;
+}
+
+.procurement-materials-summary-line {
+  line-height: 1.4;
+}
+
+.procurement-materials-summary-line + .procurement-materials-summary-line {
+  margin-top: 4px;
 }
 
 .procurement-table-col-date {
@@ -802,8 +825,8 @@
   padding: 8px 16px;
   border: 1px solid rgba(211, 47, 47, 0.55);
   border-radius: 6px;
-  background: rgba(211, 47, 47, 0.12);
-  color: #e57373;
+  background: rgba(211, 47, 47, 0.08);
+  color: #c62828;
   font-size: 14px;
   cursor: pointer;
 }

@@ -245,6 +245,20 @@ function procurementListEmptyMessage(totalCount, filteredCount, emptyMessage) {
   return emptyMessage;
 }
 
+function formatProcurementMaterialsSummary(materials, uomList) {
+  return (materials || [])
+    .filter((m) => m && !m.rejected && String(m.name || '').trim())
+    .map((m) => {
+      const name = String(m.name).trim();
+      const qty = m.quantity;
+      const uom = normalizeUomLabel(m.unitOfMeasure, uomList);
+      if (qty != null && qty !== '' && Number.isFinite(Number(qty))) {
+        return `${name} — ${Number(qty)} ${uom}`;
+      }
+      return name;
+    });
+}
+
 function sumWarehouseAcceptedQty(events) {
   if (!Array.isArray(events)) return 0;
   return events.reduce((acc, ev) => acc + (Number(ev?.acceptedQuantity) || 0), 0);
@@ -1685,6 +1699,7 @@ function ProcurementDashboard({ user }) {
             <th>Відповідальний (хто подав)</th>
             <th>Пріоритет</th>
             <th>Дата подачі</th>
+            <th>Матеріали</th>
             <th>Бажаний склад</th>
             <th>Фактичний склад відвантаження</th>
             <th>Відповідальний за виконання заявки</th>
@@ -1732,6 +1747,17 @@ function ProcurementDashboard({ user }) {
               <td>{r.requesterName || r.requesterLogin || '—'}</td>
               <td>{priorityLabel(r.priority)}</td>
               <td>{formatDt(r.createdAt)}</td>
+              <td className="procurement-table-col-materials">
+                {(() => {
+                  const lines = formatProcurementMaterialsSummary(r.materials, uomList);
+                  if (!lines.length) return '—';
+                  return lines.map((line, idx) => (
+                    <div key={idx} className="procurement-materials-summary-line">
+                      {line}
+                    </div>
+                  ));
+                })()}
+              </td>
               <td>{r.desiredWarehouse || '—'}</td>
               <td className="procurement-table-col-warehouse">
                 {r.actualWarehouse ? r.actualWarehouse : '—'}
