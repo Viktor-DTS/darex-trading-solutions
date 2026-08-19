@@ -50,6 +50,8 @@ export default function ProductCardManagement() {
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(() => emptyForm());
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -100,7 +102,121 @@ export default function ProductCardManagement() {
 
   useEffect(() => {
     loadList();
+    setSelectedIds(new Set());
   }, [loadList]);
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const key = String(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === list.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(list.map((r) => String(r._id))));
+    }
+  };
+
+  const confirmDeleteMessage = (count, preview) => {
+    const lines = [
+      `Видалити ${count} карточ${count === 1 ? 'ку' : count < 5 ? 'ки' : 'ок'}?`,
+      '',
+      'Залишки на складі будуть від’єднані від карточки (стануть «без картки»), потім карточку видалено.',
+      'Дані залишків (назва, кількість, склад) не змінюються.',
+    ];
+    if (preview?.linkedRows > 0) {
+      lines.push(
+        '',
+        `Прив’язано позицій на складі: ${preview.linkedRows}`,
+        `Сумарна кількість: ${preview.linkedQuantity ?? preview.linkedRows}`,
+      );
+    }
+    return lines.join('\n');
+  };
+
+  const handleDelete = async (row) => {
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const previewRes = await fetch(`${API_BASE_URL}/product-cards/bulk-delete?dryRun=1`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: [row._id], dryRun: true, unlinkStock: true }),
+      });
+      const preview = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) throw new Error(preview.error || 'Не вдалося перевірити прив’язки');
+
+      if (!window.confirm(confirmDeleteMessage(1, preview))) return;
+
+      const res = await fetch(`${API_BASE_URL}/product-cards/${row._id}?unlinkStock=1`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Помилка видалення');
+      }
+      loadList();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setBulkDeleting(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const previewRes = await fetch(`${API_BASE_URL}/product-cards/bulk-delete?dryRun=1`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ids, dryRun: true, unlinkStock: true }),
+      });
+      const preview = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) throw new Error(preview.error || 'Не вдалося перевірити прив’язки');
+
+      const count = preview.foundCards ?? ids.length;
+      if (!count) {
+        window.alert('Жодної карточки зі списку не знайдено.');
+        return;
+      }
+      if (!window.confirm(confirmDeleteMessage(count, preview))) return;
+
+      const res = await fetch(`${API_BASE_URL}/product-cards/bulk-delete`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ids, unlinkStock: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Помилка масового видалення');
+
+      setSelectedIds(new Set());
+      loadList();
+      window.alert(
+        `Готово.\n\nВидалено карточок: ${data.deleted ?? 0}\n` +
+          `Від’єднано позицій на складі: ${data.unlinkedRows ?? 0}`,
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   const batchUnitOptions = useMemo(() => {
     const u = String(form.defaultBatchUnit || '').trim();
@@ -241,25 +357,6 @@ export default function ProductCardManagement() {
     }
   };
 
-  const handleDelete = async (row) => {
-    if (!window.confirm(`Видалити карточку «${row.type}»? Можливо лише якщо немає залишків на складі за цією карточкою.`)) return;
-    setError('');
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/product-cards/${row._id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Помилка видалення');
-      }
-      loadList();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
   return (
     <div className="category-management">
       <div className="category-management-header">
@@ -274,6 +371,22 @@ export default function ProductCardManagement() {
           <button type="button" className="btn-primary" onClick={openCreate}>
             + Нова карточка
           </button>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              className="btn-delete-small"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              style={{ padding: '8px 14px' }}
+            >
+              {bulkDeleting ? 'Видалення…' : `🗑️ Видалити вибрані (${selectedIds.size})`}
+            </button>
+          )}
+          {selectedIds.size > 0 && (
+            <button type="button" onClick={() => setSelectedIds(new Set())}>
+              Зняти вибір
+            </button>
+          )}
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -522,6 +635,14 @@ export default function ProductCardManagement() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color, #444)' }}>
+                <th style={{ padding: '8px', width: 36 }}>
+                  <input
+                    type="checkbox"
+                    checked={list.length > 0 && selectedIds.size === list.length}
+                    onChange={toggleSelectAll}
+                    title="Вибрати всі на сторінці"
+                  />
+                </th>
                 <th style={{ padding: '8px' }}>Тип</th>
                 <th style={{ padding: '8px' }}>Виробник</th>
                 <th style={{ padding: '8px' }}>Група</th>
@@ -536,6 +657,13 @@ export default function ProductCardManagement() {
                 const catName = cat && typeof cat === 'object' ? cat.name : '—';
                 return (
                   <tr key={row._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <td style={{ padding: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(String(row._id))}
+                        onChange={() => toggleSelect(row._id)}
+                      />
+                    </td>
                     <td style={{ padding: '8px' }}>
                       <div>{row.type}</div>
                       {row.displayName ? (

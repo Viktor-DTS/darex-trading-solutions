@@ -12245,30 +12245,82 @@ app.delete('/api/product-cards/:id', authenticateToken, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ error: 'Некоректний id' });
     }
-    const oid = new mongoose.Types.ObjectId(id);
-    const agg = await Equipment.aggregate([
-      {
-        $match: {
-          productId: oid,
-          isDeleted: { $ne: true },
-          status: { $in: PRODUCT_CARD_STOCK_STATUSES },
-        },
-      },
-      { $group: { _id: null, total: { $sum: { $ifNull: ['$quantity', 1] } } } },
-    ]);
-    const total = agg[0]?.total || 0;
-    if (total > 0) {
+    const unlinkStock =
+      req.query.unlinkStock !== '0' &&
+      req.query.unlinkStock !== 'false' &&
+      req.body?.unlinkStock !== false;
+
+    const { deleteProductCardsWithOptionalUnlink } = require('./lib/deleteProductCards');
+    const summary = await deleteProductCardsWithOptionalUnlink({
+      Equipment,
+      ProductCard,
+      ids: [id],
+      unlinkStock,
+      dryRun: false,
+    });
+    if (summary.deleted === 0) {
+      return res.status(404).json({ error: 'Карточку не знайдено' });
+    }
+    logPerformance('DELETE /api/product-cards/:id', startTime);
+    res.json({
+      message: 'Карточку видалено',
+      unlinkedRows: summary.unlinkedRows,
+      linkedQuantity: summary.linkedQuantity,
+    });
+  } catch (error) {
+    if (error.code === 'PRODUCT_CARD_LINKED_STOCK') {
       return res.status(400).json({
-        error: `Неможливо видалити: на складі є залишки за цією карточкою (${total} од. у статусах залишку).`,
+        error: error.message,
+        linkedRows: error.linkedRows,
+        linkedQuantity: error.linkedQuantity,
       });
     }
-    const del = await ProductCard.findByIdAndDelete(id);
-    if (!del) return res.status(404).json({ error: 'Карточку не знайдено' });
-    logPerformance('DELETE /api/product-cards/:id', startTime);
-    res.json({ message: 'Карточку видалено' });
-  } catch (error) {
     console.error('[ERROR] DELETE /api/product-cards/:id:', error);
     logPerformance('DELETE /api/product-cards/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Масове видалення карточок (адмін): від'єднати залишки → видалити
+app.post('/api/product-cards/bulk-delete', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Потрібен непорожній масив ids' });
+    }
+    if (ids.length > 500) {
+      return res.status(400).json({ error: 'За один раз — не більше 500 карточок' });
+    }
+    const dryRun =
+      req.query.dryRun === '1' ||
+      req.query.dryRun === 'true' ||
+      req.body?.dryRun === true;
+    const unlinkStock = req.body?.unlinkStock !== false;
+
+    const { deleteProductCardsWithOptionalUnlink } = require('./lib/deleteProductCards');
+    const summary = await deleteProductCardsWithOptionalUnlink({
+      Equipment,
+      ProductCard,
+      ids,
+      unlinkStock,
+      dryRun: !!dryRun,
+    });
+    logPerformance('POST /api/product-cards/bulk-delete', startTime, summary.deleted ?? summary.wouldDelete);
+    res.json(summary);
+  } catch (error) {
+    if (error.code === 'PRODUCT_CARD_LINKED_STOCK') {
+      return res.status(400).json({
+        error: error.message,
+        linkedRows: error.linkedRows,
+        linkedQuantity: error.linkedQuantity,
+      });
+    }
+    console.error('[ERROR] POST /api/product-cards/bulk-delete:', error);
+    logPerformance('POST /api/product-cards/bulk-delete', startTime);
     res.status(500).json({ error: error.message });
   }
 });
