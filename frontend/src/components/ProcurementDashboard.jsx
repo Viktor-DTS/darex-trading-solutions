@@ -1693,13 +1693,13 @@ function ProcurementDashboard({ user }) {
               </th>
             ) : null}
             <th>№ заявки</th>
+            <th>Матеріали</th>
             <th>Статус</th>
             <th>Тип заявки</th>
             <th>Компанія платник</th>
             <th>Відповідальний (хто подав)</th>
             <th>Пріоритет</th>
             <th>Дата подачі</th>
-            <th>Матеріали</th>
             <th>Бажаний склад</th>
             <th>Фактичний склад відвантаження</th>
             <th>Відповідальний за виконання заявки</th>
@@ -1737,16 +1737,6 @@ function ProcurementDashboard({ user }) {
                 </td>
               ) : null}
               <td>{r.requestNumber || '—'}</td>
-              <td>
-                <span className={`procurement-status procurement-status--${r.status}`}>
-                  {STATUS_LABELS[r.status] || r.status}
-                </span>
-              </td>
-              <td className="procurement-desc-cell">{applicationKindLabel(r)}</td>
-              <td>{payerCompanyLabel(r.payerCompany)}</td>
-              <td>{r.requesterName || r.requesterLogin || '—'}</td>
-              <td>{priorityLabel(r.priority)}</td>
-              <td>{formatDt(r.createdAt)}</td>
               <td className="procurement-table-col-materials">
                 {(() => {
                   const lines = formatProcurementMaterialsSummary(r.materials, uomList);
@@ -1758,6 +1748,16 @@ function ProcurementDashboard({ user }) {
                   ));
                 })()}
               </td>
+              <td>
+                <span className={`procurement-status procurement-status--${r.status}`}>
+                  {STATUS_LABELS[r.status] || r.status}
+                </span>
+              </td>
+              <td className="procurement-desc-cell">{applicationKindLabel(r)}</td>
+              <td>{payerCompanyLabel(r.payerCompany)}</td>
+              <td>{r.requesterName || r.requesterLogin || '—'}</td>
+              <td>{priorityLabel(r.priority)}</td>
+              <td>{formatDt(r.createdAt)}</td>
               <td>{r.desiredWarehouse || '—'}</td>
               <td className="procurement-table-col-warehouse">
                 {r.actualWarehouse ? r.actualWarehouse : '—'}
