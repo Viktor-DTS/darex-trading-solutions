@@ -179,6 +179,7 @@ async function bulkCreateProductCardsFromEquipment({
     wouldCreate: slice.length,
     created: 0,
     failed: 0,
+    skippedEmpty: 0,
     remaining: Math.max(0, pending.length - slice.length),
     linkSummary: null,
     items: [],
@@ -238,6 +239,14 @@ async function bulkCreateProductCardsFromEquipment({
 
       const technicalSpecs = sanitizeSpecsFromAssistant(suggestion?.specs, suggestion?.source);
       itemResult.specsCount = technicalSpecs.length;
+
+      if (technicalSpecs.length === 0 && attachedFiles.length === 0) {
+        itemResult.status = 'skipped_empty';
+        itemResult.error = 'Немає характеристик і фото — перевірте OPENAI_API_KEY та SERPAPI_API_KEY на Render';
+        summary.skippedEmpty += 1;
+        summary.items.push(itemResult);
+        continue;
+      }
 
       const suggestedName = String(suggestion?.suggestedName || '').trim();
       const doc = await ProductCard.create({

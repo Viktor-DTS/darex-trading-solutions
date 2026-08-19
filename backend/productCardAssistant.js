@@ -20,6 +20,7 @@ const { commonsSuggestImages } = require('./productCardAssistantCommons');
 const { sortImagesUaHostFirst } = require('./productCardAssistantGoogleImages');
 const { serpApiGoogleImages, resolveSerpApiKey, serpApiImageSearchEnabled } = require('./productCardAssistantSerpApiImages');
 const { fetchSerpSpecWebContext } = require('./productCardAssistantSerpApiWeb');
+const { fetchDirectCatalogContext } = require('./productCardAssistantCatalogPages');
 const {
   buildGoogleQueryListPrioritizingUa,
   buildCommonsImageSearchExtensions,
@@ -36,13 +37,14 @@ const EXTRA_IMAGE_HOST_SUFFIXES = String(process.env.PRODUCT_ASSISTANT_IMAGE_IMP
 
 function allowedImageHostname(hostname) {
   const h = String(hostname || '').toLowerCase();
-  if (
-    h.endsWith('wikimedia.org') ||
+  if (h.endsWith('wikimedia.org') ||
     h.endsWith('wikipedia.org') ||
     h === 'upload.wikimedia.org' ||
     h.endsWith('.upload.wikimedia.org')
   )
     return true;
+  if (h === 'promaplus.com.ua' || h.endsWith('.promaplus.com.ua')) return true;
+  if (h === 'darex.energy' || h.endsWith('.darex.energy')) return true;
   if (h === 'gstatic.com' || h.endsWith('.gstatic.com')) return true;
   if (h.endsWith('.googleusercontent.com') || h === 'googleusercontent.com') return true;
   if (h === 'ggpht.com' || h.endsWith('.ggpht.com')) return true;
@@ -370,8 +372,6 @@ function llmPayloadHasUsefulContent(payload) {
   if (!payload) return false;
   if ((payload.specs || []).length > 0) return true;
   if (String(payload.manufacturerHint || '').trim()) return true;
-  const sn = String(payload.suggestedName || '').trim();
-  if (sn.length > 0) return true;
   if (Array.isArray(payload.imageSearchQueries) && payload.imageSearchQueries.some((x) => String(x || '').trim().length >= 2))
     return true;
   return false;
@@ -481,14 +481,37 @@ async function suggest(query) {
   if (resolveLlmApiKey()) {
     try {
       let serpWebContext = '';
+      let catalogImages = [];
       try {
-        serpWebContext = await fetchSerpSpecWebContext(q);
+        const web = await fetchSerpSpecWebContext(q);
+        if (web && typeof web === 'object') {
+          serpWebContext = String(web.context || '').trim();
+          catalogImages = Array.isArray(web.catalogImages) ? web.catalogImages : [];
+        } else {
+          serpWebContext = String(web || '').trim();
+        }
+        if (!serpWebContext && !catalogImages.length) {
+          const direct = await fetchDirectCatalogContext(q);
+          serpWebContext = String(direct.context || '').trim();
+          catalogImages = Array.isArray(direct.catalogImages) ? direct.catalogImages : [];
+        }
       } catch (e) {
         console.warn('[product-card-assistant] SerpApi web context:', e.message);
       }
       const llm = await llmSuggest(q, { serpWebContext });
       if (llmPayloadHasUsefulContent(llm)) {
-        return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, llm));
+        const enriched = await enrichWithCommonsImages(q, mergeHeuristicSpecs(q, llm));
+        if (catalogImages.length) {
+          const seen = new Set((enriched.images || []).map((i) => i.url).filter(Boolean));
+          const merged = [...(enriched.images || [])];
+          for (const im of catalogImages) {
+            if (!im?.url || seen.has(im.url)) continue;
+            seen.add(im.url);
+            merged.unshift(im);
+          }
+          return { ...enriched, images: merged };
+        }
+        return enriched;
       }
     } catch (e) {
       console.warn('[product-card-assistant] LLM:', e.message);

@@ -11,6 +11,7 @@
 
 const { resolveSerpApiKey } = require('./productCardAssistantSerpApiImages');
 const { sanitizeForImageSearch, extractProminentProductCodes } = require('./productCardAssistantImageQueries');
+const { enrichFromTrustedCatalogPages } = require('./productCardAssistantCatalogPages');
 
 const SERPAPI_ENDPOINT = 'https://serpapi.com/search.json';
 const MAX_CONTEXT_CHARS = 9000;
@@ -53,14 +54,15 @@ function buildSerpSpecSearchQueries(userQuery) {
 
 /**
  * @param {string} userQuery
- * @returns {Promise<string>}
+ * @returns {Promise<{ context: string, catalogImages: Array<{ id: string, url: string, title: string }> }>}
  */
 async function fetchSerpSpecWebContext(userQuery) {
+  const empty = { context: '', catalogImages: [] };
   const apiKey = resolveSerpApiKey();
-  if (!apiKey || !serpApiSpecSearchEnabled()) return '';
+  if (!apiKey || !serpApiSpecSearchEnabled()) return empty;
 
   const queries = buildSerpSpecSearchQueries(userQuery);
-  if (!queries.length) return '';
+  if (!queries.length) return empty;
 
   const google_domain = String(process.env.SERPAPI_GOOGLE_DOMAIN || 'google.com.ua').trim() || 'google.com.ua';
   const gl = String(process.env.SERPAPI_GL || 'ua').trim() || 'ua';
@@ -69,6 +71,7 @@ async function fetchSerpSpecWebContext(userQuery) {
 
   const blocks = [];
   const seenLinks = new Set();
+  const organicLinks = [];
   let n = 0;
 
   for (const q of queries) {
@@ -105,18 +108,33 @@ async function fetchSerpSpecWebContext(userQuery) {
       const snippet = String(row?.snippet || '').trim().slice(0, 700);
       if (!snippet && !title) continue;
       if (link && seenLinks.has(link)) continue;
-      if (link) seenLinks.add(link);
+      if (link) {
+        seenLinks.add(link);
+        organicLinks.push(link);
+      }
       n += 1;
       const lines = [`[${n}] ${title || '(без заголовка)'}`];
       if (link) lines.push(link);
       if (snippet) lines.push(snippet);
       blocks.push(lines.join('\n'));
       const joined = blocks.join('\n\n');
-      if (joined.length >= MAX_CONTEXT_CHARS) return joined.slice(0, MAX_CONTEXT_CHARS);
+      if (joined.length >= MAX_CONTEXT_CHARS) {
+        return {
+          context: joined.slice(0, MAX_CONTEXT_CHARS),
+          catalogImages: (await enrichFromTrustedCatalogPages(organicLinks, 1)).images,
+        };
+      }
     }
   }
 
-  return blocks.join('\n\n').slice(0, MAX_CONTEXT_CHARS);
+  let context = blocks.join('\n\n').slice(0, MAX_CONTEXT_CHARS);
+  const catalog = await enrichFromTrustedCatalogPages(organicLinks, 1);
+  if (catalog.textBlocks.length) {
+    const extra = catalog.textBlocks.join('\n\n').slice(0, 4000);
+    context = `${context}\n\n${extra}`.slice(0, MAX_CONTEXT_CHARS + 4000);
+  }
+
+  return { context, catalogImages: catalog.images };
 }
 
 module.exports = {

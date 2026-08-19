@@ -170,6 +170,8 @@ export default function BulkCreateProductCardsModal({ onClose, onDone }) {
               <p>
                 Створено: <strong>{result.created ?? 0}</strong>
                 {' · '}
+                Пропущено (порожні): <strong>{result.skippedEmpty ?? 0}</strong>
+                {' · '}
                 Помилок: <strong>{result.failed ?? 0}</strong>
                 {' · '}
                 Залишилось: <strong>{result.remaining ?? 0}</strong>
@@ -188,6 +190,7 @@ export default function BulkCreateProductCardsModal({ onClose, onDone }) {
                         {it.status === 'created' && `✓ ${it.specsCount} хар.`}
                         {it.status === 'failed' && `✗ ${it.error}`}
                         {it.status === 'skipped_existing' && 'пропущено (вже є)'}
+                        {it.status === 'skipped_empty' && 'пропущено (немає даних)'}
                         {it.imageImported ? ' · фото' : ''}
                       </span>
                     </li>

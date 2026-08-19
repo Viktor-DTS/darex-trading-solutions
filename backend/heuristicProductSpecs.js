@@ -149,6 +149,28 @@ function extractHeuristicSpecs(raw) {
   }
 
   // —— Електроживлення / потужність ——
+  const deBds = text.match(/\bDE[-\s]?(\d{2,3})\s*BDS\b/i);
+  if (deBds && /генератор|generator|genset|дизел/i.test(lower)) {
+    specs.push({
+      id: nextId('debds'),
+      name: 'Модель (з назви)',
+      value: `DE-${deBds[1]}BDS (перевірте паспорт / каталог)`,
+    });
+    specs.push({
+      id: nextId('debds-kva'),
+      name: 'Орієнтовна потужність (з коду моделі), кВА',
+      value: `${deBds[1]} (уточніть за datasheet)`,
+    });
+  }
+  const arkB = text.match(/\bARK[-\s]?B\s*(\d{2,3})\b/i);
+  if (arkB && /генератор|generator|genset|дизел|ark/i.test(lower)) {
+    specs.push({
+      id: nextId('arkb'),
+      name: 'Серія / модель (з назви)',
+      value: `ARK-B ${arkB[1]}`,
+    });
+  }
+
   const kwM = text.match(/\b(\d+(?:[.,]\d+)?)\s*(?:kW|кВт|kw)\b/i);
   if (kwM) {
     specs.push({
