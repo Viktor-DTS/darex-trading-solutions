@@ -2,10 +2,11 @@
  * Опційний шар LLM для асистента карточки продукту (OpenAI-сумісний Chat Completions API).
  *
  * Змінні оточення:
- *   PRODUCT_ASSISTANT_LLM_API_KEY — пріоритетний ключ
- *   OPENAI_API_KEY — запасний (зручно для Render, якщо вже є ключ для інших функцій)
- *   PRODUCT_ASSISTANT_LLM_BASE_URL — за замовчуванням https://api.openai.com/v1
- *   PRODUCT_ASSISTANT_LLM_MODEL — за замовчуванням gpt-4o-mini
+ *   OPENAI_API_KEY — основний для карточок (Render); gpt-4o-mini на api.openai.com
+ *   PRODUCT_ASSISTANT_LLM_API_KEY — запасний (Groq тощо), якщо немає OPENAI_API_KEY
+ *   PRODUCT_CARD_LLM_API_KEY — окремий ключ лише для карточок (опційно)
+ *   PRODUCT_ASSISTANT_LLM_BASE_URL — для чат-асистента; карточки з OPENAI_API_KEY його не використовують
+ *   PRODUCT_ASSISTANT_LLM_MODEL — модель чат-асистента; для карточок з OpenAI завжди gpt-4o-mini
  *   PRODUCT_ASSISTANT_LLM_TIMEOUT_MS — таймаут запиту (мс), за замовчуванням 25000
  *
  * Опційно (див. productCardAssistant.js): другий аргумент { serpWebContext } — уривки organic Google (SerpApi)
@@ -17,6 +18,101 @@ const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_TIMEOUT_MS = 25000;
 const MAX_SPECS = 24;
 const MAX_STR = 500;
+
+/** Чи схоже на Groq/локальну модель (не OpenAI API). */
+function looksLikeNonOpenAiModel(model) {
+  return /llama|mixtral|gemma|groq|qwen|deepseek/i.test(String(model || ''));
+}
+
+/**
+ * Конфіг LLM саме для карточок продукту.
+ * Якщо на Render є OPENAI_API_KEY — використовуємо OpenAI + gpt-4o-mini,
+ * не змішуємо з Groq/llama з PRODUCT_ASSISTANT_LLM_* (чат-асистент).
+ */
+function resolveProductCardLlmClient() {
+  const openAiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  const assistantKey = String(process.env.PRODUCT_ASSISTANT_LLM_API_KEY || '').trim();
+  const assistantBase = String(process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
+  const assistantModel = String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || DEFAULT_MODEL).trim();
+
+  const pcKey = String(process.env.PRODUCT_CARD_LLM_API_KEY || '').trim();
+  if (pcKey) {
+    return {
+      apiKey: pcKey,
+      base: String(process.env.PRODUCT_CARD_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, ''),
+      model: String(process.env.PRODUCT_CARD_LLM_MODEL || DEFAULT_MODEL).trim(),
+      keySource: 'PRODUCT_CARD_LLM_API_KEY',
+    };
+  }
+
+  if (openAiKey) {
+    return {
+      apiKey: openAiKey,
+      base: DEFAULT_BASE,
+      model: DEFAULT_MODEL,
+      keySource: 'OPENAI_API_KEY',
+    };
+  }
+
+  if (assistantKey) {
+    return {
+      apiKey: assistantKey,
+      base: assistantBase,
+      model: assistantModel,
+      keySource: 'PRODUCT_ASSISTANT_LLM_API_KEY',
+    };
+  }
+
+  return { apiKey: '', base: assistantBase, model: assistantModel, keySource: 'none' };
+}
+
+/** Усі клієнти для спроб (основний + fallback OpenAI, якщо primary — Groq). */
+function resolveProductCardLlmClients() {
+  const primary = resolveProductCardLlmClient();
+  const clients = [];
+  if (primary.apiKey) clients.push(primary);
+
+  const openAiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  if (
+    openAiKey &&
+    primary.keySource !== 'OPENAI_API_KEY' &&
+    primary.apiKey !== openAiKey &&
+    !clients.some((c) => c.apiKey === openAiKey)
+  ) {
+    clients.push({
+      apiKey: openAiKey,
+      base: DEFAULT_BASE,
+      model: DEFAULT_MODEL,
+      keySource: 'OPENAI_API_KEY_fallback',
+    });
+  }
+  return clients;
+}
+
+function resolveLlmApiKey() {
+  const client = resolveProductCardLlmClient();
+  return client.apiKey || '';
+}
+
+function getProductCardLlmStatus() {
+  const client = resolveProductCardLlmClient();
+  const assistantsBase = String(process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
+  const assistantsModel = String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || '').trim();
+  return {
+    configured: Boolean(client.apiKey),
+    keySource: client.keySource,
+    baseUrl: client.base,
+    model: client.model,
+    assistantBaseUrl: assistantsBase,
+    assistantModel: assistantsModel || null,
+    openAiKeyPresent: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
+    productAssistantKeyPresent: Boolean(String(process.env.PRODUCT_ASSISTANT_LLM_API_KEY || '').trim()),
+    note:
+      client.keySource === 'OPENAI_API_KEY' && assistantsModel && looksLikeNonOpenAiModel(assistantsModel)
+        ? 'Карточки використовують OpenAI; PRODUCT_ASSISTANT_LLM_MODEL (Groq/llama) ігнорується для цього модуля.'
+        : null,
+  };
+}
 
 const SYSTEM = `Ти допомагаєш завскладу розібрати назву товару для картки номенклатури.
 Поверни ЛИШЕ один JSON-об'єкт без markdown і без тексту поза JSON.
@@ -46,12 +142,6 @@ const SERP_CONTEXT_RULES = `
 
 function buildSystemPrompt(withSerpSnippets) {
   return withSerpSnippets ? SYSTEM + SERP_CONTEXT_RULES : SYSTEM;
-}
-
-function resolveLlmApiKey() {
-  const primary = String(process.env.PRODUCT_ASSISTANT_LLM_API_KEY || '').trim();
-  if (primary) return primary;
-  return String(process.env.OPENAI_API_KEY || '').trim();
 }
 
 function stripJsonFence(text) {
@@ -112,15 +202,12 @@ const MAX_SERP_CONTEXT_IN_LLM = 8500;
  * @param {{ serpWebContext?: string }} [options]
  * @returns {Promise<null | object>}
  */
-async function llmSuggest(query, options = {}) {
-  const apiKey = resolveLlmApiKey();
-  if (!apiKey) return null;
-
+async function llmSuggestWithClient(query, options, client) {
   const serpWebContext = String(options.serpWebContext || '').trim();
   const hasSerp = serpWebContext.length >= 20;
+  const { apiKey, base, model, keySource } = client;
+  if (!apiKey) return null;
 
-  const base = String(process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
-  const model = String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || DEFAULT_MODEL).trim();
   const timeoutMs = Math.min(
     120000,
     Math.max(3000, parseInt(String(process.env.PRODUCT_ASSISTANT_LLM_TIMEOUT_MS || DEFAULT_TIMEOUT_MS), 10) || DEFAULT_TIMEOUT_MS),
@@ -138,10 +225,7 @@ async function llmSuggest(query, options = {}) {
     max_tokens: hasSerp ? 1600 : 1200,
     messages: [
       { role: 'system', content: buildSystemPrompt(hasSerp) },
-      {
-        role: 'user',
-        content: userContent,
-      },
+      { role: 'user', content: userContent },
     ],
   };
   if (process.env.PRODUCT_ASSISTANT_LLM_JSON_MODE !== '0') {
@@ -160,13 +244,13 @@ async function llmSuggest(query, options = {}) {
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (e) {
-    console.warn('[product-card-assistant] LLM fetch:', e.message);
+    console.warn('[product-card-assistant] LLM fetch:', keySource, e.message);
     return null;
   }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    console.warn('[product-card-assistant] LLM HTTP', res.status, errText.slice(0, 300));
+    console.warn('[product-card-assistant] LLM HTTP', keySource, res.status, model, base, errText.slice(0, 300));
     return null;
   }
 
@@ -174,13 +258,13 @@ async function llmSuggest(query, options = {}) {
   try {
     data = await res.json();
   } catch (e) {
-    console.warn('[product-card-assistant] LLM JSON parse:', e.message);
+    console.warn('[product-card-assistant] LLM JSON parse:', keySource, e.message);
     return null;
   }
 
   const content = data?.choices?.[0]?.message?.content;
   if (!content || typeof content !== 'string') {
-    console.warn('[product-card-assistant] LLM empty content');
+    console.warn('[product-card-assistant] LLM empty content:', keySource);
     return null;
   }
 
@@ -188,29 +272,49 @@ async function llmSuggest(query, options = {}) {
   try {
     parsed = JSON.parse(stripJsonFence(content));
   } catch (e) {
-    console.warn('[product-card-assistant] LLM output not JSON:', e.message);
+    console.warn('[product-card-assistant] LLM output not JSON:', keySource, e.message);
     return null;
   }
 
   const payload = normalizePayload(parsed, model);
   if (!payload) return null;
+  const out = { ...payload, llmKeySource: keySource };
   if (hasSerp) {
     const extra =
       '\n\nЧастина полів може ґрунтуватися на уривках веб-пошуку (SerpApi); перевірте цифри та найменування за офіційним каталогом або паспортом.';
-    if (!String(payload.disclaimer || '').includes('SerpApi')) {
-      return { ...payload, disclaimer: String(payload.disclaimer || '').trim() + extra };
+    if (!String(out.disclaimer || '').includes('SerpApi')) {
+      out.disclaimer = String(out.disclaimer || '').trim() + extra;
     }
   }
-  return payload;
+  return out;
+}
+
+async function llmSuggest(query, options = {}) {
+  const clients = resolveProductCardLlmClients();
+  if (!clients.length) return null;
+
+  for (const client of clients) {
+    const payload = await llmSuggestWithClient(query, options, client);
+    if (payload) return payload;
+  }
+  return null;
 }
 
 if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test') {
-  if (resolveLlmApiKey()) {
+  const st = getProductCardLlmStatus();
+  if (st.configured) {
     console.log(
-      '[product-card-assistant] LLM увімкнено (PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY). Модель:',
-      String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || DEFAULT_MODEL).trim(),
+      `[product-card-assistant] LLM увімкнено: ${st.keySource}, model=${st.model}, base=${st.baseUrl}`,
     );
+    if (st.note) console.log(`[product-card-assistant] ${st.note}`);
+  } else {
+    console.warn('[product-card-assistant] LLM вимкнено: немає OPENAI_API_KEY / PRODUCT_ASSISTANT_LLM_API_KEY');
   }
 }
 
-module.exports = { llmSuggest, resolveLlmApiKey };
+module.exports = {
+  llmSuggest,
+  resolveLlmApiKey,
+  resolveProductCardLlmClient,
+  getProductCardLlmStatus,
+};

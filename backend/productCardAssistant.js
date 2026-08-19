@@ -311,7 +311,7 @@ function mockSuggest(query) {
       id: 'mock-note',
       name: 'Підказка асистента',
       value:
-        'LLM на сервері вимкнено або не відповів, Вікіпедія теж не дала корисного результату. У Render додайте змінну PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY (OpenAI-сумісний API), перезапустіть сервіс — тоді з’являться структуровані підказки для складних назв (автомати, кабелі тощо).',
+        'LLM не відповів (перевірте ключ OpenAI на Render або конфлікт Groq/llama у PRODUCT_ASSISTANT_LLM_MODEL). Якщо є OPENAI_API_KEY — після оновлення сервісу карточки мають використовувати gpt-4o-mini автоматично.',
     },
   ];
   if (/генератор|genset|diesel|ква|kva|квт|kwt|de-|дизел/i.test(q)) {

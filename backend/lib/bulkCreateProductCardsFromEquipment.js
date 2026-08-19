@@ -13,11 +13,12 @@ const {
 const DRAFT_NOTE =
   'Автоматично створено масовим наповненням (чернетка). Перевірте характеристики та фото перед використанням у продажах.';
 
-function sanitizeSpecsFromAssistant(rawSpecs) {
+function sanitizeSpecsFromAssistant(rawSpecs, source) {
   const out = [];
   if (!Array.isArray(rawSpecs)) return out;
   for (const row of rawSpecs) {
     if (!row || typeof row !== 'object') continue;
+    if (source === 'mock' && String(row.id || '') === 'mock-note') continue;
     const name = row.name != null ? String(row.name).trim().slice(0, 200) : '';
     const value = row.value != null ? String(row.value).trim().slice(0, 500) : '';
     if (!name && !value) continue;
@@ -235,7 +236,7 @@ async function bulkCreateProductCardsFromEquipment({
         }
       }
 
-      const technicalSpecs = sanitizeSpecsFromAssistant(suggestion?.specs);
+      const technicalSpecs = sanitizeSpecsFromAssistant(suggestion?.specs, suggestion?.source);
       itemResult.specsCount = technicalSpecs.length;
 
       const suggestedName = String(suggestion?.suggestedName || '').trim();
