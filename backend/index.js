@@ -4237,6 +4237,67 @@ function extractProcurementCatalogTokens(label) {
     .sort((a, b) => b.length - a.length);
 }
 
+/** Коди на кшталт P554403 / 6T105 — достатньо унікальні для окремого fallback-пошуку. */
+function isStrongProcurementCatalogToken(token) {
+  const t = String(token || '').trim();
+  return t.length >= 4 && /[A-Za-z]/.test(t) && /\d/.test(t);
+}
+
+/** Значущі частини назви для комбінованого fallback-пошуку (слова або цифрові коди). */
+function extractProcurementLabelSearchParts(label) {
+  const s = String(label || '').trim();
+  if (!s) return [];
+  const parts = [];
+  const re = /[\p{L}]{2,}|\d{4,}/gu;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    parts.push(m[0]);
+  }
+  const seen = new Set();
+  return parts.filter((part) => {
+    const key = part.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Regex для збігу фрагмента в полі type без хибних підрядків (4105 ≠ 41050). */
+function procurementTypeContainsTokenRegex(token) {
+  const escaped = escapeRegExpForProcurementHint(token);
+  if (/^\d+$/.test(token)) {
+    return new RegExp(`(?<![0-9])${escaped}(?![0-9])`, 'i');
+  }
+  if (/^[A-Za-z0-9-]+$/.test(token)) {
+    return new RegExp(`(?<![A-Za-z0-9-])${escaped}(?![A-Za-z0-9-])`, 'i');
+  }
+  return new RegExp(escaped, 'i');
+}
+
+async function aggregateProcurementNomenclatureStockByLabelFallback(label, baseMatch) {
+  const tokens = extractProcurementCatalogTokens(label);
+  const strongTokens = tokens.filter(isStrongProcurementCatalogToken);
+
+  for (const token of strongTokens) {
+    const warehouses = await aggregateProcurementNomenclatureStock({
+      ...baseMatch,
+      type: procurementTypeContainsTokenRegex(token),
+    });
+    if (warehouses.length) return warehouses;
+  }
+
+  const parts = extractProcurementLabelSearchParts(label);
+  if (parts.length >= 2) {
+    const warehouses = await aggregateProcurementNomenclatureStock({
+      ...baseMatch,
+      $and: parts.map((part) => ({ type: procurementTypeContainsTokenRegex(part) })),
+    });
+    if (warehouses.length) return warehouses;
+  }
+
+  return [];
+}
+
 async function aggregateProcurementNomenclatureStock(match) {
   const rows = await Equipment.aggregate([
     { $match: match },
@@ -4378,13 +4439,7 @@ async function buildProcurementNomenclatureStock(name, productId) {
   );
 
   if (!warehouses.length) {
-    for (const token of extractProcurementCatalogTokens(label)) {
-      warehouses = await aggregateProcurementNomenclatureStock({
-        ...baseMatch,
-        type: new RegExp(escapeRegExpForProcurementHint(token), 'i'),
-      });
-      if (warehouses.length) break;
-    }
+    warehouses = await aggregateProcurementNomenclatureStockByLabelFallback(label, baseMatch);
   }
 
   const totalQuantity = warehouses.reduce((sum, w) => sum + w.quantity, 0);

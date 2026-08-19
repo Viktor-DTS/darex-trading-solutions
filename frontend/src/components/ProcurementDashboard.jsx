@@ -1534,8 +1534,8 @@ function ProcurementDashboard({ user }) {
     <aside className="procurement-modal-nomenclature-panel" aria-label="Інформація по номенклатурі">
       <h3 className="procurement-nomenclature-panel-title">Інформація по номенклатурі</h3>
       <p className="procurement-nomenclature-panel-note">
-        Залишки на регіональних складах зі списку «Бажаний склад відвантаження» (без ЗІП/особистих). Пошук за
-        точною назвою або артикулом у найменуванні.
+        Залишки на регіональних складах зі списку «Бажаний склад відвантаження» (без ЗІП/особистих). Спочатку
+        точна назва; якщо не знайдено — за артикулом або за всіма словами назви разом (напр. «Помпа» і «4105»).
       </p>
       {nomenclatureStockLoading ? (
         <p className="procurement-nomenclature-panel-empty">Завантаження…</p>
