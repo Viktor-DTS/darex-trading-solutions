@@ -48,6 +48,9 @@ function extractHeuristicSpecs(raw) {
   const text = String(raw || '').trim();
   if (text.length < 2) return [];
 
+  /** Кирилична «М» у M10, M8 тощо → латинська для парсингу. */
+  const parseText = text.replace(/(\s|\(|^)М(\d)/g, '$1M$2');
+
   const lower = text.toLowerCase();
   let seq = 0;
   const nextId = (tag) => `heur-${tag}-${++seq}`;
@@ -227,13 +230,51 @@ function extractHeuristicSpecs(raw) {
   }
 
   // —— Різьба, діаметр позначенням ——
-  const metricThread = text.match(/\bM(\d{1,3}(?:[.,]\d+)?(?:\s*[x×хХ]\s*\d+(?:[.,]\d+)?)?)\b/i);
+  const metricThread = parseText.match(/\bM(\d{1,3}(?:[.,]\d+)?(?:\s*[x×хХ]\s*\d+(?:[.,]\d+)?)?)\b/i);
   if (metricThread) {
     specs.push({
       id: nextId('thread'),
       name: 'Метрична різьба / позначення (з назви)',
       value: `M${metricThread[1].replace(/\s+/g, '')}`,
     });
+  }
+
+  if (FASTENER_RE.test(lower) && /шайб/i.test(lower) && !specs.some((s) => s.id.startsWith('heur-thread'))) {
+    specs.push({
+      id: nextId('washer'),
+      name: 'Тип (з назви)',
+      value: 'Шайба',
+    });
+  }
+
+  if (/фільтр|filter/i.test(lower)) {
+    const st = text.match(/\bST\s*[-\s]?(\d{2,4})\b/i);
+    if (st) {
+      specs.push({
+        id: nextId('filter-st'),
+        name: 'Код / серія фільтра (з назви)',
+        value: `ST ${st[1]}`,
+      });
+    }
+    if (/паливн|fuel/i.test(lower)) {
+      specs.push({ id: nextId('filter-type'), name: 'Призначення (з назви)', value: 'Паливний фільтр' });
+    }
+  }
+
+  if (HOSE_CLAMP_RE.test(lower)) {
+    specs.push({
+      id: nextId('clamp'),
+      name: 'Тип (з назви)',
+      value: /асортимент/i.test(lower) ? 'Хомут (асортимент — уточніть розмір)' : 'Хомут',
+    });
+  }
+
+  if (/клем|terminal|clamp/i.test(lower) && /акумулятор|battery/i.test(lower)) {
+    specs.push({ id: nextId('term'), name: 'Тип (з назви)', value: 'Акумуляторна клема' });
+    const ba = text.match(/\bBA\s*(\d{1,3})\b/i);
+    if (ba) {
+      specs.push({ id: nextId('term-code'), name: 'Модель / код (з назви)', value: `BA${ba[1]}` });
+    }
   }
 
   const dia = text.match(/[⌀Øø]\s*(\d+(?:[.,]\d+)?)(?!\s*[-–]\s*\d)\s*(?:мм|mm)?/i);

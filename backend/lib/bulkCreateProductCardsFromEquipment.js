@@ -9,6 +9,7 @@ const {
   buildProductCardIndex,
   linkEquipmentToProductCardsByName,
 } = require('./linkEquipmentProductCards');
+const { extractHeuristicSpecs } = require('../heuristicProductSpecs');
 
 const DRAFT_NOTE =
   'Автоматично створено масовим наповненням (чернетка). Перевірте характеристики та фото перед використанням у продажах.';
@@ -43,6 +44,40 @@ function buildInternalNotes(suggestion) {
     parts.push(`Джерело асистента: ${src}${model}.`);
   }
   return parts.filter(Boolean).join('\n\n');
+}
+
+function mergeTechnicalSpecs(group, suggestion) {
+  const fromAssistant = sanitizeSpecsFromAssistant(suggestion?.specs, suggestion?.source);
+  const heur = extractHeuristicSpecs(group.type).map((s) => ({
+    name: String(s.name || '').trim(),
+    value: String(s.value || '').trim(),
+  }));
+  const merged = [];
+  const seen = new Set();
+  for (const row of [...heur, ...fromAssistant]) {
+    if (!row.name && !row.value) continue;
+    const key = `${row.name.toLowerCase()}|${row.value.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      name: row.name || 'Характеристика',
+      value: row.value || '—',
+    });
+    if (merged.length >= 24) break;
+  }
+  return merged;
+}
+
+function buildMinimalFallbackSpecs(group) {
+  const rows = [{ name: 'Найменування', value: group.type }];
+  if (group.manufacturer) {
+    rows.push({ name: 'Виробник (зі складу)', value: group.manufacturer });
+  }
+  rows.push({
+    name: 'Статус наповнення',
+    value: 'Мінімальна чернетка — доповніть характеристики та фото вручну',
+  });
+  return rows;
 }
 
 function buildAttachedFilesFromImport(importResult) {
@@ -145,7 +180,7 @@ function sleep(ms) {
  * @param {boolean} [opts.importImages]
  * @param {boolean} [opts.linkAfter]
  * @param {{ login?: string, name?: string }} [opts.user]
- * @param {number} [opts.delayMsBetweenSuggest]
+ * @param {boolean} [opts.allowMinimalDrafts] — створювати карточку навіть без AI-даних (тип + мін. чернетка)
  */
 async function bulkCreateProductCardsFromEquipment({
   Equipment,
@@ -156,6 +191,7 @@ async function bulkCreateProductCardsFromEquipment({
   limit = 15,
   importImages = true,
   linkAfter = true,
+  allowMinimalDrafts = true,
   user = {},
   delayMsBetweenSuggest = 400,
 }) {
@@ -180,6 +216,7 @@ async function bulkCreateProductCardsFromEquipment({
     created: 0,
     failed: 0,
     skippedEmpty: 0,
+    minimalDrafts: 0,
     remaining: Math.max(0, pending.length - slice.length),
     linkSummary: null,
     items: [],
@@ -237,16 +274,22 @@ async function bulkCreateProductCardsFromEquipment({
         }
       }
 
-      const technicalSpecs = sanitizeSpecsFromAssistant(suggestion?.specs, suggestion?.source);
-      itemResult.specsCount = technicalSpecs.length;
-
-      if (technicalSpecs.length === 0 && attachedFiles.length === 0) {
+      let technicalSpecs = mergeTechnicalSpecs(group, suggestion);
+      const minimalOnly =
+        technicalSpecs.length === 0 && attachedFiles.length === 0 && allowMinimalDrafts;
+      if (minimalOnly) {
+        technicalSpecs = buildMinimalFallbackSpecs(group);
+        itemResult.minimalDraft = true;
+        summary.minimalDrafts += 1;
+      } else if (technicalSpecs.length === 0 && attachedFiles.length === 0) {
         itemResult.status = 'skipped_empty';
-        itemResult.error = 'Немає характеристик і фото — перевірте OPENAI_API_KEY та SERPAPI_API_KEY на Render';
+        itemResult.error = 'Немає характеристик і фото';
         summary.skippedEmpty += 1;
         summary.items.push(itemResult);
         continue;
       }
+
+      itemResult.specsCount = technicalSpecs.length;
 
       const suggestedName = String(suggestion?.suggestedName || '').trim();
       const doc = await ProductCard.create({

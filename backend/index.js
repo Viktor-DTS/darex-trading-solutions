@@ -15549,6 +15549,7 @@ app.post('/api/equipment/bulk-create-product-cards', authenticateToken, async (r
     const limit = Math.min(50, Math.max(1, parseInt(String(req.body?.limit ?? 15), 10) || 15));
     const importImages = req.body?.importImages !== false;
     const linkAfter = req.body?.linkAfter !== false && !dryRun;
+    const allowMinimalDrafts = req.body?.allowMinimalDrafts !== false;
 
     const summary = await bulkCreateProductCardsFromEquipment({
       Equipment,
@@ -15559,6 +15560,7 @@ app.post('/api/equipment/bulk-create-product-cards', authenticateToken, async (r
       limit,
       importImages,
       linkAfter,
+      allowMinimalDrafts,
       user: { login: req.user.login, name: req.user.name || req.user.login },
     });
     logPerformance('POST /api/equipment/bulk-create-product-cards', startTime, summary.created ?? summary.wouldCreate);

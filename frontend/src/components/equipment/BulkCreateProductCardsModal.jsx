@@ -12,6 +12,7 @@ export default function BulkCreateProductCardsModal({ onClose, onDone }) {
   const [limit, setLimit] = useState(15);
   const [importImages, setImportImages] = useState(true);
   const [linkAfter, setLinkAfter] = useState(true);
+  const [allowMinimalDrafts, setAllowMinimalDrafts] = useState(true);
 
   const loadPreview = useCallback(async () => {
     setPreviewLoading(true);
@@ -56,6 +57,7 @@ export default function BulkCreateProductCardsModal({ onClose, onDone }) {
           limit: Number(limit) || 15,
           importImages,
           linkAfter,
+          allowMinimalDrafts,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -161,6 +163,15 @@ export default function BulkCreateProductCardsModal({ onClose, onDone }) {
                 />
                 Після створення прив’язати залишки за назвою
               </label>
+              <label className="bulk-pc-check">
+                <input
+                  type="checkbox"
+                  checked={allowMinimalDrafts}
+                  onChange={(e) => setAllowMinimalDrafts(e.target.checked)}
+                  disabled={running}
+                />
+                Створювати мінімальні чернетки, якщо AI не дав specs/фото (тип + назва зі складу)
+              </label>
             </div>
           )}
 
@@ -169,8 +180,14 @@ export default function BulkCreateProductCardsModal({ onClose, onDone }) {
               <h3>Результат</h3>
               <p>
                 Створено: <strong>{result.created ?? 0}</strong>
+                {result.minimalDrafts > 0 && (
+                  <>
+                    {' '}
+                    (мін. чернеток: <strong>{result.minimalDrafts}</strong>)
+                  </>
+                )}
                 {' · '}
-                Пропущено (порожні): <strong>{result.skippedEmpty ?? 0}</strong>
+                Пропущено: <strong>{result.skippedEmpty ?? 0}</strong>
                 {' · '}
                 Помилок: <strong>{result.failed ?? 0}</strong>
                 {' · '}
@@ -187,7 +204,8 @@ export default function BulkCreateProductCardsModal({ onClose, onDone }) {
                     <li key={it.type} className={`bulk-pc-result-${it.status}`}>
                       <span>{it.type}</span>
                       <span>
-                        {it.status === 'created' && `✓ ${it.specsCount} хар.`}
+                        {it.status === 'created' &&
+                          `✓ ${it.specsCount} хар.${it.minimalDraft ? ' (мін.)' : ''}`}
                         {it.status === 'failed' && `✗ ${it.error}`}
                         {it.status === 'skipped_existing' && 'пропущено (вже є)'}
                         {it.status === 'skipped_empty' && 'пропущено (немає даних)'}
