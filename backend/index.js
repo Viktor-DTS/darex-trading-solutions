@@ -7683,19 +7683,46 @@ app.get('/api/tasks/filter', async (req, res) => {
   try {
     const { status, statuses, region, sort = '-requestDate', page, limit, filter, sortField, sortDirection, columnFilters } = req.query;
     const isPaginated = page !== undefined && limit !== undefined && !isNaN(parseInt(limit));
-    const SERVICE_TOTAL_SUM_FACET = [{
-      $group: {
-        _id: null,
-        sum: {
-          $sum: {
-            $convert: {
-              input: { $ifNull: ['$serviceTotal', 0] },
-              to: 'double',
-              onError: 0,
-              onNull: 0,
+    // serviceTotal часто зберігається як рядок «14 504,40» — $convert не парсить такий формат
+    const PARSE_SERVICE_TOTAL_EXPR = {
+      $let: {
+        vars: { raw: { $ifNull: ['$serviceTotal', 0] } },
+        in: {
+          $switch: {
+            branches: [
+              {
+                case: { $in: [{ $type: '$$raw' }, ['double', 'int', 'long', 'decimal']] },
+                then: { $toDouble: '$$raw' },
+              },
+            ],
+            default: {
+              $convert: {
+                input: {
+                  $replaceAll: {
+                    input: {
+                      $replaceAll: {
+                        input: { $trim: { input: { $toString: '$$raw' } } },
+                        find: ' ',
+                        replacement: '',
+                      },
+                    },
+                    find: ',',
+                    replacement: '.',
+                  },
+                },
+                to: 'double',
+                onError: 0,
+                onNull: 0,
+              },
             },
           },
         },
+      },
+    };
+    const SERVICE_TOTAL_SUM_FACET = [{
+      $group: {
+        _id: null,
+        sum: { $sum: PARSE_SERVICE_TOTAL_EXPR },
       },
     }];
     const extractServiceTotalSum = (facetResult) => facetResult?.serviceTotalSum?.[0]?.sum ?? 0;

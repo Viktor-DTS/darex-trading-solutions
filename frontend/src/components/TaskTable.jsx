@@ -4,6 +4,7 @@ import { authFetch } from '../utils/authFetch';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
 import { getWarehouseApprovedAt } from '../utils/taskStuckRules';
 import { taskRequiresOnecWriteoff } from './onec/taskOnecMaterials';
+import { parseNumber } from '../utils/estimate/estimatePrefill';
 import './TaskTable.css';
 
 // Кеш списку заявок на клієнті (TTL 90 с) — менше запитів при перемиканні вкладок
@@ -278,6 +279,10 @@ function formatServiceTotalSum(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return '0';
   return num.toLocaleString('uk-UA', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function sumServiceTotals(tasks) {
+  return (tasks || []).reduce((acc, task) => acc + parseNumber(task?.serviceTotal), 0);
 }
 
 function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined }) {
@@ -659,8 +664,18 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
 
         if (enablePagination && data && typeof data === 'object' && Array.isArray(data.tasks)) {
           setTasks(data.tasks);
-          setTotal(data.total ?? 0);
-          setServiceTotalSum(showServiceTotalSum ? (data.serviceTotalSum ?? 0) : null);
+          const loadedTotal = data.total ?? 0;
+          setTotal(loadedTotal);
+          if (showServiceTotalSum) {
+            const hasAllFilteredTasks = loadedTotal > 0 && data.tasks.length >= loadedTotal;
+            setServiceTotalSum(
+              hasAllFilteredTasks
+                ? sumServiceTotals(data.tasks)
+                : (data.serviceTotalSum ?? 0)
+            );
+          } else {
+            setServiceTotalSum(null);
+          }
           if (onTasksLoaded) onTasksLoaded(data.tasks);
         } else {
           setTasks(Array.isArray(data) ? data : []);
