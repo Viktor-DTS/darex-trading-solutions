@@ -1342,8 +1342,8 @@
   padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--background);
-  color: var(--text-primary);
+  background: var(--surface-hover);
+  color: var(--text);
   cursor: pointer;
   font-size: 12px;
   line-height: 1.2;
