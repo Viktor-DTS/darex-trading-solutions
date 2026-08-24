@@ -1491,6 +1491,16 @@
   max-width: 100%;
 }
 
+.procurement-header-warehouse-input {
+  width: 100%;
+  max-width: 420px;
+  min-width: 220px;
+}
+
+.procurement-detail-v .procurement-header-warehouse-input {
+  display: block;
+}
+
 /* Таблиця «лише перегляд» у картці заявки — та сама прокрутка */
 .procurement-exec-table-wrap .procurement-mini-table--wide {
   width: max-content;

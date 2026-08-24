@@ -447,6 +447,19 @@ function defaultMaterialRow(firstUom) {
   return { name: '', unitOfMeasure: firstUom || 'шт.', quantity: '', productId: '' };
 }
 
+/** Спільне значення actualWarehouse по рядках (для поля в шапці заявки). */
+function deriveSharedActualWarehouse(materialsDraft) {
+  if (!materialsDraft?.length) return { value: '', mixed: false };
+  const vals = materialsDraft
+    .filter((m) => !m.rejected)
+    .map((m) => String(m.actualWarehouse || '').trim());
+  const nonEmpty = vals.filter(Boolean);
+  if (!nonEmpty.length) return { value: '', mixed: false };
+  const uniq = [...new Set(nonEmpty)];
+  if (uniq.length === 1) return { value: uniq[0], mixed: false };
+  return { value: '', mixed: true };
+}
+
 function ProcurementDashboard({ user }) {
   const [activeSection, setActiveSection] = useState('active'); // 'active' | 'archive' | 'blocked' | 'notifications' | 'import'
   const [requests, setRequests] = useState([]);
@@ -1541,6 +1554,19 @@ function ProcurementDashboard({ user }) {
     });
   };
 
+  const sharedActualWarehouseDraft = useMemo(
+    () => deriveSharedActualWarehouse(materialsDraft),
+    [materialsDraft]
+  );
+
+  const applyActualWarehouseToAllDraftLines = useCallback((warehouse) => {
+    setMaterialsDraft((prev) => {
+      if (!prev) return prev;
+      const w = String(warehouse || '');
+      return prev.map((m) => (m.rejected ? m : { ...m, actualWarehouse: w }));
+    });
+  }, []);
+
   const runSupplierNameLookup = useCallback(
     async (rowIndex, { force = false } = {}) => {
       const current = materialsDraftRef.current;
@@ -2561,7 +2587,32 @@ function ProcurementDashboard({ user }) {
               ) : null}
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Фактичний склад відвантаження</span>
-                <span className="procurement-detail-v">{detail.actualWarehouse || '—'}</span>
+                <span className="procurement-detail-v">
+                  {canActAsExecutorOnRequest(detail) && materialsDraft ? (
+                    <>
+                      <input
+                        type="text"
+                        className="procurement-exec-input procurement-header-warehouse-input"
+                        list="procurement-wh-executor-header"
+                        value={sharedActualWarehouseDraft.value}
+                        onChange={(e) => applyActualWarehouseToAllDraftLines(e.target.value)}
+                        placeholder={
+                          sharedActualWarehouseDraft.mixed
+                            ? 'Різні склади по позиціях — див. таблицю'
+                            : 'Оберіть або введіть (для всіх позицій)'
+                        }
+                        title="Фактичний склад відвантаження для всіх позицій; для різних складів — колонка в таблиці матеріалів"
+                      />
+                      <datalist id="procurement-wh-executor-header">
+                        {warehouseOptions.map((w) => (
+                          <option key={w.value} value={w.label} />
+                        ))}
+                      </datalist>
+                    </>
+                  ) : (
+                    detail.actualWarehouse || '—'
+                  )}
+                </span>
               </div>
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Дата виконання (відділ закупівель)</span>
@@ -2600,7 +2651,8 @@ function ProcurementDashboard({ user }) {
                     {canActAsExecutorOnRequest(detail) && materialsDraft ? (
                       <div className="procurement-executor-materials-editor">
                         <p className="procurement-field-hint">
-                          Для кожної позиції з кількістю до відвантаження вкажіть <strong>фактичний склад</strong>,
+                          Для кожної позиції з кількістю до відвантаження вкажіть <strong>фактичний склад</strong> (поле в шапці
+                          заявки — для однакового складу по всіх позиціях, або колонка в таблиці — для різних),
                           <strong> назву постачальника</strong> та <strong>ціну закупівлі за од. грн. з ПДВ</strong> (обовʼязково).
                           <strong> ЄДРПОУ</strong> постачальника — за бажанням: після введення (8–10 цифр) поле «Назва
                           постачальника» можна <strong>заповнити автоматично</strong> (спочатку клієнтська база, потім
@@ -2625,13 +2677,13 @@ function ProcurementDashboard({ user }) {
                                 <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
                                 <th>Прийоми завскладом</th>
                                 <th className="procurement-col-remainder">Залишок (макс.)</th>
+                                <th>Фактичний склад відвантаження *</th>
                                 <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ *</th>
                                 <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
                                 <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                                 <th>Назва постачальника *</th>
                                 <th>Рахунок</th>
                                 <th>Видаткова накладна</th>
-                                <th>Фактичний склад відвантаження *</th>
                                 <th>Аналог</th>
                                 <th>К-сть аналогу</th>
                                 <th>Відвант. аналог</th>
@@ -2734,6 +2786,20 @@ function ProcurementDashboard({ user }) {
                                       />
                                     )}
                                   </td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      className="procurement-exec-input"
+                                      list="procurement-wh-executor"
+                                      value={m.actualWarehouse != null && m.actualWarehouse !== undefined ? m.actualWarehouse : ''}
+                                      onChange={(e) =>
+                                        updateMaterialDraftRow(i, { actualWarehouse: e.target.value })
+                                      }
+                                      placeholder="Оберіть або введіть"
+                                      disabled={m.rejected}
+                                      title="Фактичний склад для цієї позиції (обовʼязково, якщо є кількість до відвантаження)"
+                                    />
+                                  </td>
                                   <td className="procurement-col-price">
                                     <input
                                       type="text"
@@ -2815,20 +2881,6 @@ function ProcurementDashboard({ user }) {
                                   </td>
                                   {renderLineFileEditorCell(i, 'invoice', savedLine?.invoiceFile, m.rejected)}
                                   {renderLineFileEditorCell(i, 'delivery_note', savedLine?.deliveryNoteFile, m.rejected)}
-                                  <td>
-                                    <input
-                                      type="text"
-                                      className="procurement-exec-input"
-                                      list="procurement-wh-executor"
-                                      value={m.actualWarehouse != null && m.actualWarehouse !== undefined ? m.actualWarehouse : ''}
-                                      onChange={(e) =>
-                                        updateMaterialDraftRow(i, { actualWarehouse: e.target.value })
-                                      }
-                                      placeholder="Оберіть або введіть"
-                                      disabled={m.rejected}
-                                      title="Фактичний склад для цієї позиції (обовʼязково, якщо є кількість до відвантаження)"
-                                    />
-                                  </td>
                                   <td>
                                     <input
                                       type="text"
@@ -3062,12 +3114,12 @@ function ProcurementDashboard({ user }) {
                             <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
                             <th>Прийоми завскладом</th>
                             <th className="procurement-col-remainder">Залишок (макс.)</th>
+                            <th>Фактичний склад відвантаження</th>
                             <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ</th>
                             <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
                             <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                             <th>Назва постачальника</th>
                             <th>Рахунок / ВН</th>
-                            <th>Фактичний склад відвантаження</th>
                             <th>Аналог</th>
                             <th>К-сть аналогу</th>
                             <th>Відвант. аналог</th>
@@ -3098,6 +3150,7 @@ function ProcurementDashboard({ user }) {
                                 <td className="procurement-col-remainder">
                                   {m.rejected || exp === null ? '—' : exp}
                                 </td>
+                                <td>{m.actualWarehouse ? m.actualWarehouse : '—'}</td>
                                 <td className="procurement-col-price">
                                   {m.price != null && m.price !== '' ? m.price : '—'}
                                 </td>
@@ -3138,7 +3191,6 @@ function ProcurementDashboard({ user }) {
                                     ? '—'
                                     : null}
                                 </td>
-                                <td>{m.actualWarehouse ? m.actualWarehouse : '—'}</td>
                                 <td>{m.analogName || '—'}</td>
                                 <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
                                 <td>{m.analogShipped ? 'Так' : '—'}</td>
