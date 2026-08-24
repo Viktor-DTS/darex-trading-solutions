@@ -66,6 +66,42 @@ const DATE_FIELDS = new Set([
   'customerShipDeadline',
 ]);
 
+const PRICE_FIELDS = new Set(['minSalePrice', 'priceList', 'unitPrice']);
+
+function cellAddress(colIdx, rowNum) {
+  return `${XLSX.utils.encode_col(Number(colIdx))}${rowNum}`;
+}
+
+/** «7,841 €» → «7 841 €» як у Excel */
+function normalizePriceText(text) {
+  return String(text || '')
+    .trim()
+    .replace(/(\d),(\d{3})/g, '$1 $2');
+}
+
+function formatRoundedPriceNumber(n) {
+  return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+function readPriceFromCell(sheet, colIdx, rowNum) {
+  const cell = sheet[cellAddress(colIdx, rowNum)];
+  if (!cell || cell.v === undefined || cell.v === null || cellStr(cell.v) === '') return null;
+  if (cell.w) return normalizePriceText(cell.w);
+  if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+    return formatRoundedPriceNumber(cell.v);
+  }
+  return cellStr(cell.v);
+}
+
+function formatPriceForDisplay(value) {
+  const s = cellStr(value);
+  if (!s) return '';
+  if (/[€$]/.test(s)) return normalizePriceText(s);
+  const n = Number(s.replace(/\s/g, '').replace(',', '.'));
+  if (Number.isFinite(n)) return formatRoundedPriceNumber(n);
+  return s;
+}
+
 const DGU_HEADER_MAP = {
   'статус заказа': 'orderStatus',
   'дата отправки заказа поставщику': 'supplierOrderDate',
@@ -243,7 +279,7 @@ function buildHeaderIndex(headerRow, sheetType) {
   return index;
 }
 
-function rowToDoc(values, headerIndex, sheetType, rowIndex, meta) {
+function rowToDoc(sheet, excelRowNum, values, headerIndex, sheetType, rowIndex, meta) {
   if (isEmptyDataRow(values)) return null;
 
   const doc = {
@@ -256,6 +292,15 @@ function rowToDoc(values, headerIndex, sheetType, rowIndex, meta) {
 
   let hasData = false;
   for (const [colIdx, field] of Object.entries(headerIndex)) {
+    if (PRICE_FIELDS.has(field)) {
+      const priceText = readPriceFromCell(sheet, colIdx, excelRowNum);
+      if (priceText) {
+        doc[field] = priceText;
+        hasData = true;
+      }
+      continue;
+    }
+
     const raw = values[Number(colIdx)];
     if (raw === undefined || raw === null || cellStr(raw) === '') continue;
     hasData = true;
@@ -287,7 +332,7 @@ function parseSheet(wb, sheetName, sheetType) {
 
   const docs = [];
   for (let i = 1; i < rows.length; i++) {
-    const doc = rowToDoc(rows[i], headerIndex, sheetType, i, {
+    const doc = rowToDoc(sh, i + 1, rows[i], headerIndex, sheetType, i, {
       importBatchId: '',
       sourceFile: '',
       syncedAt: new Date(),
@@ -302,6 +347,11 @@ function formatDocForApi(doc) {
   for (const field of DATE_FIELDS) {
     if (out[field] instanceof Date) {
       out[`${field}Display`] = out[field].toLocaleDateString('uk-UA');
+    }
+  }
+  for (const field of PRICE_FIELDS) {
+    if (out[field]) {
+      out[`${field}Display`] = formatPriceForDisplay(out[field]);
     }
   }
   if (out.syncedAt instanceof Date) {

@@ -1651,14 +1651,28 @@ function VedDashboard({ user }) {
     </div>
   );
 
-  const formatCellValue = (row, key) => {
-    const displayKey = `${key}Display`;
-    if (row[displayKey]) return row[displayKey];
-    const v = row[key];
-    if (v == null || v === '') return '—';
-    if (typeof v === 'number') return v;
-    return String(v);
-  };
+const PRODUCT_ORDER_PRICE_FIELDS = new Set(['minSalePrice', 'priceList', 'unitPrice']);
+
+function formatProductOrderPrice(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return '—';
+  if (/[€$]/.test(s)) return s.replace(/(\d),(\d{3})/g, '$1 $2');
+  const n = Number(s);
+  if (Number.isFinite(n)) {
+    return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n));
+  }
+  return s;
+}
+
+function formatCellValue(row, key) {
+  const displayKey = `${key}Display`;
+  if (row[displayKey]) return row[displayKey];
+  const v = row[key];
+  if (v == null || v === '') return '—';
+  if (PRODUCT_ORDER_PRICE_FIELDS.has(key)) return formatProductOrderPrice(v);
+  if (typeof v === 'number') return v;
+  return String(v);
+}
 
   const showAllProductOrders = () => {
     setProductOrderStatusFilter('');
