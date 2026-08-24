@@ -508,8 +508,11 @@ function ProcurementDashboard({ user }) {
     [user?.login]
   );
   const canEditAsRequester = useCallback(
-    (d) => d?.status === 'pending_review' && isRequester(d) && !isImportedProcurementRequest(d),
-    [isRequester]
+    (d) =>
+      d?.status === 'pending_review' &&
+      !isImportedProcurementRequest(d) &&
+      (isRequester(d) || isAdmin),
+    [isRequester, isAdmin]
   );
 
   const authHeaders = useMemo(() => {

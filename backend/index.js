@@ -3072,6 +3072,7 @@ function userCanEditProcurementRequestAsRequester(reqUser, pr) {
   if (!pr || !reqUser) return false;
   if (isImportedProcurementRequest(pr)) return false;
   if (pr.status !== 'pending_review') return false;
+  if (['admin', 'administrator'].includes(String(reqUser.role || '').toLowerCase())) return true;
   return String(pr.requesterLogin || '').trim() === String(reqUser.login || '').trim();
 }
 
@@ -5130,7 +5131,7 @@ app.patch(
       if (!userCanEditProcurementRequestAsRequester(req.user, pr)) {
         return res.status(403).json({
           error:
-            'Редагувати можна лише власну заявку зі статусом «Очікує розгляду» (до взяття в роботу відділом закупівель)',
+            'Редагувати можна лише заявку зі статусом «Очікує розгляду» (до взяття в роботу): власник заявки або адміністратор',
         });
       }
 
