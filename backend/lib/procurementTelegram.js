@@ -127,6 +127,8 @@ function formatMaterialsBlock(pr, { includeExecutorFields = false } = {}) {
           parts.push(`   К-сть аналогу: ${Number(m.analogQuantity)}`);
         }
       }
+      const comment = String(m.executorComment || '').trim();
+      if (comment) parts.push(`   Коментар: ${escapeHtml(comment)}`);
     }
     lines.push(parts.join('\n'));
   });

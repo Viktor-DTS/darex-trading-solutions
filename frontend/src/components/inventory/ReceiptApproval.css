@@ -98,6 +98,15 @@
   color: var(--text-secondary, #555);
 }
 
+.procurement-receipt-line-comment {
+  min-width: 8rem;
+  max-width: 16rem;
+  font-size: 13px;
+  line-height: 1.35;
+  word-break: break-word;
+  color: var(--text-secondary, #555);
+}
+
 .procurement-receipt-table input[type='text'],
 .procurement-receipt-table input[type='number'] {
   width: 100%;

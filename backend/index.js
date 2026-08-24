@@ -2619,6 +2619,30 @@ function procurementReceiptAwaitingThisUserAction(reqUser, names, pr) {
   return !procurementUserRegionReceiptLinesComplete(reqUser, names, whNeeded, pr);
 }
 
+/** Текст коментарів виконавця по позиціях для сповіщення / UI завскладу (опційно лише рядки складу whName). */
+function formatProcurementExecutorCommentsForWarehouse(pr, whName = null) {
+  const rows = [];
+  for (const m of pr.materials || []) {
+    if (m.rejected) continue;
+    if (!procurementLineNeedsShipmentWarehouse(m)) continue;
+    const comment = String(m.executorComment || '').trim();
+    if (!comment) continue;
+    if (whName) {
+      const lineWh = String(m.actualWarehouse || '').trim();
+      if (lineWh) {
+        if (normalizeWarehouseName(lineWh) !== normalizeWarehouseName(whName)) continue;
+      } else {
+        const leg = String(pr.actualWarehouse || '').trim();
+        if (!leg || leg.includes(',')) continue;
+        if (normalizeWarehouseName(leg) !== normalizeWarehouseName(whName)) continue;
+      }
+    }
+    const name = String(m.name || '').trim() || '—';
+    rows.push(`• ${name}: ${comment}`);
+  }
+  return rows.join('\n');
+}
+
 async function notifyWarehouseStaffProcurementIncoming(pr) {
   try {
     if (isImportedProcurementRequest(pr)) return;
@@ -2660,6 +2684,10 @@ async function notifyWarehouseStaffProcurementIncoming(pr) {
       if (!users.length) continue;
       const title = `Надходження від закупівель: ${rn}`;
       let body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Зав. склад → Затвердження отримання товару.`;
+      const commentsBlock = formatProcurementExecutorCommentsForWarehouse(pr, whName);
+      if (commentsBlock) {
+        body += `\n\nКоментарі відділу закупівель:\n${commentsBlock}`;
+      }
       const whNotices = crossRegionNotices.filter(
         (n) => normalizeWarehouseName(n.actualWarehouse) === normalizeWarehouseName(whName)
       );

@@ -598,6 +598,7 @@ function ReceiptApproval({
                       <th>№</th>
                       <th>Фактичний склад</th>
                       <th>Найменування / аналог</th>
+                      <th>Коментарі</th>
                       <th>Очікувано</th>
                       <th>Прийнято факт</th>
                     </tr>
@@ -625,6 +626,9 @@ function ReceiptApproval({
                           <td>{visIdx + 1}</td>
                           <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                           <td>{rowLabel}</td>
+                          <td className="procurement-receipt-line-comment">
+                            {String(m.executorComment || '').trim() || '—'}
+                          </td>
                           <td>{expLabel}</td>
                           <td>
                             <input
@@ -723,6 +727,7 @@ function ReceiptApproval({
                       <th>№</th>
                       <th>Фактичний склад</th>
                       <th>Найменування / аналог</th>
+                      <th>Коментарі</th>
                       <th>Очікувано</th>
                       <th>Прийнято факт</th>
                     </tr>
@@ -752,6 +757,9 @@ function ReceiptApproval({
                             <td>{visIdx + 1}</td>
                             <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                             <td>{rowLabel}</td>
+                            <td className="procurement-receipt-line-comment">
+                              {String(m.executorComment || '').trim() || '—'}
+                            </td>
                             <td>{expLabel}</td>
                             <td>{val === '' ? '—' : val}</td>
                           </tr>
