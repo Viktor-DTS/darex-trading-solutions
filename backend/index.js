@@ -2240,6 +2240,8 @@ const procurementMaterialLineSchema = new mongoose.Schema({
   /** Виконавець: постачальник, ціна за од. з ПДВ, файли по рядку */
   supplierName: { type: String, trim: true, default: '' },
   supplierEdrpou: { type: String, trim: true, default: '' },
+  /** Коментар виконавця по позиції (необовʼязково) */
+  executorComment: { type: String, trim: true, default: '' },
   invoiceFile: procurementLineExecutorFileSchema,
   deliveryNoteFile: procurementLineExecutorFileSchema
 });
@@ -5441,6 +5443,9 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
       line.supplierEdrpou = String(
         inc.supplierEdrpou !== undefined ? inc.supplierEdrpou : line.supplierEdrpou || ''
       ).trim();
+      if (Object.prototype.hasOwnProperty.call(inc, 'executorComment')) {
+        line.executorComment = String(inc.executorComment || '').trim();
+      }
       if (Object.prototype.hasOwnProperty.call(inc, 'price')) {
         const pRaw = inc.price;
         if (pRaw === '' || pRaw === undefined || pRaw === null) {
@@ -5487,19 +5492,6 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     const shipErr = validateProcurementMaterialsForShipment(pr.materials);
     if (shipErr) {
       return res.status(400).json({ error: shipErr });
-    }
-    for (let i = 0; i < pr.materials.length; i++) {
-      const line = pr.materials[i];
-      if (!procurementLineNeedsShipmentWarehouse(line)) continue;
-      if (!String(line.supplierName || '').trim()) {
-        return res.status(400).json({ error: `Позиція ${i + 1}: вкажіть назву постачальника` });
-      }
-      const pUnit = line.price;
-      if (pUnit === null || pUnit === undefined || pUnit === '' || !Number.isFinite(Number(pUnit)) || Number(pUnit) < 0) {
-        return res
-          .status(400)
-          .json({ error: `Позиція ${i + 1}: вкажіть ціну за од. з ПДВ (число, не менше 0)` });
-      }
     }
     for (let i = 0; i < pr.materials.length; i++) {
       const line = pr.materials[i];

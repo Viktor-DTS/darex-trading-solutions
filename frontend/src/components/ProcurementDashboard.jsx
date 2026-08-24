@@ -209,7 +209,7 @@ function procurementRequestSearchBlob(r) {
   ];
   for (const m of r.materials || []) {
     if (!m) continue;
-    parts.push(m.name, m.supplierName, m.actualWarehouse);
+    parts.push(m.name, m.supplierName, m.actualWarehouse, m.executorComment);
   }
   return normalizeProcurementSearchText(
     parts
@@ -256,6 +256,17 @@ function formatProcurementMaterialsSummary(materials, uomList) {
         return `${name} — ${Number(qty)} ${uom}`;
       }
       return name;
+    });
+}
+
+function formatProcurementCommentsSummary(materials) {
+  return (materials || [])
+    .filter((m) => m && String(m.executorComment || '').trim())
+    .map((m) => {
+      const comment = String(m.executorComment).trim();
+      const name = String(m.name || '').trim();
+      if (name) return `${name}: ${comment}`;
+      return comment;
     });
 }
 
@@ -651,6 +662,8 @@ function ProcurementDashboard({ user }) {
         productId: m.productId ? String(m.productId) : '',
         supplierName: m.supplierName != null && m.supplierName !== undefined ? String(m.supplierName) : '',
         supplierEdrpou: m.supplierEdrpou != null && m.supplierEdrpou !== undefined ? String(m.supplierEdrpou) : '',
+        executorComment:
+          m.executorComment != null && m.executorComment !== undefined ? String(m.executorComment) : '',
         actualWarehouse: m.actualWarehouse != null && m.actualWarehouse !== undefined ? String(m.actualWarehouse) : '',
         analogName: m.analogName || '',
         analogQuantity: m.analogQuantity != null && m.analogQuantity !== '' ? String(m.analogQuantity) : '',
@@ -1272,6 +1285,7 @@ function ProcurementDashboard({ user }) {
       rejectionReason: String(m.rejectionReason || '').trim(),
       supplierName: String(m.supplierName != null ? m.supplierName : '').trim(),
       supplierEdrpou: String(m.supplierEdrpou != null ? m.supplierEdrpou : '').trim(),
+      executorComment: String(m.executorComment != null ? m.executorComment : '').trim(),
       price: m.price === '' || m.price == null || m.price === undefined ? null : Number(m.price)
     }));
     for (let i = 0; i < payload.length; i++) {
@@ -1355,14 +1369,6 @@ function ProcurementDashboard({ user }) {
         if (!draftLineNeedsExecutorWarehouse(m, saved)) continue;
         if (!String(m.actualWarehouse || '').trim()) {
           alert(`Позиція ${i + 1}: вкажіть фактичний склад відвантаження`);
-          return;
-        }
-        if (!String(m.supplierName || '').trim()) {
-          alert(`Позиція ${i + 1}: вкажіть назву постачальника`);
-          return;
-        }
-        if (m.price === '' || m.price == null || !Number.isFinite(Number(m.price)) || Number(m.price) < 0) {
-          alert(`Позиція ${i + 1}: вкажіть ціну закупівлі за од. грн. з ПДВ (число, не менше 0)`);
           return;
         }
       }
@@ -1794,6 +1800,7 @@ function ProcurementDashboard({ user }) {
             ) : null}
             <th>№ заявки</th>
             <th>Матеріали</th>
+            <th>Коментарі</th>
             <th>Статус</th>
             <th>Тип заявки</th>
             <th>Компанія платник</th>
@@ -1843,6 +1850,17 @@ function ProcurementDashboard({ user }) {
                   if (!lines.length) return '—';
                   return lines.map((line, idx) => (
                     <div key={idx} className="procurement-materials-summary-line">
+                      {line}
+                    </div>
+                  ));
+                })()}
+              </td>
+              <td className="procurement-table-col-comments">
+                {(() => {
+                  const lines = formatProcurementCommentsSummary(r.materials);
+                  if (!lines.length) return '—';
+                  return lines.map((line, idx) => (
+                    <div key={idx} className="procurement-comments-summary-line">
                       {line}
                     </div>
                   ));
@@ -2652,8 +2670,9 @@ function ProcurementDashboard({ user }) {
                       <div className="procurement-executor-materials-editor">
                         <p className="procurement-field-hint">
                           Для кожної позиції з кількістю до відвантаження вкажіть <strong>фактичний склад</strong> (поле в шапці
-                          заявки — для однакового складу по всіх позиціях, або колонка в таблиці — для різних),
-                          <strong> назву постачальника</strong> та <strong>ціну закупівлі за од. грн. з ПДВ</strong> (обовʼязково).
+                          заявки — для однакового складу по всіх позиціях, або колонка в таблиці — для різних).
+                          <strong> Ціна закупівлі</strong>, <strong>назва постачальника</strong> та <strong>коментарі</strong> — за
+                          бажанням.
                           <strong> ЄДРПОУ</strong> постачальника — за бажанням: після введення (8–10 цифр) поле «Назва
                           постачальника» можна <strong>заповнити автоматично</strong> (спочатку клієнтська база, потім
                           історія заявок, далі — публічний реєстр) або натиснути «Підставити назву». Окремо
@@ -2678,10 +2697,11 @@ function ProcurementDashboard({ user }) {
                                 <th>Прийоми завскладом</th>
                                 <th className="procurement-col-remainder">Залишок (макс.)</th>
                                 <th>Фактичний склад відвантаження *</th>
-                                <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ *</th>
+                                <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ</th>
                                 <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
+                                <th>Коментарі</th>
                                 <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
-                                <th>Назва постачальника *</th>
+                                <th>Назва постачальника</th>
                                 <th>Рахунок</th>
                                 <th>Видаткова накладна</th>
                                 <th>Аналог</th>
@@ -2809,7 +2829,7 @@ function ProcurementDashboard({ user }) {
                                       onChange={(e) => updateMaterialDraftRow(i, { price: e.target.value })}
                                       placeholder="0"
                                       disabled={m.rejected}
-                                      title="Обовʼязково для позицій до відвантаження"
+                                      title="Ціна за од. з ПДВ (необовʼязково)"
                                     />
                                   </td>
                                   <td className="procurement-td-num procurement-col-total-vat">
@@ -2819,6 +2839,19 @@ function ProcurementDashboard({ user }) {
                                           maximumFractionDigits: 2
                                         })
                                       : '—'}
+                                  </td>
+                                  <td className="procurement-comment-cell">
+                                    <textarea
+                                      className="procurement-exec-textarea procurement-exec-comment-textarea"
+                                      rows={3}
+                                      value={m.executorComment != null ? m.executorComment : ''}
+                                      onChange={(e) =>
+                                        updateMaterialDraftRow(i, { executorComment: e.target.value })
+                                      }
+                                      placeholder="Коментар по позиції"
+                                      disabled={m.rejected}
+                                      spellCheck="true"
+                                    />
                                   </td>
                                   <td className="procurement-edrpou-cell procurement-col-edrpou">
                                     <input
@@ -3117,6 +3150,7 @@ function ProcurementDashboard({ user }) {
                             <th>Фактичний склад відвантаження</th>
                             <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ</th>
                             <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
+                            <th>Коментарі</th>
                             <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                             <th>Назва постачальника</th>
                             <th>Рахунок / ВН</th>
@@ -3161,6 +3195,9 @@ function ProcurementDashboard({ user }) {
                                         maximumFractionDigits: 2
                                       })
                                     : '—'}
+                                </td>
+                                <td className="procurement-comment-cell procurement-comment-cell--readonly">
+                                  {m.executorComment ? m.executorComment : '—'}
                                 </td>
                                 <td className="procurement-col-edrpou">{m.supplierEdrpou ? m.supplierEdrpou : '—'}</td>
                                 <td className="procurement-supplier-name-readonly">

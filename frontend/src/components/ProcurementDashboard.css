@@ -407,6 +407,40 @@
   margin-top: 4px;
 }
 
+.procurement-table-col-comments {
+  min-width: 140px;
+  max-width: 260px;
+  word-break: break-word;
+}
+
+.procurement-comments-summary-line {
+  line-height: 1.4;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.procurement-comments-summary-line + .procurement-comments-summary-line {
+  margin-top: 4px;
+}
+
+.procurement-comment-cell {
+  min-width: 10rem;
+  max-width: 18rem;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.procurement-exec-comment-textarea {
+  min-width: 9rem;
+  width: 100%;
+}
+
+.procurement-comment-cell--readonly {
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .procurement-table-col-date {
   white-space: nowrap;
 }
