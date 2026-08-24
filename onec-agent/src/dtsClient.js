@@ -79,4 +79,36 @@ async function uploadVedomost(dts, filePath, trigger = 'schedule') {
   return data;
 }
 
-module.exports = { login, uploadVedomost };
+/**
+ * Завантажити «ЗАКАЗ ТОВАРОВ !!!.xlsx» у DTS (панель ВЕД — замовлення товарів).
+ * @returns {object} summary з бекенду
+ */
+async function uploadProductOrders(dts, filePath, trigger = 'schedule') {
+  const token = await login(dts);
+  const buf = fs.readFileSync(filePath);
+  const fd = new FormData();
+  fd.append('file', new Blob([buf]), path.basename(filePath));
+  const q = dts.dryRun ? '?dryRun=1' : '';
+  const url = `${dts.apiBaseUrl}/onec/import-product-orders${q}`;
+  const opts = {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-OneC-Trigger': trigger,
+    },
+    body: fd,
+  };
+  const dispatcher = getImportDispatcher();
+  if (dispatcher) opts.dispatcher = dispatcher;
+  const r = await fetch(url, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    if (r.status === 401 || r.status === 403) {
+      cachedToken = null;
+    }
+    throw new Error(`Імпорт замовлень товарів у DTS не вдався: ${data.error || r.status}`);
+  }
+  return data;
+}
+
+module.exports = { login, uploadVedomost, uploadProductOrders };

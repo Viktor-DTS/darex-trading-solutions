@@ -13155,6 +13155,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
 // Інтеграція 1С: імпорт «Ведомости по товарам на складах» (залишки + рух) та мапінг складів
 // ============================================
 const { runVedomostImport } = require('./lib/vedomostImport');
+const { runProductOrderImport } = require('./lib/vedProductOrderImport');
 
 // Імпорт звіту «Ведомость по товарам на складах» (оновлює залишки + журнал руху OneCMovement)
 app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req, res) => {
@@ -13237,6 +13238,46 @@ app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req
     } catch (logErr) {
       console.error('[ERROR] OneCImportLog (failure):', logErr);
     }
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Імпорт «ЗАКАЗ ТОВАРОВ !!!.xlsx» — замовлення товарів для панелі ВЕД (вкладки ДГУ / ЗИП)
+app.post('/api/onec/import-product-orders', uploadStockXlsx.single('file'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено (потрібна роль admin)' });
+    }
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Файл не завантажено (поле file, формат .xlsx)' });
+    }
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
+    const trigger = String(req.get('x-onec-trigger') || req.body?.trigger || 'upload').slice(0, 32);
+    const fileName = decodeMultipartFilename(req.file.originalname) || 'product-orders.xlsx';
+    const summary = await runProductOrderImport({
+      buffer: req.file.buffer,
+      fileName,
+      adminUser: { _id: user._id, login: user.login, name: user.name, role: user.role },
+      dryRun,
+      trigger,
+    });
+    logPerformance('POST /api/onec/import-product-orders', startTime);
+    console.log(
+      '[onec/import-product-orders] dgu=%s zip=%s total=%s trigger=%s',
+      summary.dguRows,
+      summary.zipRows,
+      summary.totalRows,
+      trigger
+    );
+    res.json(summary);
+  } catch (error) {
+    console.error('[ERROR] POST /api/onec/import-product-orders:', error);
+    logPerformance('POST /api/onec/import-product-orders', startTime);
     res.status(400).json({ error: error.message });
   }
 });

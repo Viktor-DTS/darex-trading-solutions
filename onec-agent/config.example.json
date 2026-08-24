@@ -20,8 +20,17 @@
     "fileNamePattern": "Залишки_{{ts}}.xlsx"
   },
 
+  "productOrders": {
+    "filePath": "\\\\srv1c\\Общая\\Общие документы\\03. ТОВАР\\ЗАКАЗ ТОВАРОВ !!!.xlsx"
+  },
+
   "schedule": {
     "enabled": true,
+    "slots": [
+      { "hour": 8, "minute": 0 },
+      { "hour": 14, "minute": 32 },
+      { "hour": 16, "minute": 0 }
+    ],
     "cron": ["0 8,16 * * *", "32 14 * * *"],
     "timezone": "Europe/Kyiv",
     "spawnLikeTest": true
@@ -38,7 +47,7 @@
     "clickBeforeKeys": false,
     "clickBeforeSave": false,
     "dismissFieldPicker": true,
-    "refocusBeforeSaveOpen": false,
+    "refocusBeforeSaveOpen": true,
     "windowActivateClick": null,
     "saveDialogConfirmClick": null,
     "reportClick": null,

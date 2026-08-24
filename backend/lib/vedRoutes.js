@@ -27,6 +27,10 @@ const {
   normalizeEquipmentType,
   defaultTechnicalRequirements,
 } = require('./vedEquipmentTypes');
+const {
+  getProductOrderMeta,
+  queryProductOrders,
+} = require('./vedProductOrderImport');
 
 const VED_STATUSES = [
   'pending_review',
@@ -446,6 +450,42 @@ function registerVedRoutes(app, deps = {}) {
       usedToday,
       remainingToday: Math.max(0, dailyLimit - usedToday),
     });
+  });
+
+  app.get('/api/ved/product-orders/meta', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      res.json(await getProductOrderMeta());
+    } catch (e) {
+      console.error('[ved] GET product-orders/meta:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/ved/product-orders', authenticateToken, async (req, res) => {
+    try {
+      if (!canManageVedRequests(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      const sheetType = String(req.query.sheetType || 'dgu').trim();
+      if (!['dgu', 'zip'].includes(sheetType)) {
+        return res.status(400).json({ error: 'Невірний sheetType (dgu або zip)' });
+      }
+      const result = await queryProductOrders({
+        sheetType,
+        search: String(req.query.search || '').trim(),
+        status: String(req.query.status || '').trim(),
+        supplier: String(req.query.supplier || '').trim(),
+        limit: req.query.limit,
+        skip: req.query.skip,
+      });
+      res.json(result);
+    } catch (e) {
+      console.error('[ved] GET product-orders:', e.message);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.get('/api/ved/meta', authenticateToken, (req, res) => {

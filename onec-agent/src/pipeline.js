@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const automation = require('./automation');
-const { uploadVedomost } = require('./dtsClient');
+const { uploadVedomost, uploadProductOrders } = require('./dtsClient');
 const { getLogsDir } = require('./paths');
 
 function timestamp() {
@@ -88,7 +88,34 @@ async function runPipeline(config, log, trigger = 'schedule') {
   if (summary.warnings?.length) {
     log(`! Попередження імпорту (${summary.warnings.length}): ${summary.warnings.slice(0, 3).join(' | ')}`);
   }
-  return { fileName: path.basename(finalPath), filePath: finalPath, summary };
+
+  let productOrderSummary = null;
+  const productOrderPath = config.productOrders?.filePath;
+  if (productOrderPath && fs.existsSync(productOrderPath)) {
+    log(`Завантаження замовлень товарів (ВЕД): ${path.basename(productOrderPath)}`);
+    try {
+      productOrderSummary = await uploadProductOrders(config.dts, productOrderPath, trigger);
+      log(
+        `Замовлення товарів: ДГУ ${productOrderSummary.dguRows ?? 0}, ЗИП ${productOrderSummary.zipRows ?? 0}, ` +
+          `разом ${productOrderSummary.totalRows ?? 0}.`
+      );
+      if (productOrderSummary.warnings?.length) {
+        log(`! Попередження замовлень (${productOrderSummary.warnings.length}): ${productOrderSummary.warnings.slice(0, 2).join(' | ')}`);
+      }
+    } catch (poErr) {
+      log(`! Помилка імпорту замовлень товарів: ${poErr.message}`);
+      productOrderSummary = { error: poErr.message };
+    }
+  } else if (productOrderPath) {
+    log(`! Файл замовлень товарів не знайдено: ${productOrderPath} — пропускаємо.`);
+  }
+
+  return {
+    fileName: path.basename(finalPath),
+    filePath: finalPath,
+    summary,
+    productOrderSummary,
+  };
 }
 
 module.exports = { runPipeline, timestamp };

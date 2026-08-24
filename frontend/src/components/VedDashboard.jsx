@@ -154,6 +154,15 @@ function VedDashboard({ user }) {
     extraSearchHint: '',
   });
 
+  const [productOrderMeta, setProductOrderMeta] = useState(null);
+  const [productOrderSheet, setProductOrderSheet] = useState('dgu');
+  const [productOrders, setProductOrders] = useState([]);
+  const [productOrderTotal, setProductOrderTotal] = useState(0);
+  const [productOrderLoading, setProductOrderLoading] = useState(false);
+  const [productOrderSearch, setProductOrderSearch] = useState('');
+  const [productOrderStatusFilter, setProductOrderStatusFilter] = useState('');
+  const [productOrderSupplierFilter, setProductOrderSupplierFilter] = useState('');
+
   const [newForm, setNewForm] = useState({
     equipmentType: 'generator_diesel',
     equipmentName: '',
@@ -281,7 +290,12 @@ function VedDashboard({ user }) {
   }, [authHeaders]);
 
   const loadRequests = useCallback(async () => {
-    if (section === 'new' || section === 'notifications' || isSupplierRegistrySection(section)) {
+    if (
+      section === 'new' ||
+      section === 'notifications' ||
+      section === 'product-orders' ||
+      isSupplierRegistrySection(section)
+    ) {
       setLoading(false);
       return;
     }
@@ -302,6 +316,64 @@ function VedDashboard({ user }) {
       setLoading(false);
     }
   }, [authHeaders, section]);
+
+  const loadProductOrderMeta = useCallback(async () => {
+    if (!canManage) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/ved/product-orders/meta`, { headers: authHeaders });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (res.ok) setProductOrderMeta(await res.json());
+    } catch {
+      /* ignore */
+    }
+  }, [authHeaders, canManage]);
+
+  useEffect(() => {
+    if (canManage) loadProductOrderMeta();
+  }, [canManage, loadProductOrderMeta]);
+
+  const loadProductOrders = useCallback(async () => {
+    if (!canManage) return;
+    setProductOrderLoading(true);
+    try {
+      const params = new URLSearchParams({
+        sheetType: productOrderSheet,
+        limit: '500',
+      });
+      if (productOrderSearch.trim()) params.set('search', productOrderSearch.trim());
+      if (productOrderStatusFilter.trim()) params.set('status', productOrderStatusFilter.trim());
+      if (productOrderSupplierFilter.trim()) params.set('supplier', productOrderSupplierFilter.trim());
+      const res = await fetch(`${API_BASE_URL}/ved/product-orders?${params}`, { headers: authHeaders });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (res.ok) {
+        const data = await res.json();
+        setProductOrders(data.rows || []);
+        setProductOrderTotal(data.total ?? 0);
+      } else {
+        setProductOrders([]);
+        setProductOrderTotal(0);
+      }
+    } catch {
+      setProductOrders([]);
+      setProductOrderTotal(0);
+    } finally {
+      setProductOrderLoading(false);
+    }
+  }, [
+    authHeaders,
+    canManage,
+    productOrderSheet,
+    productOrderSearch,
+    productOrderStatusFilter,
+    productOrderSupplierFilter,
+  ]);
+
+  useEffect(() => {
+    if (section === 'product-orders' && canManage) {
+      loadProductOrderMeta();
+      loadProductOrders();
+    }
+  }, [section, canManage, loadProductOrderMeta, loadProductOrders]);
 
   const loadDetail = useCallback(
     async (id) => {
@@ -1571,6 +1643,144 @@ function VedDashboard({ user }) {
     </div>
   );
 
+  const formatCellValue = (row, key) => {
+    const displayKey = `${key}Display`;
+    if (row[displayKey]) return row[displayKey];
+    const v = row[key];
+    if (v == null || v === '') return '—';
+    if (typeof v === 'number') return v;
+    return String(v);
+  };
+
+  const renderProductOrders = () => {
+    const sheetMeta = productOrderMeta?.sheets?.[productOrderSheet];
+    const columns = sheetMeta?.columns || {};
+    const columnKeys = Object.keys(columns);
+
+    return (
+      <div className="ved-list-panel ved-product-orders-panel">
+        <div className="ved-card">
+          <div className="ved-product-orders-header">
+            <div>
+              <h2 style={{ margin: '0 0 6px' }}>Замовлення товарів</h2>
+              <p className="ved-product-orders-subtitle">
+                Дані з Excel «ЗАКАЗ ТОВАРОВ !!!.xlsx» (синхронізація агентом 1С після імпорту ведомості).
+                {productOrderMeta?.lastImport?.at && (
+                  <>
+                    {' '}
+                    Останній імпорт: {formatDt(productOrderMeta.lastImport.at)}
+                    {productOrderMeta.lastImport.fileName ? ` · ${productOrderMeta.lastImport.fileName}` : ''}
+                    {productOrderMeta.lastImport.dguRows != null
+                      ? ` · ДГУ: ${productOrderMeta.lastImport.dguRows}, ЗИП: ${productOrderMeta.lastImport.zipRows}`
+                      : ''}
+                  </>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="ved-btn"
+              disabled={productOrderLoading}
+              onClick={() => {
+                loadProductOrderMeta();
+                loadProductOrders();
+              }}
+            >
+              {productOrderLoading ? '…' : '↻ Оновити'}
+            </button>
+          </div>
+
+          <div className="ved-product-orders-tabs">
+            <button
+              type="button"
+              className={`ved-product-orders-tab ${productOrderSheet === 'dgu' ? 'active' : ''}`}
+              onClick={() => setProductOrderSheet('dgu')}
+            >
+              ДГУ (генератори)
+              {productOrderMeta?.sheets?.dgu?.rowCount != null && (
+                <span className="ved-sidebar-tab-count">{productOrderMeta.sheets.dgu.rowCount}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              className={`ved-product-orders-tab ${productOrderSheet === 'zip' ? 'active' : ''}`}
+              onClick={() => setProductOrderSheet('zip')}
+            >
+              ЗИП (запчастини)
+              {productOrderMeta?.sheets?.zip?.rowCount != null && (
+                <span className="ved-sidebar-tab-count">{productOrderMeta.sheets.zip.rowCount}</span>
+              )}
+            </button>
+          </div>
+
+          <div className="ved-product-orders-filters">
+            <input
+              type="search"
+              placeholder="Пошук (товар, постачальник, замовник, примітки…)"
+              value={productOrderSearch}
+              onChange={(e) => setProductOrderSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && loadProductOrders()}
+            />
+            <input
+              type="text"
+              placeholder="Статус"
+              value={productOrderStatusFilter}
+              onChange={(e) => setProductOrderStatusFilter(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Постачальник"
+              value={productOrderSupplierFilter}
+              onChange={(e) => setProductOrderSupplierFilter(e.target.value)}
+            />
+            <button type="button" className="ved-btn ved-btn-secondary" onClick={loadProductOrders}>
+              Застосувати
+            </button>
+          </div>
+
+          <p className="ved-product-orders-count">
+            Показано {productOrders.length} з {productOrderTotal} записів
+            {productOrderTotal > productOrders.length ? ' (перші 500 — уточніть пошук)' : ''}
+          </p>
+        </div>
+
+        {productOrderLoading ? (
+          <div className="ved-loading">Завантаження…</div>
+        ) : productOrders.length === 0 ? (
+          <div className="ved-empty">
+            Немає даних для вкладки «{productOrderSheet === 'dgu' ? 'ДГУ' : 'ЗИП'}».
+            {productOrderMeta?.lastImport ? '' : ' Дочекайтеся синхронізації агентом 1С.'}
+          </div>
+        ) : (
+          <div className="ved-product-orders-table-wrap">
+            <table className="ved-table ved-product-orders-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  {columnKeys.map((key) => (
+                    <th key={key}>{columns[key]}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {productOrders.map((row) => (
+                  <tr key={row._id || row.rowIndex}>
+                    <td>{row.rowIndex}</td>
+                    {columnKeys.map((key) => (
+                      <td key={key} className="ved-product-order-cell">
+                        {formatCellValue(row, key)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderNewForm = () => (
     <div className="ved-list-panel">
       <form className="ved-new-form" onSubmit={submitNewRequest}>
@@ -1757,6 +1967,23 @@ function VedDashboard({ user }) {
                     <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.rejected}</span>
                   )}
                 </button>
+                <button
+                  type="button"
+                  className={`ved-sidebar-tab ${section === 'product-orders' ? 'active' : ''}`}
+                  onClick={() => {
+                    setSection('product-orders');
+                    setSelectedId(null);
+                    setDetail(null);
+                    setAiSessionDetail(null);
+                  }}
+                >
+                  📦 Замовлення товарів
+                  {productOrderMeta?.sheets?.dgu?.rowCount != null && (
+                    <span className="ved-sidebar-tab-count">
+                      {(productOrderMeta.sheets.dgu.rowCount || 0) + (productOrderMeta.sheets.zip?.rowCount || 0)}
+                    </span>
+                  )}
+                </button>
               </>
             )}
             <button
@@ -1788,6 +2015,7 @@ function VedDashboard({ user }) {
           {section === 'suppliers-active' && renderSupplierWorkflowSection('suppliers-active')}
           {section === 'suppliers-review' && renderSupplierWorkflowSection('suppliers-review')}
           {section === 'suppliers-rejected' && renderSupplierWorkflowSection('suppliers-rejected')}
+          {section === 'product-orders' && canManage && renderProductOrders()}
           {section === 'notifications' && (
             <div className="ved-notifications-wrap">
               <ManagerNotificationsTab

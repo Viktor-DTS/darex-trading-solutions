@@ -734,3 +734,106 @@
   color: #721c24;
   font-size: 13px;
 }
+
+.ved-product-orders-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.ved-product-orders-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ved-product-orders-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.ved-product-orders-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.ved-product-orders-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ved-product-orders-tab.active {
+  background: rgba(25, 118, 210, 0.12);
+  border-color: #1976d2;
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.ved-product-orders-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ved-product-orders-filters input {
+  min-width: 140px;
+  flex: 1 1 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.ved-product-orders-count {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ved-product-orders-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.ved-product-orders-table {
+  min-width: max-content;
+}
+
+.ved-product-orders-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  white-space: nowrap;
+  font-size: 11px;
+  max-width: 180px;
+}
+
+.ved-product-order-cell {
+  font-size: 12px;
+  max-width: 220px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: top;
+}
