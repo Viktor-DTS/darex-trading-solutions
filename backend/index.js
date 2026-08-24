@@ -3037,6 +3037,191 @@ async function applyProcurementLinesToWarehouseStock(warehouseDoc, lines, ctx) {
   }
 }
 
+/** Рядки для відкату залишків після підтвердження завскладом (за receivedQuantity / warehouseReceiptEvents). */
+function buildProcurementStockLinesFromReceived(pr) {
+  const stockLinesByWarehouse = new Map();
+  for (const line of pr.materials || []) {
+    const exp = expectedQtyForProcurementMaterialLine(line);
+    if (line.rejected || exp === null) continue;
+    const rq = line.receivedQuantity;
+    let r = rq === undefined || rq === null || rq === '' ? 0 : Number(rq);
+    const evSum = sumProcurementWarehouseReceiptEvents(line);
+    if ((!Number.isFinite(r) || r <= 0) && evSum > 0) r = evSum;
+    if (!Number.isFinite(r) || r <= 0) continue;
+
+    const typeLabel =
+      line.analogShipped && String(line.analogName || '').trim()
+        ? String(line.analogName).trim()
+        : String(line.name || '').trim();
+    let wname = procurementLineShipmentWarehouseName(line, pr);
+    if (!wname) wname = String(pr.actualWarehouse || '').trim();
+    if (!wname) continue;
+
+    if (!stockLinesByWarehouse.has(wname)) stockLinesByWarehouse.set(wname, []);
+    stockLinesByWarehouse.get(wname).push({
+      qty: r,
+      productId: line.productId,
+      typeLabel: typeLabel || 'Без назви',
+      unitOfMeasure: String(line.unitOfMeasure || '').trim(),
+      price: line.price
+    });
+  }
+  return stockLinesByWarehouse;
+}
+
+async function reverseProcurementLinesFromWarehouseStock(pr, ctx) {
+  const stockLinesByWarehouse = buildProcurementStockLinesFromReceived(pr);
+  if (!stockLinesByWarehouse.size) return;
+
+  const {
+    actingUserId,
+    actingUserName,
+    actingUserLogin,
+    procurementRequestId,
+    requestNumber
+  } = ctx || {};
+  const rn = requestNumber ? String(requestNumber).trim() : '';
+
+  for (const [wname, stockLines] of stockLinesByWarehouse) {
+    const warehouseDoc = await resolveWarehouseDocumentByName(wname);
+    if (!warehouseDoc) {
+      throw new Error(`Склад «${wname}» не знайдено у довіднику`);
+    }
+    const warehouseId = String(warehouseDoc._id);
+    const warehouseName = String(warehouseDoc.name || '').trim();
+    const region = String(warehouseDoc.region || '').trim();
+
+    for (const line of stockLines) {
+      const qtyRaw = Number(line.qty);
+      if (!Number.isFinite(qtyRaw) || qtyRaw <= 0) continue;
+
+      let card = null;
+      let productOid = null;
+      const pid = line.productId;
+      if (pid != null && mongoose.isValidObjectId(String(pid))) {
+        card = await ProductCard.findById(pid).lean();
+        if (card && card.isActive) {
+          productOid = card._id;
+        } else {
+          card = null;
+          productOid = null;
+        }
+      }
+
+      const typeLabel = String(line.typeLabel || '').trim() || 'Без назви';
+      const equipmentType = card ? String(card.type || '').trim() || typeLabel : typeLabel;
+      const manufacturerValue =
+        card && String(card.manufacturer || '').trim() ? String(card.manufacturer).trim() : '';
+
+      const searchQuery = {
+        currentWarehouse: warehouseId,
+        region: region,
+        status: { $ne: 'deleted' },
+        $and: [
+          {
+            $or: [
+              { serialNumber: null },
+              { serialNumber: { $exists: false } },
+              { serialNumber: '' }
+            ]
+          }
+        ]
+      };
+
+      const mergeByProductCard = productOid != null;
+      if (mergeByProductCard) {
+        searchQuery.productId = productOid;
+      } else {
+        searchQuery.type = equipmentType;
+        if (manufacturerValue) {
+          searchQuery.manufacturer = manufacturerValue;
+        } else {
+          searchQuery.$and.push({
+            $or: [
+              { manufacturer: null },
+              { manufacturer: { $exists: false } },
+              { manufacturer: '' }
+            ]
+          });
+        }
+      }
+
+      const existingEquipment = await Equipment.findOne(searchQuery);
+      if (!existingEquipment) {
+        throw new Error(
+          `Залишок «${typeLabel}» на складі «${warehouseName}» не знайдено для скасування прийому`
+        );
+      }
+
+      const currentQty = Number(existingEquipment.quantity) || 0;
+      if (currentQty < qtyRaw) {
+        throw new Error(
+          `Недостатньо залишку «${typeLabel}» на «${warehouseName}» (є ${currentQty}, потрібно зняти ${qtyRaw})`
+        );
+      }
+
+      const newQty = currentQty - qtyRaw;
+      if (newQty <= 0) {
+        existingEquipment.quantity = 0;
+        existingEquipment.status = 'deleted';
+      } else {
+        existingEquipment.quantity = newQty;
+      }
+      existingEquipment.lastModified = new Date();
+      await existingEquipment.save();
+
+      const notesBase = rn
+        ? `Скасування прийому за заявкою закупівель ${rn} (заявка ${procurementRequestId})`
+        : `Скасування прийому за заявкою закупівель (заявка ${procurementRequestId})`;
+
+      try {
+        await logInventoryMovement({
+          eventType: 'goods_receipt',
+          performedByLogin: actingUserLogin,
+          performedByName: actingUserName || actingUserLogin,
+          equipmentId: existingEquipment._id,
+          equipmentType: existingEquipment.type,
+          serialNumber: existingEquipment.serialNumber,
+          quantity: -qtyRaw,
+          fromStatus: existingEquipment.status || 'in_stock',
+          toStatus: existingEquipment.status || 'in_stock',
+          destinationWarehouseName: warehouseName,
+          notes: `${notesBase}: -${qtyRaw} од., загалом ${existingEquipment.quantity}`
+        });
+      } catch (journalErr) {
+        console.error('[procurement] logInventoryMovement warehouse stock revert:', journalErr.message);
+      }
+    }
+  }
+}
+
+function procurementRequestHasWarehouseReceipt(pr) {
+  if (!pr) return false;
+  if (pr.warehouseReceivedAt) return true;
+  for (const line of pr.materials || []) {
+    const rq = line.receivedQuantity;
+    if (rq !== undefined && rq !== null && rq !== '' && Number(rq) > 0) return true;
+    if (sumProcurementWarehouseReceiptEvents(line) > 0) return true;
+  }
+  return false;
+}
+
+function revertProcurementWarehouseReceiptState(pr) {
+  pr.status = 'awaiting_warehouse';
+  pr.receiptOutcome = 'pending';
+  pr.warehouseReceivedAt = null;
+  pr.warehouseConfirmerLogin = '';
+  pr.warehouseConfirmerName = '';
+  pr.warehouseConfirmerActions = [];
+  pr.executorDocumentsConfirmedAt = null;
+  for (const line of pr.materials || []) {
+    line.receivedQuantity = null;
+    line.warehouseReceiptEvents = [];
+  }
+  pr.markModified('materials');
+  pr.markModified('warehouseConfirmerActions');
+}
+
 /** Нова заявка — для виконавців VidZakupok та адміністраторів (як у isVidZakupokProcurementRole), без дубля заявнику */
 async function notifyVidZakupokNewProcurementRequest(pr) {
   try {
@@ -6234,6 +6419,85 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
   } catch (error) {
     logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
     console.error('[ERROR] warehouse-receipt:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** Повернення заявки з «Очікує документів» назад на підтвердження завскладом (скасування прийому). */
+app.post('/api/procurement-requests/:id/revert-warehouse-receipt', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(String(req.user.role || '').toLowerCase())) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (isImportedProcurementRequest(pr)) {
+      return res.status(400).json({
+        error: 'Імпортовані заявки закриваються без підтвердження складом'
+      });
+    }
+    if (pr.status !== PROCUREMENT_AWAITING_DOCUMENTS_STATUS) {
+      return res.status(400).json({
+        error: 'Повернення на склад доступне лише для статусу «Очікує підтвердження документів»'
+      });
+    }
+    if (!procurementHasShippableLines(pr)) {
+      return res.status(400).json({
+        error: 'У заявки немає позицій для повторного підтвердження складом'
+      });
+    }
+    if (!procurementRequestHasWarehouseReceipt(pr)) {
+      return res.status(400).json({
+        error: 'Заявка ще не мала підтвердження прийому на складі'
+      });
+    }
+
+    const reverseStock = req.body?.reverseStock !== false;
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const stockCtx = {
+      actingUserId: dbUser?._id?.toString(),
+      actingUserName: String(dbUser?.name || req.user.name || req.user.login).trim(),
+      actingUserLogin: req.user.login,
+      procurementRequestId: pr._id,
+      requestNumber: pr.requestNumber
+    };
+
+    if (reverseStock) {
+      try {
+        await reverseProcurementLinesFromWarehouseStock(pr, stockCtx);
+      } catch (stockErr) {
+        return res.status(400).json({
+          error: stockErr.message || String(stockErr)
+        });
+      }
+    }
+
+    revertProcurementWarehouseReceiptState(pr);
+    await pr.save();
+
+    try {
+      await ManagerUserNotification.updateMany(
+        {
+          procurementRequestId: pr._id,
+          kind: 'procurement_awaiting_documents',
+          read: false
+        },
+        { $set: { read: true } }
+      );
+    } catch (e) {
+      console.error('[procurement] mark awaiting_documents notifications read on revert:', e.message);
+    }
+
+    await notifyWarehouseStaffProcurementIncoming(pr);
+
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    logPerformance('POST /api/procurement-requests/revert-warehouse-receipt', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/revert-warehouse-receipt', startTime);
+    console.error('[ERROR] revert-warehouse-receipt:', error);
     res.status(500).json({ error: error.message });
   }
 });

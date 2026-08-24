@@ -1292,6 +1292,35 @@ function ProcurementDashboard({ user }) {
     }
   };
 
+  const revertWarehouseReceipt = async (id) => {
+    if (
+      !window.confirm(
+        'Повернути заявку на підтвердження завскладом?\n\nПрийняті кількості буде скасовано, залишки на складі зменшено. Завсклад отримає сповіщення повторно.'
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${id}/revert-warehouse-receipt`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reverseStock: true })
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Помилка');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const persistExecutorMaterials = async (requestId) => {
     if (!materialsDraft || !materialsDraft.length) return true;
     const payload = materialsDraft.map((m, i) => {
@@ -3390,6 +3419,24 @@ function ProcurementDashboard({ user }) {
                     </button>
                   </div>
                 )}
+                {detail.status === 'awaiting_documents' &&
+                  isAdmin &&
+                  !isImportedProcurementRequest(detail) &&
+                  (detail.warehouseReceivedAt ||
+                    (detail.materials || []).some(
+                      (m) =>
+                        (m.receivedQuantity != null && m.receivedQuantity !== '' && Number(m.receivedQuantity) > 0) ||
+                        (Array.isArray(m.warehouseReceiptEvents) && m.warehouseReceiptEvents.length > 0)
+                    )) && (
+                    <button
+                      type="button"
+                      className="procurement-btn-secondary"
+                      disabled={saving}
+                      onClick={() => revertWarehouseReceipt(detail._id)}
+                    >
+                      Повернути на підтвердження складом
+                    </button>
+                  )}
                 {detail.status === 'awaiting_documents' && !canActAsExecutorOnDocuments(detail) && (
                   <p className="procurement-field-hint" style={{ marginTop: 12 }}>
                     Заявка очікує підтвердження документів від виконавця відділу закупівель (рахунки, видаткові
