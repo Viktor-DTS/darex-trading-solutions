@@ -20,6 +20,8 @@ const VED_EQUIPMENT_TYPE_LABELS = {
   other: 'Інше обладнання',
 };
 
+const PRODUCT_ORDER_DEFAULT_STATUS = 'активен';
+
 const SUPPLIER_REGISTRY_SECTIONS = {
   'supplier-search': {
     workflowStatus: 'registry',
@@ -160,7 +162,7 @@ function VedDashboard({ user }) {
   const [productOrderTotal, setProductOrderTotal] = useState(0);
   const [productOrderLoading, setProductOrderLoading] = useState(false);
   const [productOrderSearch, setProductOrderSearch] = useState('');
-  const [productOrderStatusFilter, setProductOrderStatusFilter] = useState('');
+  const [productOrderStatusFilter, setProductOrderStatusFilter] = useState(PRODUCT_ORDER_DEFAULT_STATUS);
   const [productOrderSupplierFilter, setProductOrderSupplierFilter] = useState('');
 
   const [newForm, setNewForm] = useState({
@@ -332,17 +334,23 @@ function VedDashboard({ user }) {
     if (canManage) loadProductOrderMeta();
   }, [canManage, loadProductOrderMeta]);
 
-  const loadProductOrders = useCallback(async () => {
+  const loadProductOrders = useCallback(async (overrides = {}) => {
     if (!canManage) return;
     setProductOrderLoading(true);
     try {
+      const sheetType = overrides.sheetType ?? productOrderSheet;
+      const search = overrides.search !== undefined ? overrides.search : productOrderSearch;
+      const status = overrides.status !== undefined ? overrides.status : productOrderStatusFilter;
+      const supplier =
+        overrides.supplier !== undefined ? overrides.supplier : productOrderSupplierFilter;
+
       const params = new URLSearchParams({
-        sheetType: productOrderSheet,
+        sheetType,
         limit: '500',
       });
-      if (productOrderSearch.trim()) params.set('search', productOrderSearch.trim());
-      if (productOrderStatusFilter.trim()) params.set('status', productOrderStatusFilter.trim());
-      if (productOrderSupplierFilter.trim()) params.set('supplier', productOrderSupplierFilter.trim());
+      if (String(search || '').trim()) params.set('search', String(search).trim());
+      if (String(status || '').trim()) params.set('status', String(status).trim());
+      if (String(supplier || '').trim()) params.set('supplier', String(supplier).trim());
       const res = await fetch(`${API_BASE_URL}/ved/product-orders?${params}`, { headers: authHeaders });
       if (tryHandleUnauthorizedResponse(res)) return;
       if (res.ok) {
@@ -1652,10 +1660,21 @@ function VedDashboard({ user }) {
     return String(v);
   };
 
+  const showAllProductOrders = () => {
+    setProductOrderStatusFilter('');
+    loadProductOrders({ status: '' });
+  };
+
+  const showActiveProductOrders = () => {
+    setProductOrderStatusFilter(PRODUCT_ORDER_DEFAULT_STATUS);
+    loadProductOrders({ status: PRODUCT_ORDER_DEFAULT_STATUS });
+  };
+
   const renderProductOrders = () => {
     const sheetMeta = productOrderMeta?.sheets?.[productOrderSheet];
     const columns = sheetMeta?.columns || {};
     const columnKeys = Object.keys(columns);
+    const statusFilterActive = Boolean(productOrderStatusFilter.trim());
 
     return (
       <div className="ved-list-panel ved-product-orders-panel">
@@ -1726,20 +1745,32 @@ function VedDashboard({ user }) {
               placeholder="Статус"
               value={productOrderStatusFilter}
               onChange={(e) => setProductOrderStatusFilter(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && loadProductOrders()}
             />
             <input
               type="text"
               placeholder="Постачальник"
               value={productOrderSupplierFilter}
               onChange={(e) => setProductOrderSupplierFilter(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && loadProductOrders()}
             />
-            <button type="button" className="ved-btn ved-btn-secondary" onClick={loadProductOrders}>
+            <button type="button" className="ved-btn ved-btn-secondary" onClick={() => loadProductOrders()}>
               Застосувати
             </button>
+            {statusFilterActive ? (
+              <button type="button" className="ved-btn ved-btn-secondary" onClick={showAllProductOrders}>
+                Показати все
+              </button>
+            ) : (
+              <button type="button" className="ved-btn ved-btn-secondary" onClick={showActiveProductOrders}>
+                Лише активні
+              </button>
+            )}
           </div>
 
           <p className="ved-product-orders-count">
             Показано {productOrders.length} з {productOrderTotal} записів
+            {statusFilterActive ? ` · фільтр статусу: «${productOrderStatusFilter}»` : ' · усі статуси'}
             {productOrderTotal > productOrders.length ? ' (перші 500 — уточніть пошук)' : ''}
           </p>
         </div>
