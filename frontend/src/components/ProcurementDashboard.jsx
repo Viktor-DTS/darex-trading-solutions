@@ -435,6 +435,21 @@ function parseNonNegMaterialQty(v) {
   return Number.isFinite(n) ? Math.max(0, n) : 0;
 }
 
+/** Кількість основного товару до відвантаження: явне значення або залишок за замовчуванням. */
+function effectiveDraftMainShipQty(m, savedLine) {
+  const maxR = savedLine ? maxRemainderAfterWarehouse(savedLine) : null;
+  const parsed = parseNonNegMaterialQty(m?.quantity);
+  if (parsed > 0) return parsed;
+  if (
+    (m?.quantity === '' || m?.quantity == null || m?.quantity === undefined) &&
+    maxR != null &&
+    maxR > 0
+  ) {
+    return maxR;
+  }
+  return 0;
+}
+
 /** У режимі «основний + аналог»: сума не більше maxCap. Спочатку зменшуємо аналог, потім основний. */
 function clampMainAnalogSumToCap(main, analog, maxCap) {
   if (maxCap == null || !Number.isFinite(maxCap)) return { main, analog };
@@ -657,7 +672,13 @@ function ProcurementDashboard({ user }) {
       detail.materials.map((m) => ({
         name: m.name || '',
         unitOfMeasure: normalizeUomLabel(m.unitOfMeasure, uomList),
-        quantity: m.quantity,
+        quantity: (() => {
+          if (m.quantity != null && m.quantity !== '' && Number.isFinite(Number(m.quantity))) {
+            return String(m.quantity);
+          }
+          const maxR = maxRemainderAfterWarehouse(m);
+          return maxR != null && maxR > 0 ? String(maxR) : '';
+        })(),
         price: m.price != null && m.price !== '' ? String(m.price) : '',
         productId: m.productId ? String(m.productId) : '',
         supplierName: m.supplierName != null && m.supplierName !== undefined ? String(m.supplierName) : '',
@@ -1273,10 +1294,19 @@ function ProcurementDashboard({ user }) {
 
   const persistExecutorMaterials = async (requestId) => {
     if (!materialsDraft || !materialsDraft.length) return true;
-    const payload = materialsDraft.map((m) => ({
+    const payload = materialsDraft.map((m, i) => {
+      const saved = detail?.materials?.[i];
+      const mainQty = effectiveDraftMainShipQty(m, saved);
+      const qtyRaw = m.quantity;
+      const quantity =
+        qtyRaw === '' || qtyRaw === undefined || qtyRaw === null
+          ? mainQty > 0
+            ? mainQty
+            : null
+          : Number(qtyRaw);
+      return {
       unitOfMeasure: normUom(m.unitOfMeasure),
-      quantity:
-        m.quantity === '' || m.quantity === undefined || m.quantity === null ? null : Number(m.quantity),
+      quantity,
       actualWarehouse: String(m.actualWarehouse || '').trim(),
       analogName: m.analogName,
       analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
@@ -1287,7 +1317,8 @@ function ProcurementDashboard({ user }) {
       supplierEdrpou: String(m.supplierEdrpou != null ? m.supplierEdrpou : '').trim(),
       executorComment: String(m.executorComment != null ? m.executorComment : '').trim(),
       price: m.price === '' || m.price == null || m.price === undefined ? null : Number(m.price)
-    }));
+      };
+    });
     for (let i = 0; i < payload.length; i++) {
       if (payload[i].rejected && !payload[i].rejectionReason) {
         alert(`Позиція ${i + 1}: для відхиленого матеріалу обовʼязково вкажіть причину`);
@@ -1316,7 +1347,7 @@ function ProcurementDashboard({ user }) {
       const mainPart =
         payload[i].quantity != null && Number.isFinite(payload[i].quantity)
           ? Math.max(0, payload[i].quantity)
-          : 0;
+          : effectiveDraftMainShipQty(m, row);
       const analogPart =
         draftAnalog && payload[i].analogQuantity != null && Number.isFinite(payload[i].analogQuantity)
           ? Math.max(0, payload[i].analogQuantity)
@@ -1356,7 +1387,7 @@ function ProcurementDashboard({ user }) {
     const maxR = savedLine ? maxRemainderAfterWarehouse(savedLine) : null;
     if (maxR === null) return false;
     const draftAnalog = !!m.analogShipped && String(m.analogName || '').trim();
-    const main = parseNonNegMaterialQty(m.quantity);
+    const main = effectiveDraftMainShipQty(m, savedLine);
     const analog = draftAnalog ? parseNonNegMaterialQty(m.analogQuantity) : 0;
     return main + analog > 0;
   };

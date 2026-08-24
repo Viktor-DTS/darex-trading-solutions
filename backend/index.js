@@ -2479,6 +2479,26 @@ function procurementLineNeedsShipmentWarehouse(line) {
   return exp !== null && exp > 0;
 }
 
+function procurementHasShippableLines(pr) {
+  return (pr.materials || []).some(procurementLineNeedsShipmentWarehouse);
+}
+
+/** Якщо виконавець не вказав quantity, підставити залишок від initialQuantity (до першого прийому на складі). */
+function normalizeProcurementLineShipmentQuantitiesBeforeComplete(pr) {
+  for (const line of pr.materials || []) {
+    if (line.rejected) continue;
+    const cur = line.quantity;
+    if (cur != null && cur !== '' && Number.isFinite(Number(cur)) && Number(cur) > 0) continue;
+    const init = line.initialQuantity;
+    if (init == null || !Number.isFinite(Number(init)) || Number(init) <= 0) continue;
+    const evSum = sumProcurementWarehouseReceiptEvents(line);
+    const maxFromInit = Math.max(0, Number(init) - evSum);
+    if (maxFromInit > 0) {
+      line.quantity = maxFromInit;
+    }
+  }
+}
+
 /** Оновлює pr.actualWarehouse з унікальних непорожніх line.actualWarehouse (для списків / сумісності). */
 function syncProcurementRequestDenormalizedWarehouses(pr) {
   const uniq = new Set();
@@ -4181,6 +4201,28 @@ async function repairImportedProcurementStuckAwaitingWarehouse() {
   }
 }
 
+/** Заявки без позицій до прийому, що помилково зависли в «Чекає відвантаження на склад». */
+async function repairProcurementStuckAwaitingWarehouseNoShippable() {
+  try {
+    const stuck = await ProcurementRequest.find({
+      status: 'awaiting_warehouse',
+      ...procurementNotImportedMongoFilter(),
+    }).limit(200);
+    let fixed = 0;
+    for (const pr of stuck) {
+      if (procurementHasShippableLines(pr)) continue;
+      pr.status = PROCUREMENT_AWAITING_DOCUMENTS_STATUS;
+      pr.receiptOutcome = 'pending';
+      await pr.save();
+      fixed++;
+    }
+    return fixed;
+  } catch (e) {
+    console.error('[procurement] repairProcurementStuckAwaitingWarehouseNoShippable:', e.message);
+    return 0;
+  }
+}
+
 function procurementExecutorCanEditWork(status) {
   return PROCUREMENT_EXECUTOR_WORK_STATUSES.includes(status);
 }
@@ -4949,6 +4991,7 @@ app.get('/api/procurement-requests', async (req, res) => {
   try {
     if (isVidZakupokProcurementRole(req.user.role)) {
       await repairImportedProcurementStuckAwaitingWarehouse();
+      await repairProcurementStuckAwaitingWarehouseNoShippable();
     }
     const q = procurementListQueryForUser(req.user);
     const rows = await ProcurementRequest.find(q)
@@ -5521,6 +5564,7 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     if (shipErr) {
       return res.status(400).json({ error: shipErr });
     }
+    normalizeProcurementLineShipmentQuantitiesBeforeComplete(pr);
     for (let i = 0; i < pr.materials.length; i++) {
       const line = pr.materials[i];
       if (!procurementLineNeedsShipmentWarehouse(line)) continue;
@@ -5550,6 +5594,20 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
       stripProcurementLineBinaryFields(outImported);
       logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
       return res.json(outImported);
+    }
+    const hasShippable = procurementHasShippableLines(pr);
+    if (!hasShippable) {
+      pr.status = PROCUREMENT_AWAITING_DOCUMENTS_STATUS;
+      pr.receiptOutcome = 'pending';
+      pr.markModified('materials');
+      await pr.save();
+      await notifyProcurementExecutorDocumentsPending(pr);
+      const outSkipWh = await ProcurementRequest.findById(pr._id)
+        .select(PROCUREMENT_DOC_LIST_PROJECTION)
+        .lean();
+      stripProcurementLineBinaryFields(outSkipWh);
+      logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
+      return res.json(outSkipWh);
     }
     pr.status = 'awaiting_warehouse';
     pr.receiptOutcome = 'pending';
@@ -5945,6 +6003,11 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
         error: 'Прийом доступний лише для статусу «Чекає відвантаження на склад»'
       });
     }
+    if (!procurementHasShippableLines(pr)) {
+      return res.status(400).json({
+        error: 'У заявці немає позицій з кількістю до прийому на склад'
+      });
+    }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
     const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
     const whNeeded = procurementRequestWhNeededNameSet(pr);
@@ -6003,7 +6066,8 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       }
     }
 
-    const allReceived = allProcurementShippableLinesHaveReceivedValue(pr);
+    const allReceived =
+      procurementHasShippableLines(pr) && allProcurementShippableLinesHaveReceivedValue(pr);
     let inScopeDataChanged = false;
     for (let i = 0; i < n; i++) {
       if (!procurementLineInReceiptScopeForUser(req.user, allowed, whNeeded, pr, pr.materials[i])) continue;
