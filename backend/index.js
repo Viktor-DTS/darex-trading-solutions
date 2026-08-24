@@ -3068,6 +3068,13 @@ async function notifyProcurementRequesterCompleted(pr) {
   }
 }
 
+function userCanEditProcurementRequestAsRequester(reqUser, pr) {
+  if (!pr || !reqUser) return false;
+  if (isImportedProcurementRequest(pr)) return false;
+  if (pr.status !== 'pending_review') return false;
+  return String(pr.requesterLogin || '').trim() === String(reqUser.login || '').trim();
+}
+
 async function userCanReadProcurementRequest(reqUser, dbUser, pr) {
   if (!pr) return false;
   if (isVidZakupokProcurementRole(reqUser.role)) return true;
@@ -5107,6 +5114,137 @@ app.post(
     } catch (error) {
       logPerformance('POST /api/procurement-requests', startTime);
       console.error('[ERROR] POST /api/procurement-requests:', error);
+      res.status(500).json({ error: error.message || 'Помилка збереження' });
+    }
+  }
+);
+
+app.patch(
+  '/api/procurement-requests/:id/requester',
+  procurementUploadMiddleware,
+  async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const pr = await ProcurementRequest.findById(req.params.id);
+      if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+      if (!userCanEditProcurementRequestAsRequester(req.user, pr)) {
+        return res.status(403).json({
+          error:
+            'Редагувати можна лише власну заявку зі статусом «Очікує розгляду» (до взяття в роботу відділом закупівель)',
+        });
+      }
+
+      const applicationKind = String(req.body.applicationKind || '').trim();
+      const priority = String(req.body.priority || '').trim();
+      const desiredWarehouse = String(req.body.desiredWarehouse || '').trim();
+      const payerCompany = String(req.body.payerCompany || '').trim();
+      const projectObject = String(req.body.projectObject || '').trim();
+      const notes = String(req.body.notes || '').trim();
+      if (!applicationKind || !PROCUREMENT_APPLICATION_KINDS.includes(applicationKind)) {
+        return res.status(400).json({ error: 'Оберіть тип заявки: Закупівля або Визначення ціни' });
+      }
+      const isPriceDetermination = applicationKind === 'price_determination';
+      if (!isPriceDetermination) {
+        if (!payerCompany || !PROCUREMENT_PAYER_COMPANIES.includes(payerCompany)) {
+          return res.status(400).json({ error: 'Оберіть компанію платника (ДТС або Дарекс Енерго)' });
+        }
+        if (!desiredWarehouse) {
+          return res.status(400).json({ error: 'Оберіть бажаний склад відвантаження' });
+        }
+      } else if (payerCompany && !PROCUREMENT_PAYER_COMPANIES.includes(payerCompany)) {
+        return res.status(400).json({ error: 'Некоректна компанія платника (ДТС або Дарекс Енерго)' });
+      }
+      const allowedP = ['1_workday', '5_workdays', '7_workdays', 'more_than_7_workdays'];
+      if (!allowedP.includes(priority)) {
+        return res.status(400).json({ error: 'Некоректний пріоритет' });
+      }
+      let materialsRaw = [];
+      try {
+        const mr = req.body.materials;
+        if (typeof mr === 'string') {
+          materialsRaw = JSON.parse(mr || '[]');
+        } else if (Array.isArray(mr)) {
+          materialsRaw = mr;
+        }
+      } catch {
+        return res.status(400).json({ error: 'Некоректний формат списку матеріалів' });
+      }
+      if (!Array.isArray(materialsRaw)) {
+        return res.status(400).json({ error: 'Матеріали мають бути масивом' });
+      }
+      const uomList = await getUnitsOfMeasureList();
+      const materials = [];
+      for (const m of materialsRaw.filter((x) => x && String(x.name || '').trim())) {
+        const qRaw = m.quantity;
+        const qty =
+          qRaw === '' || qRaw === undefined || qRaw === null
+            ? null
+            : Number(qRaw);
+        let productId = null;
+        if (m.productId && mongoose.isValidObjectId(String(m.productId))) {
+          productId = new mongoose.Types.ObjectId(String(m.productId));
+        }
+        const qFin = Number.isFinite(qty) ? qty : null;
+        materials.push({
+          name: String(m.name).trim(),
+          unitOfMeasure: pickUnitFromList(m.unitOfMeasure, uomList),
+          quantity: qFin,
+          initialQuantity: qFin,
+          price: null,
+          productId
+        });
+      }
+
+      let removeAttachmentIds = [];
+      try {
+        const raw = req.body.removeAttachmentIds;
+        if (typeof raw === 'string' && raw.trim()) {
+          removeAttachmentIds = JSON.parse(raw);
+        } else if (Array.isArray(raw)) {
+          removeAttachmentIds = raw;
+        }
+      } catch {
+        return res.status(400).json({ error: 'Некоректний формат removeAttachmentIds' });
+      }
+      const removeSet = new Set(
+        (Array.isArray(removeAttachmentIds) ? removeAttachmentIds : [])
+          .map((x) => String(x || '').trim())
+          .filter(Boolean)
+      );
+      if (removeSet.size && Array.isArray(pr.attachments)) {
+        pr.attachments = pr.attachments.filter((a) => !removeSet.has(String(a._id)));
+      }
+
+      const newAttachments = (req.files || []).map((f) => ({
+        originalName: decodeMultipartFilename(f.originalname) || 'file',
+        mimeType: f.mimetype || '',
+        size: f.size || 0,
+        data: f.buffer
+      }));
+      if (newAttachments.length) {
+        pr.attachments = [...(pr.attachments || []), ...newAttachments];
+      }
+
+      pr.applicationKind = applicationKind;
+      pr.priority = priority;
+      pr.desiredWarehouse = desiredWarehouse || '';
+      pr.projectObject = projectObject.slice(0, 500);
+      pr.notes = notes.slice(0, 50000);
+      pr.materials = materials;
+      if (payerCompany) {
+        pr.payerCompany = payerCompany;
+      } else if (isPriceDetermination) {
+        pr.payerCompany = undefined;
+      }
+
+      await pr.save();
+      const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+      stripProcurementLineBinaryFields(out);
+      logPerformance('PATCH /api/procurement-requests/:id/requester', startTime);
+      res.json(out);
+    } catch (error) {
+      logPerformance('PATCH /api/procurement-requests/:id/requester', startTime);
+      console.error('[ERROR] PATCH /api/procurement-requests/:id/requester:', error);
       res.status(500).json({ error: error.message || 'Помилка збереження' });
     }
   }

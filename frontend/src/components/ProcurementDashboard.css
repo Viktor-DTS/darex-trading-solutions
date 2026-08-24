@@ -794,6 +794,24 @@
   gap: 6px;
 }
 
+.procurement-edit-existing-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.procurement-edit-existing-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 .procurement-file-link {
   background: none;
   border: none;

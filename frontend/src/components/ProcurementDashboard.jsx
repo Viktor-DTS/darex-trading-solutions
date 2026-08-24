@@ -454,6 +454,8 @@ function ProcurementDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingRequestId, setEditingRequestId] = useState(null);
+  const [editingRequestNumber, setEditingRequestNumber] = useState('');
   const [detail, setDetail] = useState(null);
 
   const [createForm, setCreateForm] = useState({
@@ -464,7 +466,9 @@ function ProcurementDashboard({ user }) {
     projectObject: '',
     materials: [defaultMaterialRow('шт.')],
     notes: '',
-    files: []
+    files: [],
+    existingAttachments: [],
+    removeAttachmentIds: []
   });
 
   const [materialsDraft, setMaterialsDraft] = useState(null);
@@ -498,6 +502,15 @@ function ProcurementDashboard({ user }) {
   const isVidZakupok = ['vidzakupok', 'admin', 'administrator'].includes(role);
   const isWarehouseConfirmer = ['warehouse', 'zavsklad', 'admin', 'administrator'].includes(role);
   const isAdmin = ['admin', 'administrator'].includes(role);
+
+  const isRequester = useCallback(
+    (d) => String(d?.requesterLogin || '') === String(user?.login || ''),
+    [user?.login]
+  );
+  const canEditAsRequester = useCallback(
+    (d) => d?.status === 'pending_review' && isRequester(d) && !isImportedProcurementRequest(d),
+    [isRequester]
+  );
 
   const authHeaders = useMemo(() => {
     const token = localStorage.getItem('token');
@@ -685,13 +698,56 @@ function ProcurementDashboard({ user }) {
       projectObject: '',
       materials: [defaultMaterialRow(firstUom)],
       notes: '',
-      files: []
+      files: [],
+      existingAttachments: [],
+      removeAttachmentIds: []
     });
+    setEditingRequestId(null);
+    setEditingRequestNumber('');
     setNomenclatureHints([]);
     setHintsForRow(null);
     if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
     setNomenclatureStockItems([]);
     setNomenclatureStockLoading(false);
+  };
+
+  const closeCreateModal = () => {
+    if (saving) return;
+    setCreateOpen(false);
+    resetCreateForm();
+  };
+
+  const startEditRequest = (row) => {
+    if (!canEditAsRequester(row)) return;
+    const mats = (row.materials || []).length
+      ? row.materials.map((m) => ({
+          name: m.name || '',
+          unitOfMeasure: m.unitOfMeasure || firstUom,
+          quantity:
+            m.quantity != null && m.quantity !== ''
+              ? String(m.quantity)
+              : m.initialQuantity != null
+                ? String(m.initialQuantity)
+                : '',
+          productId: m.productId ? String(m.productId) : ''
+        }))
+      : [defaultMaterialRow(firstUom)];
+    setCreateForm({
+      applicationKind: row.applicationKind || 'purchase',
+      payerCompany: row.payerCompany || '',
+      priority: row.priority || '5_workdays',
+      desiredWarehouse: row.desiredWarehouse || '',
+      projectObject: row.projectObject || '',
+      materials: mats,
+      notes: row.notes || '',
+      files: [],
+      existingAttachments: Array.isArray(row.attachments) ? row.attachments : [],
+      removeAttachmentIds: []
+    });
+    setEditingRequestId(row._id);
+    setEditingRequestNumber(row.requestNumber || '');
+    setDetail(null);
+    setCreateOpen(true);
   };
 
   useEffect(() => {
@@ -878,25 +934,40 @@ function ProcurementDashboard({ user }) {
       fd.append('notes', String(createForm.notes || '').trim());
       fd.append('materials', JSON.stringify(materialsPayload));
       (createForm.files || []).forEach((f) => fd.append('files', f));
+      if (editingRequestId && createForm.removeAttachmentIds?.length) {
+        fd.append('removeAttachmentIds', JSON.stringify(createForm.removeAttachmentIds));
+      }
 
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/procurement-requests`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd
-      });
+      const isEdit = Boolean(editingRequestId);
+      const res = await fetch(
+        isEdit
+          ? `${API_BASE_URL}/procurement-requests/${editingRequestId}/requester`
+          : `${API_BASE_URL}/procurement-requests`,
+        {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd
+        }
+      );
       if (tryHandleUnauthorizedResponse(res)) return;
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Не вдалося створити заявку');
+        alert(err.error || (isEdit ? 'Не вдалося зберегти зміни' : 'Не вдалося створити заявку'));
         return;
       }
-      const created = await res.json().catch(() => null);
-      const num = created && created.requestNumber ? String(created.requestNumber).trim() : '';
+      const saved = await res.json().catch(() => null);
+      const num =
+        saved && saved.requestNumber
+          ? String(saved.requestNumber).trim()
+          : editingRequestNumber || '';
       setCreateOpen(false);
       resetCreateForm();
       await loadRequests();
-      if (num) {
+      if (isEdit) {
+        if (saved) openDetail(saved);
+        alert(num ? `Заявку ${num} оновлено.` : 'Заявку оновлено.');
+      } else if (num) {
         alert(`Заявку створено. Номер: ${num}`);
       }
     } catch (err) {
@@ -1831,6 +1902,10 @@ function ProcurementDashboard({ user }) {
   }, [authHeaders, importDryRun, importSheetNames, loadRequests]);
 
   const isPriceDeterminationCreate = createForm.applicationKind === 'price_determination';
+  const isEditingRequest = Boolean(editingRequestId);
+  const visibleExistingAttachments = (createForm.existingAttachments || []).filter(
+    (a) => !createForm.removeAttachmentIds.includes(String(a._id))
+  );
 
   return (
     <div className="procurement-dashboard">
@@ -2105,7 +2180,10 @@ function ProcurementDashboard({ user }) {
                 <button
                   type="button"
                   className="procurement-btn-primary"
-                  onClick={() => setCreateOpen(true)}
+                  onClick={() => {
+                    resetCreateForm();
+                    setCreateOpen(true);
+                  }}
                   disabled={saving}
                 >
                   + Подати заявку
@@ -2148,11 +2226,15 @@ function ProcurementDashboard({ user }) {
         <div className="procurement-modal-overlay" role="dialog" aria-modal="true">
           <div className="procurement-modal procurement-modal--create-split">
             <div className="procurement-modal-header">
-              <h2>Нова заявка на закупівлю</h2>
+              <h2>
+                {isEditingRequest
+                  ? `Редагування заявки${editingRequestNumber ? ` (${editingRequestNumber})` : ''}`
+                  : 'Нова заявка на закупівлю'}
+              </h2>
               <button
                 type="button"
                 className="procurement-modal-close"
-                onClick={() => !saving && setCreateOpen(false)}
+                onClick={closeCreateModal}
                 aria-label="Закрити"
               >
                 ×
@@ -2323,6 +2405,32 @@ function ProcurementDashboard({ user }) {
 
               <label className="procurement-field">
                 <span>Файли заявника (Excel, Word, PDF, JPEG)</span>
+                {visibleExistingAttachments.length > 0 ? (
+                  <div className="procurement-edit-existing-files">
+                    <span className="procurement-field-hint">Поточні файли:</span>
+                    {visibleExistingAttachments.map((a) => (
+                      <div key={a._id} className="procurement-edit-existing-file-row">
+                        <span>
+                          {procurementFileNameLabel(a.originalName, 'файл')}
+                          {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
+                        </span>
+                        <button
+                          type="button"
+                          className="procurement-btn-icon"
+                          title="Прибрати файл"
+                          onClick={() =>
+                            setCreateForm((prev) => ({
+                              ...prev,
+                              removeAttachmentIds: [...prev.removeAttachmentIds, String(a._id)]
+                            }))
+                          }
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <input
                   type="file"
                   multiple
@@ -2335,7 +2443,9 @@ function ProcurementDashboard({ user }) {
                   }
                 />
                 <span className="procurement-field-hint">
-                  До 12 файлів (документи або JPEG), кожен до 15 МБ; зберігаються в базі.
+                  {isEditingRequest
+                    ? 'Можна додати нові файли або прибрати існуючі. До 12 файлів загалом, кожен до 15 МБ.'
+                    : 'До 12 файлів (документи або JPEG), кожен до 15 МБ; зберігаються в базі.'}
                 </span>
               </label>
 
@@ -2350,11 +2460,11 @@ function ProcurementDashboard({ user }) {
               </label>
 
               <div className="procurement-modal-actions">
-                <button type="button" className="procurement-btn-secondary" onClick={() => setCreateOpen(false)} disabled={saving}>
+                <button type="button" className="procurement-btn-secondary" onClick={closeCreateModal} disabled={saving}>
                   Скасувати
                 </button>
                 <button type="submit" className="procurement-btn-primary" disabled={saving}>
-                  {saving ? 'Збереження…' : 'Подати заявку'}
+                  {saving ? 'Збереження…' : isEditingRequest ? 'Зберегти зміни' : 'Подати заявку'}
                 </button>
               </div>
               </form>
@@ -3091,6 +3201,16 @@ function ProcurementDashboard({ user }) {
               )}
 
               <div className="procurement-detail-actions">
+                {canEditAsRequester(detail) && (
+                  <button
+                    type="button"
+                    className="procurement-btn-secondary"
+                    disabled={saving}
+                    onClick={() => startEditRequest(detail)}
+                  >
+                    Редагувати заявку
+                  </button>
+                )}
                 {detail.status === 'pending_review' && isVidZakupok && (
                   <button
                     type="button"
