@@ -2640,6 +2640,98 @@ function procurementReceiptAwaitingThisUserAction(reqUser, names, pr) {
   return !procurementUserRegionReceiptLinesComplete(reqUser, names, whNeeded, pr);
 }
 
+function procurementLineHasWarehouseReceiptRecorded(line) {
+  if (!line) return false;
+  if (sumProcurementWarehouseReceiptEvents(line) > 0) return true;
+  const rq = line.receivedQuantity;
+  return rq !== undefined && rq !== null && rq !== '' && Number.isFinite(Number(rq));
+}
+
+function procurementLineReceiptHistoryMeta(line, pr) {
+  const evs = Array.isArray(line?.warehouseReceiptEvents) ? line.warehouseReceiptEvents : [];
+  if (evs.length) {
+    const last = evs[evs.length - 1];
+    const qty = sumProcurementWarehouseReceiptEvents(line);
+    const rq = line.receivedQuantity;
+    const acceptedQuantity =
+      qty > 0
+        ? qty
+        : rq !== undefined && rq !== null && rq !== '' && Number.isFinite(Number(rq))
+          ? Number(rq)
+          : Number(last?.acceptedQuantity) || 0;
+    return {
+      acceptedQuantity,
+      confirmedAt: last?.acceptedAt || pr?.warehouseReceivedAt || null,
+      confirmerName:
+        String(last?.confirmerName || last?.confirmerLogin || '').trim() ||
+        String(pr?.warehouseConfirmerName || pr?.warehouseConfirmerLogin || '').trim() ||
+        '—',
+    };
+  }
+  const rq = line?.receivedQuantity;
+  if (rq !== undefined && rq !== null && rq !== '' && Number.isFinite(Number(rq))) {
+    return {
+      acceptedQuantity: Number(rq),
+      confirmedAt: pr?.warehouseReceivedAt || null,
+      confirmerName: String(pr?.warehouseConfirmerName || pr?.warehouseConfirmerLogin || '').trim() || '—',
+    };
+  }
+  return null;
+}
+
+function procurementHistorySortTimestamp(pr) {
+  let max = 0;
+  const whAt = pr?.warehouseReceivedAt ? new Date(pr.warehouseReceivedAt).getTime() : 0;
+  if (Number.isFinite(whAt)) max = Math.max(max, whAt);
+  for (const line of pr?.materials || []) {
+    for (const ev of line.warehouseReceiptEvents || []) {
+      const t = ev?.acceptedAt ? new Date(ev.acceptedAt).getTime() : 0;
+      if (Number.isFinite(t)) max = Math.max(max, t);
+    }
+  }
+  if (max > 0) return max;
+  const upd = pr?.updatedAt ? new Date(pr.updatedAt).getTime() : 0;
+  return Number.isFinite(upd) ? upd : 0;
+}
+
+/** Заявка в історії прийому: по зоні користувача вже є збережений прийом і немає очікуваних дій. */
+function procurementReceiptInHistoryForUser(reqUser, names, pr) {
+  if (isImportedProcurementRequest(pr)) return false;
+  if (
+    !['awaiting_warehouse', 'awaiting_documents', 'completed', 'partially_fulfilled'].includes(
+      String(pr.status || '')
+    )
+  ) {
+    return false;
+  }
+  const whNeeded = procurementRequestWhNeededNameSet(pr);
+  const r = String(reqUser.role || '').toLowerCase();
+  if (!['admin', 'administrator', 'mgradm'].includes(r)) {
+    if (![...whNeeded].some((n) => names.includes(n))) return false;
+  }
+  if (procurementReceiptAwaitingThisUserAction(reqUser, names, pr)) return false;
+  for (const line of pr.materials || []) {
+    if (!procurementLineInReceiptScopeForUser(reqUser, names, whNeeded, pr, line)) continue;
+    if (procurementLineHasWarehouseReceiptRecorded(line)) return true;
+  }
+  return false;
+}
+
+function enrichProcurementWarehouseReceiptHistoryRow(reqUser, names, pr) {
+  const whNeeded = procurementRequestWhNeededNameSet(pr);
+  for (const line of pr.materials || []) {
+    const inScope = procurementLineInReceiptScopeForUser(reqUser, names, whNeeded, pr, line);
+    const meta =
+      inScope && procurementLineHasWarehouseReceiptRecorded(line)
+        ? procurementLineReceiptHistoryMeta(line, pr)
+        : null;
+    line.receiptLineEditable = false;
+    line.receiptLineHistory = !!meta;
+    line.receiptHistoryMeta = meta;
+  }
+  pr.historySortAt = procurementHistorySortTimestamp(pr);
+}
+
 /** Текст коментарів виконавця по позиціях для сповіщення / UI завскладу (опційно лише рядки складу whName). */
 function formatProcurementExecutorCommentsForWarehouse(pr, whName = null) {
   const rows = [];
@@ -5909,6 +6001,54 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
     res.json(rows);
   } catch (error) {
     logPerformance('GET pending-warehouse-receipt', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/procurement-requests/warehouse-receipt-history', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    if (names.length === 0) {
+      logPerformance('GET warehouse-receipt-history', startTime, 0);
+      return res.json([]);
+    }
+    const rowsAll = await ProcurementRequest.find({
+      status: { $in: ['awaiting_warehouse', 'awaiting_documents', 'completed', 'partially_fulfilled'] },
+      ...procurementNotImportedMongoFilter(),
+      $and: [
+        {
+          $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }],
+        },
+        {
+          $or: [
+            { warehouseReceivedAt: { $ne: null } },
+            { 'materials.receivedQuantity': { $ne: null } },
+            { 'materials.warehouseReceiptEvents.0': { $exists: true } },
+          ],
+        },
+      ],
+    })
+      .select(PROCUREMENT_DOC_LIST_PROJECTION)
+      .sort({ updatedAt: -1 })
+      .limit(400)
+      .lean();
+    const rows = rowsAll
+      .filter((pr) => procurementReceiptInHistoryForUser(req.user, names, pr))
+      .sort((a, b) => procurementHistorySortTimestamp(b) - procurementHistorySortTimestamp(a))
+      .slice(0, 200);
+    const warehouseDocs = await Warehouse.find({ isActive: true }).select('name region').lean();
+    for (const pr of rows) {
+      enrichProcurementWarehouseReceiptHistoryRow(req.user, names, pr);
+      pr.crossRegionNotices = computeProcurementCrossRegionNotices(pr, warehouseDocs);
+    }
+    logPerformance('GET warehouse-receipt-history', startTime, rows.length);
+    stripProcurementLineBinaryFields(rows);
+    res.json(rows);
+  } catch (error) {
+    logPerformance('GET warehouse-receipt-history', startTime);
+    console.error('[ERROR] GET warehouse-receipt-history:', error);
     res.status(500).json({ error: error.message });
   }
 });

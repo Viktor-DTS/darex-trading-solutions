@@ -152,6 +152,76 @@
   gap: 6px;
 }
 
+.receipt-approval-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.receipt-approval-subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #333);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.receipt-approval-subtab:hover {
+  background: var(--surface-hover, #f5f5f5);
+}
+
+.receipt-approval-subtab--active {
+  background: var(--primary, #007bff);
+  border-color: var(--primary, #007bff);
+  color: #fff;
+}
+
+.receipt-approval-subtab-label {
+  line-height: 1.3;
+  text-align: left;
+}
+
+.receipt-approval-subtab-badge {
+  background: #ff4444;
+  color: #fff;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.receipt-approval-subtab--active .receipt-approval-subtab-badge {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.receipt-approval-subtab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.receipt-approval-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+
+.receipt-moves-topbar--panel {
+  margin-bottom: 4px;
+}
+
 .receipt-approval-topbar {
   flex-shrink: 0;
 }
@@ -235,6 +305,43 @@
   font-size: 11px;
   line-height: 1.3;
   color: var(--text-secondary, #9aa0a6);
+}
+
+.receipt-procurement-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 0 0 8px;
+}
+
+.receipt-procurement-toolbar .receipt-procurement-hint {
+  flex: 1 1 240px;
+  padding: 0;
+  margin: 0;
+}
+
+.receipt-procurement-history-toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.receipt-procurement-history-label {
+  margin: 4px 8px 6px;
+}
+
+.receipt-procurement-history-empty {
+  color: var(--text-secondary, #9aa0a6);
+}
+
+.procurement-receipt-card--history {
+  opacity: 0.92;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.procurement-receipt-card--history .procurement-receipt-table tbody tr {
+  background: rgba(148, 163, 184, 0.06);
 }
 
 .receipt-procurement-block .procurement-receipt-card {

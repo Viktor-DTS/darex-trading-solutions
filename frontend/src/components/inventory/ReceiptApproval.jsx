@@ -60,6 +60,10 @@ function ReceiptApproval({
   const [showMoveHistory, setShowMoveHistory] = useState(false);
   const [procurementInbound, setProcurementInbound] = useState([]);
   const [procurementLoading, setProcurementLoading] = useState(true);
+  const [procurementHistory, setProcurementHistory] = useState([]);
+  const [procurementHistoryLoading, setProcurementHistoryLoading] = useState(false);
+  const [showProcurementHistory, setShowProcurementHistory] = useState(false);
+  const [activeReceiptSubTab, setActiveReceiptSubTab] = useState('moves');
   const [receiptDrafts, setReceiptDrafts] = useState({});
   const [procurementSubmitting, setProcurementSubmitting] = useState(null);
   /** Фінальне підтвердження прийому (як модалка після дії на вкладці «Надходження») */
@@ -112,6 +116,30 @@ function ReceiptApproval({
     }
   }, [initReceiptDrafts]);
 
+  const loadProcurementHistory = useCallback(async () => {
+    if (!showProcurementHistory) {
+      setProcurementHistory([]);
+      return;
+    }
+    setProcurementHistoryLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/warehouse-receipt-history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        setProcurementHistory([]);
+        return;
+      }
+      const data = await res.json();
+      setProcurementHistory(Array.isArray(data) ? data : []);
+    } catch {
+      setProcurementHistory([]);
+    } finally {
+      setProcurementHistoryLoading(false);
+    }
+  }, [showProcurementHistory]);
+
   const loadPendingMoves = useCallback(async () => {
     setLoading(true);
     try {
@@ -148,11 +176,16 @@ function ReceiptApproval({
   }, [loadPendingMoves, loadProcurementInbound]);
 
   useEffect(() => {
+    loadProcurementHistory();
+  }, [loadProcurementHistory]);
+
+  useEffect(() => {
     setMovePage(0);
   }, [pendingMoves.length, showMoveHistory]);
 
   useEffect(() => {
     if (!focusProcurementId) return;
+    setActiveReceiptSubTab('procurement');
     const id = String(focusProcurementId);
     const t = window.setTimeout(() => {
       const el = procurementCardRefs.current[id];
@@ -318,6 +351,9 @@ function ReceiptApproval({
       }
       const data = await res.json().catch(() => ({}));
       await loadProcurementInbound();
+      if (showProcurementHistory) {
+        await loadProcurementHistory();
+      }
       onProcurementReceiptChanged?.();
       setProcurementConfirmModalPr(null);
       if (data.warehouseStockError) {
@@ -512,6 +548,20 @@ function ReceiptApproval({
   };
 
   const procurementEmpty = !procurementLoading && procurementInbound.length === 0;
+  const procurementHistoryCount = procurementHistory.length;
+  const procurementActiveCount = procurementInbound.length;
+  const movesActiveCount = confirmableCount;
+
+  const renderReceiptSubTabButton = (id, label, count) => (
+    <button
+      type="button"
+      className={`receipt-approval-subtab${activeReceiptSubTab === id ? ' receipt-approval-subtab--active' : ''}`}
+      onClick={() => setActiveReceiptSubTab(id)}
+    >
+      <span className="receipt-approval-subtab-label">{label}</span>
+      {count > 0 ? <span className="receipt-approval-subtab-badge">{count}</span> : null}
+    </button>
+  );
 
   const renderCrossRegionNotices = (pr) => {
     const notices = crossRegionNoticesFor(pr);
@@ -528,138 +578,324 @@ function ReceiptApproval({
     );
   };
 
+  const renderProcurementReceiptCard = (pr, { history = false } = {}) => {
+    const historyLines = (pr.materials || [])
+      .map((m, idx) => ({ m, idx }))
+      .filter(({ m }) => (history ? m.receiptLineHistory : m.receiptLineEditable !== false));
+
+    if (history && historyLines.length === 0) return null;
+
+    return (
+      <div
+        key={pr._id}
+        id={history ? undefined : `procurement-receipt-${pr._id}`}
+        ref={
+          history
+            ? undefined
+            : (el) => {
+                if (el) procurementCardRefs.current[pr._id] = el;
+                else delete procurementCardRefs.current[pr._id];
+              }
+        }
+        className={`procurement-receipt-card${history ? ' procurement-receipt-card--history' : ''}`}
+      >
+        <div className="procurement-receipt-card-head">
+          <span>
+            <strong>№ заявки:</strong> {pr.requestNumber || '—'}
+          </span>
+          <span>
+            <strong>Бажаний склад:</strong> {pr.desiredWarehouse || '—'}
+          </span>
+          {String(pr.projectObject || '').trim() ? (
+            <span>
+              <strong>Під який проект/об'єкт:</strong> {pr.projectObject}
+            </span>
+          ) : null}
+          <span>
+            <strong>Фактичний склад:</strong> {pr.actualWarehouse || '—'}
+          </span>
+          <span>
+            <strong>Замовник:</strong> {pr.requesterName || pr.requesterLogin || '—'}
+          </span>
+          <span>
+            <strong>Виконавець (закупівлі):</strong> {pr.executorName || pr.executorLogin || '—'}
+          </span>
+        </div>
+        {renderCrossRegionNotices(pr)}
+        <div className="procurement-receipt-table-wrap">
+          <table className="procurement-receipt-table">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Фактичний склад</th>
+                <th>Найменування / аналог</th>
+                <th>Коментарі</th>
+                <th>Очікувано</th>
+                <th>Прийнято факт</th>
+                {history ? (
+                  <>
+                    <th>Затверджено</th>
+                    <th>Підтвердив</th>
+                  </>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {historyLines.map(({ m, idx }, visIdx) => {
+                const exp = expectedQtyForProcurementLine(m);
+                const expLabel = m.rejected ? '0 (відхилено)' : exp === null ? '—' : String(exp);
+                const lineWh =
+                  String(m.actualWarehouse || '').trim() || String(pr.actualWarehouse || '').trim() || '—';
+                const rowLabel = m.rejected
+                  ? `${m.name || '—'} (відхилено)`
+                  : [m.name, m.analogName && `Аналог: ${m.analogName}`].filter(Boolean).join(' · ');
+                const draftRow = receiptDrafts[pr._id] || [];
+                const val = draftRow[idx] ?? '';
+                const meta = m.receiptHistoryMeta;
+                return (
+                  <tr key={idx}>
+                    <td>{visIdx + 1}</td>
+                    <td className="procurement-receipt-line-warehouse">{lineWh}</td>
+                    <td>{rowLabel}</td>
+                    <td className="procurement-receipt-line-comment">
+                      {String(m.executorComment || '').trim() || '—'}
+                    </td>
+                    <td>{expLabel}</td>
+                    <td>
+                      {history ? (
+                        <strong>{meta?.acceptedQuantity ?? '—'}</strong>
+                      ) : (
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={val}
+                          disabled={procurementSubmitting === pr._id}
+                          onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
+                          aria-label={`Прийнято факт, позиція ${idx + 1}`}
+                        />
+                      )}
+                    </td>
+                    {history ? (
+                      <>
+                        <td className="receipt-moves-cell-date">{formatDate(meta?.confirmedAt)}</td>
+                        <td>{meta?.confirmerName || '—'}</td>
+                      </>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!history ? (
+          <div className="procurement-receipt-actions">
+            <button
+              type="button"
+              className="btn-procurement-submit"
+              disabled={procurementSubmitting === pr._id}
+              onClick={() => openProcurementConfirmModal(pr)}
+            >
+              Підтвердити прийом на складі
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderProcurementPanel = () => (
+    <section id="procurement-inbound-block" className="receipt-approval-panel receipt-approval-panel--procurement">
+      <div className="receipt-procurement-toolbar">
+        <p className="receipt-procurement-hint">
+          Заявки «Чекає відвантаження на склад». У колонці «Прийнято факт» вкажіть кількість; при розбіжностях
+          закупівлі отримають сповіщення.
+        </p>
+        <label className="receipt-moves-history-toggle receipt-procurement-history-toggle">
+          <input
+            type="checkbox"
+            checked={showProcurementHistory}
+            onChange={(e) => setShowProcurementHistory(e.target.checked)}
+          />
+          Показати історію затвердження закупівель
+          {showProcurementHistory && procurementHistoryCount > 0 ? ` (${procurementHistoryCount})` : ''}
+        </label>
+      </div>
+      {procurementLoading ? (
+        <div className="receipt-inline-status">Завантаження…</div>
+      ) : null}
+      {!procurementLoading && procurementEmpty ? (
+        <div className="receipt-inline-status">Немає очікуваних заявок від відділу закупівель.</div>
+      ) : null}
+      {!procurementLoading && !procurementEmpty
+        ? procurementInbound.map((pr) => renderProcurementReceiptCard(pr))
+        : null}
+      {showProcurementHistory ? (
+        procurementHistoryLoading ? (
+          <div className="receipt-inline-status">Завантаження історії…</div>
+        ) : procurementHistoryCount > 0 ? (
+          <>
+            <div className="receipt-moves-section-label receipt-moves-section-label--history receipt-procurement-history-label">
+              Історія затвердження закупівель
+            </div>
+            {procurementHistory.map((pr) => renderProcurementReceiptCard(pr, { history: true }))}
+          </>
+        ) : !procurementLoading ? (
+          <div className="receipt-inline-status receipt-procurement-history-empty">
+            Затверджень закупівель у вашій зоні поки немає.
+          </div>
+        ) : null
+      ) : null}
+    </section>
+  );
+
+  const renderMovesPanel = () => (
+    <section className="receipt-approval-panel receipt-approval-panel--moves">
+      {loading ? (
+        <div className="receipt-inline-status">Завантаження переміщень…</div>
+      ) : activeMoves.length === 0 && (!showMoveHistory || historyMovesCount === 0) ? (
+        <div className="receipt-moves-topbar receipt-moves-topbar--panel">
+          <span className="receipt-moves-count">Немає переміщень, що потребують підтвердження</span>
+          <label className="receipt-moves-history-toggle">
+            <input
+              type="checkbox"
+              checked={showMoveHistory}
+              onChange={(e) => {
+                setShowMoveHistory(e.target.checked);
+                setMovePage(0);
+              }}
+            />
+            Показати історію затвердження
+          </label>
+        </div>
+      ) : (
+        <>
+          <div className="receipt-moves-topbar receipt-moves-topbar--panel">
+            <span
+              className="receipt-moves-count"
+              title="Вхідні — підтвердіть прийом. Відправлені — контроль до підтвердження складом одержувача."
+            >
+              {confirmableCount > 0 ? `${confirmableCount} на прийом` : ''}
+              {confirmableCount > 0 && outgoingCount > 0 ? ' · ' : ''}
+              {outgoingCount > 0 ? `${outgoingCount} відправлено` : ''}
+              {moveRegionalScope ? ' · ваш регіон' : ''}
+            </span>
+            {confirmableCount > 0 ? (
+              <div className="receipt-moves-actions">
+                <button type="button" className="btn-select-all btn-select-all--compact" onClick={handleSelectAll}>
+                  {selectedMoveKeys.size === confirmableCount && confirmableCount > 0
+                    ? 'Скасувати'
+                    : `Всі (${confirmableCount})`}
+                </button>
+                <span className="selected-count">
+                  {selectedMoveKeys.size}/{confirmableCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn-approve-receipt btn-approve-receipt--compact"
+                  onClick={handleConfirmMoves}
+                  disabled={selectedMoveKeys.size === 0 || approving}
+                >
+                  {approving ? '…' : `✅ Підтвердити (${selectedMoveKeys.size})`}
+                </button>
+              </div>
+            ) : null}
+            <label className="receipt-moves-history-toggle">
+              <input
+                type="checkbox"
+                checked={showMoveHistory}
+                onChange={(e) => {
+                  setShowMoveHistory(e.target.checked);
+                  setMovePage(0);
+                }}
+              />
+              Показати історію затвердження
+              {showMoveHistory && historyMovesCount > 0 ? ` (${historyMovesCount})` : ''}
+            </label>
+          </div>
+
+          <div className="receipt-approval-moves-body">
+            <div className="receipt-approval-content">
+              {pageIncoming.length > 0 ? (
+                <>
+                  <div className="receipt-moves-section-label">Прийом на склад (підтвердити)</div>
+                  {renderMovesTable(pageIncoming, 'incoming')}
+                </>
+              ) : null}
+              {pageOutgoing.length > 0 ? (
+                <>
+                  <div className="receipt-moves-section-label receipt-moves-section-label--outgoing">
+                    Відправлено з вашого регіону (чекає підтвердження)
+                  </div>
+                  {renderMovesTable(pageOutgoing, 'outgoing')}
+                </>
+              ) : null}
+              {historyIncoming.length > 0 ? (
+                <>
+                  <div className="receipt-moves-section-label receipt-moves-section-label--history">
+                    Історія прийому на склад
+                  </div>
+                  {renderMovesTable(historyIncoming, 'incoming', { history: true })}
+                </>
+              ) : null}
+              {historyOutgoing.length > 0 ? (
+                <>
+                  <div className="receipt-moves-section-label receipt-moves-section-label--history receipt-moves-section-label--outgoing">
+                    Історія відправок з вашого регіону
+                  </div>
+                  {renderMovesTable(historyOutgoing, 'outgoing', { history: true })}
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {totalMovesCount > MOVE_PAGE_SIZE && (
+            <div className="receipt-moves-pager">
+              <button
+                type="button"
+                className="receipt-moves-pager-btn"
+                disabled={safeMovePage <= 0}
+                onClick={() => setMovePage((p) => Math.max(0, p - 1))}
+              >
+                ←
+              </button>
+              <span className="receipt-moves-pager-info">
+                {safeMovePage + 1}/{movePageCount}
+                {' · '}
+                {moveSkip + 1}–{Math.min(moveSkip + MOVE_PAGE_SIZE, totalMovesCount)} з {totalMovesCount}
+              </span>
+              <button
+                type="button"
+                className="receipt-moves-pager-btn"
+                disabled={safeMovePage >= movePageCount - 1}
+                onClick={() => setMovePage((p) => Math.min(movePageCount - 1, p + 1))}
+              >
+                →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+
   return (
     <div className="receipt-approval">
       <div className="receipt-approval-topbar">
         <h2>Затвердження отримання товару</h2>
       </div>
 
-      <details
-        id="procurement-inbound-block"
-        className={`receipt-procurement-block${procurementEmpty ? ' receipt-procurement-block--empty' : ''}`}
-        open={!procurementEmpty}
-      >
-        <summary className="receipt-procurement-summary">
-          <span className="receipt-procurement-summary-title">Надходження від закупівель</span>
-          {procurementLoading ? (
-            <span className="receipt-procurement-summary-meta">завантаження…</span>
-          ) : procurementEmpty ? (
-            <span className="receipt-procurement-summary-meta">немає очікуваних</span>
-          ) : (
-            <span className="receipt-procurement-summary-meta receipt-procurement-summary-meta--active">
-              {procurementInbound.length} заявок
-            </span>
-          )}
-        </summary>
-        <p className="receipt-procurement-hint">
-          Заявки «Чекає відвантаження на склад». У колонці «Прийнято факт» вкажіть кількість; при розбіжностях
-          закупівлі отримають сповіщення.
-        </p>
-        {procurementLoading ? (
-          <div className="receipt-inline-status">Завантаження…</div>
-        ) : procurementEmpty ? null : (
-          procurementInbound.map((pr) => (
-            <div
-              key={pr._id}
-              id={`procurement-receipt-${pr._id}`}
-              ref={(el) => {
-                if (el) procurementCardRefs.current[pr._id] = el;
-                else delete procurementCardRefs.current[pr._id];
-              }}
-              className="procurement-receipt-card"
-            >
-              <div className="procurement-receipt-card-head">
-                <span>
-                  <strong>№ заявки:</strong> {pr.requestNumber || '—'}
-                </span>
-                <span>
-                  <strong>Бажаний склад:</strong> {pr.desiredWarehouse || '—'}
-                </span>
-                {String(pr.projectObject || '').trim() ? (
-                  <span>
-                    <strong>Під який проект/об'єкт:</strong> {pr.projectObject}
-                  </span>
-                ) : null}
-                <span>
-                  <strong>Фактичний склад:</strong> {pr.actualWarehouse || '—'}
-                </span>
-                <span>
-                  <strong>Замовник:</strong> {pr.requesterName || pr.requesterLogin || '—'}
-                </span>
-                <span>
-                  <strong>Виконавець (закупівлі):</strong> {pr.executorName || pr.executorLogin || '—'}
-                </span>
-              </div>
-              {renderCrossRegionNotices(pr)}
-              <div className="procurement-receipt-table-wrap">
-                <table className="procurement-receipt-table">
-                  <thead>
-                    <tr>
-                      <th>№</th>
-                      <th>Фактичний склад</th>
-                      <th>Найменування / аналог</th>
-                      <th>Коментарі</th>
-                      <th>Очікувано</th>
-                      <th>Прийнято факт</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(pr.materials || [])
-                      .map((m, idx) => ({ m, idx }))
-                      .filter(({ m }) => m.receiptLineEditable !== false)
-                      .map(({ m, idx }, visIdx) => {
-                      const exp = expectedQtyForProcurementLine(m);
-                      const expLabel = m.rejected
-                        ? '0 (відхилено)'
-                        : exp === null
-                          ? '—'
-                          : String(exp);
-                      const lineWh =
-                        String(m.actualWarehouse || '').trim() || String(pr.actualWarehouse || '').trim() || '—';
-                      const rowLabel = m.rejected
-                        ? `${m.name || '—'} (відхилено)`
-                        : [m.name, m.analogName && `Аналог: ${m.analogName}`].filter(Boolean).join(' · ');
-                      const draftRow = receiptDrafts[pr._id] || [];
-                      const val = draftRow[idx] ?? '';
-                      return (
-                        <tr key={idx}>
-                          <td>{visIdx + 1}</td>
-                          <td className="procurement-receipt-line-warehouse">{lineWh}</td>
-                          <td>{rowLabel}</td>
-                          <td className="procurement-receipt-line-comment">
-                            {String(m.executorComment || '').trim() || '—'}
-                          </td>
-                          <td>{expLabel}</td>
-                          <td>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={val}
-                              disabled={procurementSubmitting === pr._id}
-                              onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
-                              aria-label={`Прийнято факт, позиція ${idx + 1}`}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="procurement-receipt-actions">
-                <button
-                  type="button"
-                  className="btn-procurement-submit"
-                  disabled={procurementSubmitting === pr._id}
-                  onClick={() => openProcurementConfirmModal(pr)}
-                >
-                  Підтвердити прийом на складі
-                </button>
-              </div>
-            </div>
-          ))
+      <div className="receipt-approval-subtabs" role="tablist" aria-label="Тип затвердження отримання">
+        {renderReceiptSubTabButton('moves', 'Затвердження переміщення', movesActiveCount)}
+        {renderReceiptSubTabButton(
+          'procurement',
+          'Затвердження отримання від відділу закупівель',
+          procurementActiveCount
         )}
-      </details>
+      </div>
+
+      <div className="receipt-approval-subtab-panel">
+        {activeReceiptSubTab === 'moves' ? renderMovesPanel() : renderProcurementPanel()}
+      </div>
 
       {procurementConfirmModalPr && (
         <div
@@ -792,140 +1028,6 @@ function ReceiptApproval({
           </div>
         </div>
       )}
-
-      <section className="receipt-approval-moves-section">
-        {loading ? (
-          <div className="receipt-inline-status">Завантаження переміщень…</div>
-        ) : activeMoves.length === 0 && (!showMoveHistory || historyMovesCount === 0) ? (
-          <div className="receipt-moves-topbar">
-            <div className="receipt-moves-title-row">
-              <h3>Переміщення з 1С</h3>
-              <span className="receipt-moves-count">немає міжрегіональних</span>
-            </div>
-            <label className="receipt-moves-history-toggle">
-              <input
-                type="checkbox"
-                checked={showMoveHistory}
-                onChange={(e) => {
-                  setShowMoveHistory(e.target.checked);
-                  setMovePage(0);
-                }}
-              />
-              Показати історію затвердження
-            </label>
-          </div>
-        ) : (
-          <>
-            <div className="receipt-moves-topbar">
-              <div className="receipt-moves-title-row">
-                <h3>Переміщення з 1С</h3>
-                <span
-                  className="receipt-moves-count"
-                  title="Вхідні — підтвердіть прийом. Відправлені — контроль до підтвердження складом одержувача."
-                >
-                  {confirmableCount > 0 ? `${confirmableCount} на прийом` : ''}
-                  {confirmableCount > 0 && outgoingCount > 0 ? ' · ' : ''}
-                  {outgoingCount > 0 ? `${outgoingCount} відправлено` : ''}
-                  {moveRegionalScope ? ' · ваш регіон' : ''}
-                </span>
-              </div>
-              {confirmableCount > 0 ? (
-              <div className="receipt-moves-actions">
-                <button type="button" className="btn-select-all btn-select-all--compact" onClick={handleSelectAll}>
-                  {selectedMoveKeys.size === confirmableCount && confirmableCount > 0
-                    ? 'Скасувати'
-                    : `Всі (${confirmableCount})`}
-                </button>
-                <span className="selected-count">
-                  {selectedMoveKeys.size}/{confirmableCount}
-                </span>
-                <button
-                  type="button"
-                  className="btn-approve-receipt btn-approve-receipt--compact"
-                  onClick={handleConfirmMoves}
-                  disabled={selectedMoveKeys.size === 0 || approving}
-                >
-                  {approving ? '…' : `✅ Підтвердити (${selectedMoveKeys.size})`}
-                </button>
-              </div>
-              ) : null}
-              <label className="receipt-moves-history-toggle">
-                <input
-                  type="checkbox"
-                  checked={showMoveHistory}
-                  onChange={(e) => {
-                    setShowMoveHistory(e.target.checked);
-                    setMovePage(0);
-                  }}
-                />
-                Показати історію затвердження
-                {showMoveHistory && historyMovesCount > 0 ? ` (${historyMovesCount})` : ''}
-              </label>
-            </div>
-
-            <div className="receipt-approval-moves-body">
-              <div className="receipt-approval-content">
-                {pageIncoming.length > 0 ? (
-                  <>
-                    <div className="receipt-moves-section-label">Прийом на склад (підтвердити)</div>
-                    {renderMovesTable(pageIncoming, 'incoming')}
-                  </>
-                ) : null}
-                {pageOutgoing.length > 0 ? (
-                  <>
-                    <div className="receipt-moves-section-label receipt-moves-section-label--outgoing">
-                      Відправлено з вашого регіону (чекає підтвердження)
-                    </div>
-                    {renderMovesTable(pageOutgoing, 'outgoing')}
-                  </>
-                ) : null}
-                {historyIncoming.length > 0 ? (
-                  <>
-                    <div className="receipt-moves-section-label receipt-moves-section-label--history">
-                      Історія прийому на склад
-                    </div>
-                    {renderMovesTable(historyIncoming, 'incoming', { history: true })}
-                  </>
-                ) : null}
-                {historyOutgoing.length > 0 ? (
-                  <>
-                    <div className="receipt-moves-section-label receipt-moves-section-label--history receipt-moves-section-label--outgoing">
-                      Історія відправок з вашого регіону
-                    </div>
-                    {renderMovesTable(historyOutgoing, 'outgoing', { history: true })}
-                  </>
-                ) : null}
-              </div>
-            </div>
-
-            {totalMovesCount > MOVE_PAGE_SIZE && (
-              <div className="receipt-moves-pager">
-                <button
-                  type="button"
-                  className="receipt-moves-pager-btn"
-                  disabled={safeMovePage <= 0}
-                  onClick={() => setMovePage((p) => Math.max(0, p - 1))}
-                >
-                  ←
-                </button>
-                <span className="receipt-moves-pager-info">
-                  {safeMovePage + 1}/{movePageCount}
-                  {' · '}
-                  {moveSkip + 1}–{Math.min(moveSkip + MOVE_PAGE_SIZE, totalMovesCount)} з {totalMovesCount}
-                </span>
-                <button
-                  type="button"
-                  className="receipt-moves-pager-btn"
-                  disabled={safeMovePage >= movePageCount - 1}
-                  onClick={() => setMovePage((p) => Math.min(movePageCount - 1, p + 1))}
-                >
-                  →
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </section>
     </div>
   );
 }
