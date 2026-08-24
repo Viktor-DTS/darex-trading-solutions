@@ -27,11 +27,12 @@ const EXECUTOR_DOC_LABELS = {
   other: 'Інше',
 };
 
-/** event: created | executor_completed | warehouse_confirmed | rejected */
+/** event: created | executor_completed | warehouse_confirmed | request_completed | rejected */
 const EVENT_SETTING_FIELD = {
   created: 'procurementRequestCreated',
   executor_completed: 'procurementExecutorCompleted',
   warehouse_confirmed: 'procurementWarehouseConfirmed',
+  request_completed: 'procurementRequestCompleted',
   rejected: 'procurementRequestRejected',
 };
 
@@ -39,6 +40,7 @@ const EVENT_HEADERS = {
   created: '🆕 Нова заявка на закупівлю',
   executor_completed: '✅ Заявку виконано відділом закупівель',
   warehouse_confirmed: '📦 Надходження на склад підтверджено',
+  request_completed: '✅ Заявку на закупівлю виконано',
   rejected: '❌ Заявку на закупівлю відхилено',
 };
 
@@ -161,7 +163,10 @@ function formatProcurementTelegramMessage(pr, event) {
   const header = EVENT_HEADERS[event] || 'Заявка закупівель';
   const createdAt = formatDateTimeUk(pr.createdAt);
   const requester = escapeHtml(pr.requesterName || pr.requesterLogin || '—');
-  const includeExecutor = event === 'executor_completed' || event === 'warehouse_confirmed';
+  const includeExecutor =
+    event === 'executor_completed' ||
+    event === 'warehouse_confirmed' ||
+    event === 'request_completed';
 
   let body = `<b>${header}</b>\n\n`;
   body += `📋 <b>Номер:</b> ${rn}\n`;
@@ -214,6 +219,22 @@ function formatProcurementTelegramMessage(pr, event) {
     const whAt = formatDateTimeUk(pr.warehouseReceivedAt);
     body += `\n\n✅ <b>П.І.Б. завскладу (підтвердження надходження):</b> ${whName}`;
     body += `\n📅 <b>Дата відвантаження на склад (затвердження завскладу):</b> ${whAt}`;
+  }
+
+  if (event === 'request_completed') {
+    const execName = escapeHtml(pr.executorName || pr.executorLogin || '—');
+    const execAt = formatDateTimeUk(pr.executorCompletedAt);
+    body += `\n\n👷 <b>Виконавець:</b> ${execName}`;
+    body += `\n🕐 <b>Дата та час виконання (відділ закупівель):</b> ${execAt}`;
+
+    const whName = escapeHtml(pr.warehouseConfirmerName || pr.warehouseConfirmerLogin || '—');
+    const whAt = formatDateTimeUk(pr.warehouseReceivedAt);
+    body += `\n\n✅ <b>П.І.Б. завскладу (підтвердження надходження):</b> ${whName}`;
+    body += `\n📅 <b>Дата відвантаження на склад:</b> ${whAt}`;
+
+    const docsAt = formatDateTimeUk(pr.executorDocumentsConfirmedAt);
+    body += `\n\n📄 <b>Документи підтверджено:</b> ${docsAt}`;
+    body += '\n\n<b>✅ ЗАЯВКУ ПОВНІСТЮ ВИКОНАНО. МАТЕРІАЛ НА СКЛАДІ.</b>';
   }
 
   if (event === 'rejected') {
