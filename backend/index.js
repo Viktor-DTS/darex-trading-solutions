@@ -8527,6 +8527,7 @@ app.get('/api/tasks/filter', async (req, res) => {
       'antifreezeType', 'otherMaterials', 'carNumber',
       'warehouseComment', 'accountantComment', 'accountantComments', 'regionalManagerComment',
       'comments', 'blockDetail', 'debtStatus', 'debtStatusCheckbox',
+      'deletionMarkedByName', 'deletionMarkedByLogin',
       'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager',
       'needInvoice', 'needAct', 'reportMonthYear',
       'invoiceRequesterName'
@@ -9254,6 +9255,63 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
+function isTaskAdminRole(role) {
+  return ['admin', 'administrator'].includes(String(role || '').toLowerCase());
+}
+
+function canRequestTaskDeletion(role) {
+  return ['regkerivn', 'admin', 'administrator'].includes(String(role || '').toLowerCase());
+}
+
+function isTaskMarkedForDeletion(task) {
+  return !!(task && (task.markedForDeletion === true || task.markedForDeletion === 'true' || task.markedForDeletion === 1));
+}
+
+function formatTaskDateTimeUk(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function resolveTaskRestoreStatus(task) {
+  const prev = String(task?.blockedFromStatus || '').trim();
+  if (prev && prev !== 'Заблоковано') return prev;
+  return 'В роботі';
+}
+
+function buildTaskDeletionMarkFields(task, user) {
+  const now = new Date();
+  const name = String(user?.name || user?.login || '').trim();
+  const login = String(user?.login || '').trim();
+  const prevStatus = String(task?.status || '').trim();
+  const blockedFromStatus =
+    prevStatus && prevStatus !== 'Заблоковано'
+      ? prevStatus
+      : String(task?.blockedFromStatus || '').trim();
+  const who = name && login && name !== login ? `${name} (${login})` : (name || login || 'користувач');
+  return {
+    status: 'Заблоковано',
+    markedForDeletion: true,
+    deletionMarkedAt: now,
+    deletionMarkedByLogin: login,
+    deletionMarkedByName: name,
+    blockedFromStatus,
+    blockDetail: `Помітка видалення: ${who} — ${formatTaskDateTimeUk(now)}`
+  };
+}
+
+function buildTaskRestoreFromDeletionFields(task) {
+  return {
+    status: resolveTaskRestoreStatus(task),
+    markedForDeletion: false,
+    deletionMarkedAt: null,
+    deletionMarkedByLogin: '',
+    deletionMarkedByName: '',
+    blockedFromStatus: '',
+    blockDetail: ''
+  };
+}
+
 // ============================================
 // ОНОВЛЕННЯ ЗАДАЧІ
 // ============================================
@@ -9266,6 +9324,24 @@ app.put('/api/tasks/:id', async (req, res) => {
     const currentTask = await Task.findById(req.params.id).lean();
     if (!currentTask) {
       return res.status(404).json({ error: 'Задачу не знайдено' });
+    }
+
+    const actorIsAdmin = isTaskAdminRole(req.user?.role);
+    if (isTaskMarkedForDeletion(currentTask)) {
+      if (!actorIsAdmin) {
+        updateData.status = 'Заблоковано';
+        updateData.markedForDeletion = true;
+        updateData.deletionMarkedAt = currentTask.deletionMarkedAt;
+        updateData.deletionMarkedByLogin = currentTask.deletionMarkedByLogin || '';
+        updateData.deletionMarkedByName = currentTask.deletionMarkedByName || '';
+        updateData.blockedFromStatus = currentTask.blockedFromStatus || '';
+        if (updateData.blockDetail === undefined || updateData.blockDetail === '') {
+          updateData.blockDetail = currentTask.blockDetail || '';
+        }
+      } else if (updateData.status !== undefined && updateData.status !== 'Заблоковано') {
+        const restored = buildTaskRestoreFromDeletionFields(currentTask);
+        Object.assign(updateData, restored, { status: updateData.status });
+      }
     }
     
     const isWarehouseApprovedValue = (value) => value === true || value === 'Підтверджено';
@@ -9448,6 +9524,7 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const taskId = req.params.id;
     const userRole = req.user?.role || '';
+    const actorIsAdmin = isTaskAdminRole(userRole);
     
     console.log('[DEBUG] DELETE /api/tasks/:id - запит видалення:', {
       taskId,
@@ -9471,47 +9548,96 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
     const isBlockedOrDone = taskStatus === 'Заблоковано' || 
                             (taskStatus === 'Виконано' && isApproved);
     
-    // Для заблокованих/підтверджених - тільки admin/administrator
+    // Остаточне видалення з системи — тільки admin/administrator
+    if (actorIsAdmin) {
+      try {
+        const File = mongoose.model('File');
+        await File.deleteMany({ taskId: taskId });
+        console.log('[DEBUG] DELETE /api/tasks/:id - видалено пов\'язані файли');
+      } catch (fileError) {
+        console.log('[DEBUG] DELETE /api/tasks/:id - помилка видалення файлів (можливо модель не існує):', fileError.message);
+      }
+      
+      await Task.findByIdAndDelete(taskId);
+      
+      console.log('[DEBUG] DELETE /api/tasks/:id - заявку успішно видалено:', taskId);
+      logPerformance('DELETE /api/tasks/:id', startTime);
+      
+      return res.json({ 
+        success: true,
+        action: 'deleted',
+        message: 'Заявку успішно видалено',
+        taskId: taskId
+      });
+    }
+
+    // Не-адміністратор: перевести в «Заблоковані» з поміткою видалення
     if (isBlockedOrDone) {
-      if (!['admin', 'administrator'].includes(userRole)) {
-        console.log('[DEBUG] DELETE /api/tasks/:id - відмовлено: недостатньо прав для видалення підтвердженої/заблокованої заявки');
-        return res.status(403).json({ 
-          error: 'Недостатньо прав для видалення цієї заявки. Тільки адміністратор може видаляти підтверджені або заблоковані заявки.' 
-        });
-      }
-    } else {
-      // Для інших заявок - regkerivn, admin, administrator
-      if (!['regkerivn', 'admin', 'administrator'].includes(userRole)) {
-        console.log('[DEBUG] DELETE /api/tasks/:id - відмовлено: недостатньо прав');
-        return res.status(403).json({ 
-          error: 'Недостатньо прав для видалення заявки. Тільки регіональний керівник або адміністратор може видаляти заявки.' 
-        });
-      }
+      console.log('[DEBUG] DELETE /api/tasks/:id - відмовлено: недостатньо прав для видалення підтвердженої/заблокованої заявки');
+      return res.status(403).json({ 
+        error: 'Недостатньо прав для видалення цієї заявки. Тільки адміністратор може видаляти підтверджені або заблоковані заявки.' 
+      });
     }
-    
-    // Видаляємо пов'язані файли
-    try {
-      const File = mongoose.model('File');
-      await File.deleteMany({ taskId: taskId });
-      console.log('[DEBUG] DELETE /api/tasks/:id - видалено пов\'язані файли');
-    } catch (fileError) {
-      console.log('[DEBUG] DELETE /api/tasks/:id - помилка видалення файлів (можливо модель не існує):', fileError.message);
+    if (!canRequestTaskDeletion(userRole)) {
+      console.log('[DEBUG] DELETE /api/tasks/:id - відмовлено: недостатньо прав');
+      return res.status(403).json({ 
+        error: 'Недостатньо прав для видалення заявки. Тільки регіональний керівник або адміністратор може видаляти заявки.' 
+      });
     }
-    
-    // Видаляємо заявку
-    await Task.findByIdAndDelete(taskId);
-    
-    console.log('[DEBUG] DELETE /api/tasks/:id - заявку успішно видалено:', taskId);
+    if (isTaskMarkedForDeletion(task) || taskStatus === 'Заблоковано') {
+      return res.status(400).json({
+        error: 'Заявка вже в заблокованих. Остаточно видалити з системи може лише адміністратор.'
+      });
+    }
+
+    const markFields = buildTaskDeletionMarkFields(task, req.user);
+    const updated = await Task.findByIdAndUpdate(taskId, { $set: markFields }, { new: true, lean: true });
+    console.log('[DEBUG] DELETE /api/tasks/:id - заявку переведено в заблоковані з поміткою видалення:', taskId);
     logPerformance('DELETE /api/tasks/:id', startTime);
-    
-    res.json({ 
-      success: true, 
-      message: 'Заявку успішно видалено',
-      taskId: taskId
+    return res.json({
+      success: true,
+      action: 'blocked',
+      message: 'Заявку переведено в «Заблоковані» з поміткою видалення. Остаточно видалити з системи може лише адміністратор.',
+      taskId,
+      task: updated
     });
   } catch (error) {
     logPerformance('DELETE /api/tasks/:id', startTime);
     console.error('[ERROR] DELETE /api/tasks/:id:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// ВІДНОВЛЕННЯ ЗАЯВКИ З ПОМІТКИ ВИДАЛЕННЯ (лише адміністратор)
+// ============================================
+app.post('/api/tasks/:id/restore-from-deletion', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isTaskAdminRole(req.user?.role)) {
+      return res.status(403).json({ error: 'Відновити заявку в роботу може лише адміністратор.' });
+    }
+
+    const task = await Task.findById(req.params.id).lean();
+    if (!task) {
+      return res.status(404).json({ error: 'Задачу не знайдено' });
+    }
+    if (!isTaskMarkedForDeletion(task)) {
+      return res.status(400).json({ error: 'Заявка не має помітки видалення' });
+    }
+
+    const fields = buildTaskRestoreFromDeletionFields(task);
+    const updated = await Task.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, lean: true });
+    logPerformance('POST /api/tasks/:id/restore-from-deletion', startTime);
+    return res.json({
+      success: true,
+      action: 'restored',
+      message: `Заявку відновлено в роботу (статус: ${fields.status})`,
+      task: updated
+    });
+  } catch (error) {
+    logPerformance('POST /api/tasks/:id/restore-from-deletion', startTime);
+    console.error('[ERROR] POST /api/tasks/:id/restore-from-deletion:', error);
     res.status(500).json({ error: error.message });
   }
 });

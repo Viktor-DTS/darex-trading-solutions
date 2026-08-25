@@ -107,6 +107,8 @@ const ALL_COLUMNS = [
   { key: 'bonusApprovalDate', label: 'Дата затвердження премії' },
   { key: 'reportMonthYear', label: 'Місяць/рік для звіту' },
   { key: 'blockDetail', label: 'Детальний опис блокування заявки' },
+  { key: 'deletionMarkedByName', label: 'Хто позначив на видалення' },
+  { key: 'deletionMarkedAt', label: 'Дата помітки видалення' },
   
   // Чекбокси
   { key: 'needInvoice', label: 'Потрібен рахунок' },

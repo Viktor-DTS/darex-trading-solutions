@@ -618,6 +618,54 @@
   cursor: not-allowed;
 }
 
+.deletion-mark-badge {
+  width: 100%;
+  max-width: 158px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #7f1d1d;
+  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+  border: 1px solid #ef4444;
+}
+
+.deletion-status-hint {
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.btn-restore-task {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-restore-task:hover:not(:disabled) {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+}
+
+.btn-restore-task:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-restore-task:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Кнопки підтвердження */
 .btn-approve {
   padding: 4px 8px;

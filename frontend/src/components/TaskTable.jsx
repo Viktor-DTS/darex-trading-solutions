@@ -133,6 +133,8 @@ const ALL_COLUMNS = [
   { key: 'bonusApprovalDate', label: 'Дата затвердження премії', width: 180 },
   { key: 'reportMonthYear', label: 'Місяць/рік для звіту', width: 150 },
   { key: 'blockDetail', label: 'Детальний опис блокування заявки', width: 250 },
+  { key: 'deletionMarkedByName', label: 'Хто позначив на видалення', width: 180 },
+  { key: 'deletionMarkedAt', label: 'Дата помітки видалення', width: 180 },
   
   // Чекбокси
   { key: 'needInvoice', label: 'Потрібен рахунок', width: 120 },
@@ -225,7 +227,7 @@ const ENGINEER_FILTER_KEYS = ['engineer1', 'engineer2', 'engineer3', 'engineer4'
 
 const DATE_FILTER_KEYS = ['requestDate', 'plannedDate', 'date', 'paymentDate', 'autoCreatedAt', 'autoCompletedAt',
   'autoWarehouseApprovedAt', 'autoAccountantApprovedAt', 'invoiceRequestDate',
-  'invoiceUploadDate', 'warehouseApprovalDate', 'approvalDate', 'bonusApprovalDate'];
+  'invoiceUploadDate', 'warehouseApprovalDate', 'approvalDate', 'bonusApprovalDate', 'deletionMarkedAt'];
 
 const SELECT_FILTER_KEYS = ['status', 'company', 'paymentType', 'serviceRegion',
   'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'];
@@ -335,6 +337,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   
   const [columnSettings, setColumnSettings] = useState({ visible: [], order: [], widths: {} });
   const [deletingTaskId, setDeletingTaskId] = useState(null);
+  const [restoringTaskId, setRestoringTaskId] = useState(null);
   const abortControllerRef = useRef(null);
   const fetchIdRef = useRef(0);
   
@@ -445,6 +448,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   // Перевірка чи є активні фільтри
   const hasActiveFilters = Object.values(columnFilters).some(v => v && v.trim() !== '') || filter.trim() !== '';
 
+  const isAdminUser = ['admin', 'administrator'].includes(user?.role || '');
+
+  const isTaskMarkedForDeletion = (task) =>
+    !!(task && (task.markedForDeletion === true || task.markedForDeletion === 'true' || task.markedForDeletion === 1));
+
   // Функція перевірки права на видалення заявки
   const canDeleteTask = () => {
     const userRole = user?.role || '';
@@ -462,14 +470,34 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     return false;
   };
 
-  // Функція видалення заявки
+  const canRestoreDeletedTask = (task) => isAdminUser && isTaskMarkedForDeletion(task);
+
+  const postTaskEventLog = async (token, payload) => {
+    try {
+      await fetch(`${API_BASE_URL}/event-log`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+  };
+
+  // Видалення: адміністратор — з системи; інші — у «Заблоковані» з поміткою видалення
   const handleDeleteTask = async (task, e) => {
     e.stopPropagation();
     
     const taskId = task._id || task.id;
     const taskNumber = task.requestNumber || taskId;
+    const confirmMessage = isAdminUser
+      ? `Ви впевнені, що хочете остаточно видалити заявку ${taskNumber} з системи?\n\nЦю дію неможливо відмінити!`
+      : `Заявку ${taskNumber} буде переведено в «Заблоковані» з поміткою видалення.\nОстаточно видалити з системи може лише адміністратор.\n\nПродовжити?`;
     
-    if (!window.confirm(`Ви впевнені, що хочете видалити заявку ${taskNumber}?\n\nЦю дію неможливо відмінити!`)) {
+    if (!window.confirm(confirmMessage)) {
       return;
     }
     
@@ -486,33 +514,26 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       });
       
       if (response.ok) {
-        // Логування події
+        const result = await response.json().catch(() => ({}));
         const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        try {
-          await fetch(`${API_BASE_URL}/event-log`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              userId: currentUser._id || currentUser.id,
-              userName: currentUser.name || currentUser.login,
-              userRole: currentUser.role,
-              action: 'delete',
-              entityType: 'task',
-              entityId: taskId,
-              description: `Видалення заявки ${taskNumber}`,
-              details: {
-                requestNumber: taskNumber,
-                status: task.status,
-                client: task.client
-              }
-            })
-          });
-        } catch (logErr) {
-          console.error('Помилка логування:', logErr);
-        }
+        const wasBlocked = result.action === 'blocked';
+        await postTaskEventLog(token, {
+          userId: currentUser._id || currentUser.id,
+          userName: currentUser.name || currentUser.login,
+          userRole: currentUser.role,
+          action: wasBlocked ? 'soft_delete' : 'delete',
+          entityType: 'task',
+          entityId: taskId,
+          description: wasBlocked
+            ? `Помітка видалення заявки ${taskNumber} (переведено в Заблоковані)`
+            : `Видалення заявки ${taskNumber}`,
+          details: {
+            requestNumber: taskNumber,
+            status: task.status,
+            client: task.client,
+            action: result.action || 'deleted'
+          }
+        });
         
         setTasks(prev => prev.filter(t => (t._id || t.id) !== taskId));
         clearTasksCache();
@@ -525,6 +546,57 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       alert('Помилка видалення заявки');
     } finally {
       setDeletingTaskId(null);
+    }
+  };
+
+  const handleRestoreDeletedTask = async (task, e) => {
+    e.stopPropagation();
+
+    const taskId = task._id || task.id;
+    const taskNumber = task.requestNumber || taskId;
+    if (!window.confirm(`Відновити заявку ${taskNumber} в роботу?`)) {
+      return;
+    }
+
+    setRestoringTaskId(taskId);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/restore-from-deletion`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json().catch(() => ({}));
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        await postTaskEventLog(token, {
+          userId: currentUser._id || currentUser.id,
+          userName: currentUser.name || currentUser.login,
+          userRole: currentUser.role,
+          action: 'restore',
+          entityType: 'task',
+          entityId: taskId,
+          description: `Відновлення заявки ${taskNumber} в роботу`,
+          details: {
+            requestNumber: taskNumber,
+            restoredStatus: result.task?.status,
+            client: task.client
+          }
+        });
+        setTasks(prev => prev.filter(t => (t._id || t.id) !== taskId));
+        clearTasksCache();
+      } else {
+        const errorData = await response.json();
+        alert(`Помилка відновлення: ${errorData.error || 'Невідома помилка'}`);
+      }
+    } catch (error) {
+      console.error('Помилка відновлення заявки:', error);
+      alert('Помилка відновлення заявки');
+    } finally {
+      setRestoringTaskId(null);
     }
   };
 
@@ -1722,12 +1794,30 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                           👁️ Перегляд
                         </button>
                       )}
+                      {isTaskMarkedForDeletion(task) && (
+                        <div
+                          className="deletion-mark-badge"
+                          title={task.blockDetail || 'Заявку позначено на видалення'}
+                        >
+                          Під видалення
+                        </div>
+                      )}
+                      {canRestoreDeletedTask(task) && (
+                        <button
+                          className="btn-restore-task"
+                          onClick={(e) => handleRestoreDeletedTask(task, e)}
+                          disabled={restoringTaskId === (task._id || task.id)}
+                          title="Відновити заявку в роботу"
+                        >
+                          {restoringTaskId === (task._id || task.id) ? '⏳' : '↩ Відновити'}
+                        </button>
+                      )}
                       {canDeleteTask() && (
                         <button
                           className="btn-delete-task"
                           onClick={(e) => handleDeleteTask(task, e)}
                           disabled={deletingTaskId === (task._id || task.id)}
-                          title="Видалити заявку"
+                          title={isAdminUser ? 'Видалити заявку з системи' : 'Перевести в заблоковані з поміткою видалення'}
                         >
                           {deletingTaskId === (task._id || task.id) ? '⏳' : '🗑️'}
                         </button>
@@ -1736,12 +1826,20 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                     {displayedColumns.map(col => {
                       const colWidth = columnSettings.widths?.[col.key] || col.width;
                       const widthValue = typeof colWidth === 'number' ? `${colWidth}px` : colWidth;
+                      const isDeletionStatus = col.key === 'status' && isTaskMarkedForDeletion(task);
                       
                       return (
                         <td key={col.key} style={{ width: widthValue, maxWidth: widthValue }}>
-                          {formatValue(
-                            getTaskColumnValue(task, col.key),
-                            getTaskColumnFormatKey(task, col.key)
+                          {isDeletionStatus ? (
+                            <span title={task.blockDetail || 'Помітка видалення'}>
+                              {formatValue(getTaskColumnValue(task, col.key), getTaskColumnFormatKey(task, col.key))}
+                              <span className="deletion-status-hint"> · під видалення</span>
+                            </span>
+                          ) : (
+                            formatValue(
+                              getTaskColumnValue(task, col.key),
+                              getTaskColumnFormatKey(task, col.key)
+                            )
                           )}
                         </td>
                       );

@@ -322,6 +322,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   const [formData, setFormData] = useState(initialFormData);
   const [loading, setLoading] = useState(false);
+  const [restoringFromDeletion, setRestoringFromDeletion] = useState(false);
   const [error, setError] = useState(null);
   const [regions, setRegions] = useState([]);
   const [users, setUsers] = useState([]);
@@ -329,6 +330,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const isAccountantMode = panelType === 'accountant';
   // Режим тільки для читання (всі поля заблоковані)
   const isReadOnly = readOnly === true;
+  const isTaskAdminUser = ['admin', 'administrator'].includes(user?.role);
+  const isMarkedForDeletion = !!(formData.markedForDeletion === true || formData.markedForDeletion === 'true' || formData.markedForDeletion === 1 || initialData?.markedForDeletion);
   
   const [showSections, setShowSections] = useState({
     basic: isAccountantMode ? true : true,
@@ -1094,6 +1097,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const handleChange = (e) => {
     if (isReadOnly) return;
     const { name, value, type, checked } = e.target;
+    if (name === 'status' && isMarkedForDeletion && !isTaskAdminUser) {
+      return;
+    }
     
     // Спеціальна обробка для ЄДРПОУ (автозаповнення)
     if (name === 'edrpou') {
@@ -1556,6 +1562,40 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       ...prev,
       [section]: !prev[section]
     }));
+  };
+
+  const handleRestoreFromDeletion = async () => {
+    const taskId = initialData?._id || initialData?.id || formData?._id || formData?.id;
+    const taskNumber = formData.requestNumber || initialData?.requestNumber || taskId;
+    if (!taskId) return;
+    if (!window.confirm(`Відновити заявку ${taskNumber} в роботу?`)) return;
+
+    setRestoringFromDeletion(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/restore-from-deletion`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Не вдалося відновити заявку');
+      }
+      if (onSave) {
+        onSave(data.task || { ...formData, ...data, markedForDeletion: false });
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      console.error('Помилка відновлення заявки:', err);
+      setError(err.message || 'Помилка відновлення заявки');
+    } finally {
+      setRestoringFromDeletion(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -2085,6 +2125,25 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             </div>
           )}
 
+          {isMarkedForDeletion && (
+            <div className="deletion-mark-banner">
+              <div className="deletion-mark-banner-title">Заявку позначено на видалення</div>
+              <div className="deletion-mark-banner-text">
+                {formData.blockDetail || initialData?.blockDetail || 'Переведено в «Заблоковані» з поміткою видалення. Остаточно видалити з системи може лише адміністратор.'}
+              </div>
+              {isTaskAdminUser && (
+                <button
+                  type="button"
+                  className="btn-restore-from-deletion"
+                  onClick={handleRestoreFromDeletion}
+                  disabled={restoringFromDeletion}
+                >
+                  {restoringFromDeletion ? 'Відновлення…' : '↩ Відновити в роботу'}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Блок інформації про відмову */}
           {!isNewTask && (initialData?.approvedByWarehouse === 'Відмова' || initialData?.approvedByAccountant === 'Відмова') && (
             <div className="rejection-info-block">
@@ -2201,7 +2260,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="form-row five-cols">
                   <div className="form-group">
                     <label>Статус заявки <span className="required">*</span></label>
-                    <select name="status" value={formData.status} onChange={handleChange} required>
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleChange}
+                      required
+                      disabled={isReadOnly || (isMarkedForDeletion && !isTaskAdminUser)}
+                    >
                       <option value="">Виберіть...</option>
                       <option value="Заявка">Заявка</option>
                       <option value="В роботі">В роботі</option>
