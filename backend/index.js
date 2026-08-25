@@ -1442,6 +1442,93 @@ function buildTaskInvoiceUpdateFromFiles(invoiceFiles) {
   return taskUpdateData;
 }
 
+/** Синхронізує поля рахунку з InvoiceRequest у Task (для коректного статусу в таблицях без $lookup). */
+async function syncTaskFromInvoiceRequest(request) {
+  if (!request?.taskId) return;
+  const taskUpdate = {
+    invoiceRequestId: String(request._id),
+    invoiceStatus: request.status || null,
+    ...buildTaskInvoiceUpdateFromFiles(normalizeInvoiceFiles(request)),
+  };
+  if (request.invoiceNumber) taskUpdate.invoice = request.invoiceNumber;
+  if (request.actFile != null) {
+    taskUpdate.actFile = request.actFile;
+    taskUpdate.actFileName = request.actFileName || '';
+  }
+  await Task.findByIdAndUpdate(request.taskId, taskUpdate);
+}
+
+/** $lookup InvoiceRequest + merge полів рахунку в документ Task (агрегація). */
+function buildTaskInvoiceLookupStages() {
+  return [
+    {
+      $lookup: {
+        from: 'invoicerequests',
+        let: { taskIdStr: { $toString: '$_id' } },
+        pipeline: [
+          { $match: { $expr: { $eq: [{ $toString: '$taskId' }, '$$taskIdStr'] } } },
+        ],
+        as: 'invoiceRequestByTaskId',
+      },
+    },
+    { $addFields: { invoiceRequest: { $arrayElemAt: ['$invoiceRequestByTaskId', 0] } } },
+    {
+      $addFields: {
+        invoiceFile: { $ifNull: ['$invoiceRequest.invoiceFile', '$invoiceFile'] },
+        invoiceFileName: { $ifNull: ['$invoiceRequest.invoiceFileName', '$invoiceFileName'] },
+        invoice: { $ifNull: ['$invoiceRequest.invoiceNumber', '$invoice'] },
+        actFile: { $ifNull: ['$invoiceRequest.actFile', '$actFile'] },
+        actFileName: { $ifNull: ['$invoiceRequest.actFileName', '$actFileName'] },
+        needInvoice: { $ifNull: ['$invoiceRequest.needInvoice', '$needInvoice'] },
+        needAct: { $ifNull: ['$invoiceRequest.needAct', '$needAct'] },
+        invoiceStatus: { $ifNull: ['$invoiceRequest.status', '$invoiceStatus'] },
+        rejectionReason: { $ifNull: ['$invoiceRequest.rejectionReason', '$rejectionReason'] },
+        rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', '$rejectedBy'] },
+        rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', '$rejectedAt'] },
+        invoiceRequesterName: { $ifNull: ['$invoiceRequest.requesterName', '$invoiceRequesterName'] },
+        invoiceRequestId: {
+          $cond: {
+            if: { $ne: ['$invoiceRequest', null] },
+            then: { $toString: '$invoiceRequest._id' },
+            else: { $ifNull: ['$invoiceRequestId', null] },
+          },
+        },
+      },
+    },
+    { $project: { invoiceRequestByTaskId: 0, invoiceRequest: 0 } },
+  ];
+}
+
+const TASK_FILTER_STATUSES_WITH_INVOICE_LOOKUP = new Set([
+  'accountantInvoiceRequests',
+  'accountantPending',
+  'done',
+  'accountantDebt',
+  'paymentDebt',
+  'allExceptApproved',
+  'warehousePending',
+  'warehouseApproved',
+  'warehouseArchive',
+  'pending',
+  'inProgress',
+  'archive',
+]);
+
+const TASK_FILTER_MULTI_STATUSES_WITH_INVOICE_LOOKUP = new Set([
+  'notDone',
+  'pending',
+  'inProgress',
+  'archive',
+]);
+
+function taskFilterNeedsInvoiceLookup(status, statuses) {
+  if (status && TASK_FILTER_STATUSES_WITH_INVOICE_LOOKUP.has(status)) return true;
+  if (statuses) {
+    return statuses.split(',').some((s) => TASK_FILTER_MULTI_STATUSES_WITH_INVOICE_LOOKUP.has(s.trim()));
+  }
+  return false;
+}
+
 async function deleteCloudinaryFileByUrl(fileUrl) {
   if (!fileUrl || !fileUrl.includes('cloudinary.com')) return;
   try {
@@ -8818,9 +8905,8 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
     }
     
-    // $lookup потрібен тільки для accountantInvoiceRequests (панель "Бух рахунки")
-    // Для accountantPending, done, archive тощо — пропускаємо, щоб не робити 1000+ lookups
-    const needsInvoiceLookup = status === 'accountantInvoiceRequests';
+    // $lookup InvoiceRequest — для панелей, де в таблиці показується статус рахунку
+    const needsInvoiceLookup = taskFilterNeedsInvoiceLookup(status, statuses);
 
     const pipeline = [
       { $match: matchStage },
@@ -8828,43 +8914,7 @@ app.get('/api/tasks/filter', async (req, res) => {
     ];
 
     if (needsInvoiceLookup) {
-      pipeline.push(
-        {
-          $lookup: {
-            from: 'invoicerequests',
-            let: { taskIdStr: { $toString: '$_id' } },
-            pipeline: [
-              { $match: { $expr: { $eq: [{ $toString: '$taskId' }, '$$taskIdStr'] } } }
-            ],
-            as: 'invoiceRequestByTaskId'
-          }
-        },
-        { $addFields: { invoiceRequest: { $arrayElemAt: ['$invoiceRequestByTaskId', 0] } } },
-        {
-          $addFields: {
-            invoiceFile: { $ifNull: ['$invoiceRequest.invoiceFile', '$invoiceFile'] },
-            invoiceFileName: { $ifNull: ['$invoiceRequest.invoiceFileName', '$invoiceFileName'] },
-            invoice: { $ifNull: ['$invoiceRequest.invoiceNumber', '$invoice'] },
-            actFile: { $ifNull: ['$invoiceRequest.actFile', '$actFile'] },
-            actFileName: { $ifNull: ['$invoiceRequest.actFileName', '$actFileName'] },
-            needInvoice: { $ifNull: ['$invoiceRequest.needInvoice', '$needInvoice'] },
-            needAct: { $ifNull: ['$invoiceRequest.needAct', '$needAct'] },
-            invoiceStatus: { $ifNull: ['$invoiceRequest.status', null] },
-            rejectionReason: { $ifNull: ['$invoiceRequest.rejectionReason', null] },
-            rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', null] },
-            rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', null] },
-            invoiceRequesterName: { $ifNull: ['$invoiceRequest.requesterName', null] },
-            invoiceRequestId: {
-              $cond: {
-                if: { $ne: ['$invoiceRequest', null] },
-                then: { $toString: '$invoiceRequest._id' },
-                else: { $ifNull: ['$invoiceRequestId', null] }
-              }
-            }
-          }
-        },
-        { $project: { invoiceRequestByTaskId: 0, invoiceRequest: 0 } }
-      );
+      pipeline.push(...buildTaskInvoiceLookupStages());
     } else {
       pipeline.push({
         $addFields: {
@@ -11621,24 +11671,7 @@ app.put('/api/invoice-requests/:id', authenticateToken, async (req, res) => {
       });
     }
     
-    // Оновлюємо відповідні поля в Task
-    if (request.taskId) {
-      const taskUpdateData = {};
-      if (invoiceFile) {
-        taskUpdateData.invoiceFile = invoiceFile;
-        taskUpdateData.invoiceFileName = invoiceFileName;
-        taskUpdateData.invoiceUploadDate = new Date();
-      }
-      if (invoiceNumber) taskUpdateData.invoice = invoiceNumber;
-      if (actFile) {
-        taskUpdateData.actFile = actFile;
-        taskUpdateData.actFileName = actFileName;
-      }
-      
-      if (Object.keys(taskUpdateData).length > 0) {
-        await Task.findByIdAndUpdate(request.taskId, taskUpdateData);
-      }
-    }
+    await syncTaskFromInvoiceRequest(request);
     
     logPerformance('PUT /api/invoice-requests/:id', startTime);
     res.json({ 
@@ -11751,6 +11784,7 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
       // Оновлюємо Task з посиланням на InvoiceRequest
       const taskUpdateData = {
         invoiceRequestId: request._id.toString(),
+        invoiceStatus: request.status,
         ...buildTaskInvoiceUpdateFromFiles(request.invoiceFiles),
       };
       // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
@@ -11785,7 +11819,10 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
       
       // Оновлюємо Task
       if (request.taskId) {
-        const taskUpdateData = buildTaskInvoiceUpdateFromFiles(request.invoiceFiles);
+        const taskUpdateData = {
+          invoiceStatus: request.status,
+          ...buildTaskInvoiceUpdateFromFiles(request.invoiceFiles),
+        };
         // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
         // (якщо користувач завантажує рахунок без попереднього створення запиту, це фактично заявка на рахунок)
         const currentTask = await Task.findById(request.taskId);
@@ -12147,6 +12184,8 @@ app.put('/api/invoice-requests/:id/confirm', authenticateToken, async (req, res)
     request.completedBy = req.user?.login || 'system';
     await request.save();
     
+    await syncTaskFromInvoiceRequest(request);
+    
     console.log('[INVOICE] Invoice request confirmed:', request._id);
     
     res.json({ success: true, message: 'Заявку на рахунок підтверджено', data: request });
@@ -12181,6 +12220,8 @@ app.put('/api/invoice-requests/:id/return-to-work', authenticateToken, async (re
     request.returnedToWorkAt = new Date();
     request.returnedToWorkBy = req.user?.login || 'system';
     await request.save();
+    
+    await syncTaskFromInvoiceRequest(request);
     
     console.log('[INVOICE] Invoice request returned to work:', request._id);
     

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import TaskTable from './TaskTable';
+import TaskTable, { clearTasksCache } from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import API_BASE_URL from '../config';
@@ -127,6 +127,7 @@ function AccountantDashboard({ user }) {
         }
         
         alert('✅ Файл рахунку завантажено!');
+        clearTasksCache();
         setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
@@ -336,6 +337,7 @@ function AccountantDashboard({ user }) {
         }
         
         alert('✅ Заявку на рахунок підтверджено!');
+        clearTasksCache();
         handleCloseUploadModal();
         setRefreshKey(prev => prev + 1);
       } else {
