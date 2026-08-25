@@ -230,6 +230,20 @@ const DATE_FILTER_KEYS = ['requestDate', 'plannedDate', 'date', 'paymentDate', '
 const SELECT_FILTER_KEYS = ['status', 'company', 'paymentType', 'serviceRegion',
   'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'];
 
+const NUMERIC_FILTER_KEYS = new Set([
+  'serviceTotal', 'workPrice', 'oilUsed', 'oilPrice', 'oilTotal',
+  'filterCount', 'filterPrice', 'filterSum',
+  'fuelFilterCount', 'fuelFilterPrice', 'fuelFilterSum',
+  'airFilterCount', 'airFilterPrice', 'airFilterSum',
+  'antifreezeL', 'antifreezePrice', 'antifreezeSum',
+  'otherSum', 'transportKm', 'transportSum',
+  'perDiem', 'living', 'otherExp', 'serviceBonus',
+]);
+
+function normalizeNumericForFilter(value) {
+  return String(value ?? '').replace(/\s/g, '').replace(',', '.').toLowerCase();
+}
+
 // Тип фільтра для колонки (чиста функція — поза компонентом, щоб не ламати меморизацію)
 function getFilterType(columnKey) {
   if (DATE_FILTER_KEYS.includes(columnKey)) return 'date';
@@ -850,13 +864,17 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       result = result.filter(task => {
         let taskValue = task[key];
         if (taskValue === null || taskValue === undefined) taskValue = '';
-        
-        // Для select полів - точне порівняння (без урахування регістру)
+
         if (filterType === 'select') {
           return String(taskValue).toLowerCase() === filterValue;
         }
-        
-        // Для текстових полів - пошук підрядка
+
+        if (NUMERIC_FILTER_KEYS.has(key)) {
+          const taskValueStr = normalizeNumericForFilter(taskValue);
+          const filterNorm = normalizeNumericForFilter(filterValue);
+          return taskValueStr.includes(filterNorm);
+        }
+
         const taskValueStr = String(taskValue).toLowerCase();
         return taskValueStr.includes(filterValue);
       });
@@ -920,11 +938,18 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       // Якщо обидві термінові або обидві не термінові - сортуємо по вибраному полю
       const aVal = a[sortField];
       const bVal = b[sortField];
-      
+
       if (aVal === bVal) return 0;
       if (aVal == null) return 1;
       if (bVal == null) return -1;
-      
+
+      if (NUMERIC_FILTER_KEYS.has(sortField)) {
+        const aNum = parseNumber(aVal);
+        const bNum = parseNumber(bVal);
+        const comparison = aNum > bNum ? 1 : -1;
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+
       const comparison = aVal > bVal ? 1 : -1;
       return sortDirection === 'asc' ? comparison : -comparison;
     });

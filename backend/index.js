@@ -8305,6 +8305,115 @@ app.get('/api/tasks/statistics', async (req, res) => {
   }
 });
 
+// Числові колонки TaskTable: у БД можуть бути number, «12524» або «12 524,40»
+const NUMERIC_COLUMN_FILTER_KEYS = new Set([
+  'serviceTotal', 'workPrice', 'oilUsed', 'oilPrice', 'oilTotal',
+  'filterCount', 'filterPrice', 'filterSum',
+  'fuelFilterCount', 'fuelFilterPrice', 'fuelFilterSum',
+  'airFilterCount', 'airFilterPrice', 'airFilterSum',
+  'antifreezeL', 'antifreezePrice', 'antifreezeSum',
+  'otherSum', 'transportKm', 'transportSum',
+  'perDiem', 'living', 'otherExp', 'serviceBonus',
+]);
+
+const TASK_TABLE_SELECT_FILTER_KEYS = new Set([
+  'status', 'company', 'paymentType', 'serviceRegion',
+  'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager',
+]);
+
+function buildParseNumericFieldExpr(fieldRef) {
+  return {
+    $let: {
+      vars: { raw: { $ifNull: [fieldRef, 0] } },
+      in: {
+        $switch: {
+          branches: [
+            {
+              case: { $in: [{ $type: '$$raw' }, ['double', 'int', 'long', 'decimal']] },
+              then: { $toDouble: '$$raw' },
+            },
+          ],
+          default: {
+            $convert: {
+              input: {
+                $replaceAll: {
+                  input: {
+                    $replaceAll: {
+                      input: { $trim: { input: { $toString: '$$raw' } } },
+                      find: ' ',
+                      replacement: '',
+                    },
+                  },
+                  find: ',',
+                  replacement: '.',
+                },
+              },
+              to: 'double',
+              onError: 0,
+              onNull: 0,
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function buildNormalizedNumericStringExpr(fieldRef) {
+  return {
+    $replaceAll: {
+      input: {
+        $replaceAll: {
+          input: { $trim: { input: { $toString: { $ifNull: [fieldRef, ''] } } } },
+          find: ' ',
+          replacement: '',
+        },
+      },
+      find: ',',
+      replacement: '.',
+    },
+  };
+}
+
+function buildNumericColumnFilterMatch(key, val) {
+  const escaped = String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return {
+    $expr: {
+      $regexMatch: {
+        input: buildNormalizedNumericStringExpr(`$${key}`),
+        regex: escaped,
+        options: 'i',
+      },
+    },
+  };
+}
+
+function buildTaskTableSortStages(sortField, sortDirection) {
+  const field = (sortField || 'requestDate').replace(/^-/, '');
+  const dir = (sortDirection === 'asc') ? 1 : -1;
+  if (NUMERIC_COLUMN_FILTER_KEYS.has(field)) {
+    return [
+      { $addFields: { __sortNumeric: buildParseNumericFieldExpr(`$${field}`) } },
+      { $sort: { __sortNumeric: dir, requestNumber: dir } },
+    ];
+  }
+  return [{ $sort: { [field]: dir } }];
+}
+
+function buildTaskTableDataFacetStages(sortField, sortDirection, skip, limit) {
+  const field = (sortField || 'requestDate').replace(/^-/, '');
+  const dir = (sortDirection === 'asc') ? 1 : -1;
+  const stages = [];
+  if (NUMERIC_COLUMN_FILTER_KEYS.has(field)) {
+    stages.push({ $addFields: { __sortNumeric: buildParseNumericFieldExpr(`$${field}`) } });
+    stages.push({ $sort: { __sortNumeric: dir, requestNumber: dir } });
+  } else {
+    stages.push({ $sort: { [field]: dir } });
+  }
+  stages.push({ $skip: skip }, { $limit: limit });
+  return stages;
+}
+
 // Використовує агрегаційний пайплайн з фільтрацією
 // ============================================
 app.get('/api/tasks/filter', async (req, res) => {
@@ -8312,42 +8421,7 @@ app.get('/api/tasks/filter', async (req, res) => {
   try {
     const { status, statuses, region, sort = '-requestDate', page, limit, filter, sortField, sortDirection, columnFilters } = req.query;
     const isPaginated = page !== undefined && limit !== undefined && !isNaN(parseInt(limit));
-    // serviceTotal часто зберігається як рядок «14 504,40» — $convert не парсить такий формат
-    const PARSE_SERVICE_TOTAL_EXPR = {
-      $let: {
-        vars: { raw: { $ifNull: ['$serviceTotal', 0] } },
-        in: {
-          $switch: {
-            branches: [
-              {
-                case: { $in: [{ $type: '$$raw' }, ['double', 'int', 'long', 'decimal']] },
-                then: { $toDouble: '$$raw' },
-              },
-            ],
-            default: {
-              $convert: {
-                input: {
-                  $replaceAll: {
-                    input: {
-                      $replaceAll: {
-                        input: { $trim: { input: { $toString: '$$raw' } } },
-                        find: ' ',
-                        replacement: '',
-                      },
-                    },
-                    find: ',',
-                    replacement: '.',
-                  },
-                },
-                to: 'double',
-                onError: 0,
-                onNull: 0,
-              },
-            },
-          },
-        },
-      },
-    };
+    const PARSE_SERVICE_TOTAL_EXPR = buildParseNumericFieldExpr('$serviceTotal');
     const SERVICE_TOTAL_SUM_FACET = [{
       $group: {
         _id: null,
@@ -8425,6 +8499,45 @@ app.get('/api/tasks/filter', async (req, res) => {
         matchConditions.push({ $or: ENGINEER_COLUMN_KEYS.map((f) => ({ [f]: rx })) });
       }
     };
+    const buildColumnFilterMatchConditions = (filters) => {
+      const matchConditions = [];
+      const colMatch = {};
+      const dateFiltersByField = {};
+      const engineerPatterns = [];
+      for (const [key, value] of Object.entries(filters)) {
+        if (!value || String(value).trim() === '') continue;
+        const val = String(value).trim();
+        if (key.endsWith('From')) {
+          const field = key.replace('From', '');
+          const parsed = parseFilterDate(val);
+          if (parsed) {
+            dateFiltersByField[field] = dateFiltersByField[field] || {};
+            dateFiltersByField[field].from = parsed;
+          }
+        } else if (key.endsWith('To')) {
+          const field = key.replace('To', '');
+          const parsed = parseFilterDate(val, true);
+          if (parsed) {
+            dateFiltersByField[field] = dateFiltersByField[field] || {};
+            dateFiltersByField[field].to = parsed;
+          }
+        } else if (ENGINEER_COLUMN_KEYS.includes(key)) {
+          engineerPatterns.push(val);
+        } else if (TASK_TABLE_SELECT_FILTER_KEYS.has(key)) {
+          colMatch[key] = val;
+        } else if (NUMERIC_COLUMN_FILTER_KEYS.has(key)) {
+          matchConditions.push(buildNumericColumnFilterMatch(key, val));
+        } else {
+          colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+        }
+      }
+      for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
+        matchConditions.push(buildColumnDateMatch(field, from, to));
+      }
+      for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
+      pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
+      return matchConditions;
+    };
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 30));
     const showAllInvoices = req.query.showAllInvoices === 'true';
@@ -8488,42 +8601,7 @@ app.get('/api/tasks/filter', async (req, res) => {
         if (columnFilters && typeof columnFilters === 'string') {
           try {
             const filters = JSON.parse(columnFilters);
-            const colMatch = {};
-            const dateFiltersByField = {};
-            const engineerPatterns = [];
-            for (const [key, value] of Object.entries(filters)) {
-              if (!value || String(value).trim() === '') continue;
-              const val = String(value).trim();
-              if (key.endsWith('From')) {
-                const field = key.replace('From', '');
-                const parsed = parseFilterDate(val);
-                if (parsed) {
-                  dateFiltersByField[field] = dateFiltersByField[field] || {};
-                  dateFiltersByField[field].from = parsed;
-                }
-              } else if (key.endsWith('To')) {
-                const field = key.replace('To', '');
-                const parsed = parseFilterDate(val, true);
-                if (parsed) {
-                  dateFiltersByField[field] = dateFiltersByField[field] || {};
-                  dateFiltersByField[field].to = parsed;
-                }
-              } else {
-                if (ENGINEER_COLUMN_KEYS.includes(key)) {
-                  engineerPatterns.push(val);
-                  continue;
-                }
-                const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
-                if (filterType === 'select') colMatch[key] = val;
-                else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-              }
-            }
-            const matchConditions = [];
-            for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
-              matchConditions.push(buildColumnDateMatch(field, from, to));
-            }
-            for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
-            pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
+            const matchConditions = buildColumnFilterMatchConditions(filters);
             if (matchConditions.length > 0) {
               irPipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
             }
@@ -8532,17 +8610,16 @@ app.get('/api/tasks/filter', async (req, res) => {
           }
         }
         const facetSortField = (sortField || 'requestDate').replace(/^-/, '');
-        const facetSortDir = (sortDirection === 'asc') ? 1 : -1;
-        irPipeline.push({ $sort: { [facetSortField]: facetSortDir } });
+        buildTaskTableSortStages(facetSortField, sortDirection).forEach((stage) => irPipeline.push(stage));
         irPipeline.push({
           $facet: {
             total: [{ $count: 'count' }],
             serviceTotalSum: SERVICE_TOTAL_SUM_FACET,
             data: [
               { $skip: (pageNum - 1) * limitNum },
-              { $limit: limitNum }
-            ]
-          }
+              { $limit: limitNum },
+            ],
+          },
         });
         const aggResult = await InvoiceRequest.aggregate(irPipeline).allowDiskUse(true);
         const result = aggResult[0];
@@ -8567,44 +8644,16 @@ app.get('/api/tasks/filter', async (req, res) => {
       if (columnFilters && typeof columnFilters === 'string') {
         try {
           const filters = JSON.parse(columnFilters);
-          const colMatch = {};
-          const dateFiltersByField = {};
-          const engineerPatterns = [];
-          for (const [key, value] of Object.entries(filters)) {
-            if (!value || String(value).trim() === '') continue;
-            const val = String(value).trim();
-            if (key.endsWith('From')) {
-              const field = key.replace('From', '');
-              const parsed = parseFilterDate(val);
-              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].from = parsed; }
-            } else if (key.endsWith('To')) {
-              const field = key.replace('To', '');
-              const parsed = parseFilterDate(val, true);
-              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].to = parsed; }
-            } else {
-              if (ENGINEER_COLUMN_KEYS.includes(key)) {
-                engineerPatterns.push(val);
-                continue;
-              }
-              const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
-              if (filterType === 'select') colMatch[key] = val;
-              else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-            }
+          const matchConditions = buildColumnFilterMatchConditions(filters);
+          if (matchConditions.length > 0) {
+            irPipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
           }
-          const matchConditions = [];
-          for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
-            matchConditions.push(buildColumnDateMatch(field, from, to));
-          }
-          for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
-          pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
-          if (matchConditions.length > 0) irPipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
         } catch (e) {
           console.warn('[tasks/filter] accountantInvoiceRequests: Invalid columnFilters JSON:', e.message);
         }
       }
       const sortFieldExport = (sortField || 'requestDate').replace(/^-/, '');
-      const sortDirExport = (sortDirection === 'asc') ? 1 : -1;
-      irPipeline.push({ $sort: { [sortFieldExport]: sortDirExport } });
+      buildTaskTableSortStages(sortFieldExport, sortDirection).forEach((stage) => irPipeline.push(stage));
 
       const tasks = await InvoiceRequest.aggregate(irPipeline).allowDiskUse(true);
       logPerformance('GET /api/tasks/filter (accountantInvoiceRequests optimized)', startTime, tasks.length);
@@ -8878,36 +8927,7 @@ app.get('/api/tasks/filter', async (req, res) => {
       if (columnFilters && typeof columnFilters === 'string') {
         try {
           const filters = JSON.parse(columnFilters);
-          const colMatch = {};
-          const dateFiltersByField = {};
-          const engineerPatterns = [];
-          for (const [key, value] of Object.entries(filters)) {
-            if (!value || String(value).trim() === '') continue;
-            const val = String(value).trim();
-            if (key.endsWith('From')) {
-              const field = key.replace('From', '');
-              const parsed = parseFilterDate(val);
-              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].from = parsed; }
-            } else if (key.endsWith('To')) {
-              const field = key.replace('To', '');
-              const parsed = parseFilterDate(val, true);
-              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].to = parsed; }
-            } else {
-              if (ENGINEER_COLUMN_KEYS.includes(key)) {
-                engineerPatterns.push(val);
-                continue;
-              }
-              const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
-              if (filterType === 'select') colMatch[key] = val;
-              else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-            }
-          }
-          const matchConditions = [];
-          for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
-            matchConditions.push(buildColumnDateMatch(field, from, to));
-          }
-          for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
-          pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
+          const matchConditions = buildColumnFilterMatchConditions(filters);
           if (matchConditions.length > 0) {
             pipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
           }
@@ -8919,23 +8939,17 @@ app.get('/api/tasks/filter', async (req, res) => {
 
     // Пагінація (тільки коли передані page та limit) або сортування для експорту
     const facetSortField = sortField ? sortField.replace(/^-/, '') : 'requestDate';
-    const facetSortDir = (sortDirection === 'asc') ? 1 : -1;
-    const facetSort = { [facetSortField]: facetSortDir };
 
     if (isPaginated) {
       pipeline.push({
         $facet: {
           total: [{ $count: 'count' }],
           serviceTotalSum: SERVICE_TOTAL_SUM_FACET,
-          data: [
-            { $sort: facetSort },
-            { $skip: (pageNum - 1) * limitNum },
-            { $limit: limitNum }
-          ]
-        }
+          data: buildTaskTableDataFacetStages(facetSortField, sortDirection, (pageNum - 1) * limitNum, limitNum),
+        },
       });
     } else if (sortField || sortDirection) {
-      pipeline.push({ $sort: facetSort });
+      buildTaskTableSortStages(facetSortField, sortDirection).forEach((stage) => pipeline.push(stage));
     }
 
     const aggResult = await Task.aggregate(pipeline).allowDiskUse(true);
