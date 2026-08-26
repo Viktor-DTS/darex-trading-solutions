@@ -97,3 +97,12 @@ export async function setupViberWebhook() {
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
   return res.json();
 }
+
+export async function testMetaIntegration(pageId = '') {
+  const qs = pageId ? `?pageId=${encodeURIComponent(pageId)}` : '';
+  const res = await fetch(`${API_BASE_URL}/marketing/integrations/meta/test${qs}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  return res.json();
+}

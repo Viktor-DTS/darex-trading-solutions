@@ -3,6 +3,7 @@ import {
   getMarketingIntegrationsStatus,
   setupTelegramWebhook,
   setupViberWebhook,
+  testMetaIntegration,
 } from '../../utils/marketingLeadsAPI';
 
 const ENV_GROUPS = [
@@ -22,6 +23,7 @@ const ENV_GROUPS = [
       { key: 'META_APP_SECRET', label: 'App Secret (підпис webhook)' },
       { key: 'META_PAGE_ACCESS_TOKEN', label: 'Page Access Token (Graph API)' },
       { key: 'META_VERIFY_TOKEN', label: 'Verify Token (ви придумуєте)' },
+      { key: 'META_PAGE_ID', label: 'Page ID (опційно, для перевірки)' },
     ],
   },
   {
@@ -46,6 +48,8 @@ function MarketingIntegrationsTab() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
+  const [metaTest, setMetaTest] = useState(null);
+  const [metaPageId, setMetaPageId] = useState('1883538075251916');
 
   const load = async () => {
     setLoading(true);
@@ -89,6 +93,19 @@ function MarketingIntegrationsTab() {
     }
   };
 
+  const handleMetaTest = async () => {
+    setBusy('meta-test');
+    setMetaTest(null);
+    try {
+      const r = await testMetaIntegration(metaPageId.trim());
+      setMetaTest(r);
+    } catch (e) {
+      setMetaTest({ ok: false, summary: e.message || 'Помилка', checks: [] });
+    } finally {
+      setBusy('');
+    }
+  };
+
   if (loading) {
     return <div className="marketing-loading">Завантаження статусу інтеграцій...</div>;
   }
@@ -118,6 +135,24 @@ function MarketingIntegrationsTab() {
             {flags.meta ? 'Готово до прийому' : 'Додайте env Meta'}
           </span>
           <div className="marketing-api-hint" style={{ marginTop: 10, fontSize: 11 }}>{webhooks.meta}</div>
+          <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <input
+              type="text"
+              className="marketing-input"
+              placeholder="Page ID (опційно)"
+              value={metaPageId}
+              onChange={(e) => setMetaPageId(e.target.value)}
+              style={{ maxWidth: 220, fontSize: 12 }}
+            />
+            <button
+              type="button"
+              className="marketing-btn marketing-btn-secondary"
+              disabled={!flags.meta || busy === 'meta-test'}
+              onClick={handleMetaTest}
+            >
+              {busy === 'meta-test' ? 'Перевірка…' : 'Перевірити Meta'}
+            </button>
+          </div>
         </div>
         <div className="marketing-integration-card">
           <h4>Meta Етап 2: Direct + коментарі</h4>
@@ -182,6 +217,38 @@ function MarketingIntegrationsTab() {
           <span className="marketing-integration-status marketing-integration-status--ready">Активна</span>
         </div>
       </div>
+
+      {metaTest && (
+        <div
+          className="marketing-integration-card"
+          style={{
+            marginTop: 16,
+            borderColor: metaTest.ok ? 'rgba(34,197,94,0.45)' : 'rgba(239,68,68,0.45)',
+          }}
+        >
+          <h4 style={{ margin: '0 0 8px' }}>Результат перевірки Meta</h4>
+          <p style={{ margin: '0 0 12px', color: 'rgba(244,244,245,0.85)', fontSize: 13 }}>
+            {metaTest.summary}
+          </p>
+          <ul className="marketing-roadmap-list" style={{ marginTop: 0 }}>
+            {(metaTest.checks || []).map((c) => (
+              <li key={c.id} style={{ color: c.ok === false ? '#fca5a5' : c.ok ? '#86efac' : 'rgba(244,244,245,0.75)' }}>
+                {c.ok === true ? '✅' : c.ok === false ? '❌' : '⚠️'}{' '}
+                <strong>{c.label}</strong>: {c.message}
+                {c.forms?.length ? (
+                  <ul style={{ marginTop: 6, paddingLeft: 16 }}>
+                    {c.forms.map((f) => (
+                      <li key={f.id} style={{ fontSize: 12 }}>
+                        {f.name || f.id} — {f.status || '—'} (ID {f.id})
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <h4 style={{ color: '#f5ecd6', margin: '24px 0 12px' }}>Env-змінні Render</h4>
       {ENV_GROUPS.map((group) => (

@@ -14,6 +14,7 @@ const {
   getIntegrationStatus,
 } = require('./lib/marketingIntegrations');
 const { processMetaWebhookBody } = require('./lib/metaPhase2');
+const { runMetaConnectionTest } = require('./lib/metaConnectionTest');
 
 function registerMarketingIntegrationRoutes(app, deps) {
   const {
@@ -40,6 +41,20 @@ function registerMarketingIntegrationRoutes(app, deps) {
       }
       res.json(getIntegrationStatus());
     } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/marketing/integrations/meta/test', authenticateToken, async (req, res) => {
+    try {
+      if (!canAccessMarketingPanel(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+      const pageId = String(req.query.pageId || '').trim();
+      const result = await runMetaConnectionTest(pageId ? { pageId } : {});
+      res.json(result);
+    } catch (e) {
+      console.error('[META TEST]', e);
       res.status(500).json({ error: e.message });
     }
   });
