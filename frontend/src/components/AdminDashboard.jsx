@@ -2015,6 +2015,7 @@ function AdminDashboard({ user }) {
     { key: 'procurementWarehouseConfirmed', label: 'VZ: підтверджено складом' },
     { key: 'procurementRequestCompleted', label: 'VZ: виконано (матеріал на складі)' },
     { key: 'procurementRequestRejected', label: 'VZ: відхилено' },
+    { key: 'newMarketingLeads', label: 'Нові ліди з реклами' },
     { key: 'systemNotifications', label: 'Системні сповіщення' },
   ];
 

@@ -9,6 +9,7 @@ const {
   mapMetaFieldDataExtended,
   mergeUtm,
 } = require('./metaGraphEnrichment');
+const { sendNewMarketingLeadTelegram } = require('./marketingTelegram');
 
 const DEDUP_ACTIVE_STATUSES = ['new', 'in_review', 'assigned', 'transmitted', 'in_progress'];
 
@@ -173,6 +174,13 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
   }
 
   await lead.save();
+
+  // Telegram: нові ліди з реклами / зовнішніх джерел (чекбокс newMarketingLeads)
+  try {
+    await sendNewMarketingLeadTelegram(deps, lead);
+  } catch (e) {
+    console.error('[MARKETING TELEGRAM]', e.message || e);
+  }
 
   return {
     ok: true,

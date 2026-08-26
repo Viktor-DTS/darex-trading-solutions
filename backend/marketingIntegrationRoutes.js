@@ -16,8 +16,22 @@ const {
 const { processMetaWebhookBody } = require('./lib/metaPhase2');
 
 function registerMarketingIntegrationRoutes(app, deps) {
-  const { MarketingLead, MarketingBotSession, getNextMarketingLeadNumber, authenticateToken } = deps;
-  const serviceDeps = { MarketingLead, getNextMarketingLeadNumber };
+  const {
+    MarketingLead,
+    MarketingBotSession,
+    getNextMarketingLeadNumber,
+    authenticateToken,
+    telegramService,
+    User,
+    NotificationLog,
+  } = deps;
+  const serviceDeps = {
+    MarketingLead,
+    getNextMarketingLeadNumber,
+    telegramService,
+    User,
+    NotificationLog,
+  };
 
   app.get('/api/marketing/integrations/status', authenticateToken, async (req, res) => {
     try {

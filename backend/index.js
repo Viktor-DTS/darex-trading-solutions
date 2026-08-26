@@ -525,7 +525,8 @@ const userSchema = new mongoose.Schema({
     procurementExecutorCompleted: { type: Boolean, default: false }, // VZ виконано, чекає склад
     procurementWarehouseConfirmed: { type: Boolean, default: false }, // VZ підтверджено завскладом
     procurementRequestCompleted: { type: Boolean, default: false }, // VZ повністю виконано, матеріал на складі
-    procurementRequestRejected: { type: Boolean, default: false } // VZ відхилено / заблоковано
+    procurementRequestRejected: { type: Boolean, default: false }, // VZ відхилено / заблоковано
+    newMarketingLeads: { type: Boolean, default: false } // Нові ліди з реклами (маркетинг)
   }
 }, { strict: false });
 
@@ -9939,7 +9940,8 @@ app.post('/api/users', authenticateToken, async (req, res) => {
         procurementExecutorCompleted: false,
         procurementWarehouseConfirmed: false,
         procurementRequestCompleted: false,
-        procurementRequestRejected: false
+        procurementRequestRejected: false,
+        newMarketingLeads: false
       },
       lastActivity: new Date()
     });
@@ -20789,7 +20791,7 @@ app.post('/api/marketing/leads/inbound', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const result = await createMarketingLeadFromInbound(
-      { MarketingLead, getNextMarketingLeadNumber },
+      { MarketingLead, getNextMarketingLeadNumber, telegramService, User, NotificationLog },
       req.body,
       {
         ipAddress: req.ip,
@@ -20824,6 +20826,9 @@ registerMarketingIntegrationRoutes(app, {
   MarketingBotSession,
   getNextMarketingLeadNumber,
   authenticateToken,
+  telegramService,
+  User,
+  NotificationLog,
 });
 
 app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
