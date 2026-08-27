@@ -56,6 +56,9 @@ function isProcurementExecutorWorkStatus(status) {
   return status === 'in_progress' || status === 'partially_fulfilled';
 }
 
+/** Тимчасово приховано: колонки аналогу можна знову показати, змінивши на true. */
+const SHOW_PROCUREMENT_ANALOG_COLUMNS = false;
+
 const PROCUREMENT_BLOCKABLE_STATUSES = [
   'pending_review',
   'in_progress',
@@ -2833,13 +2836,11 @@ function ProcurementDashboard({ user }) {
                           <strong> ЄДРПОУ</strong> постачальника — за бажанням: після введення (8–10 цифр) поле «Назва
                           постачальника» можна <strong>заповнити автоматично</strong> (спочатку клієнтська база, потім
                           історія заявок, далі — публічний реєстр) або натиснути «Підставити назву». Окремо
-                          завантажте <strong>рахунок</strong> і <strong>видаткову накладну</strong>. Можна вказати
-                          аналог і кількість, позначити відвантаження аналогу. Щоб відмовити в постачанні окремої
+                          завантажте <strong>рахунок</strong> і <strong>видаткову накладну</strong>. Щоб відмовити в постачанні окремої
                           позиції, натисніть <strong>Відмовити</strong> — відкриється вікно «Причина відмови». Після
                           підтвердження позиція блокується і не є обовʼязковою для виконання; заявник отримає
                           сповіщення в Telegram та в панелі сповіщень (позиція, кількість, причина, П.І.Б. і дата/час).
-                          Сума кількості в колонках «Залишок (макс.)» (основний товар) та «К-сть аналогу»
-                          (якщо увімкнено «Відвант. аналог») не може перевищувати залишок після прийомів на складі.
+                          Кількість у колонці «Залишок (макс.)» не може перевищувати залишок після прийомів на складі.
                           «Загальна сума закупівлі грн. з ПДВ» = (кількість до відвантаження) × (ціна закупівлі за од. грн. з ПДВ).
                         </p>
                         <datalist id="procurement-wh-executor">
@@ -2865,9 +2866,13 @@ function ProcurementDashboard({ user }) {
                                 <th className="procurement-col-supplier">Назва постачальника</th>
                                 <th className="procurement-col-file">Рахунок</th>
                                 <th className="procurement-col-file">Видаткова накладна</th>
-                                <th className="procurement-col-analog">Аналог</th>
-                                <th className="procurement-col-analog-qty">К-сть аналогу</th>
-                                <th className="procurement-col-check">Відвант. аналог</th>
+                                {SHOW_PROCUREMENT_ANALOG_COLUMNS ? (
+                                  <>
+                                    <th className="procurement-col-analog">Аналог</th>
+                                    <th className="procurement-col-analog-qty">К-сть аналогу</th>
+                                    <th className="procurement-col-check">Відвант. аналог</th>
+                                  </>
+                                ) : null}
                               </tr>
                             </thead>
                             <tbody>
@@ -3104,6 +3109,8 @@ function ProcurementDashboard({ user }) {
                                   </td>
                                   {renderLineFileEditorCell(i, 'invoice', savedLine?.invoiceFile, m.rejected)}
                                   {renderLineFileEditorCell(i, 'delivery_note', savedLine?.deliveryNoteFile, m.rejected)}
+                                  {SHOW_PROCUREMENT_ANALOG_COLUMNS ? (
+                                    <>
                                   <td className="procurement-col-analog">
                                     <input
                                       type="text"
@@ -3224,6 +3231,8 @@ function ProcurementDashboard({ user }) {
                                       title="Відвантажити аналог"
                                     />
                                   </td>
+                                    </>
+                                  ) : null}
                                 </tr>
                                 );
                               })}
@@ -3286,17 +3295,16 @@ function ProcurementDashboard({ user }) {
                       <>
                         {isProcurementExecutorWorkStatus(detail.status) && !canActAsExecutorOnRequest(detail) ? (
                           <p className="procurement-field-hint procurement-materials-readonly-hint">
-                            Редагування аналогів і відмов по позиціях доступне лише <strong>виконавцю</strong>, який натиснув «Взяти в
+                            Редагування матеріалів і відмов по позиціях доступне лише <strong>виконавцю</strong>, який натиснув «Взяти в
                             роботу» (або адміністратору).
                           </p>
                         ) : null}
                         {!isProcurementExecutorWorkStatus(detail.status) ? (
                           <p className="procurement-field-hint procurement-materials-readonly-hint">
-                            <strong>Як змінити матеріал на аналог:</strong> це робить виконавець (VidZakupok), коли заявка
-                            у статусі <strong>«Взята в роботу»</strong> або <strong>«Частково виконана»</strong> — у
-                            колонках «Аналог», «К-сть аналогу», за потреби «Відвант. аналог», потім «Зберегти зміни по
-                            матеріалах» і «Підтвердити відвантаження». Після переходу в «Чекає відвантаження на склад»,
-                            «Очікує підтвердження документів» або «Повністю виконана» таблиця стає лише для
+                            Редагування матеріалів робить виконавець (VidZakupok), коли заявка у статусі{' '}
+                            <strong>«Взята в роботу»</strong> або <strong>«Частково виконана»</strong> — потім «Зберегти
+                            зміни по матеріалах» і «Підтвердити відвантаження». Після переходу в «Чекає відвантаження на
+                            склад», «Очікує підтвердження документів» або «Повністю виконана» таблиця стає лише для
                             перегляду.
                           </p>
                         ) : null}
@@ -3317,9 +3325,13 @@ function ProcurementDashboard({ user }) {
                             <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                             <th className="procurement-col-supplier">Назва постачальника</th>
                             <th className="procurement-col-file">Рахунок / ВН</th>
-                            <th className="procurement-col-analog">Аналог</th>
-                            <th className="procurement-col-analog-qty">К-сть аналогу</th>
-                            <th className="procurement-col-check">Відвант. аналог</th>
+                            {SHOW_PROCUREMENT_ANALOG_COLUMNS ? (
+                              <>
+                                <th className="procurement-col-analog">Аналог</th>
+                                <th className="procurement-col-analog-qty">К-сть аналогу</th>
+                                <th className="procurement-col-check">Відвант. аналог</th>
+                              </>
+                            ) : null}
                             {detail.status === 'completed' ? <th>Очікувано (підсумок)</th> : null}
                           </tr>
                         </thead>
@@ -3409,9 +3421,13 @@ function ProcurementDashboard({ user }) {
                                     ? '—'
                                     : null}
                                 </td>
-                                <td className="procurement-col-analog">{m.analogName || '—'}</td>
-                                <td className="procurement-col-analog-qty">{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
-                                <td className="procurement-col-check">{m.analogShipped ? 'Так' : '—'}</td>
+                                {SHOW_PROCUREMENT_ANALOG_COLUMNS ? (
+                                  <>
+                                    <td className="procurement-col-analog">{m.analogName || '—'}</td>
+                                    <td className="procurement-col-analog-qty">{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
+                                    <td className="procurement-col-check">{m.analogShipped ? 'Так' : '—'}</td>
+                                  </>
+                                ) : null}
                                 {detail.status === 'completed' ? <td>{expDisp}</td> : null}
                               </tr>
                             );
