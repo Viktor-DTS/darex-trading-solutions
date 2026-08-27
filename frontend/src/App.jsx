@@ -30,6 +30,9 @@ import API_BASE_URL from './config';
 import { PANELS } from './constants/panelsCatalog';
 import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
 
+/** Тимчасово вимкнено: плаваючий асистент DTS можна повернути, змінивши на true. */
+const SHOW_DTS_ASSISTANT_WIDGET = false;
+
 // Права доступу за замовчуванням (резервні, якщо база недоступна).
 // Перелік панелей (`PANELS`) — constants/panelsCatalog.js.
 const DEFAULT_ACCESS_RULES = {
@@ -493,7 +496,9 @@ function App() {
                   {!['manager', 'inventory', 'marketing', 'tenders', 'ved'].includes(currentPanel) && (
                     <TasksStatisticsBar user={user} />
                   )}
-                  <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />
+                  {SHOW_DTS_ASSISTANT_WIDGET ? (
+                    <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />
+                  ) : null}
                 </div>
               )}
             </div>
