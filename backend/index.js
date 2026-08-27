@@ -107,7 +107,11 @@ const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
 const { registerVedRoutes, scheduleVedSupplierRegistryJob } = require('./lib/vedRoutes');
-const { sendProcurementTelegramNotifications } = require('./lib/procurementTelegram');
+const {
+  sendProcurementTelegramNotifications,
+  sendProcurementPositionRejectedTelegram,
+  formatProcurementPositionRejectedPlain
+} = require('./lib/procurementTelegram');
 const { computeProcurementCrossRegionNotices, normalizeWarehouseName } = require('./lib/procurementCrossRegionNotice');
 
 // Cloudinary конфігурація
@@ -552,6 +556,7 @@ const MANAGER_NOTIFICATION_KINDS = [
   'onec_move_receipt_partial',
   'procurement_request_new',
   'procurement_request_completed',
+  'procurement_position_rejected',
   'task_cashless_no_invoice_pending',
   'assistant_accountant_relay',
   'assistant_accountant_relay_reply',
@@ -568,13 +573,14 @@ const PROCUREMENT_ONLY_NOTIFICATION_KINDS = [
   'procurement_receipt_partial',
   'procurement_awaiting_documents',
   'procurement_request_new',
-  'procurement_request_completed'
+  'procurement_request_completed',
+  'procurement_position_rejected'
 ];
 
 /** Лише для GET/POST manager-notifications з ?ved=1 (вкладка «Відділ ВЕД») */
 const VED_ONLY_NOTIFICATION_KINDS = ['ved_request_new', 'ved_request_status'];
 
-/** Для панелі сервісу: без «закупівельних» для складу/виконавця; «Заявку виконано» лишається (заявнику та адмінам). */
+/** Для панелі сервісу: без «закупівельних» для складу/виконавця; «Заявку виконано» та відмова по позиції лишаються (заявнику). */
 const PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS = [
   'procurement_incoming_to_warehouse',
   'procurement_receipt_partial',
@@ -2320,6 +2326,9 @@ const procurementMaterialLineSchema = new mongoose.Schema({
   rejected: { type: Boolean, default: false },
   /** Обовʼязково, якщо rejected === true */
   rejectionReason: { type: String, trim: true, default: '' },
+  rejectedByLogin: { type: String, trim: true, default: '' },
+  rejectedByName: { type: String, trim: true, default: '' },
+  rejectedAt: { type: Date, default: null },
   /** Фактично прийнята кількість завскладом */
   receivedQuantity: { type: Number, default: null },
   /** Історія часткових прийомів завскладом по цій позиції (дата, хто, скільки) */
@@ -3481,6 +3490,67 @@ async function notifyProcurementRequesterCompleted(pr) {
     }
   } catch (e) {
     console.error('[procurement] notifyProcurementRequesterCompleted:', e.message);
+  }
+}
+
+function procurementLineHasWarehouseReceipt(line) {
+  const rq = line?.receivedQuantity;
+  if (rq !== undefined && rq !== null && rq !== '' && Number(rq) > 0) return true;
+  return sumProcurementWarehouseReceiptEvents(line) > 0;
+}
+
+function applyProcurementMaterialLineRejection(line, reason, actor) {
+  const trimmed = String(reason || '').trim();
+  line.rejected = true;
+  line.rejectionReason = trimmed;
+  line.rejectedByLogin = String(actor?.login || '').trim();
+  line.rejectedByName = String(actor?.name || actor?.login || '').trim();
+  line.rejectedAt = new Date();
+  line.analogShipped = false;
+}
+
+function clearProcurementMaterialLineRejection(line) {
+  line.rejected = false;
+  line.rejectionReason = '';
+  line.rejectedByLogin = '';
+  line.rejectedByName = '';
+  line.rejectedAt = null;
+}
+
+function userCanMutateProcurementLineRejection(reqUser, pr) {
+  if (!pr || !reqUser) return false;
+  if (!procurementExecutorCanEditWork(pr.status)) return false;
+  return canUploadProcurementExecutorFiles(reqUser, pr);
+}
+
+/** Заявнику: панель сповіщень + Telegram-бот про відмову по окремій позиції. */
+async function notifyProcurementRequesterPositionRejected(pr, line) {
+  try {
+    const reqLogin = String(pr.requesterLogin || '').trim();
+    if (!reqLogin) return;
+    const rn = pr.requestNumber || String(pr._id);
+    const body = formatProcurementPositionRejectedPlain(pr, line);
+    const lineKey = line && line._id ? String(line._id) : String(line?.name || '');
+    const atMs = line?.rejectedAt ? new Date(line.rejectedAt).getTime() : Date.now();
+    await createManagerNotificationDeduped({
+      recipientLogin: reqLogin,
+      kind: 'procurement_position_rejected',
+      procurementRequestId: pr._id,
+      requestNumber: rn,
+      title: `Відділ закупівлі відмовив у постачанні: ${rn}`,
+      body,
+      read: false,
+      dedupeKey: `proc_pos_rej:${pr._id}:${lineKey}:${atMs}`
+    });
+    if (!isImportedProcurementRequest(pr)) {
+      await sendProcurementPositionRejectedTelegram(
+        { telegramService, User, NotificationLog },
+        pr,
+        line
+      );
+    }
+  } catch (e) {
+    console.error('[procurement] notifyProcurementRequesterPositionRejected:', e.message);
   }
 }
 
@@ -5787,6 +5857,92 @@ app.post('/api/procurement-requests/:id/unblock', async (req, res) => {
   }
 });
 
+app.post('/api/procurement-requests/:id/reject-material', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (!userCanMutateProcurementLineRejection(req.user, pr)) {
+      return res.status(403).json({
+        error:
+          'Відмовити по позиції може виконавець заявки (або адміністратор), коли заявка «Взята в роботу» або «Частково виконана»'
+      });
+    }
+    const lineIndex = parseInt(req.body?.lineIndex, 10);
+    if (!Number.isInteger(lineIndex) || lineIndex < 0 || lineIndex >= (pr.materials || []).length) {
+      return res.status(400).json({ error: 'Некоректний індекс позиції' });
+    }
+    const line = pr.materials[lineIndex];
+    if (line.rejected) {
+      return res.status(400).json({ error: 'Позицію вже відхилено' });
+    }
+    if (procurementLineHasWarehouseReceipt(line)) {
+      return res.status(400).json({
+        error: 'Не можна відмовити по позиції, яку вже прийнято завскладом'
+      });
+    }
+    const reason = String(req.body?.reason || '').trim();
+    if (!reason) {
+      return res.status(400).json({ error: 'Вкажіть причину відмови' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    applyProcurementMaterialLineRejection(line, reason, {
+      login: req.user.login,
+      name: String(dbUser?.name || req.user.name || req.user.login).trim()
+    });
+    pr.markModified('materials');
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    await notifyProcurementRequesterPositionRejected(out, out.materials[lineIndex]);
+    logPerformance('POST /api/procurement-requests/reject-material', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/reject-material', startTime);
+    console.error('[ERROR] reject-material:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/procurement-requests/:id/unreject-material', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (!userCanMutateProcurementLineRejection(req.user, pr)) {
+      return res.status(403).json({
+        error:
+          'Скасувати відмову може виконавець заявки (або адміністратор), коли заявка «Взята в роботу» або «Частково виконана»'
+      });
+    }
+    const lineIndex = parseInt(req.body?.lineIndex, 10);
+    if (!Number.isInteger(lineIndex) || lineIndex < 0 || lineIndex >= (pr.materials || []).length) {
+      return res.status(400).json({ error: 'Некоректний індекс позиції' });
+    }
+    const line = pr.materials[lineIndex];
+    if (!line.rejected) {
+      return res.status(400).json({ error: 'Позиція не відхилена' });
+    }
+    clearProcurementMaterialLineRejection(line);
+    pr.markModified('materials');
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    logPerformance('POST /api/procurement-requests/unreject-material', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/unreject-material', startTime);
+    console.error('[ERROR] unreject-material:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) => {
   const startTime = Date.now();
   try {
@@ -5833,6 +5989,8 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
       return res.status(400).json({ error: qtyErr });
     }
     const uomList = await getUnitsOfMeasureList();
+    const newlyRejectedIndexes = [];
+    let rejectActor = null;
     for (let i = 0; i < n; i++) {
       const inc = incoming[i] || {};
       const line = pr.materials[i];
@@ -5856,15 +6014,34 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
         return res.status(400).json({ error: `Позиція ${i + 1}: некоректна кількість аналогу` });
       }
       line.analogShipped = Boolean(inc.analogShipped);
-      line.rejected = Boolean(inc.rejected);
-      line.rejectionReason = String(inc.rejectionReason || '').trim();
-      if (line.rejected && !line.rejectionReason) {
+      const wasRejected = Boolean(line.rejected);
+      const nowRejected = Boolean(inc.rejected);
+      const nextReason = String(inc.rejectionReason || '').trim();
+      if (nowRejected && !nextReason) {
         return res.status(400).json({
           error: `Позиція ${i + 1}: для відхиленого матеріалу обовʼязково вкажіть причину`
         });
       }
-      if (!line.rejected) {
-        line.rejectionReason = '';
+      if (nowRejected && !wasRejected && procurementLineHasWarehouseReceipt(line)) {
+        return res.status(400).json({
+          error: `Позиція ${i + 1}: не можна відмовити по позиції, яку вже прийнято завскладом`
+        });
+      }
+      if (nowRejected && !wasRejected) {
+        if (!rejectActor) {
+          const dbUser = await User.findOne({ login: req.user.login }).lean();
+          rejectActor = {
+            login: req.user.login,
+            name: String(dbUser?.name || req.user.name || req.user.login).trim()
+          };
+        }
+        applyProcurementMaterialLineRejection(line, nextReason, rejectActor);
+        newlyRejectedIndexes.push(i);
+      } else if (nowRejected) {
+        line.rejected = true;
+        line.rejectionReason = nextReason;
+      } else if (wasRejected) {
+        clearProcurementMaterialLineRejection(line);
       }
       if (Object.prototype.hasOwnProperty.call(inc, 'unitOfMeasure')) {
         line.unitOfMeasure = pickUnitFromList(inc.unitOfMeasure, uomList);
@@ -5899,6 +6076,9 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
     await pr.save();
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     stripProcurementLineBinaryFields(out);
+    for (const idx of newlyRejectedIndexes) {
+      await notifyProcurementRequesterPositionRejected(out, out.materials[idx]);
+    }
     logPerformance('PATCH /api/procurement-requests/executor-materials', startTime);
     res.json(out);
   } catch (error) {

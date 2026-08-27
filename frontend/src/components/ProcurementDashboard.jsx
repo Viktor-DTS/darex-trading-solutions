@@ -119,6 +119,19 @@ function formatDt(iso) {
   }
 }
 
+function procurementLineHasWarehouseReceipt(m) {
+  const rq = m?.receivedQuantity;
+  if (rq !== undefined && rq !== null && rq !== '' && Number(rq) > 0) return true;
+  return sumWarehouseAcceptedQty(m?.warehouseReceiptEvents) > 0;
+}
+
+function procurementLineRejectQtyLabel(m, uomList) {
+  const qty = initialQtyForLine(m);
+  const uom = normalizeUomLabel(m?.unitOfMeasure, uomList);
+  if (qty == null || !Number.isFinite(qty)) return uom || '—';
+  return `${qty} ${uom}`;
+}
+
 /** П.І.Б. у шапці, поки заявка чекає інші склади (з backend warehouseConfirmerActions). */
 function formatWarehouseConfirmerActions(actions) {
   if (!Array.isArray(actions) || !actions.length) return '';
@@ -532,6 +545,8 @@ function ProcurementDashboard({ user }) {
   const [listDateFrom, setListDateFrom] = useState('');
   const [listDateTo, setListDateTo] = useState('');
   const [selectedRequestIds, setSelectedRequestIds] = useState(() => new Set());
+  const [rejectLineModal, setRejectLineModal] = useState(null);
+  const [rejectReasonText, setRejectReasonText] = useState('');
 
   const { units: uomList } = useUnitsOfMeasure();
   const normUom = useCallback((v) => normalizeUomLabel(v, uomList), [uomList]);
@@ -691,6 +706,9 @@ function ProcurementDashboard({ user }) {
         analogShipped: !!m.analogShipped,
         rejected: !!m.rejected,
         rejectionReason: m.rejectionReason || '',
+        rejectedByName: m.rejectedByName || '',
+        rejectedByLogin: m.rejectedByLogin || '',
+        rejectedAt: m.rejectedAt || null,
         initialQuantity: m.initialQuantity
       }))
     );
@@ -1181,7 +1199,7 @@ function ProcurementDashboard({ user }) {
         : 'Завантажити видаткову';
     const deleteLabel = isInvoice ? 'Видалити рахунок' : 'Видалити видаткову';
     return (
-      <td className="procurement-line-file-cell">
+      <td className="procurement-line-file-cell procurement-col-file">
         {present ? (
           <div className="procurement-line-file-stack">
             <button
@@ -1406,6 +1424,85 @@ function ProcurementDashboard({ user }) {
       setDetail(updated);
       await loadRequests();
       return true;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openRejectLineModal = (lineIndex) => {
+    const saved = detail?.materials?.[lineIndex];
+    const draft = materialsDraft?.[lineIndex];
+    const m = saved || draft;
+    if (!m || m.rejected) return;
+    if (saved && procurementLineHasWarehouseReceipt(saved)) {
+      alert('Не можна відмовити по позиції, яку вже прийнято завскладом');
+      return;
+    }
+    setRejectLineModal({
+      lineIndex,
+      name: String(m.name || '').trim() || '—',
+      qtyLabel: procurementLineRejectQtyLabel(saved || m, uomList)
+    });
+    setRejectReasonText('');
+  };
+
+  const closeRejectLineModal = () => {
+    if (saving) return;
+    setRejectLineModal(null);
+    setRejectReasonText('');
+  };
+
+  const submitRejectMaterialLine = async () => {
+    if (!detail || rejectLineModal == null) return;
+    const reason = String(rejectReasonText || '').trim();
+    if (!reason) {
+      alert('Вкажіть причину відмови');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${detail._id}/reject-material`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineIndex: rejectLineModal.lineIndex, reason })
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося відмовити по позиції');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
+      setRejectLineModal(null);
+      setRejectReasonText('');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const unrejectMaterialLine = async (lineIndex) => {
+    if (!detail) return;
+    if (!window.confirm('Скасувати відмову по цій позиції? Вона знову стане обовʼязковою для виконання.')) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${detail._id}/unreject-material`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineIndex })
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося скасувати відмову');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
     } finally {
       setSaving(false);
     }
@@ -2098,7 +2195,7 @@ function ProcurementDashboard({ user }) {
                 title="Сповіщення відділу закупівель"
                 onOpenProcurementRequest={openProcurementRequestById}
                 onUnreadCountChange={fetchProcurementNotifUnreadCount}
-                description="Події по заявках закупівель: нова заявка для виконавців VidZakupok та адміністраторів, виконання заявки (персонально заявнику), частковий прийом, надходження на склад. Резерви обладнання та інші сповіщення менеджерів тут не показуються. Натисніть номер заявки (VZ-…), щоб відкрити картку."
+                description="Події по заявках закупівель: нова заявка для виконавців VidZakupok та адміністраторів, відмова по окремій позиції та виконання заявки (персонально заявнику), частковий прийом, надходження на склад. Резерви обладнання та інші сповіщення менеджерів тут не показуються. Натисніть номер заявки (VZ-…), щоб відкрити картку."
               />
             </div>
           )}
@@ -2585,7 +2682,7 @@ function ProcurementDashboard({ user }) {
       )}
 
       {detail && (
-        <div className="procurement-modal-overlay" role="dialog" aria-modal="true">
+        <div className="procurement-modal-overlay procurement-modal-overlay--detail" role="dialog" aria-modal="true">
           <div className="procurement-modal procurement-modal--wide procurement-modal--detail-wide">
             <div className="procurement-modal-header">
               <h2>Заявка на закупівлю{detail.requestNumber ? ` (${detail.requestNumber})` : ''}</h2>
@@ -2737,8 +2834,11 @@ function ProcurementDashboard({ user }) {
                           постачальника» можна <strong>заповнити автоматично</strong> (спочатку клієнтська база, потім
                           історія заявок, далі — публічний реєстр) або натиснути «Підставити назву». Окремо
                           завантажте <strong>рахунок</strong> і <strong>видаткову накладну</strong>. Можна вказати
-                          аналог і кількість, позначити відвантаження аналогу, відхилити позицію з обовʼязковою
-                          причиною. Сума кількості в колонках «Залишок (макс.)» (основний товар) та «К-сть аналогу»
+                          аналог і кількість, позначити відвантаження аналогу. Щоб відмовити в постачанні окремої
+                          позиції, натисніть <strong>Відмовити</strong> — відкриється вікно «Причина відмови». Після
+                          підтвердження позиція блокується і не є обовʼязковою для виконання; заявник отримає
+                          сповіщення в Telegram та в панелі сповіщень (позиція, кількість, причина, П.І.Б. і дата/час).
+                          Сума кількості в колонках «Залишок (макс.)» (основний товар) та «К-сть аналогу»
                           (якщо увімкнено «Відвант. аналог») не може перевищувати залишок після прийомів на складі.
                           «Загальна сума закупівлі грн. з ПДВ» = (кількість до відвантаження) × (ціна закупівлі за од. грн. з ПДВ).
                         </p>
@@ -2751,24 +2851,23 @@ function ProcurementDashboard({ user }) {
                           <table className="procurement-exec-materials-table">
                             <thead>
                               <tr>
-                                <th>Заявник: найменування</th>
+                                <th className="procurement-col-name">Заявник: найменування</th>
+                                <th className="procurement-col-reject">Відмова</th>
                                 <th className="procurement-col-uom">Од. вим.</th>
                                 <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
-                                <th>Прийоми завскладом</th>
+                                <th className="procurement-col-receipts">Прийоми завскладом</th>
                                 <th className="procurement-col-remainder">Залишок (макс.)</th>
-                                <th>Фактичний склад відвантаження *</th>
+                                <th className="procurement-col-warehouse">Фактичний склад відвантаження *</th>
                                 <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ</th>
                                 <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
-                                <th>Коментарі</th>
+                                <th className="procurement-col-comment">Коментарі</th>
                                 <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
-                                <th>Назва постачальника</th>
-                                <th>Рахунок</th>
-                                <th>Видаткова накладна</th>
-                                <th>Аналог</th>
-                                <th>К-сть аналогу</th>
-                                <th>Відвант. аналог</th>
-                                <th>Відхилити</th>
-                                <th>Причина відхилення</th>
+                                <th className="procurement-col-supplier">Назва постачальника</th>
+                                <th className="procurement-col-file">Рахунок</th>
+                                <th className="procurement-col-file">Видаткова накладна</th>
+                                <th className="procurement-col-analog">Аналог</th>
+                                <th className="procurement-col-analog-qty">К-сть аналогу</th>
+                                <th className="procurement-col-check">Відвант. аналог</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -2781,7 +2880,43 @@ function ProcurementDashboard({ user }) {
                                 const totalVat = lineTotalVatFromDraft(m);
                                 return (
                                 <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
-                                  <td>{m.name}</td>
+                                  <td className="procurement-col-name">{m.name}</td>
+                                  <td className="procurement-col-reject">
+                                    {m.rejected ? (
+                                      <div className="procurement-line-reject-info">
+                                        <span className="procurement-line-rejected-badge">Відмовлено</span>
+                                        {m.rejectionReason ? (
+                                          <p className="procurement-line-rejected-reason">{m.rejectionReason}</p>
+                                        ) : null}
+                                        <p className="procurement-line-rejected-meta">
+                                          {[m.rejectedByName || m.rejectedByLogin, m.rejectedAt ? formatDt(m.rejectedAt) : '']
+                                            .filter(Boolean)
+                                            .join(' · ') || '—'}
+                                        </p>
+                                        <button
+                                          type="button"
+                                          className="procurement-btn-unreject-line"
+                                          disabled={saving}
+                                          onClick={() => unrejectMaterialLine(i)}
+                                        >
+                                          Скасувати відмову
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="procurement-btn-reject-line"
+                                        disabled={
+                                          saving ||
+                                          (savedLine ? procurementLineHasWarehouseReceipt(savedLine) : false)
+                                        }
+                                        onClick={() => openRejectLineModal(i)}
+                                        title="Відмовити в постачанні цієї позиції"
+                                      >
+                                        Відмовити
+                                      </button>
+                                    )}
+                                  </td>
                                   <td className="procurement-col-uom">
                                     <select
                                       className="procurement-uom-select"
@@ -2802,7 +2937,7 @@ function ProcurementDashboard({ user }) {
                                       ? initialQtyDisp
                                       : '—'}
                                   </td>
-                                  <td className="procurement-wh-cell">
+                                  <td className="procurement-wh-cell procurement-col-receipts">
                                     {procurementReceiptsCellContent(savedLine || {}, detail, uomList)}
                                   </td>
                                   <td className="procurement-remainder-cell procurement-col-remainder">
@@ -2866,12 +3001,7 @@ function ProcurementDashboard({ user }) {
                                       />
                                     )}
                                   </td>
-                                  <td>
-                                    <input
-                                      type="text"
-                                      className="procurement-exec-input"
-                                      list="procurement-wh-executor"
-                                      value={m.actualWarehouse != null && m.actualWarehouse !== undefined ? m.actualWarehouse : ''}
+                                  <td className="procurement-col-warehouse">
                                       onChange={(e) =>
                                         updateMaterialDraftRow(i, { actualWarehouse: e.target.value })
                                       }
@@ -2900,7 +3030,7 @@ function ProcurementDashboard({ user }) {
                                         })
                                       : '—'}
                                   </td>
-                                  <td className="procurement-comment-cell">
+                                  <td className="procurement-comment-cell procurement-col-comment">
                                     <textarea
                                       className="procurement-exec-textarea procurement-exec-comment-textarea"
                                       rows={3}
@@ -2961,7 +3091,7 @@ function ProcurementDashboard({ user }) {
                                       ) : null}
                                     </div>
                                   </td>
-                                  <td className="procurement-supplier-name-td">
+                                  <td className="procurement-supplier-name-td procurement-col-supplier">
                                     <textarea
                                       className="procurement-exec-input procurement-supplier-name-textarea"
                                       rows={4}
@@ -2974,7 +3104,7 @@ function ProcurementDashboard({ user }) {
                                   </td>
                                   {renderLineFileEditorCell(i, 'invoice', savedLine?.invoiceFile, m.rejected)}
                                   {renderLineFileEditorCell(i, 'delivery_note', savedLine?.deliveryNoteFile, m.rejected)}
-                                  <td>
+                                  <td className="procurement-col-analog">
                                     <input
                                       type="text"
                                       className="procurement-exec-input"
@@ -3007,7 +3137,7 @@ function ProcurementDashboard({ user }) {
                                       disabled={m.rejected}
                                     />
                                   </td>
-                                  <td>
+                                  <td className="procurement-col-analog-qty">
                                     <input
                                       type="text"
                                       inputMode="decimal"
@@ -3061,7 +3191,7 @@ function ProcurementDashboard({ user }) {
                                       disabled={m.rejected}
                                     />
                                   </td>
-                                  <td className="procurement-td-center">
+                                  <td className="procurement-td-center procurement-col-check">
                                     <input
                                       type="checkbox"
                                       checked={!!m.analogShipped}
@@ -3092,34 +3222,6 @@ function ProcurementDashboard({ user }) {
                                       }}
                                       disabled={m.rejected}
                                       title="Відвантажити аналог"
-                                    />
-                                  </td>
-                                  <td className="procurement-td-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={!!m.rejected}
-                                      onChange={(e) => {
-                                        const rej = e.target.checked;
-                                        updateMaterialDraftRow(i, {
-                                          rejected: rej,
-                                          ...(rej
-                                            ? {}
-                                            : { rejectionReason: '', analogName: m.analogName })
-                                        });
-                                      }}
-                                      title="Відхилити позицію"
-                                    />
-                                  </td>
-                                  <td>
-                                    <textarea
-                                      className="procurement-exec-textarea"
-                                      rows={2}
-                                      value={m.rejectionReason}
-                                      onChange={(e) =>
-                                        updateMaterialDraftRow(i, { rejectionReason: e.target.value })
-                                      }
-                                      placeholder={m.rejected ? 'Обовʼязково: чому відхилено' : ''}
-                                      disabled={!m.rejected}
                                     />
                                   </td>
                                 </tr>
@@ -3184,7 +3286,7 @@ function ProcurementDashboard({ user }) {
                       <>
                         {isProcurementExecutorWorkStatus(detail.status) && !canActAsExecutorOnRequest(detail) ? (
                           <p className="procurement-field-hint procurement-materials-readonly-hint">
-                            Редагування аналогів і відхилень доступне лише <strong>виконавцю</strong>, який натиснув «Взяти в
+                            Редагування аналогів і відмов по позиціях доступне лише <strong>виконавцю</strong>, який натиснув «Взяти в
                             роботу» (або адміністратору).
                           </p>
                         ) : null}
@@ -3202,23 +3304,22 @@ function ProcurementDashboard({ user }) {
                         <table className="procurement-mini-table procurement-mini-table--wide">
                         <thead>
                           <tr>
-                            <th>Найменування</th>
+                            <th className="procurement-col-name">Найменування</th>
+                            <th className="procurement-col-reject">Відмова</th>
                             <th className="procurement-col-uom">Од. вим.</th>
                             <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
-                            <th>Прийоми завскладом</th>
+                            <th className="procurement-col-receipts">Прийоми завскладом</th>
                             <th className="procurement-col-remainder">Залишок (макс.)</th>
-                            <th>Фактичний склад відвантаження</th>
+                            <th className="procurement-col-warehouse">Фактичний склад відвантаження</th>
                             <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ</th>
                             <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
-                            <th>Коментарі</th>
+                            <th className="procurement-col-comment">Коментарі</th>
                             <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
-                            <th>Назва постачальника</th>
-                            <th>Рахунок / ВН</th>
-                            <th>Аналог</th>
-                            <th>К-сть аналогу</th>
-                            <th>Відвант. аналог</th>
-                            <th>Відхилено</th>
-                            <th>Причина</th>
+                            <th className="procurement-col-supplier">Назва постачальника</th>
+                            <th className="procurement-col-file">Рахунок / ВН</th>
+                            <th className="procurement-col-analog">Аналог</th>
+                            <th className="procurement-col-analog-qty">К-сть аналогу</th>
+                            <th className="procurement-col-check">Відвант. аналог</th>
                             {detail.status === 'completed' ? <th>Очікувано (підсумок)</th> : null}
                           </tr>
                         </thead>
@@ -3230,21 +3331,41 @@ function ProcurementDashboard({ user }) {
                             const initialDisp = initialQtyForLine(m);
                             const vatTotal = lineTotalVatFromSaved(m);
                             return (
-                              <tr key={i}>
-                                <td>{m.name}</td>
+                              <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
+                                <td className="procurement-col-name">{m.name}</td>
+                                <td className="procurement-col-reject">
+                                  {m.rejected ? (
+                                    <div className="procurement-line-reject-info">
+                                      <span className="procurement-line-rejected-badge">Відмовлено</span>
+                                      {m.rejectionReason ? (
+                                        <p className="procurement-line-rejected-reason">{m.rejectionReason}</p>
+                                      ) : null}
+                                      <p className="procurement-line-rejected-meta">
+                                        {[
+                                          m.rejectedByName || m.rejectedByLogin,
+                                          m.rejectedAt ? formatDt(m.rejectedAt) : ''
+                                        ]
+                                          .filter(Boolean)
+                                          .join(' · ') || '—'}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
                                 <td className="procurement-col-uom">{normUom(m.unitOfMeasure)}</td>
                                 <td className="procurement-col-initial-qty">
                                   {initialDisp != null && Number.isFinite(initialDisp)
                                     ? initialDisp
                                     : '—'}
                                 </td>
-                                <td className="procurement-wh-cell">
+                                <td className="procurement-wh-cell procurement-col-receipts">
                                   {procurementReceiptsCellContent(m, detail, uomList)}
                                 </td>
                                 <td className="procurement-col-remainder">
                                   {m.rejected || exp === null ? '—' : exp}
                                 </td>
-                                <td>{m.actualWarehouse ? m.actualWarehouse : '—'}</td>
+                                <td className="procurement-col-warehouse">{m.actualWarehouse ? m.actualWarehouse : '—'}</td>
                                 <td className="procurement-col-price">
                                   {m.price != null && m.price !== '' ? m.price : '—'}
                                 </td>
@@ -3256,14 +3377,14 @@ function ProcurementDashboard({ user }) {
                                       })
                                     : '—'}
                                 </td>
-                                <td className="procurement-comment-cell procurement-comment-cell--readonly">
+                                <td className="procurement-comment-cell procurement-comment-cell--readonly procurement-col-comment">
                                   {m.executorComment ? m.executorComment : '—'}
                                 </td>
                                 <td className="procurement-col-edrpou">{m.supplierEdrpou ? m.supplierEdrpou : '—'}</td>
-                                <td className="procurement-supplier-name-readonly">
+                                <td className="procurement-supplier-name-readonly procurement-col-supplier">
                                   {m.supplierName ? m.supplierName : '—'}
                                 </td>
-                                <td className="procurement-line-file-cell procurement-line-file-cell--readonly">
+                                <td className="procurement-line-file-cell procurement-line-file-cell--readonly procurement-col-file">
                                   {hasProcurementLineFile(m.invoiceFile) ? (
                                     <button
                                       type="button"
@@ -3288,11 +3409,9 @@ function ProcurementDashboard({ user }) {
                                     ? '—'
                                     : null}
                                 </td>
-                                <td>{m.analogName || '—'}</td>
-                                <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
-                                <td>{m.analogShipped ? 'Так' : '—'}</td>
-                                <td>{m.rejected ? 'Так' : '—'}</td>
-                                <td>{m.rejectionReason || '—'}</td>
+                                <td className="procurement-col-analog">{m.analogName || '—'}</td>
+                                <td className="procurement-col-analog-qty">{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
+                                <td className="procurement-col-check">{m.analogShipped ? 'Так' : '—'}</td>
                                 {detail.status === 'completed' ? <td>{expDisp}</td> : null}
                               </tr>
                             );
@@ -3457,6 +3576,68 @@ function ProcurementDashboard({ user }) {
               {renderNomenclatureStockPanel(
                 'Для позицій заявки залишки на дозволених складах відобразяться тут.'
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectLineModal && (
+        <div
+          className="procurement-modal-overlay procurement-modal-overlay--nested"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="procurement-reject-line-title"
+        >
+          <div className="procurement-modal procurement-modal--reject-line">
+            <div className="procurement-modal-header">
+              <h2 id="procurement-reject-line-title">Причина відмови</h2>
+              <button
+                type="button"
+                className="procurement-modal-close"
+                onClick={closeRejectLineModal}
+                aria-label="Закрити"
+                disabled={saving}
+              >
+                ×
+              </button>
+            </div>
+            <div className="procurement-modal-body">
+              <p className="procurement-reject-line-summary">
+                <strong>Позиція:</strong> {rejectLineModal.name}
+              </p>
+              <p className="procurement-reject-line-summary">
+                <strong>Кількість:</strong> {rejectLineModal.qtyLabel}
+              </p>
+              <label className="procurement-reject-reason-label">
+                Причина відмови
+                <textarea
+                  className="procurement-reject-reason-textarea"
+                  rows={5}
+                  value={rejectReasonText}
+                  onChange={(e) => setRejectReasonText(e.target.value)}
+                  placeholder="Вкажіть причину відмови в постачанні цієї позиції"
+                  disabled={saving}
+                  autoFocus
+                />
+              </label>
+            </div>
+            <div className="procurement-modal-actions procurement-modal-actions--reject">
+              <button
+                type="button"
+                className="procurement-btn-secondary"
+                onClick={closeRejectLineModal}
+                disabled={saving}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                className="procurement-btn-block"
+                onClick={() => void submitRejectMaterialLine()}
+                disabled={saving || !String(rejectReasonText || '').trim()}
+              >
+                {saving ? 'Збереження…' : 'Підтвердити відмову'}
+              </button>
             </div>
           </div>
         </div>

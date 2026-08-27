@@ -424,14 +424,14 @@
 }
 
 .procurement-comment-cell {
-  min-width: 10rem;
-  max-width: 18rem;
+  min-width: 6.5rem;
+  max-width: 11rem;
   vertical-align: top;
   white-space: normal;
 }
 
 .procurement-exec-comment-textarea {
-  min-width: 9rem;
+  min-width: 0;
   width: 100%;
 }
 
@@ -556,6 +556,16 @@
   padding: 16px;
 }
 
+.procurement-modal-overlay--nested {
+  z-index: 1100;
+}
+
+.procurement-modal-overlay--detail {
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
 .procurement-modal {
   background: var(--surface);
   border-radius: 10px;
@@ -572,11 +582,13 @@
   max-width: 720px;
 }
 
-/* Деталі заявки: широке вікно + прокрутка вмісту (матеріали, примітки, кнопки) */
+/* Картка заявки: на всю ширину й висоту екрана */
 .procurement-modal--wide.procurement-modal--detail-wide {
-  max-width: min(1650px, 98vw);
+  max-width: none;
   width: 100%;
-  max-height: min(94vh, calc(100dvh - 24px));
+  height: 100%;
+  max-height: 100dvh;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
 }
@@ -609,6 +621,10 @@
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.procurement-modal-create-layout.procurement-modal-detail-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
 }
 
 .procurement-modal-detail-layout .procurement-modal-body.procurement-detail-grid {
@@ -712,6 +728,10 @@
 
 @media (max-width: 900px) {
   .procurement-modal-create-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .procurement-modal-create-layout.procurement-modal-detail-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1033,6 +1053,18 @@
   font-size: 13px;
 }
 
+.procurement-exec-table-wrap .procurement-mini-table th,
+.procurement-exec-table-wrap .procurement-mini-table td {
+  padding: 5px 6px;
+  vertical-align: top;
+}
+
+.procurement-exec-table-wrap .procurement-mini-table th {
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .procurement-mini-table th,
 .procurement-mini-table td {
   border: 1px solid var(--border);
@@ -1136,9 +1168,8 @@
 }
 
 .procurement-exec-materials-table {
-  /* max-content: таблиця не стискає останні колонки; прокрутка в .procurement-exec-table-wrap */
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
   border-collapse: collapse;
   font-size: 12px;
   table-layout: auto;
@@ -1147,7 +1178,7 @@
 .procurement-exec-materials-table th,
 .procurement-exec-materials-table td {
   border: 1px solid var(--border);
-  padding: 6px 8px;
+  padding: 5px 6px;
   vertical-align: top;
   box-sizing: border-box;
 }
@@ -1156,18 +1187,23 @@
   background: var(--background);
   font-weight: 600;
   white-space: normal;
+  overflow-wrap: anywhere;
   hyphens: auto;
+  line-height: 1.25;
+  font-size: 11px;
 }
 
 .procurement-exec-materials-table th:last-child,
 .procurement-exec-materials-table td:last-child {
-  min-width: 200px;
-  max-width: 28rem;
+  min-width: 0;
+  max-width: none;
 }
 
-.procurement-wh-cell {
-  min-width: 160px;
-  max-width: 260px;
+.procurement-wh-cell,
+.procurement-col-receipts {
+  width: 8.5rem;
+  min-width: 7rem;
+  max-width: 10.5rem;
 }
 
 .procurement-wh-event-list {
@@ -1210,9 +1246,9 @@
 
 .procurement-exec-input {
   width: 100%;
-  min-width: 120px;
+  min-width: 0;
   font: inherit;
-  padding: 6px 8px;
+  padding: 5px 6px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--background);
@@ -1221,17 +1257,27 @@
 }
 
 .procurement-exec-input--narrow {
-  min-width: 64px;
+  min-width: 0;
+  max-width: 4.5rem;
 }
 
-/* Таблиця матеріалів: од. вим. та компактні числові / ЄДРПОУ колонки */
+/* Таблиця матеріалів: компактні колонки — зайва ширина йде в найменування */
+.procurement-exec-materials-table th.procurement-col-name,
+.procurement-exec-materials-table td.procurement-col-name,
+.procurement-mini-table th.procurement-col-name,
+.procurement-mini-table td.procurement-col-name {
+  min-width: 8rem;
+  width: 14%;
+  overflow-wrap: anywhere;
+}
+
 .procurement-exec-materials-table th.procurement-col-uom,
 .procurement-exec-materials-table td.procurement-col-uom,
 .procurement-mini-table th.procurement-col-uom,
 .procurement-mini-table td.procurement-col-uom {
-  width: 4rem;
-  min-width: 3.25rem;
-  max-width: 5rem;
+  width: 3.5rem;
+  min-width: 3rem;
+  max-width: 4.25rem;
   text-align: center;
   white-space: nowrap;
 }
@@ -1243,10 +1289,14 @@
 .procurement-exec-materials-table th.procurement-col-remainder,
 .procurement-exec-materials-table td.procurement-col-remainder,
 .procurement-mini-table th.procurement-col-remainder,
-.procurement-mini-table td.procurement-col-remainder {
-  width: 3.5rem;
-  min-width: 2.6rem;
-  max-width: 4.5rem;
+.procurement-mini-table td.procurement-col-remainder,
+.procurement-exec-materials-table th.procurement-col-analog-qty,
+.procurement-exec-materials-table td.procurement-col-analog-qty,
+.procurement-mini-table th.procurement-col-analog-qty,
+.procurement-mini-table td.procurement-col-analog-qty {
+  width: 3.25rem;
+  min-width: 2.5rem;
+  max-width: 4.25rem;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -1259,26 +1309,84 @@
 .procurement-exec-materials-table td.procurement-col-total-vat,
 .procurement-mini-table th.procurement-col-total-vat,
 .procurement-mini-table td.procurement-col-total-vat {
-  width: 4.25rem;
-  min-width: 3.25rem;
-  max-width: 5.5rem;
+  width: 4rem;
+  min-width: 3rem;
+  max-width: 5rem;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
+.procurement-exec-materials-table th.procurement-col-warehouse,
+.procurement-exec-materials-table td.procurement-col-warehouse,
+.procurement-mini-table th.procurement-col-warehouse,
+.procurement-mini-table td.procurement-col-warehouse {
+  width: 8rem;
+  min-width: 6.5rem;
+  max-width: 10rem;
+}
+
 .procurement-exec-materials-table th.procurement-col-edrpou,
-.procurement-exec-materials-table td.procurement-col-edrpou.procurement-edrpou-cell,
+.procurement-exec-materials-table td.procurement-col-edrpou,
 .procurement-mini-table th.procurement-col-edrpou,
 .procurement-mini-table td.procurement-col-edrpou {
-  min-width: 5.25rem !important;
-  max-width: 7.25rem !important;
-  width: 6.25rem;
+  min-width: 5rem !important;
+  max-width: 6.75rem !important;
+  width: 5.75rem;
+}
+
+.procurement-exec-materials-table th.procurement-col-analog,
+.procurement-exec-materials-table td.procurement-col-analog,
+.procurement-mini-table th.procurement-col-analog,
+.procurement-mini-table td.procurement-col-analog {
+  width: 6.5rem;
+  min-width: 5.5rem;
+  max-width: 8rem;
+}
+
+.procurement-exec-materials-table th.procurement-col-check,
+.procurement-exec-materials-table td.procurement-col-check,
+.procurement-mini-table th.procurement-col-check,
+.procurement-mini-table td.procurement-col-check {
+  width: 3.25rem;
+  min-width: 2.75rem;
+  max-width: 4.25rem;
+  text-align: center;
+}
+
+.procurement-exec-materials-table th.procurement-col-file,
+.procurement-exec-materials-table td.procurement-col-file,
+.procurement-mini-table th.procurement-col-file,
+.procurement-mini-table td.procurement-col-file {
+  width: 7.25rem;
+  min-width: 6.5rem;
+  max-width: 8.5rem;
+}
+
+.procurement-exec-materials-table th.procurement-col-comment,
+.procurement-exec-materials-table td.procurement-col-comment,
+.procurement-mini-table th.procurement-col-comment,
+.procurement-mini-table td.procurement-col-comment {
+  width: 8rem;
+  min-width: 6.5rem;
+  max-width: 11rem;
+}
+
+.procurement-exec-materials-table th.procurement-col-supplier,
+.procurement-exec-materials-table td.procurement-col-supplier,
+.procurement-mini-table th.procurement-col-supplier,
+.procurement-mini-table td.procurement-col-supplier {
+  width: 8.5rem;
+  min-width: 7rem;
+  max-width: 11rem;
 }
 
 .procurement-exec-materials-table .procurement-col-initial-qty .procurement-exec-input,
 .procurement-exec-materials-table .procurement-col-remainder .procurement-exec-input,
 .procurement-exec-materials-table .procurement-col-price .procurement-exec-input,
-.procurement-exec-materials-table .procurement-col-edrpou .procurement-exec-input {
+.procurement-exec-materials-table .procurement-col-edrpou .procurement-exec-input,
+.procurement-exec-materials-table .procurement-col-analog-qty .procurement-exec-input,
+.procurement-exec-materials-table .procurement-col-warehouse .procurement-exec-input,
+.procurement-exec-materials-table .procurement-col-analog .procurement-exec-input {
   min-width: 0;
   width: 100%;
   max-width: 100%;
@@ -1286,9 +1394,9 @@
 
 .procurement-exec-textarea {
   width: 100%;
-  min-width: 160px;
+  min-width: 0;
   font: inherit;
-  padding: 6px 8px;
+  padding: 5px 6px;
   border: 1px solid var(--border);
   border-radius: 4px;
   resize: vertical;
@@ -1305,6 +1413,108 @@
   background: rgba(244, 67, 54, 0.08);
 }
 
+.procurement-col-reject {
+  width: 6.75rem;
+  min-width: 6.25rem;
+  max-width: 9.5rem;
+  vertical-align: top;
+}
+
+.procurement-line-reject-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.procurement-line-rejected-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c62828;
+}
+
+.procurement-line-rejected-reason,
+.procurement-line-rejected-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  white-space: normal;
+  word-break: break-word;
+}
+
+.procurement-line-rejected-reason {
+  color: var(--text);
+}
+
+.procurement-btn-reject-line,
+.procurement-btn-unreject-line {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.procurement-btn-reject-line {
+  border: 1px solid rgba(211, 47, 47, 0.55);
+  background: rgba(211, 47, 47, 0.08);
+  color: #c62828;
+}
+
+.procurement-btn-reject-line:hover:not(:disabled) {
+  background: rgba(211, 47, 47, 0.22);
+}
+
+.procurement-btn-unreject-line {
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--text-secondary);
+}
+
+.procurement-btn-reject-line:disabled,
+.procurement-btn-unreject-line:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.procurement-modal--reject-line {
+  max-width: 520px;
+}
+
+.procurement-reject-line-summary {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.procurement-reject-reason-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.procurement-reject-reason-textarea {
+  width: 100%;
+  min-height: 8rem;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.procurement-modal-actions--reject {
+  padding: 0 20px 16px;
+}
+
 .procurement-td-num {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -1312,8 +1522,8 @@
 }
 
 .procurement-line-file-cell {
-  min-width: 14rem;
-  max-width: 24rem;
+  min-width: 6.5rem;
+  max-width: 8.5rem;
   vertical-align: top;
   white-space: normal;
   overflow: visible;
@@ -1375,14 +1585,16 @@
 .procurement-line-file-pick-btn {
   display: inline-block;
   margin-top: 6px;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-hover);
   color: var(--text);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
+  white-space: normal;
+  max-width: 100%;
 }
 
 .procurement-line-file-pick-btn.is-disabled {
@@ -1419,8 +1631,8 @@
 }
 
 .procurement-edrpou-cell {
-  min-width: 10.5rem;
-  max-width: 14rem;
+  min-width: 5rem;
+  max-width: 6.75rem;
 }
 
 .procurement-edrpou-hint {
@@ -1490,13 +1702,13 @@
 }
 
 .procurement-supplier-name-td {
-  min-width: 14rem;
-  max-width: 22rem;
+  min-width: 7rem;
+  max-width: 11rem;
   vertical-align: top;
 }
 
 .procurement-supplier-name-textarea {
-  min-height: 5.5rem;
+  min-height: 3.5rem;
   max-width: 100%;
   width: 100%;
   resize: vertical;
@@ -1509,7 +1721,7 @@
 }
 
 .procurement-supplier-name-readonly {
-  max-width: 18rem;
+  max-width: 11rem;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -1539,8 +1751,8 @@
 
 /* Таблиця «лише перегляд» у картці заявки — та сама прокрутка */
 .procurement-exec-table-wrap .procurement-mini-table--wide {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
 }
 
 .procurement-materials-readonly-hint {

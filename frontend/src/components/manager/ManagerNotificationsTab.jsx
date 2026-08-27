@@ -22,6 +22,7 @@ const KIND_LABELS = {
   onec_move_receipt_partial: 'Частковий прийом переміщення (1С)',
   procurement_request_new: 'Нова заявка (для виконавців)',
   procurement_request_completed: 'Заявку виконано (для заявника)',
+  procurement_position_rejected: 'Відмова по позиції заявки',
   external_ad_lead_new: 'Новий лід з реклами',
   external_ad_lead_assigned: 'Лід передано менеджеру',
   telegram_connect_invite: 'Підключення Telegram',

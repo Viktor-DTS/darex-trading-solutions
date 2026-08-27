@@ -107,6 +107,7 @@ function formatMaterialsBlock(pr, { includeExecutorFields = false } = {}) {
     const parts = [`${i + 1}. ${escapeHtml(m.name || '—')}`];
     if (m.rejected) {
       parts.push('   ❌ Відхилено виконавцем');
+      if (m.rejectionReason) parts.push(`   Причина: ${escapeHtml(m.rejectionReason)}`);
       lines.push(parts.join('\n'));
       return;
     }
@@ -355,9 +356,96 @@ async function sendProcurementTelegramNotifications(deps, event, pr) {
   return { sent };
 }
 
+function formatProcurementPositionRejectedPlain(pr, line) {
+  const rn = pr?.requestNumber || String(pr?._id || '');
+  const name = String(line?.name || '—').trim() || '—';
+  let qty = null;
+  if (line?.initialQuantity != null && Number.isFinite(Number(line.initialQuantity))) {
+    qty = Number(line.initialQuantity);
+  } else if (line?.quantity != null && Number.isFinite(Number(line.quantity))) {
+    qty = Number(line.quantity);
+  }
+  const uom = String(line?.unitOfMeasure || 'шт.').trim() || 'шт.';
+  const qtyLabel = qty == null ? uom : `${qty} ${uom}`;
+  const reason = String(line?.rejectionReason || '').trim() || '—';
+  const who = String(line?.rejectedByName || line?.rejectedByLogin || '—').trim() || '—';
+  const when = formatDateTimeUk(line?.rejectedAt);
+  return [
+    `Відділ закупівлі відмовив у постачанні згідно заявки ${rn} по позиції.`,
+    `Позиція: ${name}`,
+    `Кількість: ${qtyLabel}`,
+    `Причина відмови: ${reason}`,
+    `П.І.Б. користувача, який надав відмову: ${who}`,
+    `Дата та час відмови: ${when}`,
+  ].join('\n');
+}
+
+function formatProcurementPositionRejectedMessage(pr, line) {
+  const rn = escapeHtml(pr?.requestNumber || String(pr?._id || ''));
+  const name = escapeHtml(String(line?.name || '—').trim() || '—');
+  let qty = null;
+  if (line?.initialQuantity != null && Number.isFinite(Number(line.initialQuantity))) {
+    qty = Number(line.initialQuantity);
+  } else if (line?.quantity != null && Number.isFinite(Number(line.quantity))) {
+    qty = Number(line.quantity);
+  }
+  const uom = escapeHtml(String(line?.unitOfMeasure || 'шт.').trim() || 'шт.');
+  const qtyLabel = qty == null ? uom : `${qty} ${uom}`;
+  const reason = escapeHtml(String(line?.rejectionReason || '').trim() || '—');
+  const who = escapeHtml(String(line?.rejectedByName || line?.rejectedByLogin || '—').trim() || '—');
+  const when = escapeHtml(formatDateTimeUk(line?.rejectedAt));
+  let body = '<b>❌ Відділ закупівлі відмовив у постачанні</b>\n\n';
+  body += `📋 <b>Заявка:</b> ${rn}\n`;
+  body += `📦 <b>Позиція:</b> ${name}\n`;
+  body += `🔢 <b>Кількість:</b> ${qtyLabel}\n`;
+  body += `📝 <b>Причина відмови:</b> ${reason}\n\n`;
+  body += `👤 <b>П.І.Б. користувача, який надав відмову:</b> ${who}\n`;
+  body += `🕐 <b>Дата та час відмови:</b> ${when}`;
+  return body;
+}
+
+async function sendProcurementPositionRejectedTelegram(deps, pr, line) {
+  const { telegramService, User, NotificationLog } = deps;
+  if (!telegramService || !pr) return { sent: 0 };
+  const login = String(pr.requesterLogin || '').trim();
+  if (!login) return { sent: 0 };
+
+  const requester = await User.findOne({
+    dismissed: { $ne: true },
+    login,
+    telegramChatId: { $exists: true, $ne: '' },
+  })
+    .select('telegramChatId login')
+    .lean();
+
+  const chatId = String(requester?.telegramChatId || '').trim();
+  if (!isValidTelegramChatId(chatId)) return { sent: 0 };
+
+  const message = formatProcurementPositionRejectedMessage(pr, line);
+  const success = await telegramService.sendMessage(chatId, message);
+  if (NotificationLog) {
+    try {
+      await NotificationLog.create({
+        type: 'procurement_position_rejected',
+        taskId: pr._id,
+        userId: login,
+        message,
+        telegramChatId: chatId,
+        status: success ? 'sent' : 'failed',
+      });
+    } catch {
+      /* ignore log errors */
+    }
+  }
+  return { sent: success ? 1 : 0 };
+}
+
 module.exports = {
   EVENT_SETTING_FIELD,
   formatProcurementTelegramMessage,
+  formatProcurementPositionRejectedPlain,
+  formatProcurementPositionRejectedMessage,
   collectProcurementRejectedChatIds,
   sendProcurementTelegramNotifications,
+  sendProcurementPositionRejectedTelegram,
 };
