@@ -537,17 +537,25 @@ export async function analyzeContractFileByUrl(fileUrl) {
     });
 
     const pdf = await loadingTask.promise;
-    const firstPage = await pdf.getPage(1);
-    const textContent = await firstPage.getTextContent();
+    try {
+      const firstPage = await pdf.getPage(1);
+      try {
+        const textContent = await firstPage.getTextContent();
 
-    const textItems = textContent.items
-      .map((item) => item.str)
-      .filter((str) => String(str).trim() !== '');
-    const firstThreeLines = textItems.slice(0, 3);
-    const pdfKey = firstThreeLines.join('|').toLowerCase().trim() || fileUrl;
-    const meta = parseContractMetaFromTextContent(textContent);
+        const textItems = textContent.items
+          .map((item) => item.str)
+          .filter((str) => String(str).trim() !== '');
+        const firstThreeLines = textItems.slice(0, 3);
+        const pdfKey = firstThreeLines.join('|').toLowerCase().trim() || fileUrl;
+        const meta = parseContractMetaFromTextContent(textContent);
 
-    return { pdfKey, meta };
+        return { pdfKey, meta };
+      } finally {
+        firstPage.cleanup();
+      }
+    } finally {
+      pdf.destroy();
+    }
   } catch (e) {
     console.error('[CONTRACT] analyzeContractFileByUrl:', e?.message || e);
     return { pdfKey: fileUrl, meta: emptyMeta };
