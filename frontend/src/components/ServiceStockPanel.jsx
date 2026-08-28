@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE_URL from '../config';
 import { filterProcurementAllowedWarehouses } from '../utils/procurementWarehouseFilter';
-import CategoryTree from './equipment/CategoryTree';
 import EquipmentList from './equipment/EquipmentList';
 import WarehouseTransferRequestModal from './WarehouseTransferRequestModal';
 import '../components/InventoryDashboard.css';
@@ -16,8 +15,6 @@ const STATUS_LABELS = {
 
 export default function ServiceStockPanel({ user }) {
   const [warehouses, setWarehouses] = useState([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [myRequests, setMyRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [transferInitial, setTransferInitial] = useState(null);
@@ -100,52 +97,23 @@ export default function ServiceStockPanel({ user }) {
       <div className="service-stock-intro">
         <h1>Залишки на складах</h1>
         <p>
-          Той самий перегляд залишків, що у завсклада: номенклатура завантажується одразу. Список
-          складів — як у відділі закупівель. Для переміщення на свій склад натисніть 🔁 у рядку.
+          Залишки завантажуються одразу. Список складів — як у відділі закупівель. Для переміщення
+          на свій склад натисніть 🔁 у рядку.
         </p>
       </div>
 
       <div className="service-stock-layout inventory-dashboard-main">
-        <div className={`inventory-sidebar-wrap ${sidebarCollapsed ? 'inventory-sidebar-wrap-collapsed' : ''}`}>
-          <aside className={`inventory-sidebar ${sidebarCollapsed ? 'inventory-sidebar-collapsed' : ''}`}>
-            {sidebarCollapsed ? null : (
-              <div className="inventory-sidebar-scale-outer">
-                <div className="inventory-sidebar-scaled">
-                  <div className="inventory-sidebar-nomenclature service-stock-category-tree">
-                    <CategoryTree
-                      selectedId={selectedCategoryId}
-                      onSelectCategory={(id) => setSelectedCategoryId(id)}
-                      showAllOption
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </aside>
-          <button
-            type="button"
-            className="inventory-sidebar-toggle"
-            onClick={() => setSidebarCollapsed((v) => !v)}
-            title={sidebarCollapsed ? 'Розгорнути панель' : 'Згорнути панель'}
-          >
-            {sidebarCollapsed ? '▶' : '◀'}
-          </button>
-        </div>
-
         <div className="inventory-tab-content inventory-stock-list-only service-stock-list-area">
           <EquipmentList
             ref={equipmentListRef}
             user={user}
             warehouses={allowedWarehouses}
-            categoryId={selectedCategoryId}
-            includeSubtree
             serviceStockMode
             allowedWarehouseNames={allowedWarehouseNames}
             onRequestTransfer={handleRequestTransfer}
           />
         </div>
       </div>
-
       <section className="service-stock-requests">
         <div className="service-stock-requests-head">
           <h2>Мої запити на переміщення</h2>

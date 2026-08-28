@@ -34,10 +34,8 @@
 .service-stock-list-area {
   min-height: 0;
   overflow: hidden;
-}
-
-.service-stock-category-tree {
-  margin-top: 0;
+  flex: 1 1 auto;
+  width: 100%;
 }
 
 .service-stock-requests {
