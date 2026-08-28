@@ -4,6 +4,7 @@ export const ZAVSKLAD_INVENTORY_TAB_IDS = [
   'movement',
   'shipment',
   'movement-journal',
+  'transfer-requests',
   'notifications',
   'write-off',
   'approval',
@@ -33,6 +34,7 @@ export function buildZavskladTabs({ approvalBadge = 0, notificationsBadge = 0 } 
     { id: 'movement', label: 'Переміщення', icon: '🔄' },
     { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
     { id: 'movement-journal', label: 'Журнал руху товару', icon: '📒' },
+    { id: 'transfer-requests', label: 'Запити на переміщення', icon: '🔁' },
     {
       id: 'notifications',
       label: 'Сповіщення',

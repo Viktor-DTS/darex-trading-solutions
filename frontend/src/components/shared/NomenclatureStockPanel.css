@@ -1,0 +1,86 @@
+.nomenclature-stock-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.nomenclature-stock-panel-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.nomenclature-stock-panel-note {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.75;
+}
+
+.nomenclature-stock-panel-empty {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.nomenclature-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nomenclature-stock-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+
+.nomenclature-stock-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.nomenclature-stock-item-name {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.nomenclature-stock-item-total {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.nomenclature-stock-wrap {
+  overflow-x: auto;
+}
+
+.nomenclature-stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.nomenclature-stock-table th,
+.nomenclature-stock-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: left;
+}
+
+.nomenclature-stock-action {
+  white-space: nowrap;
+}
+
+.btn-transfer-request {
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: rgba(59, 130, 246, 0.15);
+  color: #bfdbfe;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-transfer-request:hover {
+  background: rgba(59, 130, 246, 0.28);
+}

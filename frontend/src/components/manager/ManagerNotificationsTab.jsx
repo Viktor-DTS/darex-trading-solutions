@@ -27,7 +27,10 @@ const KIND_LABELS = {
   external_ad_lead_assigned: 'Лід передано менеджеру',
   telegram_connect_invite: 'Підключення Telegram',
   ved_request_new: 'Нова заявка ВЕД',
-  ved_request_status: 'Статус заявки ВЕД'
+  ved_request_status: 'Статус заявки ВЕД',
+  warehouse_transfer_requested: 'Запит на переміщення (сервіс)',
+  warehouse_transfer_approved: 'Переміщення підтверджено',
+  warehouse_transfer_rejected: 'Переміщення відхилено'
 };
 
 function notificationTaskId(n) {

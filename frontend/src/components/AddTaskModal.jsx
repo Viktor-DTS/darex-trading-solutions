@@ -9,6 +9,9 @@ import ClientDataSelectionModal from './ClientDataSelectionModal';
 import EquipmentDataSelectionModal from './EquipmentDataSelectionModal';
 import MaterialNameAutocomplete from './MaterialNameAutocomplete';
 import TaskOneCMovementsPanel from './onec/TaskOneCMovementsPanel';
+import NomenclatureStockPanel from './shared/NomenclatureStockPanel';
+import WarehouseTransferRequestModal from './WarehouseTransferRequestModal';
+import { useNomenclatureStock } from '../hooks/useNomenclatureStock';
 import './AddTaskModal.css';
 
 const normalizeEdrpou = (s) => (s || '').toString().trim().toLowerCase();
@@ -20,6 +23,27 @@ function isCashPaymentType(paymentType) {
 /** Договір обовʼязковий лише для «Виконано» і не готівкової оплати. */
 function isContractRequiredWhenCompleted(status, paymentType) {
   return status === 'Виконано' && !isCashPaymentType(paymentType);
+}
+
+function collectServiceTaskMaterialNames(formData) {
+  const items = [];
+  const seen = new Set();
+  const add = (name) => {
+    const n = String(name || '').trim();
+    if (n.length < 2) return;
+    const key = n.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push({ name: n, productId: '' });
+  };
+  add(formData?.oilType);
+  add(formData?.filterName);
+  add(formData?.fuelFilterName);
+  add(formData?.airFilterName);
+  add(formData?.antifreezeType);
+  add(formData?.otherMaterials);
+  (formData?.otherMaterialLines || []).forEach((row) => add(row?.name));
+  return items;
 }
 
 function getContractFileUrlString(contractFile) {
@@ -328,6 +352,48 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [users, setUsers] = useState([]);
   // Режим оптимізації для панелей бухгалтерів
   const isAccountantMode = panelType === 'accountant';
+  const isServicePanel = panelType === 'service';
+  const [serviceWarehouses, setServiceWarehouses] = useState([]);
+  const [serviceTransferInitial, setServiceTransferInitial] = useState(null);
+  const [serviceTransferOpen, setServiceTransferOpen] = useState(false);
+
+  const serviceAuthHeaders = useMemo(() => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
+
+  const serviceMaterialNames = useMemo(
+    () => (isServicePanel && open ? collectServiceTaskMaterialNames(formData) : []),
+    [isServicePanel, open, formData],
+  );
+
+  const {
+    items: serviceStockItems,
+    loading: serviceStockLoading,
+    hasMaterials: serviceHasMaterialNames,
+  } = useNomenclatureStock(serviceMaterialNames, {
+    authHeaders: serviceAuthHeaders,
+    warehouses: serviceWarehouses,
+    enabled: isServicePanel && open && serviceMaterialNames.length > 0,
+  });
+
+  useEffect(() => {
+    if (!open || !isServicePanel) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/warehouses`, { headers: serviceAuthHeaders });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setServiceWarehouses(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isServicePanel, serviceAuthHeaders]);
   // Режим тільки для читання (всі поля заблоковані)
   const isReadOnly = readOnly === true;
   const isTaskAdminUser = ['admin', 'administrator'].includes(user?.role);
@@ -3111,6 +3177,26 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     </div>
                   </div>
                 ) : null}
+                {isServicePanel ? (
+                  <div className="service-task-stock-block">
+                    <NomenclatureStockPanel
+                      title="Залишки матеріалів на складах"
+                      note="Показує залишки для введених у формі матеріалів (як у відділі закупівель). Можна надіслати запит на переміщення з іншого складу."
+                      items={serviceStockItems}
+                      loading={serviceStockLoading}
+                      canRequestTransfer={!isReadOnly}
+                      onRequestTransfer={(payload) => {
+                        setServiceTransferInitial(payload);
+                        setServiceTransferOpen(true);
+                      }}
+                      emptyHint={
+                        serviceHasMaterialNames
+                          ? 'Залишків не знайдено.'
+                          : 'Введіть назви матеріалів у полях вище (мінімум 2 символи).'
+                      }
+                    />
+                  </div>
+                ) : null}
                 {/* Рядок: Вартість робіт грн (авторозрахунок) */}
                 <div className="form-group calculated">
                   <label>Вартість робіт, грн (авторозрахунок)</label>
@@ -3630,6 +3716,21 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           </div>
         </div>
       )}
+
+      {isServicePanel ? (
+        <WarehouseTransferRequestModal
+          open={serviceTransferOpen}
+          onClose={() => setServiceTransferOpen(false)}
+          user={user}
+          authHeaders={serviceAuthHeaders}
+          warehouses={serviceWarehouses}
+          initial={serviceTransferInitial}
+          task={{
+            _id: initialData?._id || initialData?.id,
+            requestNumber: formData.requestNumber,
+          }}
+        />
+      ) : null}
     </div>
   );
 }

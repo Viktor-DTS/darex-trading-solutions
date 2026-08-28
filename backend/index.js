@@ -107,6 +107,7 @@ const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
 const { registerVedRoutes, scheduleVedSupplierRegistryJob } = require('./lib/vedRoutes');
+const { registerWarehouseTransferRoutes } = require('./lib/warehouseTransferRoutes');
 const {
   sendProcurementTelegramNotifications,
   sendProcurementPositionRejectedTelegram,
@@ -564,7 +565,10 @@ const MANAGER_NOTIFICATION_KINDS = [
   'external_ad_lead_assigned',
   'telegram_connect_invite',
   'ved_request_new',
-  'ved_request_status'
+  'ved_request_status',
+  'warehouse_transfer_requested',
+  'warehouse_transfer_approved',
+  'warehouse_transfer_rejected'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -591,6 +595,8 @@ const PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS = [
 const WAREHOUSE_FEED_NOTIFICATION_KINDS = [
   'shipment_request_new',
   'procurement_incoming_to_warehouse',
+  'warehouse_transfer_requested',
+  'warehouse_transfer_approved',
   'telegram_connect_invite'
 ];
 
@@ -645,6 +651,11 @@ const managerUserNotificationSchema = new mongoose.Schema({
   /** Унікальний ключ, щоб не дублювати нагадування (3д/1д) та авто-зняття */
   dedupeKey: { type: String, sparse: true, unique: true },
   shipmentRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShipmentRequest' },
+  warehouseTransferRequestId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'WarehouseTransferRequest',
+    default: null,
+  },
   createdAt: { type: Date, default: Date.now }
 });
 managerUserNotificationSchema.index({ recipientLogin: 1, createdAt: -1 });
@@ -21136,6 +21147,16 @@ registerVedRoutes(app, {
   authenticateToken,
 });
 scheduleVedSupplierRegistryJob();
+
+registerWarehouseTransferRoutes(app, {
+  authenticateToken,
+  Counter,
+  Warehouse,
+  User,
+  createManagerNotificationDeduped,
+  telegramService,
+  NotificationLog,
+});
 
 registerTradingRoutes(app, { getAssistantConnection });
 scheduleTradingScanJob(getAssistantConnection);

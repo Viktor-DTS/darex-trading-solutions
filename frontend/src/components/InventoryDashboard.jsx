@@ -20,6 +20,7 @@ import InventoryMovementJournal from './inventory/InventoryMovementJournal';
 import OneCReconciliation from './inventory/OneCReconciliation';
 import OneCMovementsJournal from './inventory/OneCMovementsJournal';
 import ReceiptApproval from './inventory/ReceiptApproval';
+import WarehouseTransferInbox from './inventory/WarehouseTransferInbox';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './InventoryDashboard.css';
 
@@ -387,6 +388,12 @@ function InventoryDashboard({
             user={user}
             description="Журнал відвантажень / реалізацій з 1С (документи «Реализация товаров и услуг» зі звіту «Ведомость»)."
           />
+        );
+      case 'transfer-requests':
+        return (
+          <div className="inventory-tab-content">
+            <WarehouseTransferInbox user={user} />
+          </div>
         );
       case 'notifications':
         return (

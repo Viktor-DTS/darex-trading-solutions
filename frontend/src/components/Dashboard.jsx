@@ -7,6 +7,7 @@ import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import LogisticsMap from './LogisticsMap';
 import GlobalSearch from './GlobalSearch';
+import ServiceStockPanel from './ServiceStockPanel';
 import { buildTaskDataFromExisting } from '../utils/taskCopyForCreate';
 import { computeTaskModalReadOnly } from '../utils/taskModalAccess';
 import './Dashboard.css';
@@ -112,6 +113,7 @@ function Dashboard({ user, panelType = 'service' }) {
     { id: 'blocked', label: 'Заблоковані', icon: '🚫' },
     { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳' },
     { id: 'contracts', label: 'Договори', icon: '📄' },
+    { id: 'stock', label: 'Залишки', icon: '📦' },
     { id: 'logistics', label: 'Логістика', icon: '🗺️' },
     { id: 'globalSearch', label: 'Глобальний пошук', icon: '🔍' },
     { id: 'notifications', label: 'Системні сповіщення', icon: '🔔' }
@@ -188,6 +190,8 @@ function Dashboard({ user, panelType = 'service' }) {
         <main className="table-area">
           {activeTab === 'contracts' ? (
             <ContractsTable user={user} />
+          ) : activeTab === 'stock' ? (
+            <ServiceStockPanel user={user} />
           ) : activeTab === 'logistics' ? (
             <LogisticsMap user={user} onTaskClick={handleLogisticsTaskClick} />
           ) : activeTab === 'globalSearch' ? (

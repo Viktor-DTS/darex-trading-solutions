@@ -1,0 +1,111 @@
+.wtr-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12000;
+}
+
+.wtr-modal {
+  width: min(520px, calc(100vw - 24px));
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #e2e8f0;
+}
+
+.wtr-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.wtr-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.wtr-modal-close {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.wtr-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wtr-meta {
+  margin: 0;
+  font-size: 13px;
+}
+
+.wtr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.wtr-field input,
+.wtr-field select,
+.wtr-field textarea {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.wtr-error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+.wtr-hint {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.75;
+  line-height: 1.45;
+}
+
+.wtr-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wtr-btn-primary,
+.wtr-btn-secondary {
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.wtr-btn-primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.wtr-btn-secondary {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+}
+
+.wtr-btn-primary:disabled,
+.wtr-btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
