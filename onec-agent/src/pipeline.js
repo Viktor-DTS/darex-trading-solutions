@@ -77,8 +77,9 @@ async function runPipeline(config, log, trigger = 'schedule') {
   log(`Завантаження у DTS: ${path.basename(finalPath)}${config.dts.dryRun ? ' (dryRun)' : ''}`);
   const summary = await uploadVedomost(config.dts, finalPath, trigger);
   log(
-    `Готово. Залишки: +${summary.stock?.created ?? 0}/~${summary.stock?.updated ?? 0}, ` +
-      `рух: розібрано ${summary.movementsParsed ?? '?'}, +${summary.movements?.inserted ?? 0} нових, ` +
+    `Готово. Залишки: +${summary.stock?.created ?? 0}/~${summary.stock?.updated ?? 0}/−${summary.stock?.removed ?? 0}` +
+      (summary.stock?.duplicatesCleared ? `, дублікати −${summary.stock.duplicatesCleared}` : '') +
+      `, рух: розібрано ${summary.movementsParsed ?? '?'}, +${summary.movements?.inserted ?? 0} нових, ` +
       `~${summary.movements?.updated ?? 0} оновл., дублі ${summary.movements?.duplicates ?? 0}` +
       (summary.movements?.writeErrors ? `, помилок ${summary.movements.writeErrors}` : '') +
       `. Не прив'язані склади: ${summary.unmappedWarehouses?.length ?? 0}. ` +

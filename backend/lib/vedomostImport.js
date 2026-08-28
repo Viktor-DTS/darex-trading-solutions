@@ -754,7 +754,15 @@ async function runVedomostImport({
     balancesParsed: parsed.balances.length,
     movementsParsed: parsed.movements.length,
     movementsByType: {},
-    stock: { created: 0, updated: 0, skipped: 0, unmappedWarehouse: 0, serialized: 0 },
+    stock: {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      removed: 0,
+      duplicatesCleared: 0,
+      unmappedWarehouse: 0,
+      serialized: 0,
+    },
     movements: { inserted: 0, updated: 0, duplicates: 0, unmappedWarehouse: 0 },
     aliases: { created: 0, updated: 0 },
     unmappedWarehouses: [],
@@ -830,6 +838,16 @@ async function runVedomostImport({
   const categoryIndex = stock.buildCategoryIndex(categories);
   const rootCategoryByKind = stock.buildRootCategoryByKind(categories);
 
+  const positiveSerials = new Set();
+  const nomesInSnapshot = new Set();
+  for (const row of parsed.balances) {
+    if (row.nomenclature) nomesInSnapshot.add(row.nomenclature);
+    if (row.serial && (row.closing || 0) > 0) {
+      positiveSerials.add(`${row.nomenclature}\0${String(row.serial)}`);
+    }
+  }
+  const mappedStockWhIds = new Set();
+
   for (const b of parsed.balances) {
     const wh = resolveWh(b.warehouse);
     if (!wh) {
@@ -841,6 +859,7 @@ async function runVedomostImport({
       summary.stock.skipped++;
       continue;
     }
+    mappedStockWhIds.add(wh.id);
     const nome = b.nomenclature;
     const qty = Math.max(0, Math.round((b.closing || 0) * 1000) / 1000);
     if (!nome) {
@@ -858,17 +877,31 @@ async function runVedomostImport({
     // Окрема одиниця з серійним номером (підрядок під номенклатурою в «Ведомости»)
     if (b.serial) {
       const serialNumber = String(b.serial);
-      const qty = Math.max(0, Math.round((b.closing || 0) * 1000) / 1000);
-      if (qty <= 0) {
-        summary.stock.skipped++;
-        continue;
-      }
+      const stillOnStock = positiveSerials.has(`${nome}\0${serialNumber}`);
       try {
         const existing = await Equipment.findOne({
           type: nome,
           serialNumber,
           isDeleted: { $ne: true },
         });
+        if (qty <= 0) {
+          // Якщо той самий серійник є з залишком > 0 на іншому складі — оновить той рядок.
+          if (stillOnStock) {
+            summary.stock.skipped++;
+            continue;
+          }
+          if (existing && stock.canReconcileFromOneC(existing.status)) {
+            if (!dryRun) {
+              stock.markEquipmentAbsentFromOneC(existing, now, `кінцевий залишок 0, серія ${serialNumber}`);
+              await existing.save();
+            }
+            summary.stock.removed++;
+          } else {
+            summary.stock.skipped++;
+          }
+          summary.stock.serialized++;
+          continue;
+        }
         if (dryRun) {
           if (existing) summary.stock.updated++;
           else summary.stock.created++;
@@ -915,15 +948,22 @@ async function runVedomostImport({
       continue;
     }
 
-    if (dryRun) {
-      const existing = await Equipment.findOne(stock.batchSearchQuery(nome, wh.id, region)).lean();
-      if (existing) summary.stock.updated++;
-      else summary.stock.created++;
-      continue;
-    }
-
     try {
-      const existing = await Equipment.findOne(stock.batchSearchQuery(nome, wh.id, region));
+      const matches = await stock.findDocs(Equipment, stock.batchSearchQuery(nome, wh.id, region));
+      const existing = stock.pickPreferredBatchDoc(matches);
+      if (dryRun) {
+        if (existing) {
+          summary.stock.updated++;
+          if (qty <= 0) summary.stock.removed++;
+          const extraCount = Math.max(0, matches.length - 1);
+          summary.stock.duplicatesCleared += extraCount;
+        } else if (qty > 0) {
+          summary.stock.created++;
+        } else {
+          summary.stock.skipped++;
+        }
+        continue;
+      }
       if (existing) {
         existing.quantity = qty;
         existing.batchUnit = batchUnit;
@@ -932,11 +972,28 @@ async function runVedomostImport({
         existing.currentWarehouse = wh.id;
         existing.currentWarehouseName = wh.name;
         existing.region = region;
-        existing.status = qty > 0 ? 'in_stock' : existing.status;
         existing.lastModified = now;
         if (!existing.batchName) existing.batchName = nome;
-        await existing.save();
-        summary.stock.updated++;
+        if (qty > 0) {
+          existing.status = 'in_stock';
+          await existing.save();
+          summary.stock.updated++;
+        } else if (stock.canReconcileFromOneC(existing.status)) {
+          stock.markEquipmentAbsentFromOneC(existing, now, nome);
+          await existing.save();
+          summary.stock.removed++;
+        } else {
+          await existing.save();
+          summary.stock.skipped++;
+        }
+        const extras = matches.filter(
+          (d) => String(d._id) !== String(existing._id) && stock.canReconcileFromOneC(d.status)
+        );
+        for (const extra of extras) {
+          stock.markEquipmentAbsentFromOneC(extra, now, `дублікат партії «${nome}»`);
+          await extra.save();
+          summary.stock.duplicatesCleared++;
+        }
       } else {
         if (qty <= 0) {
           summary.stock.skipped++;
@@ -966,6 +1023,36 @@ async function runVedomostImport({
     }
   }
 
+  // 5) Серійники, яких немає в поточному знімку 1С (продані / списані до періоду звіту)
+  if (mappedStockWhIds.size) {
+    try {
+      const stale = await stock.findDocs(Equipment, {
+        currentWarehouse: { $in: [...mappedStockWhIds] },
+        status: { $in: ['in_stock', 'reserved'] },
+        isDeleted: { $ne: true },
+        serialNumber: { $exists: true, $nin: [null, ''] },
+      });
+      for (const eq of stale) {
+        const nome = eq.type;
+        const serial = String(eq.serialNumber || '');
+        if (!nome || !serial) continue;
+        if (positiveSerials.has(`${nome}\0${serial}`)) continue;
+        if (!nomesInSnapshot.has(nome)) {
+          const notes = String(eq.notes || '');
+          if (!/Ведомости|Імпорт залишків 1С/i.test(notes)) continue;
+        }
+        if (!stock.canReconcileFromOneC(eq.status)) continue;
+        if (!dryRun) {
+          stock.markEquipmentAbsentFromOneC(eq, now, `серійник ${serial} відсутній у знімку`);
+          await eq.save();
+        }
+        summary.stock.removed++;
+      }
+    } catch (e) {
+      summary.warnings.push(`Звірка серійників зі знімком 1С: ${e.message}`);
+    }
+  }
+
   summary.unmappedWarehouses = [...unmappedSeen].sort();
 
   if (!dryRun && EventLog) {
@@ -977,7 +1064,7 @@ async function runVedomostImport({
         action: 'import',
         entityType: 'onec-vedomost',
         entityId: 'bulk',
-        description: `Імпорт «Ведомости» 1С: залишки +${summary.stock.created}/~${summary.stock.updated}, рух +${summary.movements.inserted} (дублі ${summary.movements.duplicates})`,
+        description: `Імпорт «Ведомости» 1С: залишки +${summary.stock.created}/~${summary.stock.updated}/−${summary.stock.removed}, дублікати ${summary.stock.duplicatesCleared}, рух +${summary.movements.inserted} (дублі ${summary.movements.duplicates})`,
         details: {
           period: parsed.period,
           fileHash,
@@ -1005,6 +1092,8 @@ async function runVedomostImport({
           created: summary.stock.created,
           updated: summary.stock.updated,
           skipped: summary.stock.skipped,
+          removed: summary.stock.removed,
+          duplicatesCleared: summary.stock.duplicatesCleared,
         },
         movements: {
           inserted: summary.movements.inserted,

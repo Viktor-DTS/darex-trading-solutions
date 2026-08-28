@@ -395,21 +395,74 @@ function resolveCategory(nome, rules, index) {
 }
 
 function batchSearchQuery(type, warehouseId, region) {
+  // Не фільтруємо manufacturer: картка продукту / ручне надходження часто вже
+  // заповнює виробника. Старий фільтр «лише порожній manufacturer» створював
+  // другий рядок без виробника (GDG7000EC / TMG DG11000TE тощо).
   return {
     type,
     currentWarehouse: warehouseId,
     region: region || '',
     status: { $ne: 'deleted' },
     isDeleted: { $ne: true },
-    $and: [
-      {
-        $or: [{ serialNumber: null }, { serialNumber: { $exists: false } }, { serialNumber: '' }],
-      },
-      {
-        $or: [{ manufacturer: null }, { manufacturer: { $exists: false } }, { manufacturer: '' }],
-      },
-    ],
+    $or: [{ serialNumber: null }, { serialNumber: { $exists: false } }, { serialNumber: '' }],
   };
+}
+
+function manufacturerScore(doc) {
+  const mfr = String(doc?.manufacturer || '').trim();
+  if (!mfr || /^не\s*визначено$/i.test(mfr)) return 0;
+  return 1;
+}
+
+/** Серед дублікатів партії на складі лишаємо рядок з виробником / карточкою. */
+function pickPreferredBatchDoc(docs) {
+  if (!Array.isArray(docs) || docs.length === 0) return null;
+  const score = (d) => {
+    let s = 0;
+    if (manufacturerScore(d)) s += 4;
+    if (d.productId) s += 2;
+    if (d.categoryId) s += 1;
+    return s;
+  };
+  return [...docs].sort((a, b) => {
+    const diff = score(b) - score(a);
+    if (diff) return diff;
+    return String(a._id || '').localeCompare(String(b._id || ''));
+  })[0];
+}
+
+const STATUSES_SKIP_ONEC_RECONCILE = new Set([
+  'shipped',
+  'sold',
+  'written_off',
+  'deleted',
+  'in_transit',
+  'pending_shipment',
+]);
+
+function canReconcileFromOneC(status) {
+  return !STATUSES_SKIP_ONEC_RECONCILE.has(String(status || 'in_stock'));
+}
+
+function markEquipmentAbsentFromOneC(doc, now, reason) {
+  doc.status = 'written_off';
+  doc.quantity = 0;
+  doc.lastModified = now;
+  doc.reservedBy = '';
+  doc.reservedByName = '';
+  doc.reservedByLogin = '';
+  doc.reservationClientName = '';
+  const suffix = `Знято з залишку за знімком 1С (${reason})`;
+  const prev = String(doc.notes || '').trim();
+  if (!prev.includes('Знято з залишку за знімком 1С')) {
+    doc.notes = prev ? `${prev}; ${suffix}` : suffix;
+  }
+  return doc;
+}
+
+async function findDocs(Equipment, query) {
+  const found = await Equipment.find(query);
+  return Array.isArray(found) ? found : [];
 }
 
 /**
@@ -569,7 +622,8 @@ async function runStockImport({
     try {
       if (item.kind === 'batch') {
         const qty = Math.max(1, Math.round(item.qty * 1000) / 1000);
-        const existing = await Equipment.findOne(batchSearchQuery(nome, String(warehouseDoc._id), region));
+        const matches = await findDocs(Equipment, batchSearchQuery(nome, String(warehouseDoc._id), region));
+        const existing = pickPreferredBatchDoc(matches);
 
         if (dryRun) {
           summary.details.push({
@@ -606,6 +660,12 @@ async function runStockImport({
           summary.updated++;
           summary.details.push({ action: 'update', kind: 'batch', type: nome, id: String(existing._id), quantity: qty });
           if (categoryId) recordLearnedCategory(nome, categoryId);
+          const extras = matches.filter((d) => String(d._id) !== String(existing._id) && canReconcileFromOneC(d.status));
+          for (const extra of extras) {
+            markEquipmentAbsentFromOneC(extra, new Date(), 'дублікат партії');
+            await extra.save();
+            summary.skipped++;
+          }
         } else {
           maybeSimilarityHint(nome, 'batch');
           poolForMatching.push(nome);
@@ -751,5 +811,9 @@ module.exports = {
   buildCategoryIndex,
   buildRootCategoryByKind,
   batchSearchQuery,
+  pickPreferredBatchDoc,
+  canReconcileFromOneC,
+  markEquipmentAbsentFromOneC,
+  findDocs,
   runStockImport,
 };
