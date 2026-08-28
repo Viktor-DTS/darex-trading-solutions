@@ -33,6 +33,78 @@ function formatUkDotsFromIso(iso) {
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
+function getContractFileExtension(fileName = '') {
+  const m = String(fileName || '').split('?')[0].match(/\.(pdf|docx?)$/i);
+  return m ? `.${m[1].toLowerCase()}` : '.pdf';
+}
+
+/** Імена з Cloudinary / сховища: випадковий id без зрозумілого тексту */
+function isLikelyGeneratedStorageFileName(fileName = '') {
+  const base = String(fileName || '').split('?')[0].split('/').pop() || '';
+  const m = base.match(/^(.+)\.(pdf|docx?)$/i);
+  if (!m) return false;
+
+  const stem = m[1].trim();
+  if (!stem || stem.length < 10) return false;
+  if (/[а-яіїєґ]/iu.test(stem)) return false;
+  if (/contract|dogov|догов|угод|agreement|privat|darex/iu.test(stem)) return false;
+
+  return /^[a-z0-9_-]+$/i.test(stem);
+}
+
+function buildContractDisplayFileName({ number = '', isoDate = '', rawFileName = 'contract.pdf' }) {
+  const ext = getContractFileExtension(rawFileName);
+  const num = String(number || '').trim();
+  const dateUk = isoDate ? formatUkDotsFromIso(isoDate) : '';
+
+  if (num && dateUk) return `Договір № ${num} від ${dateUk}${ext}`;
+  if (num) return `Договір № ${num}${ext}`;
+  if (dateUk) return `Договір від ${dateUk}${ext}`;
+
+  const raw = String(rawFileName || '').split('?')[0].split('/').pop() || '';
+  if (raw && !isLikelyGeneratedStorageFileName(raw)) return raw;
+
+  return `Договір${ext}`;
+}
+
+function resolveContractDisplayFileName(rawFileName, number, isoDate) {
+  const raw = String(rawFileName || 'contract.pdf').split('?')[0].split('/').pop() || 'contract.pdf';
+  if (!isLikelyGeneratedStorageFileName(raw)) return raw;
+  return buildContractDisplayFileName({ number, isoDate, rawFileName: raw });
+}
+
+function getStoredContractFileName(contractFile) {
+  if (contractFile == null) return 'contract.pdf';
+  if (typeof contractFile === 'string') {
+    return (contractFile.split('/').pop() || 'contract.pdf').split('?')[0];
+  }
+  if (typeof contractFile === 'object') {
+    const fromMeta = String(
+      contractFile.fileName ||
+        contractFile.filename ||
+        contractFile.originalname ||
+        contractFile.originalName ||
+        '',
+    ).trim();
+    if (fromMeta && !isLikelyGeneratedStorageFileName(fromMeta)) return fromMeta.split('?')[0];
+
+    const url = String(
+      contractFile.url ||
+        contractFile.href ||
+        contractFile.secure_url ||
+        contractFile.publicUrl ||
+        '',
+    ).trim();
+    if (url) return (url.split('/').pop() || 'contract.pdf').split('?')[0];
+
+    const nameField = String(contractFile.name || '').trim();
+    if (nameField && !/^https?:\/\//i.test(nameField)) {
+      return nameField.split('?')[0];
+    }
+  }
+  return 'contract.pdf';
+}
+
 function normalizeAnalysisEntry(raw) {
   if (raw && typeof raw === 'object' && raw.pdfKey != null) {
     return {
@@ -112,13 +184,14 @@ function resolveContractRowPresentation(contractFileData, pdfByUrl) {
     isoDb ||
     ((analyzed?.contractDate || '').trim().match(/^(\d{4}-\d{2}-\d{2})/)?.[0] ?? '');
   const isoSortKey = iso || '';
-  const fileLabel =
+  const rawFileName =
     typeof contractFileData.fileName === 'string' ? contractFileData.fileName : 'contract.pdf';
+  const fileShortName = resolveContractDisplayFileName(rawFileName, number, iso);
 
   return {
     numberLabel: number || '—',
     dateUkLabel: iso ? formatUkDotsFromIso(iso) : '—',
-    fileShortName: fileLabel,
+    fileShortName,
     /** Для сортування списку: новіші дати вище */
     isoForSort: isoSortKey || '1900-01-01',
     numberPlain: number,
@@ -413,9 +486,7 @@ function ContractsTable({ user }) {
       const dedupeKey = getDedupePdfKeyForUrl(contractFileUrl);
 
       if (!contract.contractFiles.has(dedupeKey)) {
-        const fileName = typeof task.contractFile === 'string' 
-          ? task.contractFile.split('/').pop() 
-          : (task.contractFile?.name || 'contract.pdf');
+        const fileName = getStoredContractFileName(task.contractFile);
         contract.contractFiles.set(dedupeKey, {
           fileName: fileName,
           urls: new Set([contractFileUrl]),
