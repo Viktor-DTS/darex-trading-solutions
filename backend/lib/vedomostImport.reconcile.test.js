@@ -169,7 +169,7 @@ function testPickPreferredKeepsManufacturer() {
   ]);
   assert.strictEqual(preferred._id, 'b');
   const q = batchSearchQuery('Дизель-генератор GDG7000EC', 'wh1', 'Київ');
-  assert.ok(!JSON.stringify(q).includes('"manufacturer"'), 'batchSearchQuery не фільтрує manufacturer');
+  assert.ok(!JSON.stringify(q).includes('"region"'), 'batchSearchQuery не фільтрує region');
   console.log('OK: preferred batch keeps manufacturer; search ignores manufacturer');
 }
 
@@ -383,6 +383,44 @@ async function testBatchAbsentFromSnapshot() {
   console.log('OK: batch absent from snapshot is written off');
 }
 
+async function testBatchDuplicateWithRegionMismatch() {
+  const rows = [
+    ['Период: 24.08.2026 - 28.08.2026'],
+    [],
+    HEADER,
+    warehouseRow('СКЛАД КИЕВ СОЛЮШН'),
+    nomeRow('Фильтр топл CX 0708', 'шт', 23, 0, 0, 23),
+  ];
+  const mocks = makeMocks({
+    warehouses: [
+      {
+        _id: 'wh-kyiv-dts',
+        name: 'Склад Київ ДТС',
+        region: 'Київ',
+        oneCNames: ['СКЛАД КИЕВ СОЛЮШН'],
+        isStockSource: true,
+      },
+    ],
+    equipment: [
+      { _id: 'd1', type: 'Фильтр топл CX 0708', status: 'in_stock', quantity: 40, currentWarehouse: 'wh-kyiv-dts', region: '' },
+      { _id: 'd2', type: 'Фильтр топл CX 0708', status: 'in_stock', quantity: 35, currentWarehouse: 'wh-kyiv-dts', region: 'Київський' },
+      { _id: 'd3', type: 'Фильтр топл CX 0708', status: 'in_stock', quantity: 38, currentWarehouse: 'wh-kyiv-dts', region: 'Київ' },
+      { _id: 'd4', type: 'Фильтр топл CX 0708', status: 'in_stock', quantity: 37, currentWarehouse: 'wh-kyiv-dts', region: '' },
+      { _id: 'd5', type: 'Фильтр топл CX 0708', status: 'in_stock', quantity: 36, currentWarehouse: 'wh-kyiv-dts', region: 'Україна' },
+      { _id: 'd6', type: 'Фильтр топл CX 0708', status: 'in_stock', quantity: 37, currentWarehouse: 'wh-kyiv-dts', region: '' },
+    ],
+  });
+  const summary = await runImport(xlsxFromRows(rows), mocks);
+  const active = mocks.eqDocs.filter((d) => d.status === 'in_stock');
+  const written = mocks.eqDocs.filter((d) => d.status === 'written_off');
+  assert.strictEqual(active.length, 1, `лишився 1 in_stock, отримано ${active.length}`);
+  assert.strictEqual(active[0].quantity, 23);
+  assert.strictEqual(active[0].region, 'Київ');
+  assert.ok(written.length >= 5, `списано ≥5 дублікатів, от ${written.length}`);
+  assert.ok(summary.stock.duplicatesCleared >= 5);
+  console.log('OK: region-mismatch batch duplicates deduped to qty from 1C');
+}
+
 async function run() {
   testParseZeroSerialStaysInBalances();
   testPickPreferredKeepsManufacturer();
@@ -390,6 +428,7 @@ async function run() {
   await testReconcileMissingSerialNotInFile();
   await testBatchDuplicateManufacturer();
   await testBatchAbsentFromSnapshot();
+  await testBatchDuplicateWithRegionMismatch();
   console.log('All reconcile tests passed');
 }
 

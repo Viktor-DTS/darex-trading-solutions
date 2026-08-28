@@ -398,14 +398,50 @@ function batchSearchQuery(type, warehouseId, region) {
   // Не фільтруємо manufacturer: картка продукту / ручне надходження часто вже
   // заповнює виробника. Старий фільтр «лише порожній manufacturer» створював
   // другий рядок без виробника (GDG7000EC / TMG DG11000TE тощо).
+  // region не включаємо в фільтр: у старих записів часто '' або застарілий регіон
+  // після перейменування складу — імпорт тоді не знаходив дублікати (CX 0708 ×6).
+  void region;
   return {
     type,
     currentWarehouse: warehouseId,
-    region: region || '',
     status: { $ne: 'deleted' },
     isDeleted: { $ne: true },
     $or: [{ serialNumber: null }, { serialNumber: { $exists: false } }, { serialNumber: '' }],
   };
+}
+
+/** Усі активні партії без серійника на складі (незалежно від region). */
+function batchWarehouseQuery(warehouseId) {
+  return {
+    currentWarehouse: warehouseId,
+    status: { $in: ['in_stock', 'reserved'] },
+    isDeleted: { $ne: true },
+    $or: [{ serialNumber: null }, { serialNumber: { $exists: false } }, { serialNumber: '' }],
+  };
+}
+
+async function dedupeBatchDuplicatesOnWarehouse(Equipment, warehouseId, now, dryRun, summary, reasonPrefix = 'дублікат партії') {
+  const rows = await findDocs(Equipment, batchWarehouseQuery(warehouseId));
+  const byType = new Map();
+  for (const eq of rows) {
+    const nome = String(eq.type || '').trim();
+    if (!nome) continue;
+    if (!byType.has(nome)) byType.set(nome, []);
+    byType.get(nome).push(eq);
+  }
+  for (const [nome, docs] of byType) {
+    if (docs.length <= 1) continue;
+    const preferred = pickPreferredBatchDoc(docs);
+    for (const extra of docs) {
+      if (String(extra._id) === String(preferred._id)) continue;
+      if (!canReconcileFromOneC(extra.status)) continue;
+      if (!dryRun) {
+        markEquipmentAbsentFromOneC(extra, now, `${reasonPrefix} «${nome}»`);
+        await extra.save();
+      }
+      summary.duplicatesCleared = (summary.duplicatesCleared || 0) + 1;
+    }
+  }
 }
 
 function manufacturerScore(doc) {
@@ -811,6 +847,8 @@ module.exports = {
   buildCategoryIndex,
   buildRootCategoryByKind,
   batchSearchQuery,
+  batchWarehouseQuery,
+  dedupeBatchDuplicatesOnWarehouse,
   pickPreferredBatchDoc,
   canReconcileFromOneC,
   markEquipmentAbsentFromOneC,

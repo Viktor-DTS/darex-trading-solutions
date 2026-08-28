@@ -1090,6 +1090,26 @@ async function runVedomostImport({
     }
   }
 
+  // 7) Дублікати партій на mapped-складах (region/legacy-записи, пропущені кроками 4–6)
+  if (mappedStockWhIds.size && !dryRun) {
+    const dedupeSummary = { duplicatesCleared: 0 };
+    try {
+      for (const whId of mappedStockWhIds) {
+        await stock.dedupeBatchDuplicatesOnWarehouse(
+          Equipment,
+          whId,
+          now,
+          dryRun,
+          dedupeSummary,
+          'зведення дублікатів'
+        );
+      }
+      summary.stock.duplicatesCleared += dedupeSummary.duplicatesCleared || 0;
+    } catch (e) {
+      summary.warnings.push(`Зведення дублікатів партій: ${e.message}`);
+    }
+  }
+
   summary.unmappedWarehouses = [...unmappedSeen].sort();
 
   if (!dryRun && EventLog) {
