@@ -14826,10 +14826,18 @@ async function buildEquipmentListQuery(req) {
     columnFilters: columnFiltersRaw,
   } = req.query;
   const query = {};
+  const columnFilters = parseColumnFiltersQuery(columnFiltersRaw);
   const includeDeleted = ['1', 'true'].includes(String(req.query.includeDeleted || '').toLowerCase());
   if (!includeDeleted) {
     query.isDeleted = { $ne: true };
     query.status = { $ne: 'deleted' };
+  }
+  const statusCol = columnFilters.status != null ? String(columnFilters.status).trim() : '';
+  const hasExplicitStatusFilter =
+    !!(status || statusLabel || (statusCol && statusCol !== 'Всі'));
+  // За замовчуванням «Залишки» — лише те, що реально на складі (не списане / відвантажене).
+  if (!hasExplicitStatusFilter && !includeDeleted) {
+    pushEquipmentQueryAnd(query, { status: { $nin: ['written_off', 'shipped', 'sold'] } });
   }
 
   if (warehouse) {
@@ -14926,7 +14934,6 @@ async function buildEquipmentListQuery(req) {
     pushEquipmentQueryAnd(query, searchClause);
   }
 
-  const columnFilters = parseColumnFiltersQuery(columnFiltersRaw);
   const needsFixedAssets =
     Object.values(columnFilters).some((v) => {
       const text = Array.isArray(v) ? v.join(' ') : String(v || '');

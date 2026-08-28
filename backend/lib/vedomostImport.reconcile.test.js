@@ -336,12 +336,60 @@ async function testBatchDuplicateManufacturer() {
   console.log('OK: batch duplicates with manufacturer are merged, empty copies written off');
 }
 
+async function testBatchAbsentFromSnapshot() {
+  const rows = [
+    ['Период: 24.08.2026 - 28.08.2026'],
+    [],
+    HEADER,
+    warehouseRow('СКЛАД КИЕВ'),
+    nomeRow('Дизель-генератор GDG7000EC', 'шт', 1, 0, 0, 1),
+  ];
+  const mocks = makeMocks({
+    warehouses: [
+      {
+        _id: 'wh-kyiv-energy',
+        name: 'Склад Київ Дарекс Енерго',
+        region: 'Київ',
+        oneCNames: ['СКЛАД КИЕВ'],
+        isStockSource: true,
+      },
+    ],
+    equipment: [
+      {
+        _id: 'ghost-batch',
+        type: 'Дизель-генератор TMG DG11000TE',
+        status: 'in_stock',
+        quantity: 2,
+        currentWarehouse: 'wh-kyiv-energy',
+        region: 'Київ',
+        notes: 'Імпорт «Ведомости» 1С (TDSheet)',
+      },
+      {
+        _id: 'keep-batch',
+        type: 'Дизель-генератор GDG7000EC',
+        status: 'in_stock',
+        quantity: 1,
+        currentWarehouse: 'wh-kyiv-energy',
+        region: 'Київ',
+      },
+    ],
+  });
+  const summary = await runImport(xlsxFromRows(rows), mocks);
+  const ghost = mocks.eqDocs.find((d) => d._id === 'ghost-batch');
+  const keep = mocks.eqDocs.find((d) => d._id === 'keep-batch');
+  assert.strictEqual(keep.status, 'in_stock');
+  assert.strictEqual(ghost.status, 'written_off', 'партія без рядка у знімку має бути списана');
+  assert.ok(summary.stock.removed >= 1);
+  console.log('OK: batch absent from snapshot is written off');
+}
+
 async function run() {
   testParseZeroSerialStaysInBalances();
   testPickPreferredKeepsManufacturer();
   await testWriteOffZeroSerial();
   await testReconcileMissingSerialNotInFile();
   await testBatchDuplicateManufacturer();
+  await testBatchAbsentFromSnapshot();
   console.log('All reconcile tests passed');
 }
 

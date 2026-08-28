@@ -153,7 +153,9 @@ function getEquipmentQuantityNumber(item) {
     if (sum > 0) return sum;
   }
   const q = Number(item?.quantity);
-  if (Number.isFinite(q) && q > 0) return q;
+  if (Number.isFinite(q)) return Math.max(0, q);
+  const st = item?.warehouseDisplayStatus || item?.status;
+  if (st === 'written_off' || st === 'shipped' || st === 'sold') return 0;
   return 1;
 }
 

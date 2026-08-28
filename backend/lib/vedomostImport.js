@@ -839,11 +839,18 @@ async function runVedomostImport({
   const rootCategoryByKind = stock.buildRootCategoryByKind(categories);
 
   const positiveSerials = new Set();
+  const positiveBatches = new Set();
   const nomesInSnapshot = new Set();
   for (const row of parsed.balances) {
     if (row.nomenclature) nomesInSnapshot.add(row.nomenclature);
     if (row.serial && (row.closing || 0) > 0) {
       positiveSerials.add(`${row.nomenclature}\0${String(row.serial)}`);
+    }
+    if (!row.serial && row.nomenclature && (row.closing || 0) > 0) {
+      const whRow = resolveWh(row.warehouse);
+      if (whRow?.isStockSource !== false && whRow?.id) {
+        positiveBatches.add(`${whRow.id}\0${row.nomenclature}`);
+      }
     }
   }
   const mappedStockWhIds = new Set();
@@ -1050,6 +1057,36 @@ async function runVedomostImport({
       }
     } catch (e) {
       summary.warnings.push(`Звірка серійників зі знімком 1С: ${e.message}`);
+    }
+  }
+
+  // 6) Партії без серійника, яких немає у знімку на цьому складі
+  if (mappedStockWhIds.size) {
+    try {
+      const staleBatches = await stock.findDocs(Equipment, {
+        currentWarehouse: { $in: [...mappedStockWhIds] },
+        status: { $in: ['in_stock', 'reserved'] },
+        isDeleted: { $ne: true },
+        $or: [{ serialNumber: null }, { serialNumber: { $exists: false } }, { serialNumber: '' }],
+      });
+      for (const eq of staleBatches) {
+        const nome = eq.type;
+        const whId = String(eq.currentWarehouse || '');
+        if (!nome || !whId) continue;
+        if (positiveBatches.has(`${whId}\0${nome}`)) continue;
+        if (!nomesInSnapshot.has(nome)) {
+          const notes = String(eq.notes || '');
+          if (!/Ведомости|Імпорт залишків 1С/i.test(notes)) continue;
+        }
+        if (!stock.canReconcileFromOneC(eq.status)) continue;
+        if (!dryRun) {
+          stock.markEquipmentAbsentFromOneC(eq, now, `партія «${nome}» відсутня у знімку`);
+          await eq.save();
+        }
+        summary.stock.removed++;
+      }
+    } catch (e) {
+      summary.warnings.push(`Звірка партій зі знімком 1С: ${e.message}`);
     }
   }
 
