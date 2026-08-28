@@ -1,61 +1,52 @@
 .service-stock-panel {
-  padding: 16px 20px 24px;
-  color: #e2e8f0;
-  height: 100%;
-  overflow: auto;
-}
-
-.service-stock-header h1 {
-  margin: 0 0 8px;
-  font-size: 22px;
-}
-
-.service-stock-header p {
-  margin: 0 0 16px;
-  max-width: 920px;
-  line-height: 1.5;
-  opacity: 0.85;
-  font-size: 14px;
-}
-
-.service-stock-search-row {
-  margin-bottom: 12px;
-}
-
-.service-stock-search {
-  width: min(520px, 100%);
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(15, 23, 42, 0.75);
-  color: #e2e8f0;
-}
-
-.service-stock-hints {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: #e2e8f0;
+  overflow: hidden;
 }
 
-.service-stock-hint-chip {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #cbd5e1;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
+.service-stock-intro {
+  padding: 12px 16px 0;
+  flex-shrink: 0;
 }
 
-.service-stock-subhint {
-  margin: 0 0 12px;
+.service-stock-intro h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.service-stock-intro p {
+  margin: 0 0 8px;
+  max-width: 980px;
+  line-height: 1.45;
   font-size: 13px;
-  opacity: 0.75;
+  opacity: 0.85;
+}
+
+.service-stock-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+}
+
+.service-stock-list-area {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.service-stock-category-tree {
+  margin-top: 0;
 }
 
 .service-stock-requests {
-  margin-top: 24px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 16px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 220px;
+  overflow: auto;
 }
 
 .service-stock-requests-head {
@@ -63,12 +54,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .service-stock-requests-head h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .service-stock-refresh {
@@ -78,6 +69,12 @@
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
+}
+
+.service-stock-subhint {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.75;
 }
 
 .service-stock-requests-table-wrap {
@@ -92,7 +89,7 @@
 
 .service-stock-requests-table th,
 .service-stock-requests-table td {
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   text-align: left;
   vertical-align: top;
@@ -129,4 +126,8 @@
   margin-top: 4px;
   font-size: 12px;
   opacity: 0.8;
+}
+
+.btn-action.btn-transfer-request {
+  font-size: 14px;
 }

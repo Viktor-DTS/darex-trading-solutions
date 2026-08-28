@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE_URL from '../config';
-import { useNomenclatureStock } from '../hooks/useNomenclatureStock';
-import NomenclatureStockPanel from './shared/NomenclatureStockPanel';
+import { filterProcurementAllowedWarehouses } from '../utils/procurementWarehouseFilter';
+import CategoryTree from './equipment/CategoryTree';
+import EquipmentList from './equipment/EquipmentList';
 import WarehouseTransferRequestModal from './WarehouseTransferRequestModal';
+import '../components/InventoryDashboard.css';
 import './ServiceStockPanel.css';
 
 const STATUS_LABELS = {
@@ -13,25 +15,34 @@ const STATUS_LABELS = {
 };
 
 export default function ServiceStockPanel({ user }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [hints, setHints] = useState([]);
-  const [hintsLoading, setHintsLoading] = useState(false);
   const [warehouses, setWarehouses] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [myRequests, setMyRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [transferInitial, setTransferInitial] = useState(null);
   const [transferOpen, setTransferOpen] = useState(false);
+  const equipmentListRef = useRef(null);
 
   const authHeaders = useMemo(() => {
     const token = localStorage.getItem('token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(String(searchQuery || '').trim()), 280);
-    return () => clearTimeout(t);
-  }, [searchQuery]);
+  const allowedWarehouses = useMemo(
+    () => filterProcurementAllowedWarehouses(warehouses),
+    [warehouses],
+  );
+
+  const allowedWarehouseNames = useMemo(
+    () =>
+      new Set(
+        allowedWarehouses
+          .map((w) => String(w.name || '').trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    [allowedWarehouses],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -49,45 +60,6 @@ export default function ServiceStockPanel({ user }) {
       cancelled = true;
     };
   }, [authHeaders]);
-
-  useEffect(() => {
-    const q = debouncedQuery;
-    if (q.length < 2) {
-      setHints([]);
-      setHintsLoading(false);
-      return undefined;
-    }
-    setHintsLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/service/material-hints?q=${encodeURIComponent(q)}`,
-          { headers: authHeaders },
-        );
-        if (!res.ok) throw new Error('hints failed');
-        const data = await res.json();
-        setHints(Array.isArray(data) ? data : []);
-      } catch (e) {
-        console.error(e);
-        setHints([]);
-      } finally {
-        setHintsLoading(false);
-      }
-    }, 220);
-    return () => clearTimeout(t);
-  }, [debouncedQuery, authHeaders]);
-
-  const stockMaterials = useMemo(() => {
-    if (debouncedQuery.length >= 2) {
-      return [{ name: debouncedQuery, productId: hints[0]?.id ? String(hints[0].id) : '' }];
-    }
-    return [];
-  }, [debouncedQuery, hints]);
-
-  const { items: stockItems, loading: stockLoading, hasMaterials } = useNomenclatureStock(
-    stockMaterials,
-    { authHeaders, warehouses, enabled: debouncedQuery.length >= 2 },
-  );
 
   const loadMyRequests = useCallback(async () => {
     setRequestsLoading(true);
@@ -110,64 +82,69 @@ export default function ServiceStockPanel({ user }) {
     loadMyRequests();
   }, [loadMyRequests]);
 
-  const handleRequestTransfer = (payload) => {
-    setTransferInitial(payload);
+  const handleRequestTransfer = useCallback((item) => {
+    const whName = String(item.currentWarehouseName || item.currentWarehouse || '').trim();
+    const productIdRaw = item.productId?._id || item.productId || '';
+    setTransferInitial({
+      label: String(item.type || '').trim(),
+      productId: productIdRaw ? String(productIdRaw) : '',
+      fromWarehouseName: whName,
+      fromWarehouseId: String(item.currentWarehouse || ''),
+      availableQty: Number(item.quantity) || 1,
+    });
     setTransferOpen(true);
-  };
+  }, []);
 
   return (
     <div className="service-stock-panel">
-      <div className="service-stock-header">
+      <div className="service-stock-intro">
         <h1>Залишки на складах</h1>
         <p>
-          Перегляд залишків матеріалів для виконання заявок. Список складів — як у відділі закупівель.
-          Якщо матеріал є на іншому складі, можна надіслати запит на переміщення завскладу.
+          Той самий перегляд залишків, що у завсклада: номенклатура завантажується одразу. Список
+          складів — як у відділі закупівель. Для переміщення на свій склад натисніть 🔁 у рядку.
         </p>
       </div>
 
-      <div className="service-stock-search-row">
-        <input
-          type="search"
-          className="service-stock-search"
-          placeholder="Пошук номенклатури (мін. 2 символи)…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </div>
-
-      {hintsLoading && debouncedQuery.length >= 2 ? (
-        <p className="service-stock-subhint">Пошук номенклатури…</p>
-      ) : null}
-
-      {hints.length > 0 && debouncedQuery.length >= 2 ? (
-        <div className="service-stock-hints">
-          {hints.slice(0, 8).map((h) => (
-            <button
-              key={`${h.id || h.label}`}
-              type="button"
-              className="service-stock-hint-chip"
-              onClick={() => setSearchQuery(h.label || '')}
-            >
-              {h.label}
-              {h.regionQty > 0 ? ` · ${h.regionQty} у регіоні` : ''}
-            </button>
-          ))}
+      <div className="service-stock-layout inventory-dashboard-main">
+        <div className={`inventory-sidebar-wrap ${sidebarCollapsed ? 'inventory-sidebar-wrap-collapsed' : ''}`}>
+          <aside className={`inventory-sidebar ${sidebarCollapsed ? 'inventory-sidebar-collapsed' : ''}`}>
+            {sidebarCollapsed ? null : (
+              <div className="inventory-sidebar-scale-outer">
+                <div className="inventory-sidebar-scaled">
+                  <div className="inventory-sidebar-nomenclature service-stock-category-tree">
+                    <CategoryTree
+                      selectedId={selectedCategoryId}
+                      onSelectCategory={(id) => setSelectedCategoryId(id)}
+                      showAllOption
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </aside>
+          <button
+            type="button"
+            className="inventory-sidebar-toggle"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            title={sidebarCollapsed ? 'Розгорнути панель' : 'Згорнути панель'}
+          >
+            {sidebarCollapsed ? '▶' : '◀'}
+          </button>
         </div>
-      ) : null}
 
-      <NomenclatureStockPanel
-        items={stockItems}
-        loading={stockLoading}
-        canRequestTransfer
-        onRequestTransfer={handleRequestTransfer}
-        emptyHint={
-          debouncedQuery.length < 2
-            ? 'Введіть назву матеріалу для перегляду залишків.'
-            : hasMaterials
-              ? 'Залишків не знайдено.'
-              : 'Введіть назву матеріалу (мінімум 2 символи).'
-        }
-      />
+        <div className="inventory-tab-content inventory-stock-list-only service-stock-list-area">
+          <EquipmentList
+            ref={equipmentListRef}
+            user={user}
+            warehouses={allowedWarehouses}
+            categoryId={selectedCategoryId}
+            includeSubtree
+            serviceStockMode
+            allowedWarehouseNames={allowedWarehouseNames}
+            onRequestTransfer={handleRequestTransfer}
+          />
+        </div>
+      </div>
 
       <section className="service-stock-requests">
         <div className="service-stock-requests-head">

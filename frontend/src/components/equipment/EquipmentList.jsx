@@ -205,12 +205,16 @@ const EquipmentList = forwardRef(({
   includeSubtree = true,
   /** true — фільтр по visibleToManagers (панель менеджера; працює й для адміна під цим контекстом) */
   managerCategoryContext = false,
+  /** Панель сервісу: лише перегляд + запит на переміщення */
+  serviceStockMode = false,
+  allowedWarehouseNames = null,
+  onRequestTransfer,
 }, ref) => {
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
   const mayLinkProductCards = canLinkProductCardsByName(user?.role);
   /** Номенклатурне обслуговування — лише склад / адмін поза контекстом панелі «Менеджери». */
   const showNomenclatureMaintenanceTools = mayLinkProductCards && !managerCategoryContext;
-  const showWithoutProductCardFilter = !managerCategoryContext;
+  const showWithoutProductCardFilter = !managerCategoryContext && !serviceStockMode;
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
   const visibleColumns = useMemo(
     () =>
@@ -673,6 +677,15 @@ const EquipmentList = forwardRef(({
   const filteredAndSortedEquipment = useMemo(() => {
     let result = [...equipment];
 
+    if (allowedWarehouseNames?.size) {
+      result = result.filter((item) => {
+        const wh = String(item.currentWarehouseName || item.currentWarehouse || '')
+          .trim()
+          .toLowerCase();
+        return wh && allowedWarehouseNames.has(wh);
+      });
+    }
+
     // Фільтр видаленого обладнання
     if (!showDeleted) {
       result = result.filter(item => !item.isDeleted && item.status !== 'deleted');
@@ -725,7 +738,7 @@ const EquipmentList = forwardRef(({
     );
 
     return [...Object.values(batchGroups), ...noSerialMergedRows, ...singleItems];
-  }, [equipment, showDeleted]);
+  }, [equipment, showDeleted, allowedWarehouseNames]);
 
   const toggleRowSelection = (item, e) => {
     e?.stopPropagation?.();
@@ -1176,6 +1189,23 @@ const EquipmentList = forwardRef(({
                   )}
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="action-buttons" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', gap: '4px' }}>
+                      {serviceStockMode && onRequestTransfer && (
+                        <button
+                          type="button"
+                          className="btn-action btn-transfer-request"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRequestTransfer(item);
+                          }}
+                          title="Запросити переміщення на свій склад"
+                          disabled={
+                            !['in_stock', 'reserved'].includes(item.status) ||
+                            (Number(item.quantity) || 0) <= 0
+                          }
+                        >
+                          🔁
+                        </button>
+                      )}
                       {showReserveAction && onReserve && (
                         <button
                           className="btn-action btn-reserve"
