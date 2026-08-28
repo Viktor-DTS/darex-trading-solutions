@@ -7,6 +7,9 @@ import './ContractsTable.css';
 const PDF_LEGACY_KEYS_PREFIX = 'darex-contracts-pdf-keys-v1:';
 const PDF_ANALYSIS_STORAGE_PREFIX = 'darex-contracts-pdf-analysis-v2:';
 
+/** Зберігає прогрес між перемиканнями вкладок у межах однієї сесії браузера */
+const sessionPdfAnalysisCache = new Map();
+
 function storageSuffixForUser(user) {
   const id = user?.login || user?.username || user?.email || 'default';
   return encodeURIComponent(String(id));
@@ -168,6 +171,23 @@ function writePersistedPdfAnalysisMap(user, map) {
   }
 }
 
+function mergePersistedPdfAnalysis(user, updates) {
+  if (!updates || updates.size === 0) return;
+  try {
+    const stored = readPersistedPdfAnalysisMap(user) || new Map();
+    for (const [url, row] of updates) {
+      stored.set(url, normalizeAnalysisEntry(row));
+    }
+    writePersistedPdfAnalysisMap(user, stored);
+  } catch (e) {
+    console.warn('[Contracts] Не вдалося оновити кеш аналізу PDF:', e);
+  }
+}
+
+function hasCompletedPdfAnalysis(row) {
+  return !!(row && String(row.pdfKey || '').trim());
+}
+
 /** Підпис рядка: заявки в групі та з кешованого парсера PDF */
 function resolveContractRowPresentation(contractFileData, pdfByUrl) {
   const tasksRef = contractFileData.tasks || [];
@@ -206,11 +226,8 @@ function collectUrlsNeedingPdfAnalysis(tasks, getContractFileUrl, analysisMap) {
   tasks.forEach((task) => {
     const url = getContractFileUrl(task.contractFile);
     if (!url) return;
-    const row = analysisMap.get(url);
-    const hasMeta =
-      row &&
-      (String(row.contractNumber || '').trim() || String(row.contractDate || '').trim());
-    if (!row || !hasMeta) uniqueUrls.add(url);
+    if (hasCompletedPdfAnalysis(analysisMap.get(url))) return;
+    uniqueUrls.add(url);
   });
   return uniqueUrls;
 }
@@ -228,11 +245,22 @@ function ContractsTable({ user }) {
   const [showActiveTasksModal, setShowActiveTasksModal] = useState(null);
   
   // Кеш: URL → ключ унікальності PDF + номер/дата з першої сторінки
-  const [pdfAnalysisByUrl, setPdfAnalysisByUrl] = useState(new Map());
+  const [pdfAnalysisByUrl, setPdfAnalysisByUrl] = useState(
+    () => new Map(sessionPdfAnalysisCache),
+  );
   const pdfAnalysisByUrlRef = useRef(pdfAnalysisByUrl);
   pdfAnalysisByUrlRef.current = pdfAnalysisByUrl;
   const pdfAnalysisRunIdRef = useRef(0);
   const [cacheRestored, setCacheRestored] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      sessionPdfAnalysisCache.clear();
+      for (const [url, row] of pdfAnalysisByUrlRef.current.entries()) {
+        sessionPdfAnalysisCache.set(url, row);
+      }
+    };
+  }, []);
 
   // Завантаження всіх заявок для договорів
   useEffect(() => {
@@ -294,19 +322,14 @@ function ContractsTable({ user }) {
         const next = new Map(prev);
         let restored = 0;
         for (const u of allUrls) {
-          if (!next.has(u) && stored.has(u)) {
-            const row = normalizeAnalysisEntry(stored.get(u));
-            if (row.legacyKeyOnly) continue;
-            const { legacyKeyOnly: _drop, ...rest } = row;
-            if (
-              !String(rest.contractNumber || '').trim() &&
-              !String(rest.contractDate || '').trim()
-            ) {
-              continue;
-            }
-            next.set(u, rest);
-            restored++;
-          }
+          if (next.has(u) && hasCompletedPdfAnalysis(next.get(u))) continue;
+          if (!stored.has(u)) continue;
+          const row = normalizeAnalysisEntry(stored.get(u));
+          if (row.legacyKeyOnly) continue;
+          const { legacyKeyOnly: _drop, ...rest } = row;
+          if (!hasCompletedPdfAnalysis(rest)) continue;
+          next.set(u, rest);
+          restored++;
         }
         if (restored === 0) return prev;
         console.log('[PDF] З кешу відновлено аналізів PDF:', restored, '/', allUrls.size);
@@ -345,6 +368,7 @@ function ContractsTable({ user }) {
         for (const [url, row] of batch) next.set(url, row);
         return next;
       });
+      mergePersistedPdfAnalysis(user, batch);
     };
 
     const scheduleFlush = () => {
@@ -388,8 +412,11 @@ function ContractsTable({ user }) {
 
     return () => {
       pdfAnalysisRunIdRef.current += 1;
+      if (pendingBatch.size > 0) {
+        mergePersistedPdfAnalysis(user, pendingBatch);
+      }
     };
-  }, [tasks, loading, cacheRestored, getContractFileUrl]);
+  }, [tasks, loading, cacheRestored, getContractFileUrl, user]);
 
   // Прогрес стабілізації таблиці
   const pdfKeyProgress = useMemo(() => {
@@ -401,7 +428,7 @@ function ContractsTable({ user }) {
     });
     let done = 0;
     urls.forEach((u) => {
-      if (pdfAnalysisByUrl.has(u)) done++;
+      if (hasCompletedPdfAnalysis(pdfAnalysisByUrl.get(u))) done++;
     });
     return { total: urls.size, done };
   }, [tasks, loading, pdfAnalysisByUrl, getContractFileUrl]);
@@ -425,7 +452,8 @@ function ContractsTable({ user }) {
 
     const toSave = new Map();
     for (const u of urlsNow) {
-      if (pdfAnalysisByUrl.has(u)) toSave.set(u, { ...pdfAnalysisByUrl.get(u) });
+      const row = pdfAnalysisByUrl.get(u);
+      if (hasCompletedPdfAnalysis(row)) toSave.set(u, { ...row });
     }
     if (toSave.size !== urlsNow.size) return;
 
