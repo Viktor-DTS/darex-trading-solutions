@@ -3007,6 +3007,15 @@ function ProcurementDashboard({ user }) {
                                     )}
                                   </td>
                                   <td className="procurement-col-warehouse">
+                                    <input
+                                      type="text"
+                                      className="procurement-exec-input"
+                                      list="procurement-wh-executor"
+                                      value={
+                                        m.actualWarehouse != null && m.actualWarehouse !== undefined
+                                          ? String(m.actualWarehouse)
+                                          : ''
+                                      }
                                       onChange={(e) =>
                                         updateMaterialDraftRow(i, { actualWarehouse: e.target.value })
                                       }

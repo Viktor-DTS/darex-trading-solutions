@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import API_BASE_URL from '../config';
+import API_BASE_URL from '../../config';
 import './WarehouseTransferInbox.css';
 
 export default function WarehouseTransferInbox({ user }) {
