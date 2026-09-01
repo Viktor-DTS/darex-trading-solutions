@@ -44,6 +44,8 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
   const [allUsers, setAllUsers] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
+  const [edrpouSuggestions, setEdrpouSuggestions] = useState([]);
   const [showClientForm, setShowClientForm] = useState(false);
   const [saleFiles, setSaleFiles] = useState([]);
   const [saleInvoiceFiles, setSaleInvoiceFiles] = useState([]);
@@ -297,6 +299,29 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     }
   }, [open, user?.role]);
 
+  useEffect(() => {
+    const q = (form.edrpou || '').trim();
+    if (!open || q.length < 2) {
+      setEdrpouSuggestions([]);
+      return undefined;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const data = await getClients({ q, limit: 15 });
+        const list = Array.isArray(data) ? data : (data.clients || []);
+        const normalized = q.toLowerCase();
+        const matched = list.filter((c) => {
+          const edrpou = (c.edrpou || '').toLowerCase();
+          return edrpou.includes(normalized) || (c.name || '').toLowerCase().includes(normalized);
+        });
+        setEdrpouSuggestions(matched.length > 0 ? matched : list);
+      } catch {
+        setEdrpouSuggestions([]);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [form.edrpou, open]);
+
   const loadClients = async () => {
     try {
       const data = await getClients();
@@ -402,10 +427,11 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
       ...prev,
       clientId: c._id,
       clientName: c.name,
-      edrpou: c.edrpou
+      edrpou: c.edrpou || '',
     }));
-    setClientSearch(c.name);
+    setClientSearch(c.name || '');
     setShowClientDropdown(false);
+    setShowEdrpouDropdown(false);
   };
 
 
@@ -610,12 +636,39 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
 
             <div className="form-group">
               <label>ЄДРПОУ</label>
-              <input
-                type="text"
-                value={form.edrpou || ''}
-                onChange={e => setForm(prev => ({ ...prev, edrpou: e.target.value }))}
-                placeholder="Заповниться з клієнта (порожньо для приватним осіб)"
-              />
+              <div className="client-autocomplete">
+                <input
+                  type="text"
+                  value={form.edrpou || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setForm((prev) => ({ ...prev, edrpou: val }));
+                    setShowEdrpouDropdown(true);
+                    if (!val.trim()) {
+                      setForm((prev) => ({ ...prev, clientId: '', clientName: '' }));
+                      setClientSearch('');
+                    }
+                  }}
+                  onFocus={() => setShowEdrpouDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowEdrpouDropdown(false), 200)}
+                  placeholder="Введіть ЄДРПОУ — підказка з бази клієнтів"
+                  autoComplete="off"
+                />
+                {showEdrpouDropdown && (form.edrpou || '').trim().length >= 2 && (
+                  <ul className="client-dropdown">
+                    {edrpouSuggestions.slice(0, 10).map((c) => (
+                      <li key={c._id} onMouseDown={() => handleSelectClient(c)}>
+                        <span className="edrpou-badge">{c.edrpou || '—'}</span>
+                        <span>{c.name}</span>
+                        {c.contactPhone && <span className="client-dropdown-phone">{c.contactPhone}</span>}
+                      </li>
+                    ))}
+                    {edrpouSuggestions.length === 0 && (
+                      <li className="empty">Клієнтів не знайдено</li>
+                    )}
+                  </ul>
+                )}
+              </div>
             </div>
 
             {canAssignSaleManager(user?.role) && (

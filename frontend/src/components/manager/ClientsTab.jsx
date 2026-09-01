@@ -158,7 +158,6 @@ function ClientsTab({ user }) {
                 <th>Контакт</th>
                 <th>Телефон</th>
                 {showManagerColumn && <th>Менеджер</th>}
-                <th>Дія</th>
               </tr>
             </thead>
             <tbody>
@@ -175,9 +174,6 @@ function ClientsTab({ user }) {
                     .join(' / ') || '—'}
                 </td>
               )}
-                  <td onClick={e => e.stopPropagation()}>
-                    <button className="btn-small" onClick={() => handleOpenCard(c._id)}>Переглянути</button>
-                  </td>
                 </tr>
               ))}
             </tbody>
