@@ -2,10 +2,10 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import API_BASE_URL from '../config';
 import { getPdfUniqueKey, extractContractMetaFromFile, analyzeContractFileByUrl, isContractFileSupported, openContractFilePreview } from '../utils/pdfUtils';
 import { contractSupportsEstimate, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
-import { getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
-import { getClients, lookupCompanyByEdrpou } from '../utils/clientsAPI';
+import { getEdrpouList, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
+import ClientDataSelectionModal from './ClientDataSelectionModal';
 import EquipmentDataSelectionModal from './EquipmentDataSelectionModal';
 import MaterialNameAutocomplete from './MaterialNameAutocomplete';
 import TaskOneCMovementsPanel from './onec/TaskOneCMovementsPanel';
@@ -470,9 +470,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   
   // ========== АВТОЗАПОВНЕННЯ ==========
   // Стан для автозаповнення ЄДРПОУ
-  const [edrpouSuggestions, setEdrpouSuggestions] = useState([]);
+  const [edrpouList, setEdrpouList] = useState([]);
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
-  const [edrpouLookupLoading, setEdrpouLookupLoading] = useState(false);
+  const [filteredEdrpouList, setFilteredEdrpouList] = useState([]);
+  const [clientDataModal, setClientDataModal] = useState({ open: false, edrpou: '' });
   
   // Стан для автозаповнення типу обладнання
   const [equipmentTypes, setEquipmentTypes] = useState([]);
@@ -531,7 +532,15 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           setUsers(data || []);
         })
         .catch(err => console.error('Помилка завантаження користувачів:', err));
-
+      
+      // Завантажуємо список ЄДРПОУ для автозаповнення
+      getEdrpouList()
+        .then(data => {
+          console.log('[DEBUG] Завантажено ЄДРПОУ для автозаповнення:', data?.length);
+          setEdrpouList(data || []);
+        })
+        .catch(err => console.error('Помилка завантаження ЄДРПОУ:', err));
+      
       // Завантажуємо типи обладнання для автозаповнення
       getEquipmentTypes()
         .then(data => {
@@ -541,58 +550,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         .catch(err => console.error('Помилка завантаження типів обладнання:', err));
     }
   }, [open]);
-
-  useEffect(() => {
-    const q = (formData.edrpou || '').trim();
-    if (!open || q.length < 2) {
-      setEdrpouSuggestions([]);
-      setEdrpouLookupLoading(false);
-      return undefined;
-    }
-    setEdrpouLookupLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const digits = q.replace(/\D/g, '');
-        const data = await getClients({ q, limit: 15 });
-        const list = Array.isArray(data) ? data : (data.clients || []);
-        const normalized = q.toLowerCase();
-        let matched = list.filter((c) => {
-          const edrpou = (c.edrpou || '').toLowerCase();
-          return edrpou.includes(normalized) || (c.name || '').toLowerCase().includes(normalized);
-        });
-        if (matched.length === 0 && list.length > 0) matched = list;
-
-        if (digits.length >= 8 && digits.length <= 10) {
-          const registry = await lookupCompanyByEdrpou(digits);
-          if (registry?.name) {
-            const already = matched.some(
-              (c) => String(c.edrpou || '').replace(/\D/g, '') === digits
-            );
-            if (!already) {
-              matched = [
-                {
-                  _id: null,
-                  edrpou: registry.edrpou || digits,
-                  name: registry.name,
-                  lookupSource: registry.source || 'registry',
-                  isRegistryHint: true,
-                },
-                ...matched,
-              ];
-            }
-          }
-        }
-        setEdrpouSuggestions(matched);
-      } catch {
-        setEdrpouSuggestions([]);
-      } finally {
-        setEdrpouLookupLoading(false);
-      }
-    }, 2000);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [formData.edrpou, open]);
 
   // Перевірка боргу по оплаті для замовника (банер при заповненні Замовник або ЄДРПОУ — і для нової заявки, і при редагуванні)
   useEffect(() => {
@@ -1217,7 +1174,17 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         formDataRef.current = next;
         return next;
       });
-      setShowEdrpouDropdown((value || '').trim().length >= 2);
+      // Фільтруємо ЄДРПОУ для автодоповнення
+      if (value.trim()) {
+        const filtered = edrpouList.filter(edrpou => 
+          edrpou.toLowerCase().includes(value.toLowerCase())
+        );
+        setFilteredEdrpouList(filtered);
+        setShowEdrpouDropdown(filtered.length > 0);
+      } else {
+        setShowEdrpouDropdown(false);
+        setFilteredEdrpouList([]);
+      }
       return;
     }
     
@@ -1244,25 +1211,20 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     }));
   };
 
-  const edrpouSourceLabel = (source) => {
-    if (source === 'client') return 'CRM';
-    if (source === 'procurement_history') return 'Закупівлі';
-    if (source === 'registry') return 'Реєстр';
-    return '';
-  };
-
-  const handleSelectEdrpouSuggestion = (item) => {
+  // Обробник вибору ЄДРПОУ з автодоповнення
+  const handleEdrpouSelect = (edrpou) => {
     if (isReadOnly) return;
-    const edrpou = item.edrpou || '';
-    const clientName = item.name || '';
+    console.log('[DEBUG] handleEdrpouSelect - вибрано ЄДРПОУ:', edrpou);
     setFormData(prev => {
-      const next = { ...prev, edrpou, client: clientName || prev.client };
+      const next = { ...prev, edrpou };
       formDataRef.current = next;
       return next;
     });
     setShowEdrpouDropdown(false);
-    setEdrpouSuggestions([]);
-    setTimeout(() => tryAutoFillContractByEdrpou(edrpou), 0);
+    setFilteredEdrpouList([]);
+    
+    // Відкриваємо модальне вікно для вибору даних клієнта
+    setClientDataModal({ open: true, edrpou: edrpou });
   };
 
   // Після введення ЄДРПОУ вручну — автопідстановка договору (затримка, щоб спрацював вибір з dropdown)
@@ -1283,6 +1245,19 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     
     // Завжди відкриваємо модальне вікно для вибору даних обладнання
     setEquipmentDataModal({ open: true, equipment: equipment });
+  };
+
+  // Обробник застосування даних клієнта з модального вікна
+  const handleClientDataApply = (updates) => {
+    console.log('[DEBUG] handleClientDataApply - оновлення форми:', updates);
+    setFormData(prev => {
+      const next = { ...prev, ...updates };
+      formDataRef.current = next;
+      return next;
+    });
+    setTimeout(() => {
+      tryAutoFillContractByEdrpou(formDataRef.current.edrpou);
+    }, 0);
   };
 
   // Обробник застосування даних обладнання з модального вікна
@@ -2496,44 +2471,30 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="edrpou" 
                       value={formData.edrpou} 
                       onChange={handleChange}
-                      onFocus={() => {
-                        if ((formData.edrpou || '').trim().length >= 2) setShowEdrpouDropdown(true);
-                      }}
                       onBlur={handleEdrpouBlur}
-                      placeholder="ЄДРПОУ — підказка з CRM та реєстрів"
+                      placeholder="Введіть ЄДРПОУ..."
                       autoComplete="off"
                     />
-                    {edrpouLookupLoading && (
-                      <span className="edrpou-lookup-status" aria-live="polite">
-                        <span className="edrpou-lookup-spinner" aria-hidden />
-                        Шукаємо…
-                      </span>
-                    )}
-                    {showEdrpouDropdown && (formData.edrpou || '').trim().length >= 2 && (
+                    {/* Dropdown з автодоповненням для ЄДРПОУ */}
+                    {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
                       <div className="autocomplete-dropdown">
-                        {edrpouLookupLoading && edrpouSuggestions.length === 0 && (
-                          <div className="autocomplete-item autocomplete-empty">
-                            Пошук у CRM та реєстрах…
-                          </div>
-                        )}
-                        {!edrpouLookupLoading && edrpouSuggestions.length === 0 && (
-                          <div className="autocomplete-item autocomplete-empty">
-                            За цим ЄДРПОУ нічого не знайдено
-                          </div>
-                        )}
-                        {edrpouSuggestions.slice(0, 10).map((c, idx) => (
+                        <div className="autocomplete-hint">
+                          💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
+                        </div>
+                        {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
                           <div
-                            key={c._id || `registry-${c.edrpou}-${idx}`}
-                            className="autocomplete-item edrpou-suggestion-item"
-                            onMouseDown={() => handleSelectEdrpouSuggestion(c)}
+                            key={index}
+                            className="autocomplete-item"
+                            onClick={() => handleEdrpouSelect(edrpou)}
                           >
-                            <span className="edrpou-suggestion-code">{c.edrpou || '—'}</span>
-                            <span className="edrpou-suggestion-name">{c.name}</span>
-                            {c.lookupSource && (
-                              <span className="edrpou-source-badge">{edrpouSourceLabel(c.lookupSource)}</span>
-                            )}
+                            {edrpou}
                           </div>
                         ))}
+                        {filteredEdrpouList.length > 10 && (
+                          <div className="autocomplete-more">
+                            ... та ще {filteredEdrpouList.length - 10}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3635,6 +3596,20 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         ) : null}
         </div>
       </div>
+      
+      {/* Модальне вікно автозаповнення даних клієнта */}
+      <ClientDataSelectionModal
+        open={clientDataModal.open}
+        onClose={(detail) => {
+          setClientDataModal({ open: false, edrpou: '' });
+          if (!detail?.applied) {
+            setTimeout(() => tryAutoFillContractByEdrpou(formDataRef.current.edrpou), 0);
+          }
+        }}
+        onApply={handleClientDataApply}
+        edrpou={clientDataModal.edrpou}
+        currentFormData={formData}
+      />
       
       {/* Модальне вікно автозаповнення даних обладнання */}
       <EquipmentDataSelectionModal
