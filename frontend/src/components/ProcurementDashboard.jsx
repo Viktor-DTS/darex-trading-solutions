@@ -187,6 +187,38 @@ function procurementFileNameLabel(name, fallback = 'файл') {
   return decodeProcurementFileName(name) || fallback;
 }
 
+function procurementFilePreviewKind(name, mimeType) {
+  const n = String(name || '').toLowerCase();
+  const m = String(mimeType || '').toLowerCase();
+  if (m.includes('jpeg') || m === 'image/jpg' || m === 'image/png' || m === 'image/gif' || m === 'image/webp') {
+    return 'image';
+  }
+  if (/\.(jpe?g|png|gif|webp)$/i.test(n)) return 'image';
+  if (m.includes('pdf') || n.endsWith('.pdf')) return 'pdf';
+  if (m.includes('wordprocessingml') || n.endsWith('.docx')) return 'word';
+  if (m === 'application/msword' || n.endsWith('.doc')) return 'word-legacy';
+  return 'other';
+}
+
+function mimeForProcurementPreview(kind, blobType) {
+  if (kind === 'image') {
+    if (blobType && blobType.startsWith('image/')) return blobType;
+    return 'image/jpeg';
+  }
+  if (kind === 'pdf') return 'application/pdf';
+  if (blobType && blobType !== 'application/octet-stream') return blobType;
+  return blobType || 'application/octet-stream';
+}
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = procurementFileNameLabel(filename, 'file');
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function hasProcurementLineFile(file) {
   if (!file || typeof file !== 'object') return false;
   return Boolean(String(file.originalName || '').trim() || file._id || file.size);
@@ -553,6 +585,8 @@ function ProcurementDashboard({ user }) {
   const [selectedRequestIds, setSelectedRequestIds] = useState(() => new Set());
   const [rejectLineModal, setRejectLineModal] = useState(null);
   const [rejectReasonText, setRejectReasonText] = useState('');
+  const [filePreview, setFilePreview] = useState(null);
+  const filePreviewUrlRef = useRef(null);
 
   const { units: uomList } = useUnitsOfMeasure();
   const normUom = useCallback((v) => normalizeUomLabel(v, uomList), [uomList]);
@@ -672,6 +706,29 @@ function ProcurementDashboard({ user }) {
   useEffect(() => {
     setSelectedRequestIds(new Set());
   }, [activeSection]);
+
+  const revokeFilePreviewUrl = useCallback(() => {
+    if (filePreviewUrlRef.current) {
+      URL.revokeObjectURL(filePreviewUrlRef.current);
+      filePreviewUrlRef.current = null;
+    }
+  }, []);
+
+  const closeFilePreview = useCallback(() => {
+    revokeFilePreviewUrl();
+    setFilePreview(null);
+  }, [revokeFilePreviewUrl]);
+
+  useEffect(() => {
+    if (!filePreview) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeFilePreview();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [filePreview, closeFilePreview]);
+
+  useEffect(() => () => revokeFilePreviewUrl(), [revokeFilePreviewUrl]);
 
   useEffect(() => {
     return () => {
@@ -1098,63 +1155,149 @@ function ProcurementDashboard({ user }) {
     }
   };
 
-  const downloadAttachment = async (requestId, att, kind = 'requester') => {
+  const fetchProcurementFileBlob = async (path) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+    if (tryHandleUnauthorizedResponse(res)) return null;
+    if (!res.ok) {
+      throw new Error('Не вдалося завантажити файл');
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition');
+    let headerName = '';
+    if (cd) {
+      const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="([^"]+)"/i.exec(cd);
+      if (m && m[1]) {
+        try {
+          headerName = decodeURIComponent(m[1].replace(/"/g, ''));
+        } catch (_) {
+          headerName = m[1];
+        }
+      }
+    }
+    return { blob, headerName, contentType: res.headers.get('Content-Type') || blob.type || '' };
+  };
+
+  const openProcurementFilePreview = async (path, originalName, mimeType) => {
+    const displayName = procurementFileNameLabel(originalName, 'файл');
+    const kindHint = procurementFilePreviewKind(originalName, mimeType);
+    const openModal = kindHint !== 'other';
+    revokeFilePreviewUrl();
+    if (openModal) {
+      setFilePreview({
+        name: displayName,
+        kind: kindHint,
+        loading: true,
+        error: '',
+        html: '',
+        url: '',
+        blob: null
+      });
+    }
     try {
-      const token = localStorage.getItem('token');
-      const path =
-        kind === 'executor'
-          ? `${API_BASE_URL}/procurement-requests/${requestId}/executor-attachments/${att._id}`
-          : `${API_BASE_URL}/procurement-requests/${requestId}/attachments/${att._id}`;
-      const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
-      if (tryHandleUnauthorizedResponse(res)) return;
-      if (!res.ok) {
-        alert('Не вдалося завантажити файл');
+      const fetched = await fetchProcurementFileBlob(path);
+      if (!fetched) {
+        if (openModal) closeFilePreview();
         return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = procurementFileNameLabel(att.originalName, 'file');
-      a.click();
-      URL.revokeObjectURL(url);
+      const { blob, headerName, contentType } = fetched;
+      const name = procurementFileNameLabel(originalName || headerName, 'файл');
+      const kind = procurementFilePreviewKind(name, mimeType || contentType);
+
+      if (kind === 'other') {
+        if (openModal) closeFilePreview();
+        triggerBlobDownload(blob, name);
+        return;
+      }
+
+      const typedBlob = new Blob([blob], { type: mimeForProcurementPreview(kind, blob.type || contentType) });
+
+      if (kind === 'word-legacy') {
+        setFilePreview({
+          name,
+          kind,
+          loading: false,
+          error: 'Старий формат Word (.doc) не можна відкрити в браузері. Завантажте файл або збережіть його як .docx.',
+          html: '',
+          url: '',
+          blob: typedBlob
+        });
+        return;
+      }
+
+      if (kind === 'word') {
+        try {
+          const mammothMod = await import('mammoth');
+          const mammoth = mammothMod.default || mammothMod;
+          const arrayBuffer = await typedBlob.arrayBuffer();
+          const result = await mammoth.convertToHtml({ arrayBuffer });
+          setFilePreview({
+            name,
+            kind,
+            loading: false,
+            error: '',
+            html: result.value || '<p>Документ порожній.</p>',
+            url: '',
+            blob: typedBlob
+          });
+        } catch (wordErr) {
+          setFilePreview({
+            name,
+            kind,
+            loading: false,
+            error: wordErr.message || 'Не вдалося показати Word-документ. Можна завантажити файл.',
+            html: '',
+            url: '',
+            blob: typedBlob
+          });
+        }
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(typedBlob);
+      filePreviewUrlRef.current = objectUrl;
+      setFilePreview({
+        name,
+        kind,
+        loading: false,
+        error: '',
+        html: '',
+        url: objectUrl,
+        blob: typedBlob
+      });
     } catch (e) {
-      alert(e.message || 'Помилка завантаження');
+      if (!openModal) {
+        alert(e.message || 'Помилка завантаження');
+        return;
+      }
+      setFilePreview({
+        name: displayName,
+        kind: kindHint,
+        loading: false,
+        error: e.message || 'Помилка завантаження',
+        html: '',
+        url: '',
+        blob: null
+      });
     }
   };
 
-  const downloadLineExecutorFile = async (requestId, lineIndex, docKind) => {
-    try {
-      const token = localStorage.getItem('token');
-      const path = `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/${docKind}`;
-      const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
-      if (tryHandleUnauthorizedResponse(res)) return;
-      if (!res.ok) {
-        alert('Не вдалося завантажити файл');
-        return;
-      }
-      const blob = await res.blob();
-      const cd = res.headers.get('Content-Disposition');
-      let name = 'file';
-      if (cd) {
-        const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="([^"]+)"/i.exec(cd);
-        if (m && m[1]) {
-          try {
-            name = decodeURIComponent(m[1].replace(/"/g, ''));
-          } catch (_) {
-            name = m[1];
-          }
-        }
-      }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = procurementFileNameLabel(name, 'file');
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      alert(e.message || 'Помилка завантаження');
-    }
+  const downloadFilePreview = () => {
+    if (!filePreview?.blob) return;
+    triggerBlobDownload(filePreview.blob, filePreview.name);
+  };
+
+  const downloadAttachment = async (requestId, att, kind = 'requester') => {
+    const path =
+      kind === 'executor'
+        ? `${API_BASE_URL}/procurement-requests/${requestId}/executor-attachments/${att._id}`
+        : `${API_BASE_URL}/procurement-requests/${requestId}/attachments/${att._id}`;
+    await openProcurementFilePreview(path, att.originalName, att.mimeType);
+  };
+
+  const downloadLineExecutorFile = async (requestId, lineIndex, docKind, fileMeta) => {
+    const path = `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/${docKind}`;
+    await openProcurementFilePreview(path, fileMeta?.originalName, fileMeta?.mimeType);
   };
 
   const uploadLineExecutorFile = async (requestId, lineIndex, docKind, file) => {
@@ -1259,7 +1402,7 @@ function ProcurementDashboard({ user }) {
               type="button"
               className="procurement-file-link procurement-file-link--inline procurement-line-file-name"
               title={name}
-              onClick={() => downloadLineExecutorFile(detail._id, lineIndex, docKind)}
+              onClick={() => downloadLineExecutorFile(detail._id, lineIndex, docKind, file)}
             >
               {name}
             </button>
@@ -2698,10 +2841,17 @@ function ProcurementDashboard({ user }) {
                     <span className="procurement-field-hint">Поточні файли:</span>
                     {visibleExistingAttachments.map((a) => (
                       <div key={a._id} className="procurement-edit-existing-file-row">
-                        <span>
+                        <button
+                          type="button"
+                          className="procurement-file-link"
+                          title="Переглянути файл"
+                          onClick={() =>
+                            editingRequestId && downloadAttachment(editingRequestId, a, 'requester')
+                          }
+                        >
                           {procurementFileNameLabel(a.originalName, 'файл')}
                           {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
-                        </span>
+                        </button>
                         <button
                           type="button"
                           className="procurement-btn-icon"
@@ -3492,7 +3642,7 @@ function ProcurementDashboard({ user }) {
                                       type="button"
                                       className="procurement-file-link procurement-file-link--inline procurement-line-file-name"
                                       title={procurementFileNameLabel(m.invoiceFile.originalName, 'Рахунок')}
-                                      onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
+                                      onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice', m.invoiceFile)}
                                     >
                                       {procurementFileNameLabel(m.invoiceFile.originalName, 'Рахунок')}
                                     </button>
@@ -3502,7 +3652,7 @@ function ProcurementDashboard({ user }) {
                                       type="button"
                                       className="procurement-file-link procurement-file-link--inline procurement-line-file-name"
                                       title={procurementFileNameLabel(m.deliveryNoteFile.originalName, 'Видаткова накладна')}
-                                      onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
+                                      onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note', m.deliveryNoteFile)}
                                     >
                                       {procurementFileNameLabel(m.deliveryNoteFile.originalName, 'Видаткова накладна')}
                                     </button>
@@ -3547,6 +3697,7 @@ function ProcurementDashboard({ user }) {
                       key={a._id}
                       type="button"
                       className="procurement-file-link"
+                      title="Переглянути файл"
                       onClick={() => downloadAttachment(detail._id, a, 'requester')}
                     >
                       {procurementFileNameLabel(a.originalName, 'файл')}
@@ -3566,6 +3717,7 @@ function ProcurementDashboard({ user }) {
                         key={a._id}
                         type="button"
                         className="procurement-file-link procurement-file-link--executor"
+                        title="Переглянути файл"
                         onClick={() => downloadAttachment(detail._id, a, 'executor')}
                       >
                         {a.docKind ? `[${executorAttachmentDocLabel(a.docKind)}] ` : ''}
@@ -3681,6 +3833,71 @@ function ProcurementDashboard({ user }) {
             </div>
               {renderNomenclatureStockPanel(
                 'Для позицій заявки залишки на дозволених складах відобразяться тут.'
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {filePreview && (
+        <div
+          className="procurement-modal-overlay procurement-modal-overlay--file-preview"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="procurement-file-preview-title"
+          onClick={closeFilePreview}
+        >
+          <div
+            className="procurement-modal procurement-modal--file-preview"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="procurement-modal-header">
+              <h2 id="procurement-file-preview-title" title={filePreview.name}>
+                {filePreview.name}
+              </h2>
+              <div className="procurement-file-preview-header-actions">
+                <button
+                  type="button"
+                  className="procurement-btn-secondary"
+                  onClick={downloadFilePreview}
+                  disabled={!filePreview.blob}
+                >
+                  Завантажити
+                </button>
+                <button
+                  type="button"
+                  className="procurement-modal-close"
+                  onClick={closeFilePreview}
+                  aria-label="Закрити"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="procurement-file-preview-body">
+              {filePreview.loading ? (
+                <p className="procurement-file-preview-status">Завантаження…</p>
+              ) : filePreview.error ? (
+                <p className="procurement-file-preview-status">{filePreview.error}</p>
+              ) : filePreview.kind === 'image' && filePreview.url ? (
+                <img
+                  className="procurement-file-preview-image"
+                  src={filePreview.url}
+                  alt={filePreview.name}
+                />
+              ) : filePreview.kind === 'pdf' && filePreview.url ? (
+                <iframe
+                  className="procurement-file-preview-frame"
+                  title={filePreview.name}
+                  src={filePreview.url}
+                />
+              ) : filePreview.kind === 'word' && filePreview.html ? (
+                <div
+                  className="procurement-file-preview-word"
+                  dangerouslySetInnerHTML={{ __html: filePreview.html }}
+                />
+              ) : (
+                <p className="procurement-file-preview-status">Немає попереднього перегляду.</p>
               )}
             </div>
           </div>
