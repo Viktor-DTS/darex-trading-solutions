@@ -14,10 +14,10 @@
   overflow: hidden;
 }
 
-/* Ширина сайдбару під масштаб 80%: 180*0.8=144px */
+/* Ширина сайдбару — без scale, на весь доступний екран */
 .manager-sidebar {
-  width: 180px;
-  min-width: 180px;
+  width: 200px;
+  min-width: 200px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   overflow: hidden;
@@ -27,14 +27,10 @@
   min-height: 0;
 }
 
-/* Контент сайдбару в масштабі 80% */
 .manager-sidebar-scaled {
-  transform: scale(0.8);
-  transform-origin: 0 0;
-  width: 125%;
   flex: 1;
   min-height: 0;
-  padding: 12px 0;
+  padding: 10px 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -172,7 +168,17 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  padding: 8px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+/* Контент вкладок менеджера — на всю висоту без scale */
+.manager-scaled-inner {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
 }
 
@@ -216,23 +222,7 @@
   flex-direction: column;
 }
 
-/* Масштаб 80% для вкладки «Історія резервування» (весь контент) */
-.manager-scaled-inner:not(.manager-stock-header-only) {
-  width: 125%;
-  min-height: 125%;
-  transform: scale(0.8);
-  transform-origin: 0 0;
-  padding: 12px;
-  padding-bottom: calc(12px + 26px);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
 
-/* Як у Складському обліку: min-height: 0 для ланцюжка flex, щоб з’явилися прокрутки */
 .manager-tab-content {
   flex: 1;
   width: 100%;
@@ -244,13 +234,53 @@
 }
 
 .manager-header {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .manager-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   color: var(--text);
+}
+
+@media (max-height: 720px) {
+  .manager-scaled-wrapper {
+    padding: 6px 8px;
+  }
+
+  .manager-header {
+    margin-bottom: 8px;
+  }
+
+  .manager-header h2 {
+    font-size: 16px;
+  }
+
+  .manager-sidebar {
+    width: 56px;
+    min-width: 56px;
+  }
+
+  .manager-sidebar .tab-label,
+  .manager-sidebar .sidebar-section-title {
+    display: none;
+  }
+
+  .manager-sidebar-tab {
+    justify-content: center;
+    padding: 10px 8px;
+  }
+
+  .manager-sidebar-tab--with-badge {
+    padding-right: 8px;
+  }
+
+  .manager-sidebar-badge {
+    top: 4px;
+    right: 4px;
+    transform: none;
+  }
 }
 
 .loading-indicator {

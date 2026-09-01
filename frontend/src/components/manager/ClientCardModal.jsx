@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getClient, getClientInteractions, addClientInteraction, getInteractionFiles, uploadInteractionFiles, getFileOpenToken } from '../../utils/clientsAPI';
 import API_BASE_URL from '../../config';
 import { getSales } from '../../utils/salesAPI';
+import { saleStatusLabel } from '../../utils/saleStatusUtils';
 import SaleFormModal from './SaleFormModal';
 import './ClientCardModal.css';
 
@@ -11,10 +12,15 @@ const INTERACTION_TYPES = {
   meeting: 'Зустріч',
   email: 'Email',
   commercial_proposal: 'Подана комерційна пропозиція',
-  other: 'Інше'
+  other: 'Інше',
 };
 
 const FILES_BASE_URL = (API_BASE_URL || '').replace(/\/api\/?$/, '') || (typeof window !== 'undefined' ? window.location.origin : '');
+
+function saleIdStr(value) {
+  if (!value) return '';
+  return typeof value === 'object' && value._id ? String(value._id) : String(value);
+}
 
 function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSearch, user }) {
   const [client, setClient] = useState(null);
@@ -22,6 +28,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
   const [interactions, setInteractions] = useState([]);
   const [interactionFiles, setInteractionFiles] = useState({});
   const [loading, setLoading] = useState(false);
+  const [selectedSaleId, setSelectedSaleId] = useState(null);
   const [showAddInteraction, setShowAddInteraction] = useState(false);
   const [newInteractionNotes, setNewInteractionNotes] = useState('');
   const [newInteractionType, setNewInteractionType] = useState('note');
@@ -34,23 +41,27 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
   useEffect(() => {
     if (open && clientId) {
       loadData();
+    } else if (!open) {
+      setSelectedSaleId(null);
+      setShowAddInteraction(false);
     }
   }, [open, clientId]);
 
-  const loadData = async () => {
+  const loadData = async (keepSaleId) => {
     if (!clientId) return;
     setLoading(true);
     try {
       const [clientData, salesData, interactionsData] = await Promise.all([
         getClient(clientId),
-        getSales({ clientId, forClientCheck: true }).then(d => Array.isArray(d) ? d : (d?.sales || [])),
-        getClientInteractions(clientId)
+        getSales({ clientId, forClientCheck: true }).then((d) => (Array.isArray(d) ? d : (d?.sales || []))),
+        getClientInteractions(clientId),
       ]);
       setClient(clientData);
-      setSales(salesData);
+      const salesList = Array.isArray(salesData) ? salesData : [];
+      setSales(salesList);
       const ints = Array.isArray(interactionsData) ? interactionsData : [];
       setInteractions(ints);
-      const cpIds = ints.filter(i => i.type === 'commercial_proposal').map(i => i._id);
+      const cpIds = ints.filter((i) => i.type === 'commercial_proposal').map((i) => i._id);
       const filesMap = {};
       await Promise.all(cpIds.map(async (id) => {
         try {
@@ -59,6 +70,15 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
         } catch { filesMap[id] = []; }
       }));
       setInteractionFiles(filesMap);
+
+      const nextId = keepSaleId || selectedSaleId;
+      if (nextId && salesList.some((s) => String(s._id) === String(nextId))) {
+        setSelectedSaleId(nextId);
+      } else if (salesList.length > 0) {
+        setSelectedSaleId(String(salesList[0]._id));
+      } else {
+        setSelectedSaleId(null);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -66,12 +86,32 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
     }
   };
 
+  const selectedSale = useMemo(
+    () => sales.find((s) => String(s._id) === String(selectedSaleId)) || null,
+    [sales, selectedSaleId],
+  );
+
+  const dealInteractions = useMemo(() => {
+    if (!selectedSaleId) return [];
+    const sid = String(selectedSaleId);
+    return interactions.filter((i) => saleIdStr(i.saleId) === sid);
+  }, [interactions, selectedSaleId]);
+
+  const generalInteractions = useMemo(
+    () => interactions.filter((i) => !saleIdStr(i.saleId)),
+    [interactions],
+  );
+
   const handleAddInteraction = async (e) => {
     e?.preventDefault();
-    if (!clientId || !client || client.limited) return;
+    if (!clientId || !client || client.limited || !selectedSaleId) return;
     setAddingInteraction(true);
     try {
-      const created = await addClientInteraction(clientId, { type: newInteractionType, notes: newInteractionNotes });
+      const created = await addClientInteraction(clientId, {
+        type: newInteractionType,
+        notes: newInteractionNotes,
+        saleId: selectedSaleId,
+      });
       if (newInteractionType === 'commercial_proposal' && newInteractionFiles?.length > 0 && created?._id) {
         await uploadInteractionFiles(clientId, created._id, newInteractionFiles);
       }
@@ -79,7 +119,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
       setNewInteractionType('note');
       setNewInteractionFiles([]);
       setShowAddInteraction(false);
-      loadData();
+      loadData(selectedSaleId);
     } catch (err) {
       alert(err.message || 'Помилка');
     } finally {
@@ -93,7 +133,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
     setUploadingForId(interactionId);
     try {
       await uploadInteractionFiles(clientId, interactionId, Array.from(files));
-      loadData();
+      loadData(selectedSaleId);
     } catch (err) {
       alert(err.message || 'Помилка завантаження');
     } finally {
@@ -111,20 +151,69 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
     }
   };
 
+  const openSaleEditor = (sale) => {
+    setEditSale(sale || null);
+    setShowSaleFormModal(true);
+  };
+
+  const renderInteractionsList = (list, emptyText) => {
+    if (list.length === 0) {
+      return emptyText ? <p className="no-data">{emptyText}</p> : null;
+    }
+    return (
+      <ul className="interactions-list">
+        {list.map((i) => {
+          const files = interactionFiles[i._id] || [];
+          return (
+            <li key={i._id}>
+              <span className="interaction-type">{INTERACTION_TYPES[i.type] || i.type}</span>
+              <span className="interaction-date">{i.date ? new Date(i.date).toLocaleString('uk-UA') : ''}</span>
+              <span className="interaction-user">{i.userName || i.userLogin}</span>
+              {i.notes && <div className="interaction-notes">{i.notes}</div>}
+              {i.type === 'commercial_proposal' && (
+                <div className="interaction-files">
+                  {files.length > 0 ? (
+                    files.map((f) => (
+                      <button key={f._id} type="button" className="file-link" onClick={() => openFile(f._id)} title="Відкрити/скачати">
+                        📎 {f.originalName || 'Файл'}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="no-files">Немає файлів</span>
+                  )}
+                  <label className="btn-upload-more">
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                      multiple
+                      hidden
+                      onChange={(e) => handleUploadMoreFiles(i._id, e.target)}
+                    />
+                    {uploadingForId === i._id ? 'Завантаження...' : '+ Завантажити файл'}
+                  </label>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
+
   if (!open) return null;
 
-  const formatCurrency = (v) => new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', minimumFractionDigits: 0 }).format(v || 0);
+  const formatDate = (d) => (d ? new Date(d).toLocaleDateString('uk-UA') : '—');
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content client-card-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay client-card-overlay" onClick={onClose}>
+      <div className="modal-content client-card-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>👤 Картка клієнта</h3>
           <div className="modal-header-actions">
             {onEdit && client && !client.limited && (
-              <button className="btn-edit" onClick={() => onEdit(client)}>Редагувати</button>
+              <button type="button" className="btn-edit" onClick={() => onEdit(client)}>Редагувати</button>
             )}
-            <button className="btn-close" onClick={onClose}>×</button>
+            <button type="button" className="btn-close" onClick={onClose}>×</button>
           </div>
         </div>
 
@@ -141,151 +230,150 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                   )}
                 </div>
               )}
-              <div className="client-info-block">
-                <h4>{client.name}</h4>
-                {(client.edrpou || initialClientFromSearch?.edrpou) && (
-                  <div><strong>ЄДРПОУ:</strong> {client.edrpou || initialClientFromSearch.edrpou}</div>
-                )}
-                {!client.limited && (
-                  <>
-                    {client.createdAt && (client.createdByName || client.createdByLogin) && (
-                      <div><strong>Створено:</strong> {new Date(client.createdAt).toLocaleDateString('uk-UA')} — {client.createdByName || client.createdByLogin}</div>
+
+              <div className="client-card-split">
+                <div className="client-card-left">
+                  <div className="client-info-block">
+                    <h4>{client.name}</h4>
+                    {(client.edrpou || initialClientFromSearch?.edrpou) && (
+                      <div><strong>ЄДРПОУ:</strong> {client.edrpou || initialClientFromSearch.edrpou}</div>
                     )}
-                    {(client.assignedManagerName || client.assignedManagerLogin) && (
+                    {!client.limited && (client.assignedManagerName || client.assignedManagerLogin) && (
                       <div><strong>Відповідальний:</strong> {client.assignedManagerName || client.assignedManagerLogin}</div>
                     )}
-                    {(client.assignedManagerName2 || client.assignedManagerLogin2) && (
-                      <div><strong>Другий відповідальний:</strong> {client.assignedManagerName2 || client.assignedManagerLogin2}</div>
-                    )}
-                  </>
-                )}
-                {!client.limited && client.address && <div><strong>Адреса:</strong> {client.address}</div>}
-                {!client.limited && client.contactPerson && <div><strong>Контакт:</strong> {client.contactPerson}</div>}
-                {!client.limited && client.contactPhone && <div><strong>Телефон:</strong> {client.contactPhone}</div>}
-                {!client.limited && client.email && <div><strong>Email:</strong> {client.email}</div>}
-                {!client.limited && client.region && <div><strong>Регіон:</strong> {client.region}</div>}
-                {!client.limited && client.notes && <div><strong>Примітки:</strong> {client.notes}</div>}
-              </div>
+                    {!client.limited && client.address && <div><strong>Адреса:</strong> {client.address}</div>}
+                    {!client.limited && client.contactPerson && <div><strong>Контакт:</strong> {client.contactPerson}</div>}
+                    {!client.limited && client.contactPhone && <div><strong>Телефон:</strong> {client.contactPhone}</div>}
+                  </div>
 
-              {!client.limited && (
-                <div className="client-interactions-block">
-                  <h4>
-                    Історія взаємодій ({interactions.length})
-                    {!showAddInteraction && (
-                      <button type="button" className="btn-small btn-add-interaction" onClick={() => setShowAddInteraction(true)}>+ Додати</button>
-                    )}
-                  </h4>
-                  {showAddInteraction && (
-                    <form className="add-interaction-form" onSubmit={handleAddInteraction}>
-                      <select value={newInteractionType} onChange={e => setNewInteractionType(e.target.value)}>
-                        {Object.entries(INTERACTION_TYPES).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
-                        ))}
-                      </select>
-                      <textarea
-                        value={newInteractionNotes}
-                        onChange={e => setNewInteractionNotes(e.target.value)}
-                        placeholder="Текст примітки..."
-                        rows={2}
-                      />
-                      {newInteractionType === 'commercial_proposal' && (
-                        <div className="form-group">
-                          <label>Файли (JPEG, PDF, Word)</label>
-                          <input
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-                            multiple
-                            onChange={e => setNewInteractionFiles(Array.from(e.target.files || []))}
-                          />
-                          {newInteractionFiles.length > 0 && (
-                            <span className="files-count">{newInteractionFiles.length} файл(ів) обрано</span>
-                          )}
-                        </div>
+                  <div className="client-sales-block">
+                    <h4>
+                      Угоди ({sales.length})
+                      {!client.limited && (
+                        <button type="button" className="btn-small btn-add-sale" onClick={() => openSaleEditor(null)}>
+                          + Нова угода
+                        </button>
                       )}
-                      <div className="interaction-form-actions">
-                        <button type="button" className="btn-cancel" onClick={() => { setShowAddInteraction(false); setNewInteractionNotes(''); setNewInteractionFiles([]); }}>Скасувати</button>
-                        <button type="submit" className="btn-primary" disabled={addingInteraction}>
-                          {addingInteraction ? 'Збереження...' : 'Зберегти'}
+                    </h4>
+                    {sales.length === 0 ? (
+                      <p className="no-data">Немає угод</p>
+                    ) : (
+                      <div className="client-deals-table-wrap">
+                        <table className="mini-sales-table client-deals-table">
+                          <thead>
+                            <tr>
+                              <th>№</th>
+                              <th>Статус</th>
+                              <th>Створено</th>
+                              <th>Коментар</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sales.map((s) => (
+                              <tr
+                                key={s._id}
+                                className={`clickable-row ${String(selectedSaleId) === String(s._id) ? 'selected' : ''}`}
+                                onClick={() => setSelectedSaleId(String(s._id))}
+                                onDoubleClick={() => !client.limited && openSaleEditor(s)}
+                              >
+                                <td>{s.saleNumber || '—'}</td>
+                                <td>
+                                  <span className={`sale-status-pill sale-status-pill--${s.status || 'draft'}`}>
+                                    {saleStatusLabel(s.status)}
+                                  </span>
+                                </td>
+                                <td>{formatDate(s.createdAt || s.saleDate)}</td>
+                                <td className="deal-notes-cell">{s.notes || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="client-card-right">
+                  {!client.limited && selectedSale ? (
+                    <>
+                      <div className="deal-panel-header">
+                        <div>
+                          <h4>Угода {selectedSale.saleNumber || ''}</h4>
+                          <p className="deal-panel-sub">
+                            {saleStatusLabel(selectedSale.status)} · {formatDate(selectedSale.createdAt || selectedSale.saleDate)}
+                          </p>
+                        </div>
+                        <button type="button" className="btn-small" onClick={() => openSaleEditor(selectedSale)}>
+                          Відкрити угоду
                         </button>
                       </div>
-                    </form>
-                  )}
-                  {interactions.length === 0 && !showAddInteraction ? (
-                    <p className="no-data">Немає записів</p>
-                  ) : (
-                    <ul className="interactions-list">
-                      {interactions.map(i => {
-                        const files = interactionFiles[i._id] || [];
-                        return (
-                          <li key={i._id}>
-                            <span className="interaction-type">{INTERACTION_TYPES[i.type] || i.type}</span>
-                            <span className="interaction-date">{i.date ? new Date(i.date).toLocaleString('uk-UA') : ''}</span>
-                            <span className="interaction-user">{i.userName || i.userLogin}</span>
-                            {i.notes && <div className="interaction-notes">{i.notes}</div>}
-                            {i.type === 'commercial_proposal' && (
-                              <div className="interaction-files">
-                                {files.length > 0 ? (
-                                  files.map(f => (
-                                    <button key={f._id} type="button" className="file-link" onClick={() => openFile(f._id)} title="Відкрити/скачати">
-                                      📎 {f.originalName || 'Файл'}
-                                    </button>
-                                  ))
-                                ) : (
-                                  <span className="no-files">Немає файлів</span>
+
+                      <div className="client-interactions-block">
+                        <h4>
+                          Історія взаємодій ({dealInteractions.length})
+                          {!showAddInteraction && (
+                            <button type="button" className="btn-small btn-add-interaction" onClick={() => setShowAddInteraction(true)}>+ Додати</button>
+                          )}
+                        </h4>
+                        {showAddInteraction && (
+                          <form className="add-interaction-form" onSubmit={handleAddInteraction}>
+                            <select value={newInteractionType} onChange={(e) => setNewInteractionType(e.target.value)}>
+                              {Object.entries(INTERACTION_TYPES).map(([k, v]) => (
+                                <option key={k} value={k}>{v}</option>
+                              ))}
+                            </select>
+                            <textarea
+                              value={newInteractionNotes}
+                              onChange={(e) => setNewInteractionNotes(e.target.value)}
+                              placeholder="Текст примітки..."
+                              rows={2}
+                            />
+                            {newInteractionType === 'commercial_proposal' && (
+                              <div className="form-group">
+                                <label>Файли (JPEG, PDF, Word)</label>
+                                <input
+                                  type="file"
+                                  accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                                  multiple
+                                  onChange={(e) => setNewInteractionFiles(Array.from(e.target.files || []))}
+                                />
+                                {newInteractionFiles.length > 0 && (
+                                  <span className="files-count">{newInteractionFiles.length} файл(ів) обрано</span>
                                 )}
-                                <label className="btn-upload-more">
-                                  <input
-                                    type="file"
-                                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-                                    multiple
-                                    hidden
-                                    onChange={e => handleUploadMoreFiles(i._id, e.target)}
-                                  />
-                                  {uploadingForId === i._id ? 'Завантаження...' : '+ Завантажити файл'}
-                                </label>
                               </div>
                             )}
-                          </li>
-                        );
-                      })}
-                    </ul>
+                            <div className="interaction-form-actions">
+                              <button type="button" className="btn-cancel" onClick={() => { setShowAddInteraction(false); setNewInteractionNotes(''); setNewInteractionFiles([]); }}>Скасувати</button>
+                              <button type="submit" className="btn-primary" disabled={addingInteraction}>
+                                {addingInteraction ? 'Збереження...' : 'Зберегти'}
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                        {renderInteractionsList(dealInteractions, showAddInteraction ? null : 'Немає записів по цій угоді')}
+                        {generalInteractions.length > 0 && (
+                          <div className="general-interactions-block">
+                            <h5>Загальна історія клієнта ({generalInteractions.length})</h5>
+                            {renderInteractionsList(generalInteractions)}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : !client.limited && sales.length === 0 ? (
+                    <div className="deal-panel-empty">
+                      <p>Створіть першу угоду для цього клієнта</p>
+                      <button type="button" className="btn-small btn-add-sale" onClick={() => openSaleEditor(null)}>+ Нова угода</button>
+                    </div>
+                  ) : !client.limited ? (
+                    <div className="deal-panel-empty">
+                      <p>Оберіть угоду зі списку зліва</p>
+                    </div>
+                  ) : (
+                    <div className="deal-panel-empty">
+                      <p>Обмежений перегляд — історія недоступна</p>
+                    </div>
                   )}
                 </div>
-              )}
-
-              <div className="client-sales-block">
-                <h4>
-                  Продажі ({sales.length})
-                  {!client.limited && (
-                    <button type="button" className="btn-small btn-add-sale" onClick={() => { setEditSale(null); setShowSaleFormModal(true); }}>
-                      + Новий продаж
-                    </button>
-                  )}
-                </h4>
-                {sales.length === 0 ? (
-                  <p className="no-data">Немає продажів</p>
-                ) : (
-                  <table className="mini-sales-table">
-                    <thead>
-                      <tr>
-                        <th>Дата</th>
-                        <th>Продукт</th>
-                        {!client.limited && <th>Сума</th>}
-                        <th>Гарантія до</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sales.slice(0, 10).map(s => (
-                        <tr key={s._id} onClick={() => { setEditSale(s); setShowSaleFormModal(true); }} className="clickable-row" style={{ cursor: 'pointer' }}>
-                          <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
-                          <td>{s.mainProductName || '—'}</td>
-                          {!client.limited && <td>{formatCurrency(s.totalAmount || s.mainProductAmount)}</td>}
-                          <td>{s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
               </div>
             </>
           ) : (
@@ -298,7 +386,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
         <SaleFormModal
           open={showSaleFormModal}
           onClose={() => { setShowSaleFormModal(false); setEditSale(null); }}
-          onSuccess={() => { loadData(); }}
+          onSuccess={() => { loadData(selectedSaleId); }}
           onRefreshSale={(s) => setEditSale(s)}
           editSale={editSale}
           initialClient={!editSale && client ? client : null}

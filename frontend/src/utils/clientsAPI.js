@@ -169,12 +169,12 @@ export const getClientInteractions = async (clientId) => {
 };
 
 // Додати взаємодію
-export const addClientInteraction = async (clientId, { type, date, notes }) => {
+export const addClientInteraction = async (clientId, { type, date, notes, saleId }) => {
   try {
     const response = await fetch(`${API_BASE_URL}/clients/${clientId}/interactions`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ type: type || 'note', date: date || new Date().toISOString(), notes: notes || '' })
+      body: JSON.stringify({ type: type || 'note', date: date || new Date().toISOString(), notes: notes || '', saleId: saleId || undefined })
     });
     if (!response.ok) {
       const err = await response.json();

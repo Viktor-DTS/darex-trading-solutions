@@ -4190,6 +4190,7 @@ const Client = mongoose.model('Client', clientSchema);
 const interactionSchema = new mongoose.Schema({
   entityType: { type: String, required: true, default: 'client' },
   entityId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
   type: { type: String, required: true },
   date: { type: Date, default: Date.now },
   userLogin: { type: String, required: true },
@@ -4197,6 +4198,7 @@ const interactionSchema = new mongoose.Schema({
   notes: String
 }, { timestamps: true });
 interactionSchema.index({ entityType: 1, entityId: 1, date: -1 });
+interactionSchema.index({ saleId: 1, date: -1 });
 const Interaction = mongoose.model('Interaction', interactionSchema);
 
 const additionalCostSchema = new mongoose.Schema({
@@ -7535,16 +7537,18 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
     if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
     const accessResult = getClientWithAccessControl(client, req.user);
     if (!accessResult || accessResult.limited) return res.status(403).json({ error: 'Немає доступу' });
-    const { type, date, notes } = req.body || {};
-    const doc = await Interaction.create({
+    const { type, date, notes, saleId } = req.body || {};
+    const payload = {
       entityType: 'client',
       entityId: req.params.id,
       type: type || 'note',
       date: date ? new Date(date) : new Date(),
       userLogin: req.user?.login,
       userName: req.user?.name || req.user?.login,
-      notes: notes || ''
-    });
+      notes: notes || '',
+    };
+    if (saleId) payload.saleId = saleId;
+    const doc = await Interaction.create(payload);
     res.status(201).json(doc);
   } catch (err) {
     res.status(400).json({ error: err.message });

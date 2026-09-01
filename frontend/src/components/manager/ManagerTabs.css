@@ -1,8 +1,10 @@
 .manager-crm-tab {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
+  height: 100%;
 }
 
 .manager-crm-tab .manager-header {
@@ -10,7 +12,14 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+.manager-crm-tab .manager-header h2 {
+  font-size: 18px;
+  margin: 0;
 }
 
 .manager-crm-tab .header-actions {
@@ -104,7 +113,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  margin-top: 16px;
+  margin-top: 10px;
   background: var(--surface);
   border-radius: 8px;
   border: 1px solid var(--border);
