@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   getMarketingLeads,
   getMarketingLeadsMeta,
@@ -40,6 +40,7 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
   const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', source: '', search: '' });
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [selected, setSelected] = useState(null);
@@ -47,13 +48,13 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
   const [saving, setSaving] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = isArchiveMode ? { archived: '1' } : {};
       if (filters.status) params.status = filters.status;
       if (filters.source) params.source = filters.source;
-      if (filters.search.trim()) params.search = filters.search.trim();
+      if (debouncedSearch) params.search = debouncedSearch;
       const requests = [
         getMarketingLeads(params),
         getMarketingLeadsMeta(),
@@ -77,7 +78,14 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isArchiveMode, filters.status, filters.source, debouncedSearch, onArchiveChange]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search.trim());
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   useEffect(() => {
     load();
@@ -86,7 +94,7 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
         setManagers((list || []).filter((u) => (u.role || '').toLowerCase() === 'manager'));
       });
     }
-  }, [filters.status, filters.source, mode]);
+  }, [load, isArchiveMode]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -238,7 +246,9 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
           placeholder="Пошук: ім’я, телефон, місто..."
           value={filters.search}
           onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
-          onKeyDown={(e) => e.key === 'Enter' && load()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') setDebouncedSearch(filters.search.trim());
+          }}
         />
         <select
           className="marketing-select"
