@@ -2,11 +2,10 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import API_BASE_URL from '../config';
 import { getPdfUniqueKey, extractContractMetaFromFile, analyzeContractFileByUrl, isContractFileSupported, openContractFilePreview } from '../utils/pdfUtils';
 import { contractSupportsEstimate, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
-import { getClientData, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
+import { getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import { getClients, lookupCompanyByEdrpou } from '../utils/clientsAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
-import ClientDataSelectionModal from './ClientDataSelectionModal';
 import EquipmentDataSelectionModal from './EquipmentDataSelectionModal';
 import MaterialNameAutocomplete from './MaterialNameAutocomplete';
 import TaskOneCMovementsPanel from './onec/TaskOneCMovementsPanel';
@@ -474,7 +473,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [edrpouSuggestions, setEdrpouSuggestions] = useState([]);
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const [edrpouLookupLoading, setEdrpouLookupLoading] = useState(false);
-  const [clientDataModal, setClientDataModal] = useState({ open: false, edrpou: '' });
   
   // Стан для автозаповнення типу обладнання
   const [equipmentTypes, setEquipmentTypes] = useState([]);
@@ -1253,7 +1251,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     return '';
   };
 
-  const handleSelectEdrpouSuggestion = async (item) => {
+  const handleSelectEdrpouSuggestion = (item) => {
     if (isReadOnly) return;
     const edrpou = item.edrpou || '';
     const clientName = item.name || '';
@@ -1264,17 +1262,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     });
     setShowEdrpouDropdown(false);
     setEdrpouSuggestions([]);
-
-    try {
-      const data = await getClientData(edrpou);
-      const hasHistory = data && (data.client || data.address || data.invoiceRecipientDetails || data.contractFile);
-      if (hasHistory) {
-        setClientDataModal({ open: true, edrpou });
-      }
-    } catch {
-      /* ignore */
-    }
-
     setTimeout(() => tryAutoFillContractByEdrpou(edrpou), 0);
   };
 
@@ -1296,19 +1283,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     
     // Завжди відкриваємо модальне вікно для вибору даних обладнання
     setEquipmentDataModal({ open: true, equipment: equipment });
-  };
-
-  // Обробник застосування даних клієнта з модального вікна
-  const handleClientDataApply = (updates) => {
-    console.log('[DEBUG] handleClientDataApply - оновлення форми:', updates);
-    setFormData(prev => {
-      const next = { ...prev, ...updates };
-      formDataRef.current = next;
-      return next;
-    });
-    setTimeout(() => {
-      tryAutoFillContractByEdrpou(formDataRef.current.edrpou);
-    }, 0);
   };
 
   // Обробник застосування даних обладнання з модального вікна
@@ -3661,20 +3635,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         ) : null}
         </div>
       </div>
-      
-      {/* Модальне вікно автозаповнення даних клієнта */}
-      <ClientDataSelectionModal
-        open={clientDataModal.open}
-        onClose={(detail) => {
-          setClientDataModal({ open: false, edrpou: '' });
-          if (!detail?.applied) {
-            setTimeout(() => tryAutoFillContractByEdrpou(formDataRef.current.edrpou), 0);
-          }
-        }}
-        onApply={handleClientDataApply}
-        edrpou={clientDataModal.edrpou}
-        currentFormData={formData}
-      />
       
       {/* Модальне вікно автозаповнення даних обладнання */}
       <EquipmentDataSelectionModal
