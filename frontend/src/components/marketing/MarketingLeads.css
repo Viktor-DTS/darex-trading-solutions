@@ -176,6 +176,28 @@
 .marketing-status--rejected,
 .marketing-status--spam { background: rgba(244, 67, 54, 0.12); color: #e57373; }
 
+.marketing-work-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.marketing-work-status--waiting { background: rgba(255, 193, 7, 0.15); color: #ffca28; }
+.marketing-work-status--in_progress { background: rgba(76, 175, 80, 0.15); color: #81c784; }
+.marketing-work-status--rejected { background: rgba(244, 67, 54, 0.12); color: #e57373; }
+.marketing-work-status--converted { background: rgba(156, 39, 176, 0.15); color: #ce93d8; }
+.marketing-work-status--none { background: rgba(255, 255, 255, 0.06); color: rgba(244, 244, 245, 0.55); }
+
+.marketing-table-comment {
+  max-width: 220px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(244, 244, 245, 0.75);
+  word-break: break-word;
+}
+
 .marketing-lead-detail {
   min-height: 0;
   overflow: auto;

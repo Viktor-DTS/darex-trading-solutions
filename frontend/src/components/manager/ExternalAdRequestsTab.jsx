@@ -7,6 +7,7 @@ import {
 } from '../../utils/marketingLeadsAPI';
 import '../marketing/MarketingLeads.css';
 import MarketingLeadAttribution from '../marketing/MarketingLeadAttribution';
+import MarketingLeadRejectModal from '../marketing/MarketingLeadRejectModal';
 
 function ExternalAdRequestsTab({ user }) {
   const [leads, setLeads] = useState([]);
@@ -16,6 +17,7 @@ function ExternalAdRequestsTab({ user }) {
   const [selected, setSelected] = useState(null);
   const [managerNotes, setManagerNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -56,10 +58,28 @@ function ExternalAdRequestsTab({ user }) {
     if (!selected) return;
     setSaving(true);
     try {
-      await updateMarketingLead(selected._id, { status: 'in_progress' });
+      const fresh = await updateMarketingLead(selected._id, { status: 'in_progress' });
       await load();
-      const fresh = await getMarketingLead(selected._id);
       setSelected(fresh);
+    } catch (err) {
+      alert(err.message || 'Помилка');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReject = async (reason) => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await updateMarketingLead(selected._id, {
+        status: 'rejected',
+        rejectionReason: reason,
+        statusNote: reason,
+      });
+      setShowRejectModal(false);
+      setSelectedId(null);
+      load();
     } catch (err) {
       alert(err.message || 'Помилка');
     } finally {
@@ -95,6 +115,14 @@ function ExternalAdRequestsTab({ user }) {
     }
   };
 
+  const managerWorkStatusClass = (lead) => {
+    if (lead?.status === 'transmitted') return 'waiting';
+    if (lead?.status === 'in_progress') return 'in_progress';
+    if (lead?.status === 'rejected') return 'rejected';
+    if (lead?.status === 'converted') return 'converted';
+    return 'none';
+  };
+
   const formatDate = (d) => (d ? new Date(d).toLocaleString('uk-UA') : '—');
 
   return (
@@ -102,7 +130,7 @@ function ExternalAdRequestsTab({ user }) {
       <div style={{ marginBottom: 16 }}>
         <h2 style={{ margin: '0 0 8px', color: '#1a1a2e' }}>Запити з зовнішньої реклами</h2>
         <p style={{ margin: 0, color: '#666', fontSize: 14 }}>
-          Заявки, передані маркетинговим відділом. Візьміть у роботу, додайте нотатки та позначте конвертацію.
+          Заявки, передані маркетинговим відділом. Візьміть у роботу, додайте нотатки або відхиліть з причиною.
         </p>
       </div>
 
@@ -129,7 +157,9 @@ function ExternalAdRequestsTab({ user }) {
                   <th>Джерело</th>
                   <th>Клієнт</th>
                   <th>Телефон</th>
-                  <th>Статус</th>
+                  <th>Статус роботи</th>
+                  <th>Коментар</th>
+                  <th>Кому належить клієнт</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,7 +175,13 @@ function ExternalAdRequestsTab({ user }) {
                     <td>{meta.sources?.[l.source] || l.source}</td>
                     <td>{l.clientName || '—'}</td>
                     <td>{l.contactPhone || '—'}</td>
-                    <td>{meta.statuses?.[l.status] || l.status}</td>
+                    <td>
+                      <span className={`marketing-work-status marketing-work-status--${managerWorkStatusClass(l)}`}>
+                        {l.managerWorkStatusLabel || meta.statuses?.[l.status] || l.status}
+                      </span>
+                    </td>
+                    <td className="marketing-table-comment">{l.managerWorkComment || '—'}</td>
+                    <td>{l.clientOwnerName || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -163,11 +199,14 @@ function ExternalAdRequestsTab({ user }) {
             }}
           >
             <h3 style={{ color: '#1a1a2e' }}>{selected.requestNumber}</h3>
+            <p><strong>Статус роботи:</strong> {selected.managerWorkStatusLabel || meta.statuses?.[selected.status] || selected.status}</p>
             <p><strong>Клієнт:</strong> {selected.clientName || '—'}</p>
             <p><strong>Тел:</strong> {selected.contactPhone || '—'}</p>
             <p><strong>Email:</strong> {selected.contactEmail || '—'}</p>
             <p><strong>Місто:</strong> {selected.city || '—'}</p>
             <p><strong>Інтерес:</strong> {selected.productInterest || '—'}</p>
+            <p><strong>Кому належить клієнт:</strong> {selected.clientOwnerName || '—'}</p>
+            <p><strong>Коментар роботи:</strong> {selected.managerWorkComment || '—'}</p>
             <p><strong>Коментар:</strong> {selected.comment || '—'}</p>
             {selected.marketingNotes && (
               <p><strong>Нотатки маркетингу:</strong> {selected.marketingNotes}</p>
@@ -189,6 +228,11 @@ function ExternalAdRequestsTab({ user }) {
                   Взяти в роботу
                 </button>
               )}
+              {(selected.status === 'transmitted' || selected.status === 'in_progress') && (
+                <button type="button" className="marketing-btn marketing-btn-ghost" disabled={saving} onClick={() => setShowRejectModal(true)}>
+                  Відхилити
+                </button>
+              )}
               <button type="button" className="marketing-btn marketing-btn-secondary" disabled={saving} onClick={handleSaveNotes}>
                 Зберегти нотатки
               </button>
@@ -201,6 +245,13 @@ function ExternalAdRequestsTab({ user }) {
           </aside>
         )}
       </div>
+
+      <MarketingLeadRejectModal
+        open={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        onConfirm={handleReject}
+        saving={saving}
+      />
     </div>
   );
 }

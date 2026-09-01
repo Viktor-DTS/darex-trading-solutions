@@ -10,6 +10,7 @@ import {
 } from '../../utils/marketingLeadsAPI';
 import { getUsers } from '../../utils/clientsAPI';
 import MarketingLeadAttribution from './MarketingLeadAttribution';
+import MarketingLeadRejectModal from './MarketingLeadRejectModal';
 import './MarketingLeads.css';
 
 const EMPTY_FORM = {
@@ -39,6 +40,7 @@ function MarketingLeadsTab({ user }) {
   const [selected, setSelected] = useState(null);
   const [assignLogin, setAssignLogin] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -114,13 +116,16 @@ function MarketingLeadsTab({ user }) {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = async (reason) => {
     if (!selected) return;
-    const reason = window.prompt('Причина відхилення (необов’язково):');
-    if (reason === null) return;
     setSaving(true);
     try {
-      await updateMarketingLead(selected._id, { status: 'rejected', statusNote: reason });
+      await updateMarketingLead(selected._id, {
+        status: 'rejected',
+        rejectionReason: reason,
+        statusNote: reason,
+      });
+      setShowRejectModal(false);
       setSelected(null);
       load();
     } catch (err) {
@@ -128,6 +133,14 @@ function MarketingLeadsTab({ user }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const managerWorkStatusClass = (lead) => {
+    if (lead?.status === 'transmitted') return 'waiting';
+    if (lead?.status === 'in_progress') return 'in_progress';
+    if (lead?.status === 'rejected') return 'rejected';
+    if (lead?.status === 'converted') return 'converted';
+    return 'none';
   };
 
   const formatDate = (d) => (d ? new Date(d).toLocaleString('uk-UA') : '—');
@@ -209,6 +222,9 @@ function MarketingLeadsTab({ user }) {
                   <th>Телефон</th>
                   <th>Статус</th>
                   <th>Менеджер</th>
+                  <th>Статус роботи</th>
+                  <th>Коментар</th>
+                  <th>Кому належить клієнт</th>
                 </tr>
               </thead>
               <tbody>
@@ -225,6 +241,13 @@ function MarketingLeadsTab({ user }) {
                     <td>{l.contactPhone || '—'}</td>
                     <td><span className={`marketing-status marketing-status--${l.status}`}>{meta.statuses?.[l.status] || l.status}</span></td>
                     <td>{l.assignedManagerName || '—'}</td>
+                    <td>
+                      <span className={`marketing-work-status marketing-work-status--${managerWorkStatusClass(l)}`}>
+                        {l.managerWorkStatusLabel || '—'}
+                      </span>
+                    </td>
+                    <td className="marketing-table-comment">{l.managerWorkComment || '—'}</td>
+                    <td>{l.clientOwnerName || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -240,6 +263,8 @@ function MarketingLeadsTab({ user }) {
             <p><strong>Email:</strong> {selected.contactEmail || '—'}</p>
             <p><strong>Місто:</strong> {selected.city || '—'}</p>
             <p><strong>Інтерес:</strong> {selected.productInterest || '—'}</p>
+            <p><strong>Коментар роботи:</strong> {selected.managerWorkComment || '—'}</p>
+            <p><strong>Кому належить клієнт:</strong> {selected.clientOwnerName || '—'}</p>
             <p><strong>Коментар:</strong> {selected.comment || '—'}</p>
             <MarketingLeadAttribution lead={selected} interactionLabels={meta.interactionTypes} />
             <div className="marketing-assign-row">
@@ -261,7 +286,7 @@ function MarketingLeadsTab({ user }) {
               <button type="button" className="marketing-btn marketing-btn-primary" disabled={!selected.assignedManagerLogin || saving || selected.status === 'transmitted'} onClick={handleTransmit}>
                 Передати менеджеру
               </button>
-              <button type="button" className="marketing-btn marketing-btn-ghost" disabled={saving} onClick={handleReject}>
+              <button type="button" className="marketing-btn marketing-btn-ghost" disabled={saving} onClick={() => setShowRejectModal(true)}>
                 Відхилити
               </button>
             </div>
@@ -288,6 +313,13 @@ function MarketingLeadsTab({ user }) {
           </div>
         </div>
       )}
+
+      <MarketingLeadRejectModal
+        open={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        onConfirm={handleReject}
+        saving={saving}
+      />
     </div>
   );
 }

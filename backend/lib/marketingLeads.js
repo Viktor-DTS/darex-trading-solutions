@@ -54,11 +54,49 @@ const STATUS_LABELS = {
   in_review: 'На розгляді',
   assigned: 'Призначено менеджеру',
   transmitted: 'Передано менеджеру',
-  in_progress: 'В роботі',
+  in_progress: 'Взято в роботу',
   converted: 'Конвертовано',
   rejected: 'Відхилено',
   spam: 'Спам',
 };
+
+const MANAGER_WORK_STATUS_LABELS = {
+  transmitted: 'В очікуванні',
+  in_progress: 'Взято в роботу',
+  rejected: 'Відхилено',
+  converted: 'Конвертовано',
+};
+
+function formatUkDateTime(value) {
+  if (!value) return '';
+  return new Date(value).toLocaleString('uk-UA');
+}
+
+function getManagerWorkStatusLabel(status) {
+  return MANAGER_WORK_STATUS_LABELS[status] || '—';
+}
+
+function getManagerWorkComment(lead) {
+  if (!lead) return '';
+  if (lead.status === 'rejected') {
+    const reason = String(lead.rejectionReason || lead.managerWorkComment || '').trim();
+    return reason ? `Причина відхилення: ${reason}` : 'Причина відхилення';
+  }
+  if (lead.managerTakenAt) {
+    return `Взято в роботу ${formatUkDateTime(lead.managerTakenAt)}`;
+  }
+  if (lead.managerWorkComment) return String(lead.managerWorkComment);
+  return '';
+}
+
+function enrichLeadForResponse(lead) {
+  if (!lead || typeof lead !== 'object') return lead;
+  return {
+    ...lead,
+    managerWorkStatusLabel: getManagerWorkStatusLabel(lead.status),
+    managerWorkComment: getManagerWorkComment(lead),
+  };
+}
 
 function canAccessMarketingPanel(user) {
   const role = String(user?.role || '').toLowerCase();
@@ -147,7 +185,7 @@ function buildListQuery(req, user) {
 
   if (scope === 'manager' || (!canManageAllMarketingLeads(user) && role === 'manager')) {
     q.assignedManagerLogin = user.login;
-    q.status = { $in: ['transmitted', 'in_progress', 'converted'] };
+    q.status = { $in: ['transmitted', 'in_progress', 'converted', 'rejected'] };
   }
 
   const status = String(req.query.status || '').trim();
@@ -183,6 +221,7 @@ module.exports = {
   MARKETING_LEAD_STATUSES,
   SOURCE_LABELS,
   STATUS_LABELS,
+  MANAGER_WORK_STATUS_LABELS,
   INTERACTION_TYPE_LABELS,
   canAccessMarketingPanel,
   canManageAllMarketingLeads,
@@ -191,4 +230,8 @@ module.exports = {
   pushStatusHistory,
   sanitizeLeadPayload,
   buildListQuery,
+  formatUkDateTime,
+  getManagerWorkStatusLabel,
+  getManagerWorkComment,
+  enrichLeadForResponse,
 };

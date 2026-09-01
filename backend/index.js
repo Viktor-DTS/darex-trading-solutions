@@ -63,7 +63,10 @@ const {
   SOURCE_LABELS: MARKETING_SOURCE_LABELS,
   STATUS_LABELS: MARKETING_STATUS_LABELS,
   INTERACTION_TYPE_LABELS: MARKETING_INTERACTION_TYPE_LABELS,
+  enrichLeadForResponse,
+  formatUkDateTime,
 } = require('./lib/marketingLeads');
+const { enrichLeadsWithClientOwners } = require('./lib/clientPhoneLookup');
 const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
 const {
   normalizePhone: normalizeUserPhone,
@@ -733,6 +736,8 @@ const marketingLeadSchema = new mongoose.Schema({
   assignedByLogin: String,
   assignedByName: String,
   transmittedToManagerAt: Date,
+  managerTakenAt: Date,
+  managerWorkComment: String,
   marketingNotes: String,
   managerNotes: String,
   rejectionReason: String,
@@ -20979,7 +20984,8 @@ app.get('/api/marketing/leads', authenticateToken, async (req, res) => {
     }
     const q = buildMarketingLeadListQuery(req, req.user);
     const list = await MarketingLead.find(q).sort({ createdAt: -1 }).limit(500).lean();
-    res.json(list);
+    await enrichLeadsWithClientOwners(list, Client, User);
+    res.json(list.map(enrichLeadForResponse));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -20995,7 +21001,8 @@ app.get('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
     if (!canAccessMarketingPanel(req.user) && !isManagerView) {
       return res.status(403).json({ error: 'Немає доступу' });
     }
-    res.json(lead);
+    const [enriched] = await enrichLeadsWithClientOwners([lead], Client, User);
+    res.json(enrichLeadForResponse(enriched));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -21108,7 +21115,14 @@ app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
         if (body[f] !== undefined) lead[f] = body[f];
       });
       if (body.status && body.status !== lead.status) {
-        pushStatusHistory(lead, body.status, dbUser || req.user, body.statusNote || '');
+        if (body.status === 'rejected') {
+          const reason = String(body.rejectionReason || body.statusNote || '').trim();
+          lead.rejectionReason = reason;
+          lead.managerWorkComment = reason
+            ? `Причина відхилення: ${reason}`
+            : 'Причина відхилення';
+        }
+        pushStatusHistory(lead, body.status, dbUser || req.user, body.statusNote || body.rejectionReason || '');
       }
     }
 
@@ -21116,14 +21130,28 @@ app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
       lead.managerNotes = String(body.managerNotes || '');
     }
     if (isAssignedManager && body.status === 'in_progress' && lead.status !== 'in_progress') {
-      pushStatusHistory(lead, 'in_progress', dbUser || req.user, 'Менеджер взяв у роботу');
+      const takenAt = new Date();
+      lead.managerTakenAt = takenAt;
+      lead.managerWorkComment = `Взято в роботу ${formatUkDateTime(takenAt)}`;
+      pushStatusHistory(lead, 'in_progress', dbUser || req.user, lead.managerWorkComment);
+    }
+    if (isAssignedManager && body.status === 'rejected' && lead.status !== 'rejected') {
+      const reason = String(body.rejectionReason || body.statusNote || '').trim();
+      if (!reason) {
+        return res.status(400).json({ error: 'Вкажіть причину відхилення заявки' });
+      }
+      lead.rejectionReason = reason;
+      lead.managerWorkComment = `Причина відхилення: ${reason}`;
+      pushStatusHistory(lead, 'rejected', dbUser || req.user, reason);
     }
     if (isAssignedManager && body.status === 'converted') {
       pushStatusHistory(lead, 'converted', dbUser || req.user, body.statusNote || 'Конвертовано');
     }
 
     await lead.save();
-    res.json(lead);
+    const saved = lead.toObject();
+    const [enriched] = await enrichLeadsWithClientOwners([saved], Client, User);
+    res.json(enrichLeadForResponse(enriched));
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
