@@ -1,4 +1,5 @@
 .telegram-connect-banner {
+  flex-shrink: 0;
   margin: 0 12px 12px;
   padding: 14px 16px;
   border-radius: 10px;

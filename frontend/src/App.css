@@ -1,5 +1,7 @@
 .app {
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   background: var(--background);
   color: var(--text-primary);
   display: flex;
@@ -11,7 +13,9 @@
 .app-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -129,13 +133,8 @@
   flex-direction: column;
 }
 
-.panel-content.with-selector {
-  height: calc(100vh - 44px);
-}
-
 .panel-content.with-statistics-bar {
-  height: calc(100vh - 44px - 24px); /* Враховуємо висоту панелі статистики (24px) */
-  padding-bottom: 0;
+  padding-bottom: 24px; /* Фіксована панель статистики знизу */
 }
 
 .panel-content .dashboard {

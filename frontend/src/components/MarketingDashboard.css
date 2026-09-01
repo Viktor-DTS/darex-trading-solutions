@@ -4,14 +4,15 @@
   --vip-bg: #030303;
   --vip-surface: rgba(18, 18, 18, 0.92);
   --vip-border: rgba(212, 175, 55, 0.22);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
   background: var(--vip-bg);
   color: #f4f4f5;
   position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 }
 
 .marketing-dashboard::before {
@@ -26,15 +27,21 @@
 .marketing-dashboard-inner {
   position: relative;
   z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 24px 28px 48px;
-  min-height: min-content;
+  padding: 16px 24px 16px;
+  box-sizing: border-box;
 }
 
 .marketing-hero {
-  margin-bottom: 28px;
-  padding: 28px 32px;
+  flex-shrink: 0;
+  margin-bottom: 16px;
+  padding: 20px 24px;
   border: 1px solid var(--vip-border);
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(3, 3, 3, 0.6) 55%);
@@ -72,8 +79,9 @@
 .marketing-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .marketing-tab-btn {
@@ -99,11 +107,28 @@
 }
 
 .marketing-content-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--vip-border);
   border-radius: 14px;
   background: var(--vip-surface);
-  padding: 20px;
+  padding: 16px 20px;
   backdrop-filter: blur(8px);
+}
+
+.marketing-content-panel > * {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.marketing-content-panel > .marketing-leads-tab {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .card-vip {
@@ -199,4 +224,59 @@
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
+}
+
+@media (max-height: 800px) {
+  .marketing-dashboard-inner {
+    padding: 10px 16px 12px;
+  }
+
+  .marketing-hero {
+    margin-bottom: 10px;
+    padding: 12px 16px;
+  }
+
+  .marketing-hero h1 {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+
+  .marketing-hero p {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .marketing-hero-badge {
+    margin-top: 8px;
+  }
+
+  .marketing-tabs {
+    margin-bottom: 8px;
+  }
+
+  .marketing-tab-btn {
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+
+  .marketing-content-panel {
+    padding: 12px 14px;
+  }
+}
+
+@media (max-height: 640px) {
+  .marketing-hero p,
+  .marketing-hero-badge {
+    display: none;
+  }
+
+  .marketing-hero {
+    padding: 8px 14px;
+    margin-bottom: 8px;
+  }
+
+  .marketing-hero h1 {
+    font-size: 16px;
+    margin: 0;
+  }
 }

@@ -1,12 +1,18 @@
 .marketing-leads-tab {
   color: #f4f4f5;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .marketing-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
 }
 
 .marketing-stat-card {
@@ -34,8 +40,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .marketing-input,
@@ -90,21 +97,32 @@
 }
 
 .marketing-leads-layout {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.marketing-leads-layout:has(.marketing-lead-detail) {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
 }
 
 @media (max-width: 1100px) {
-  .marketing-leads-layout {
+  .marketing-leads-layout,
+  .marketing-leads-layout:has(.marketing-lead-detail) {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(180px, 1fr) auto;
+    overflow: auto;
   }
 }
 
 .marketing-leads-list-wrap {
   overflow: auto;
-  max-height: min(560px, calc(100vh - 320px));
+  min-height: 0;
+  height: 100%;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   -webkit-overflow-scrolling: touch;
@@ -157,6 +175,12 @@
 .marketing-status--converted { background: rgba(76, 175, 80, 0.15); color: #81c784; }
 .marketing-status--rejected,
 .marketing-status--spam { background: rgba(244, 67, 54, 0.12); color: #e57373; }
+
+.marketing-lead-detail {
+  min-height: 0;
+  overflow: auto;
+  align-self: stretch;
+}
 
 .marketing-lead-detail h3 {
   margin: 0 0 12px;
@@ -246,4 +270,47 @@
   justify-content: flex-end;
   gap: 10px;
   margin-top: 16px;
+}
+
+@media (max-height: 800px) {
+  .marketing-stats-grid {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .marketing-stat-card {
+    padding: 8px 12px;
+  }
+
+  .marketing-stat-card strong {
+    font-size: 18px;
+  }
+
+  .marketing-toolbar {
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .marketing-input,
+  .marketing-select,
+  .marketing-btn {
+    padding: 7px 10px;
+    font-size: 13px;
+  }
+}
+
+@media (max-height: 640px) {
+  .marketing-stats-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin-bottom: 8px;
+  }
+
+  .marketing-stat-label {
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+
+  .marketing-stat-card strong {
+    font-size: 16px;
+  }
 }
