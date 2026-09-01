@@ -69,7 +69,7 @@ const {
   setLeadArchived,
   shouldAutoArchiveOnMarketingStatus,
 } = require('./lib/marketingLeads');
-const { enrichLeadsWithClientOwners } = require('./lib/clientPhoneLookup');
+const { enrichLeadsWithClientOwners, findClientByPhoneForManager } = require('./lib/clientPhoneLookup');
 const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
 const {
   normalizePhone: normalizeUserPhone,
@@ -7363,6 +7363,21 @@ app.get('/api/clients/filters', authenticateToken, async (req, res) => {
       regions: regions.filter(Boolean).sort(),
       managers: managers.map(m => ({ login: m.login, name: m.name || m.login }))
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/clients/my-by-phone', authenticateToken, async (req, res) => {
+  try {
+    if ((req.user?.role || '').toLowerCase() !== 'manager') {
+      return res.status(403).json({ error: 'Доступ лише для менеджера' });
+    }
+    const phone = String(req.query.phone || '').trim();
+    if (!phone) return res.json(null);
+    const client = await findClientByPhoneForManager(Client, phone, req.user.login);
+    if (!client) return res.json(null);
+    res.json(getClientWithAccessControl(client, req.user));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -5,9 +5,38 @@ import {
   getMarketingLead,
   updateMarketingLead,
 } from '../../utils/marketingLeadsAPI';
+import { findMyClientByPhone } from '../../utils/clientsAPI';
+import ClientFormModal from './ClientFormModal';
+import SaleFormModal from './SaleFormModal';
 import '../marketing/MarketingLeads.css';
 import MarketingLeadAttribution from '../marketing/MarketingLeadAttribution';
 import MarketingLeadRejectModal from '../marketing/MarketingLeadRejectModal';
+
+function buildLeadNotes(lead) {
+  const parts = [];
+  if (lead?.comment) parts.push(lead.comment);
+  if (lead?.productInterest) parts.push(`Інтерес: ${lead.productInterest}`);
+  if (lead?.marketingNotes) parts.push(`Маркетинг: ${lead.marketingNotes}`);
+  if (lead?.requestNumber) parts.push(`Заявка ${lead.requestNumber}`);
+  if (lead?.source) parts.push(`Джерело: ${lead.source}`);
+  return parts.filter(Boolean).join('\n');
+}
+
+function leadToClientInitialForm(lead, user) {
+  return {
+    name: lead?.clientName || '',
+    address: lead?.city || '',
+    contacts: [{
+      id: '1',
+      person: lead?.clientName || '',
+      phone: lead?.contactPhone || '',
+    }],
+    email: lead?.contactEmail || '',
+    notes: buildLeadNotes(lead),
+    assignedManagerLogin: user?.login || '',
+    region: user?.region || '',
+  };
+}
 
 function ExternalAdRequestsTab({ user }) {
   const [leads, setLeads] = useState([]);
@@ -18,6 +47,12 @@ function ExternalAdRequestsTab({ user }) {
   const [managerNotes, setManagerNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [showSaleModal, setShowSaleModal] = useState(false);
+  const [clientInitialForm, setClientInitialForm] = useState(null);
+  const [saleInitialClient, setSaleInitialClient] = useState(null);
+  const [saleInitialNotes, setSaleInitialNotes] = useState('');
+  const [pendingLead, setPendingLead] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -54,6 +89,25 @@ function ExternalAdRequestsTab({ user }) {
       .catch(() => setSelected(null));
   }, [selectedId]);
 
+  const openClientOrDealWorkflow = async (lead) => {
+    setPendingLead(lead);
+    const notes = buildLeadNotes(lead);
+    const phone = lead?.contactPhone;
+
+    if (phone) {
+      const existingClient = await findMyClientByPhone(phone);
+      if (existingClient) {
+        setSaleInitialClient(existingClient);
+        setSaleInitialNotes(notes);
+        setShowSaleModal(true);
+        return;
+      }
+    }
+
+    setClientInitialForm(leadToClientInitialForm(lead, user));
+    setShowClientModal(true);
+  };
+
   const handleTakeWork = async () => {
     if (!selected) return;
     setSaving(true);
@@ -61,11 +115,34 @@ function ExternalAdRequestsTab({ user }) {
       const fresh = await updateMarketingLead(selected._id, { status: 'in_progress' });
       await load();
       setSelected(fresh);
+      await openClientOrDealWorkflow(fresh);
     } catch (err) {
       alert(err.message || 'Помилка');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleClientCreated = (newClient) => {
+    setShowClientModal(false);
+    setClientInitialForm(null);
+    if (newClient?._id) {
+      setSaleInitialClient(newClient);
+      setSaleInitialNotes(buildLeadNotes(pendingLead));
+      setShowSaleModal(true);
+    }
+  };
+
+  const closeClientModal = () => {
+    setShowClientModal(false);
+    setClientInitialForm(null);
+  };
+
+  const closeSaleModal = () => {
+    setShowSaleModal(false);
+    setSaleInitialClient(null);
+    setSaleInitialNotes('');
+    setPendingLead(null);
   };
 
   const handleReject = async (reason) => {
@@ -130,7 +207,8 @@ function ExternalAdRequestsTab({ user }) {
       <div style={{ marginBottom: 16 }}>
         <h2 style={{ margin: '0 0 8px', color: '#1a1a2e' }}>Запити з зовнішньої реклами</h2>
         <p style={{ margin: 0, color: '#666', fontSize: 14 }}>
-          Заявки, передані маркетинговим відділом. Візьміть у роботу, додайте нотатки або відхиліть з причиною.
+          Заявки, передані маркетинговим відділом. Візьміть у роботу — система знайде вашого клієнта за телефоном
+          або відкриє форму нового клієнта з даними з заявки.
         </p>
       </div>
 
@@ -251,6 +329,22 @@ function ExternalAdRequestsTab({ user }) {
         onClose={() => setShowRejectModal(false)}
         onConfirm={handleReject}
         saving={saving}
+      />
+
+      <ClientFormModal
+        open={showClientModal}
+        onClose={closeClientModal}
+        onSuccess={handleClientCreated}
+        initialForm={clientInitialForm}
+        user={user}
+      />
+
+      <SaleFormModal
+        open={showSaleModal}
+        onClose={closeSaleModal}
+        initialClient={saleInitialClient}
+        initialNotes={saleInitialNotes}
+        user={user}
       />
     </div>
   );

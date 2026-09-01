@@ -59,6 +59,24 @@ export const checkEdrpou = async (edrpou, excludeClientId = null) => {
   }
 };
 
+// Пошук клієнта менеджера за телефоном (лише власні клієнти)
+export const findMyClientByPhone = async (phone) => {
+  try {
+    const trimmed = (phone || '').trim();
+    if (!trimmed) return null;
+    const qs = new URLSearchParams({ phone: trimmed }).toString();
+    const response = await fetch(`${API_BASE_URL}/clients/my-by-phone?${qs}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    return data && data._id ? data : null;
+  } catch (error) {
+    console.error('Помилка пошуку клієнта за телефоном:', error);
+    return null;
+  }
+};
+
 // Пошук клієнта (для вхідного дзвінка — може повертати обмежені дані для чужих)
 export const searchClients = async (query) => {
   try {

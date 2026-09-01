@@ -4,7 +4,7 @@ import './ClientFormModal.css';
 
 const canAssignManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
-function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) {
+function ClientFormModal({ open, onClose, onSuccess, editClient = null, initialForm = null, user }) {
   const [loading, setLoading] = useState(false);
   const [edrpouConflict, setEdrpouConflict] = useState(null);
   const [managers, setManagers] = useState([]);
@@ -49,7 +49,7 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
           notes: editClient.notes || ''
         });
       } else {
-        setForm({
+        const emptyForm = {
           edrpou: '',
           name: '',
           address: '',
@@ -58,12 +58,27 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
           assignedManagerLogin: user?.login || '',
           assignedManagerLogin2: '',
           region: user?.region || '',
-          notes: ''
-        });
+          notes: '',
+        };
+        if (initialForm) {
+          setForm({
+            ...emptyForm,
+            ...initialForm,
+            contacts: initialForm.contacts?.length
+              ? initialForm.contacts.map((c, i) => ({
+                id: c.id || String(i + 1),
+                person: c.person || '',
+                phone: c.phone || '',
+              }))
+              : emptyForm.contacts,
+          });
+        } else {
+          setForm(emptyForm);
+        }
       }
     }
     setEdrpouConflict(null);
-  }, [open, editClient, user]);
+  }, [open, editClient, initialForm, user]);
 
   // Автоматично підтягувати регіон першого менеджера
   useEffect(() => {

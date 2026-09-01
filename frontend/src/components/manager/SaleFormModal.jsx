@@ -36,7 +36,7 @@ const PAYMENT_METHOD_OPTIONS = [
 const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', in_negotiation: 'В процесі домовленості', in_realization: 'Реалізація угоди', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
 const statusLabel = (v) => SALE_STATUS_OPTIONS.find(o => o.value === v)?.label || STATUS_LABELS_LEGACY[v] || v || '—';
 
-function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = null, initialClient = null, user, viewOnly = false }) {
+function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = null, initialClient = null, initialNotes = '', user, viewOnly = false }) {
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -170,7 +170,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
           saleDate: new Date().toISOString().slice(0, 10),
           warrantyMonths: 12,
           status: 'in_negotiation',
-          notes: '',
+          notes: initialNotes || '',
           addressMM: '',
           buyer: '',
           invoiceNumber: '',
@@ -194,7 +194,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
       loadClients();
       loadEquipment();
     }
-  }, [open, editSale]);
+  }, [open, editSale, initialClient, initialNotes, user?.login]);
 
   useEffect(() => {
     if (!open || editSale) {

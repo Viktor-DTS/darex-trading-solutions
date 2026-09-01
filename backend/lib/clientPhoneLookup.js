@@ -47,11 +47,22 @@ async function findClientByPhone(Client, phone) {
   const candidates = await Client.find({
     $or: [{ contactPhone: re }, { 'contacts.phone': re }],
   })
-    .select('name contactPhone contacts assignedManagerLogin assignedManagerLogin2')
+    .select('name contactPhone contacts assignedManagerLogin assignedManagerLogin2 edrpou email address region notes')
     .limit(20)
     .lean();
 
   return candidates.find((c) => collectClientPhones(c).some((p) => phonesEquivalent(p, phone))) || null;
+}
+
+function isClientOwnedByManager(client, managerLogin) {
+  if (!client || !managerLogin) return false;
+  return client.assignedManagerLogin === managerLogin || client.assignedManagerLogin2 === managerLogin;
+}
+
+async function findClientByPhoneForManager(Client, phone, managerLogin) {
+  const client = await findClientByPhone(Client, phone);
+  if (!client || !isClientOwnedByManager(client, managerLogin)) return null;
+  return client;
 }
 
 async function resolveManagerDisplayName(User, login) {
@@ -129,6 +140,8 @@ module.exports = {
   phoneSearchRegex,
   phonesEquivalent,
   findClientByPhone,
+  findClientByPhoneForManager,
+  isClientOwnedByManager,
   findClientOwnerByPhone,
   enrichLeadsWithClientOwners,
 };
