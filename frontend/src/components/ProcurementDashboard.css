@@ -978,6 +978,16 @@
   box-sizing: border-box;
 }
 
+.procurement-client-hints-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.procurement-client-hints-wrap input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .procurement-material-cell--name {
   position: relative;
 }

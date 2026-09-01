@@ -4949,6 +4949,44 @@ async function buildProcurementNomenclatureHints(query) {
   return out.slice(0, limit);
 }
 
+/** Підказки «Замовник» для поля «Під який проект/об'єкт». */
+async function buildProcurementClientHints(query) {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const rx = new RegExp(escapeRegExpForProcurementHint(q), 'i');
+  const limit = 20;
+
+  const [taskClients, crmClients] = await Promise.all([
+    Task.distinct('client', { client: rx }),
+    Client.find({ name: rx }).select('name').limit(80).lean(),
+  ]);
+
+  const seen = new Set();
+  const names = [];
+  const addName = (raw) => {
+    const label = String(raw || '').trim();
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    names.push(label);
+  };
+  for (const name of taskClients) addName(name);
+  for (const row of crmClients) addName(row?.name);
+
+  const qLower = q.toLowerCase();
+  names.sort((a, b) => {
+    const al = a.toLowerCase();
+    const bl = b.toLowerCase();
+    const aStart = al.startsWith(qLower) ? 0 : 1;
+    const bStart = bl.startsWith(qLower) ? 0 : 1;
+    if (aStart !== bStart) return aStart - bStart;
+    return al.localeCompare(bl, 'uk');
+  });
+
+  return names.slice(0, limit).map((label) => ({ label }));
+}
+
 /** Залишки обраної номенклатури на складах (для панелі закупівель). */
 async function buildProcurementNomenclatureStock(name, productId) {
   const label = String(name || '').trim();
@@ -5344,6 +5382,24 @@ app.get('/api/procurement-requests/nomenclature-hints', async (req, res) => {
   } catch (error) {
     logPerformance('GET /api/procurement-requests/nomenclature-hints', startTime);
     console.error('[ERROR] nomenclature-hints:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/procurement-requests/client-hints', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) {
+      logPerformance('GET /api/procurement-requests/client-hints', startTime, 0);
+      return res.json([]);
+    }
+    const out = await buildProcurementClientHints(q);
+    logPerformance('GET /api/procurement-requests/client-hints', startTime, out.length);
+    res.json(out);
+  } catch (error) {
+    logPerformance('GET /api/procurement-requests/client-hints', startTime);
+    console.error('[ERROR] client-hints:', error);
     res.status(500).json({ error: error.message });
   }
 });

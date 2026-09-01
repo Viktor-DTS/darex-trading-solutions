@@ -535,6 +535,9 @@ function ProcurementDashboard({ user }) {
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
+  const [clientHints, setClientHints] = useState([]);
+  const clientHintDebounceRef = useRef(null);
+  const clientHintRequestIdRef = useRef(0);
   const [nomenclatureStockItems, setNomenclatureStockItems] = useState([]);
   const [nomenclatureStockLoading, setNomenclatureStockLoading] = useState(false);
   const nomenclatureStockDebounceRef = useRef(null);
@@ -777,6 +780,8 @@ function ProcurementDashboard({ user }) {
     setEditingRequestNumber('');
     setNomenclatureHints([]);
     setHintsForRow(null);
+    setClientHints([]);
+    if (clientHintDebounceRef.current) clearTimeout(clientHintDebounceRef.current);
     if (nomenclatureStockDebounceRef.current) clearTimeout(nomenclatureStockDebounceRef.current);
     setNomenclatureStockItems([]);
     setNomenclatureStockLoading(false);
@@ -934,6 +939,51 @@ function ProcurementDashboard({ user }) {
     },
     [authHeaders]
   );
+
+  const requestClientHints = useCallback(
+    (query, { immediate = false } = {}) => {
+      if (clientHintDebounceRef.current) clearTimeout(clientHintDebounceRef.current);
+      const q = String(query || '').trim();
+      if (!q) {
+        clientHintRequestIdRef.current += 1;
+        setClientHints([]);
+        return;
+      }
+      if (!immediate) setClientHints([]);
+      const run = async () => {
+        const requestId = ++clientHintRequestIdRef.current;
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/procurement-requests/client-hints?q=${encodeURIComponent(q)}`,
+            { headers: authHeaders }
+          );
+          if (tryHandleUnauthorizedResponse(res)) return;
+          if (requestId !== clientHintRequestIdRef.current) return;
+          if (res.ok) {
+            const data = await res.json();
+            setClientHints(Array.isArray(data) ? data : []);
+          }
+        } catch (e) {
+          if (requestId === clientHintRequestIdRef.current) {
+            console.error(e);
+          }
+        }
+      };
+      if (immediate) {
+        run();
+        return;
+      }
+      clientHintDebounceRef.current = setTimeout(run, 1000);
+    },
+    [authHeaders]
+  );
+
+  const pickClientHint = (hint) => {
+    const label = String(hint?.label || '').trim();
+    if (!label) return;
+    setCreateForm((prev) => ({ ...prev, projectObject: label }));
+    setClientHints([]);
+  };
 
   const updateMaterialRow = (idx, patch) => {
     setCreateForm((prev) => {
@@ -2512,13 +2562,44 @@ function ProcurementDashboard({ user }) {
               </label>
               <label className="procurement-field">
                 <span>Під який проект/об'єкт</span>
-                <input
-                  type="text"
-                  value={createForm.projectObject}
-                  onChange={(e) => setCreateForm({ ...createForm, projectObject: e.target.value })}
-                  placeholder="Назва проекту або об'єкта"
-                  maxLength={500}
-                />
+                <div className="procurement-client-hints-wrap">
+                  <input
+                    type="text"
+                    value={createForm.projectObject}
+                    autoComplete="off"
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setCreateForm({ ...createForm, projectObject: v });
+                      requestClientHints(v);
+                    }}
+                    onFocus={() => {
+                      if (String(createForm.projectObject || '').trim()) {
+                        requestClientHints(createForm.projectObject, { immediate: true });
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setClientHints([]), 180);
+                    }}
+                    placeholder="Назва проекту або об'єкта"
+                    maxLength={500}
+                  />
+                  {clientHints.length > 0 && (
+                    <ul className="procurement-hints-list" role="listbox">
+                      {clientHints.map((h) => (
+                        <li key={String(h.label)}>
+                          <button
+                            type="button"
+                            className="procurement-hint-item"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => pickClientHint(h)}
+                          >
+                            <span className="procurement-hint-label">{h.label}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </label>
 
               <div className="procurement-field procurement-materials-block">
