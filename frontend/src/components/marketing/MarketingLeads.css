@@ -198,6 +198,30 @@
   word-break: break-word;
 }
 
+.marketing-table-actions {
+  white-space: nowrap;
+}
+
+.marketing-btn-compact {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.marketing-archive-intro {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(244, 244, 245, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.marketing-archive-intro p {
+  margin: 0;
+}
+
 .marketing-lead-detail {
   min-height: 0;
   overflow: auto;

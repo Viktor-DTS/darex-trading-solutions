@@ -226,6 +226,11 @@
   text-align: center;
 }
 
+.marketing-tab-badge--muted {
+  background: rgba(212, 175, 55, 0.25);
+  color: #f5ecd6;
+}
+
 @media (max-height: 800px) {
   .marketing-dashboard-inner {
     padding: 10px 16px 12px;

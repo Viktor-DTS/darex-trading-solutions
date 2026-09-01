@@ -74,6 +74,25 @@ export async function transmitMarketingLead(id, note = '') {
   return res.json();
 }
 
+export async function archiveMarketingLead(id, note = '') {
+  const res = await fetch(`${API_BASE_URL}/marketing/leads/${id}/archive`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function restoreMarketingLead(id) {
+  const res = await fetch(`${API_BASE_URL}/marketing/leads/${id}/restore`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function getMarketingIntegrationsStatus() {
   const res = await fetch(`${API_BASE_URL}/marketing/integrations/status`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);

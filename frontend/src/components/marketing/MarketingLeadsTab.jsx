@@ -7,6 +7,8 @@ import {
   assignMarketingLead,
   transmitMarketingLead,
   updateMarketingLead,
+  archiveMarketingLead,
+  restoreMarketingLead,
 } from '../../utils/marketingLeadsAPI';
 import { getUsers } from '../../utils/clientsAPI';
 import MarketingLeadAttribution from './MarketingLeadAttribution';
@@ -28,7 +30,10 @@ const EMPTY_FORM = {
   marketingNotes: '',
 };
 
-function MarketingLeadsTab({ user }) {
+const ARCHIVABLE_STATUSES = ['in_progress', 'rejected', 'converted'];
+
+function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
+  const isArchiveMode = mode === 'archive';
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState(null);
   const [meta, setMeta] = useState({ sources: {}, statuses: {}, interactionTypes: {} });
@@ -45,18 +50,27 @@ function MarketingLeadsTab({ user }) {
   const load = async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = isArchiveMode ? { archived: '1' } : {};
       if (filters.status) params.status = filters.status;
       if (filters.source) params.source = filters.source;
       if (filters.search.trim()) params.search = filters.search.trim();
-      const [list, st, m] = await Promise.all([
+      const requests = [
         getMarketingLeads(params),
-        getMarketingLeadsStats().catch(() => null),
-        getMarketingLeadsMeta().catch(() => ({ sources: {}, statuses: {} })),
-      ]);
+        getMarketingLeadsMeta(),
+      ];
+      if (!isArchiveMode) {
+        requests.splice(1, 0, getMarketingLeadsStats().catch(() => null));
+      }
+      const results = await Promise.all(requests);
+      const list = results[0];
+      const st = isArchiveMode ? null : results[1];
+      const m = isArchiveMode ? results[1] : results[2];
       setLeads(Array.isArray(list) ? list : []);
       setStats(st);
-      setMeta(m);
+      setMeta(m || { sources: {}, statuses: {} });
+      if (!isArchiveMode && st && typeof onArchiveChange === 'function') {
+        onArchiveChange(st.archivedCount ?? 0);
+      }
     } catch (e) {
       console.error(e);
       setLeads([]);
@@ -67,10 +81,12 @@ function MarketingLeadsTab({ user }) {
 
   useEffect(() => {
     load();
-    getUsers().then((list) => {
-      setManagers((list || []).filter((u) => (u.role || '').toLowerCase() === 'manager'));
-    });
-  }, [filters.status, filters.source]);
+    if (!isArchiveMode) {
+      getUsers().then((list) => {
+        setManagers((list || []).filter((u) => (u.role || '').toLowerCase() === 'manager'));
+      });
+    }
+  }, [filters.status, filters.source, mode]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -135,6 +151,45 @@ function MarketingLeadsTab({ user }) {
     }
   };
 
+  const handleArchive = async (lead, e) => {
+    e?.stopPropagation?.();
+    const target = lead || selected;
+    if (!target) return;
+    if (!window.confirm(`Відправити заявку ${target.requestNumber || ''} в архів?`)) return;
+    setSaving(true);
+    try {
+      await archiveMarketingLead(target._id);
+      if (selected?._id === target._id) setSelected(null);
+      load();
+    } catch (err) {
+      alert(err.message || 'Помилка архівації');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRestore = async (lead, e) => {
+    e?.stopPropagation?.();
+    const target = lead || selected;
+    if (!target) return;
+    if (!window.confirm(`Повернути заявку ${target.requestNumber || ''} з архіву?`)) return;
+    setSaving(true);
+    try {
+      await restoreMarketingLead(target._id);
+      if (selected?._id === target._id) setSelected(null);
+      load();
+      if (typeof onArchiveChange === 'function') {
+        getMarketingLeadsStats().then((st) => onArchiveChange(st?.archivedCount ?? 0)).catch(() => {});
+      }
+    } catch (err) {
+      alert(err.message || 'Помилка повернення');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const canArchiveLead = (lead) => !isArchiveMode && ARCHIVABLE_STATUSES.includes(lead?.status) && !lead?.archived;
+
   const managerWorkStatusClass = (lead) => {
     if (lead?.status === 'transmitted') return 'waiting';
     if (lead?.status === 'in_progress') return 'in_progress';
@@ -147,28 +202,37 @@ function MarketingLeadsTab({ user }) {
 
   return (
     <div className="marketing-leads-tab">
-      <div className="marketing-stats-grid">
-        <div className="marketing-stat-card">
-          <span className="marketing-stat-label">Сьогодні</span>
-          <strong>{stats?.todayCount ?? '—'}</strong>
+      {isArchiveMode ? (
+        <div className="marketing-archive-intro">
+          <p>
+            Тут зберігаються заявки, які маркетинг відхилив одразу, а також заявки, перенесені в архів вручну
+            після роботи менеджера (взято в роботу, відхилено або конвертовано).
+          </p>
         </div>
-        <div className="marketing-stat-card">
-          <span className="marketing-stat-label">Нові</span>
-          <strong>{stats?.byStatus?.new ?? '—'}</strong>
+      ) : (
+        <div className="marketing-stats-grid">
+          <div className="marketing-stat-card">
+            <span className="marketing-stat-label">Сьогодні</span>
+            <strong>{stats?.todayCount ?? '—'}</strong>
+          </div>
+          <div className="marketing-stat-card">
+            <span className="marketing-stat-label">Нові</span>
+            <strong>{stats?.byStatus?.new ?? '—'}</strong>
+          </div>
+          <div className="marketing-stat-card">
+            <span className="marketing-stat-label">Передано</span>
+            <strong>{stats?.byStatus?.transmitted ?? '—'}</strong>
+          </div>
+          <div className="marketing-stat-card">
+            <span className="marketing-stat-label">В роботі</span>
+            <strong>{stats?.byStatus?.in_progress ?? '—'}</strong>
+          </div>
+          <div className="marketing-stat-card">
+            <span className="marketing-stat-label">Конвертовано</span>
+            <strong>{stats?.byStatus?.converted ?? '—'}</strong>
+          </div>
         </div>
-        <div className="marketing-stat-card">
-          <span className="marketing-stat-label">Передано</span>
-          <strong>{stats?.byStatus?.transmitted ?? '—'}</strong>
-        </div>
-        <div className="marketing-stat-card">
-          <span className="marketing-stat-label">В роботі</span>
-          <strong>{stats?.byStatus?.in_progress ?? '—'}</strong>
-        </div>
-        <div className="marketing-stat-card">
-          <span className="marketing-stat-label">Конвертовано</span>
-          <strong>{stats?.byStatus?.converted ?? '—'}</strong>
-        </div>
-      </div>
+      )}
 
       <div className="marketing-toolbar">
         <input
@@ -200,9 +264,11 @@ function MarketingLeadsTab({ user }) {
           ))}
         </select>
         <button type="button" className="marketing-btn marketing-btn-secondary" onClick={load}>Оновити</button>
-        <button type="button" className="marketing-btn marketing-btn-primary" onClick={() => setShowCreate(true)}>
-          + Нова заявка
-        </button>
+        {!isArchiveMode && (
+          <button type="button" className="marketing-btn marketing-btn-primary" onClick={() => setShowCreate(true)}>
+            + Нова заявка
+          </button>
+        )}
       </div>
 
       <div className="marketing-leads-layout">
@@ -210,21 +276,22 @@ function MarketingLeadsTab({ user }) {
           {loading ? (
             <div className="marketing-loading">Завантаження...</div>
           ) : leads.length === 0 ? (
-            <div className="marketing-empty">Заявок немає</div>
+            <div className="marketing-empty">{isArchiveMode ? 'Архів порожній' : 'Заявок немає'}</div>
           ) : (
             <table className="marketing-table">
               <thead>
                 <tr>
                   <th>№</th>
-                  <th>Дата</th>
+                  <th>{isArchiveMode ? 'Дата архівації' : 'Дата'}</th>
                   <th>Джерело</th>
                   <th>Клієнт</th>
                   <th>Телефон</th>
                   <th>Статус</th>
-                  <th>Менеджер</th>
+                  {!isArchiveMode && <th>Менеджер</th>}
                   <th>Статус роботи</th>
                   <th>Коментар</th>
-                  <th>Кому належить клієнт</th>
+                  {!isArchiveMode && <th>Кому належить клієнт</th>}
+                  <th>Дії</th>
                 </tr>
               </thead>
               <tbody>
@@ -235,19 +302,32 @@ function MarketingLeadsTab({ user }) {
                     onClick={() => { setSelected(l); setAssignLogin(l.assignedManagerLogin || ''); }}
                   >
                     <td>{l.requestNumber || '—'}</td>
-                    <td>{formatDate(l.createdAt)}</td>
+                    <td>{formatDate(isArchiveMode ? (l.archivedAt || l.updatedAt) : l.createdAt)}</td>
                     <td>{meta.sources?.[l.source] || l.source}</td>
                     <td>{l.clientName || '—'}</td>
                     <td>{l.contactPhone || '—'}</td>
                     <td><span className={`marketing-status marketing-status--${l.status}`}>{meta.statuses?.[l.status] || l.status}</span></td>
-                    <td>{l.assignedManagerName || '—'}</td>
+                    {!isArchiveMode && <td>{l.assignedManagerName || '—'}</td>}
                     <td>
                       <span className={`marketing-work-status marketing-work-status--${managerWorkStatusClass(l)}`}>
                         {l.managerWorkStatusLabel || '—'}
                       </span>
                     </td>
-                    <td className="marketing-table-comment">{l.managerWorkComment || '—'}</td>
-                    <td>{l.clientOwnerName || '—'}</td>
+                    <td className="marketing-table-comment">{l.managerWorkComment || l.archiveNote || '—'}</td>
+                    {!isArchiveMode && <td>{l.clientOwnerName || '—'}</td>}
+                    <td className="marketing-table-actions" onClick={(e) => e.stopPropagation()}>
+                      {isArchiveMode ? (
+                        <button type="button" className="marketing-btn marketing-btn-secondary marketing-btn-compact" disabled={saving} onClick={(e) => handleRestore(l, e)}>
+                          Повернути
+                        </button>
+                      ) : canArchiveLead(l) ? (
+                        <button type="button" className="marketing-btn marketing-btn-ghost marketing-btn-compact" disabled={saving} onClick={(e) => handleArchive(l, e)}>
+                          В архів
+                        </button>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -258,38 +338,60 @@ function MarketingLeadsTab({ user }) {
         {selected && (
           <aside className="marketing-lead-detail card-vip">
             <h3>{selected.requestNumber} · {meta.statuses?.[selected.status]}</h3>
+            {isArchiveMode && (
+              <>
+                <p><strong>Архівовано:</strong> {formatDate(selected.archivedAt)}</p>
+                <p><strong>Ким:</strong> {selected.archivedByName || selected.archivedByLogin || '—'}</p>
+              </>
+            )}
             <p><strong>Клієнт:</strong> {selected.clientName || '—'}</p>
             <p><strong>Тел:</strong> {selected.contactPhone || '—'}</p>
             <p><strong>Email:</strong> {selected.contactEmail || '—'}</p>
             <p><strong>Місто:</strong> {selected.city || '—'}</p>
             <p><strong>Інтерес:</strong> {selected.productInterest || '—'}</p>
             <p><strong>Коментар роботи:</strong> {selected.managerWorkComment || '—'}</p>
-            <p><strong>Кому належить клієнт:</strong> {selected.clientOwnerName || '—'}</p>
+            {!isArchiveMode && <p><strong>Кому належить клієнт:</strong> {selected.clientOwnerName || '—'}</p>}
             <p><strong>Коментар:</strong> {selected.comment || '—'}</p>
             <MarketingLeadAttribution lead={selected} interactionLabels={meta.interactionTypes} />
-            <div className="marketing-assign-row">
-              <select
-                className="marketing-select"
-                value={assignLogin}
-                onChange={(e) => setAssignLogin(e.target.value)}
-              >
-                <option value="">— Менеджер —</option>
-                {managers.map((m) => (
-                  <option key={m.login} value={m.login}>{m.name || m.login}</option>
-                ))}
-              </select>
-              <button type="button" className="marketing-btn marketing-btn-secondary" disabled={!assignLogin || saving} onClick={handleAssign}>
-                Призначити
-              </button>
-            </div>
-            <div className="marketing-detail-actions">
-              <button type="button" className="marketing-btn marketing-btn-primary" disabled={!selected.assignedManagerLogin || saving || selected.status === 'transmitted'} onClick={handleTransmit}>
-                Передати менеджеру
-              </button>
-              <button type="button" className="marketing-btn marketing-btn-ghost" disabled={saving} onClick={() => setShowRejectModal(true)}>
-                Відхилити
-              </button>
-            </div>
+            {!isArchiveMode && (
+              <>
+                <div className="marketing-assign-row">
+                  <select
+                    className="marketing-select"
+                    value={assignLogin}
+                    onChange={(e) => setAssignLogin(e.target.value)}
+                  >
+                    <option value="">— Менеджер —</option>
+                    {managers.map((m) => (
+                      <option key={m.login} value={m.login}>{m.name || m.login}</option>
+                    ))}
+                  </select>
+                  <button type="button" className="marketing-btn marketing-btn-secondary" disabled={!assignLogin || saving} onClick={handleAssign}>
+                    Призначити
+                  </button>
+                </div>
+                <div className="marketing-detail-actions">
+                  <button type="button" className="marketing-btn marketing-btn-primary" disabled={!selected.assignedManagerLogin || saving || selected.status === 'transmitted'} onClick={handleTransmit}>
+                    Передати менеджеру
+                  </button>
+                  <button type="button" className="marketing-btn marketing-btn-ghost" disabled={saving} onClick={() => setShowRejectModal(true)}>
+                    Відхилити
+                  </button>
+                  {canArchiveLead(selected) && (
+                    <button type="button" className="marketing-btn marketing-btn-secondary" disabled={saving} onClick={() => handleArchive(selected)}>
+                      В архів
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+            {isArchiveMode && (
+              <div className="marketing-detail-actions">
+                <button type="button" className="marketing-btn marketing-btn-primary" disabled={saving} onClick={() => handleRestore(selected)}>
+                  Повернути з архіву
+                </button>
+              </div>
+            )}
           </aside>
         )}
       </div>

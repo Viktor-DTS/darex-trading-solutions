@@ -65,6 +65,9 @@ const {
   INTERACTION_TYPE_LABELS: MARKETING_INTERACTION_TYPE_LABELS,
   enrichLeadForResponse,
   formatUkDateTime,
+  canManuallyArchiveLead,
+  setLeadArchived,
+  shouldAutoArchiveOnMarketingStatus,
 } = require('./lib/marketingLeads');
 const { enrichLeadsWithClientOwners } = require('./lib/clientPhoneLookup');
 const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
@@ -741,6 +744,11 @@ const marketingLeadSchema = new mongoose.Schema({
   marketingNotes: String,
   managerNotes: String,
   rejectionReason: String,
+  archived: { type: Boolean, default: false, index: true },
+  archivedAt: Date,
+  archivedByLogin: String,
+  archivedByName: String,
+  archiveNote: String,
   convertedClientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
   convertedSaleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
   statusHistory: [{
@@ -755,6 +763,7 @@ const marketingLeadSchema = new mongoose.Schema({
 marketingLeadSchema.index({ status: 1, createdAt: -1 });
 marketingLeadSchema.index({ assignedManagerLogin: 1, status: 1 });
 marketingLeadSchema.index({ phoneNormalized: 1, createdAt: -1 });
+marketingLeadSchema.index({ archived: 1, archivedAt: -1 });
 const MarketingLead = mongoose.model('MarketingLead', marketingLeadSchema);
 
 const marketingBotSessionSchema = new mongoose.Schema({
@@ -20962,7 +20971,7 @@ app.get('/api/marketing/leads/stats', authenticateToken, async (req, res) => {
     if (!canAccessMarketingPanel(req.user)) {
       return res.status(403).json({ error: 'Немає доступу' });
     }
-    const base = {};
+    const base = { archived: { $ne: true } };
     const statuses = ['new', 'in_review', 'assigned', 'transmitted', 'in_progress', 'converted', 'rejected'];
     const byStatus = {};
     for (const st of statuses) {
@@ -20971,7 +20980,8 @@ app.get('/api/marketing/leads/stats', authenticateToken, async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayCount = await MarketingLead.countDocuments({ ...base, createdAt: { $gte: today } });
-    res.json({ byStatus, todayCount, total: await MarketingLead.countDocuments(base) });
+    const archivedCount = await MarketingLead.countDocuments({ archived: true });
+    res.json({ byStatus, todayCount, total: await MarketingLead.countDocuments(base), archivedCount });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -20983,7 +20993,8 @@ app.get('/api/marketing/leads', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Немає доступу' });
     }
     const q = buildMarketingLeadListQuery(req, req.user);
-    const list = await MarketingLead.find(q).sort({ createdAt: -1 }).limit(500).lean();
+    const sort = q.archived === true ? { archivedAt: -1, createdAt: -1 } : { createdAt: -1 };
+    const list = await MarketingLead.find(q).sort(sort).limit(500).lean();
     await enrichLeadsWithClientOwners(list, Client, User);
     res.json(list.map(enrichLeadForResponse));
   } catch (e) {
@@ -21122,7 +21133,13 @@ app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
             ? `Причина відхилення: ${reason}`
             : 'Причина відхилення';
         }
+        if (body.status === 'spam') {
+          lead.managerWorkComment = lead.managerWorkComment || 'Позначено як спам';
+        }
         pushStatusHistory(lead, body.status, dbUser || req.user, body.statusNote || body.rejectionReason || '');
+        if (shouldAutoArchiveOnMarketingStatus(body.status)) {
+          setLeadArchived(lead, dbUser || req.user, true, body.status === 'spam' ? 'Спам' : 'Відхилено маркетингом');
+        }
       }
     }
 
@@ -21148,6 +21165,52 @@ app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
       pushStatusHistory(lead, 'converted', dbUser || req.user, body.statusNote || 'Конвертовано');
     }
 
+    await lead.save();
+    const saved = lead.toObject();
+    const [enriched] = await enrichLeadsWithClientOwners([saved], Client, User);
+    res.json(enrichLeadForResponse(enriched));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/marketing/leads/:id/archive', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const lead = await MarketingLead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (lead.archived) {
+      return res.status(400).json({ error: 'Заявка вже в архіві' });
+    }
+    if (!canManuallyArchiveLead(lead)) {
+      return res.status(400).json({ error: 'Архівувати можна лише заявки, які менеджер взяв у роботу, відхилив або конвертував' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const note = String(req.body?.note || '').trim() || 'Вручну';
+    setLeadArchived(lead, dbUser || req.user, true, note);
+    await lead.save();
+    const saved = lead.toObject();
+    const [enriched] = await enrichLeadsWithClientOwners([saved], Client, User);
+    res.json(enrichLeadForResponse(enriched));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/marketing/leads/:id/restore', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessMarketingPanel(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const lead = await MarketingLead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (!lead.archived) {
+      return res.status(400).json({ error: 'Заявка не в архіві' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    setLeadArchived(lead, dbUser || req.user, false);
     await lead.save();
     const saved = lead.toObject();
     const [enriched] = await enrichLeadsWithClientOwners([saved], Client, User);

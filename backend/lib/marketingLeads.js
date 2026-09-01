@@ -98,6 +98,42 @@ function enrichLeadForResponse(lead) {
   };
 }
 
+const MANUAL_ARCHIVE_STATUSES = ['in_progress', 'rejected', 'converted'];
+const MARKETING_AUTO_ARCHIVE_STATUSES = ['rejected', 'spam'];
+
+function canManuallyArchiveLead(lead) {
+  return lead && MANUAL_ARCHIVE_STATUSES.includes(lead.status) && !lead.archived;
+}
+
+function pushLeadTimelineNote(lead, user, note) {
+  lead.statusHistory = [...(lead.statusHistory || []), {
+    from: lead.status,
+    to: lead.status,
+    date: new Date(),
+    userLogin: user?.login || '',
+    userName: user?.name || user?.login || '',
+    note: note || '',
+  }];
+}
+
+function setLeadArchived(lead, user, archived, note = '') {
+  const now = new Date();
+  lead.archived = !!archived;
+  lead.archivedAt = archived ? now : null;
+  lead.archivedByLogin = archived ? (user?.login || '') : '';
+  lead.archivedByName = archived ? (user?.name || user?.login || '') : '';
+  lead.archiveNote = archived ? String(note || '').trim() : '';
+  pushLeadTimelineNote(
+    lead,
+    user,
+    archived ? `Перенесено в архів${note ? `: ${note}` : ''}` : 'Повернуто з архіву'
+  );
+}
+
+function shouldAutoArchiveOnMarketingStatus(status) {
+  return MARKETING_AUTO_ARCHIVE_STATUSES.includes(status);
+}
+
 function canAccessMarketingPanel(user) {
   const role = String(user?.role || '').toLowerCase();
   return ['admin', 'administrator', 'marketing', 'mgradm'].includes(role);
@@ -182,6 +218,16 @@ function buildListQuery(req, user) {
   const q = {};
   const role = String(user?.role || '').toLowerCase();
   const scope = String(req.query.scope || '').trim();
+  const archivedParam = String(req.query.archived || '').trim();
+
+  const wantArchive = scope === 'archive' || archivedParam === '1' || archivedParam === 'true';
+  if (wantArchive) {
+    q.archived = true;
+  } else if (canManageAllMarketingLeads(user) || canAccessMarketingPanel(user)) {
+    q.archived = { $ne: true };
+  } else {
+    q.archived = { $ne: true };
+  }
 
   if (scope === 'manager' || (!canManageAllMarketingLeads(user) && role === 'manager')) {
     q.assignedManagerLogin = user.login;
@@ -222,12 +268,17 @@ module.exports = {
   SOURCE_LABELS,
   STATUS_LABELS,
   MANAGER_WORK_STATUS_LABELS,
+  MANUAL_ARCHIVE_STATUSES,
   INTERACTION_TYPE_LABELS,
   canAccessMarketingPanel,
   canManageAllMarketingLeads,
   canViewManagerExternalLeads,
+  canManuallyArchiveLead,
   normalizePhone,
   pushStatusHistory,
+  pushLeadTimelineNote,
+  setLeadArchived,
+  shouldAutoArchiveOnMarketingStatus,
   sanitizeLeadPayload,
   buildListQuery,
   formatUkDateTime,
