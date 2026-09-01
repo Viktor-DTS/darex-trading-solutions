@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import API_BASE_URL from '../../config';
-import { getClients, getUsers } from '../../utils/clientsAPI';
+import { getClients, getUsers, lookupCompanyByEdrpou } from '../../utils/clientsAPI';
 import { createSale, updateSale, getSale, getSaleFiles, uploadSaleFiles, getSaleInvoiceFiles, uploadSaleInvoiceFiles, getSaleDealPreviewNumber } from '../../utils/salesAPI';
 import { getFileOpenToken } from '../../utils/clientsAPI';
 import AdditionalCostsEditor from './AdditionalCostsEditor';
@@ -46,6 +46,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const [edrpouSuggestions, setEdrpouSuggestions] = useState([]);
+  const [edrpouLookupLoading, setEdrpouLookupLoading] = useState(false);
   const [showClientForm, setShowClientForm] = useState(false);
   const [saleFiles, setSaleFiles] = useState([]);
   const [saleInvoiceFiles, setSaleInvoiceFiles] = useState([]);
@@ -303,23 +304,52 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     const q = (form.edrpou || '').trim();
     if (!open || q.length < 2) {
       setEdrpouSuggestions([]);
+      setEdrpouLookupLoading(false);
       return undefined;
     }
+    setEdrpouLookupLoading(true);
     const timer = setTimeout(async () => {
       try {
+        const digits = q.replace(/\D/g, '');
         const data = await getClients({ q, limit: 15 });
         const list = Array.isArray(data) ? data : (data.clients || []);
         const normalized = q.toLowerCase();
-        const matched = list.filter((c) => {
+        let matched = list.filter((c) => {
           const edrpou = (c.edrpou || '').toLowerCase();
           return edrpou.includes(normalized) || (c.name || '').toLowerCase().includes(normalized);
         });
-        setEdrpouSuggestions(matched.length > 0 ? matched : list);
+        if (matched.length === 0 && list.length > 0) matched = list;
+
+        if (digits.length >= 8 && digits.length <= 10) {
+          const registry = await lookupCompanyByEdrpou(digits);
+          if (registry?.name) {
+            const already = matched.some(
+              (c) => String(c.edrpou || '').replace(/\D/g, '') === digits
+            );
+            if (!already) {
+              matched = [
+                {
+                  _id: null,
+                  edrpou: registry.edrpou || digits,
+                  name: registry.name,
+                  lookupSource: registry.source || 'registry',
+                  isRegistryHint: true,
+                },
+                ...matched,
+              ];
+            }
+          }
+        }
+        setEdrpouSuggestions(matched);
       } catch {
         setEdrpouSuggestions([]);
+      } finally {
+        setEdrpouLookupLoading(false);
       }
-    }, 350);
-    return () => clearTimeout(timer);
+    }, 2000);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [form.edrpou, open]);
 
   const loadClients = async () => {
@@ -434,6 +464,27 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     setShowEdrpouDropdown(false);
   };
 
+  const edrpouSourceLabel = (source) => {
+    if (source === 'client') return 'CRM';
+    if (source === 'procurement_history') return 'Закупівлі';
+    if (source === 'registry') return 'Реєстр';
+    return '';
+  };
+
+  const handleSelectEdrpouSuggestion = (c) => {
+    if (c._id) {
+      handleSelectClient(c);
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      clientId: '',
+      clientName: c.name || '',
+      edrpou: c.edrpou || prev.edrpou,
+    }));
+    setClientSearch(c.name || '');
+    setShowEdrpouDropdown(false);
+  };
 
   const totalEquipmentAmount = form.equipmentItems.reduce((s, i) => s + (i.amount || 0), 0);
   const additionalCostsTotal = form.additionalCosts.reduce(
@@ -636,7 +687,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
 
             <div className="form-group">
               <label>ЄДРПОУ</label>
-              <div className="client-autocomplete">
+              <div className="client-autocomplete edrpou-autocomplete">
                 <input
                   type="text"
                   value={form.edrpou || ''}
@@ -651,21 +702,36 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                   }}
                   onFocus={() => setShowEdrpouDropdown(true)}
                   onBlur={() => setTimeout(() => setShowEdrpouDropdown(false), 200)}
-                  placeholder="Введіть ЄДРПОУ — підказка з бази клієнтів"
+                  placeholder="ЄДРПОУ — підказка з CRM та реєстрів"
                   autoComplete="off"
                 />
+                {edrpouLookupLoading && (
+                  <span className="edrpou-lookup-status" aria-live="polite">
+                    <span className="edrpou-lookup-spinner" aria-hidden />
+                    Шукаємо…
+                  </span>
+                )}
                 {showEdrpouDropdown && (form.edrpou || '').trim().length >= 2 && (
                   <ul className="client-dropdown">
-                    {edrpouSuggestions.slice(0, 10).map((c) => (
-                      <li key={c._id} onMouseDown={() => handleSelectClient(c)}>
+                    {edrpouLookupLoading && edrpouSuggestions.length === 0 && (
+                      <li className="empty">Пошук у CRM та реєстрах…</li>
+                    )}
+                    {!edrpouLookupLoading && edrpouSuggestions.length === 0 && (
+                      <li className="empty">За цим ЄДРПОУ нічого не знайдено</li>
+                    )}
+                    {edrpouSuggestions.slice(0, 10).map((c, idx) => (
+                      <li
+                        key={c._id || `registry-${c.edrpou}-${idx}`}
+                        onMouseDown={() => handleSelectEdrpouSuggestion(c)}
+                      >
                         <span className="edrpou-badge">{c.edrpou || '—'}</span>
                         <span>{c.name}</span>
+                        {c.lookupSource && (
+                          <span className="edrpou-source-badge">{edrpouSourceLabel(c.lookupSource)}</span>
+                        )}
                         {c.contactPhone && <span className="client-dropdown-phone">{c.contactPhone}</span>}
                       </li>
                     ))}
-                    {edrpouSuggestions.length === 0 && (
-                      <li className="empty">Клієнтів не знайдено</li>
-                    )}
                   </ul>
                 )}
               </div>

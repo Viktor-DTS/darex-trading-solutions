@@ -77,6 +77,26 @@ export const findMyClientByPhone = async (phone) => {
   }
 };
 
+/** Підказка назви компанії за ЄДРПОУ: CRM → історія закупівель → публічний реєстр. */
+export const lookupCompanyByEdrpou = async (edrpou) => {
+  try {
+    const digits = String(edrpou || '').replace(/\D/g, '');
+    if (digits.length < 8 || digits.length > 10) return null;
+    const response = await fetch(
+      `${API_BASE_URL}/procurement-requests/lookup-supplier-name?code=${encodeURIComponent(digits)}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!response.ok) return null;
+    const data = await response.json().catch(() => ({}));
+    const name = data && typeof data.name === 'string' ? data.name.trim() : '';
+    if (!name) return null;
+    return { name, source: data.source || 'registry', edrpou: digits };
+  } catch (error) {
+    console.error('Помилка пошуку за ЄДРПОУ:', error);
+    return null;
+  }
+};
+
 // Пошук клієнта (для вхідного дзвінка — може повертати обмежені дані для чужих)
 export const searchClients = async (query) => {
   try {
