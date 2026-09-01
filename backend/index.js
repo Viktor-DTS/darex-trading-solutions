@@ -5221,15 +5221,24 @@ function parseCompanyNameFromAdmToolsRegistryXml(xml) {
       i += 4;
       continue;
     }
-    if (seg.startsWith('&#39;', i)) {
-      buf += "'";
-      i += 5;
-      continue;
-    }
     if (seg.startsWith('&apos;', i)) {
       buf += "'";
       i += 6;
       continue;
+    }
+    if (seg.startsWith('&#', i)) {
+      const numMatch = /^&#(\d+);/.exec(seg.slice(i));
+      if (numMatch) {
+        buf += String.fromCharCode(parseInt(numMatch[1], 10));
+        i += numMatch[0].length;
+        continue;
+      }
+      const hexMatch = /^&#x([0-9a-fA-F]+);/.exec(seg.slice(i));
+      if (hexMatch) {
+        buf += String.fromCharCode(parseInt(hexMatch[1], 16));
+        i += hexMatch[0].length;
+        continue;
+      }
     }
     if (seg[i] === '"') {
       const rest = seg.slice(i + 1, i + 48);
