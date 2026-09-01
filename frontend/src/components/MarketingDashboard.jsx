@@ -6,6 +6,13 @@ import MarketingIntegrationsTab from './marketing/MarketingIntegrationsTab';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './MarketingDashboard.css';
 
+const SIDEBAR_ITEMS = [
+  { id: 'leads', icon: '📋', label: 'Заявки та ліди' },
+  { id: 'archive', icon: '📦', label: 'Архів рекламних заявок', badgeKey: 'archived' },
+  { id: 'integrations', icon: '🔗', label: 'Джерела та інтеграції' },
+  { id: 'notifications', icon: '🔔', label: 'Сповіщення', badgeKey: 'notifications' },
+];
+
 function MarketingDashboard({ user }) {
   const [tab, setTab] = useState('leads');
   const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
@@ -52,78 +59,74 @@ function MarketingDashboard({ user }) {
       .catch(() => {});
   }, [tab]);
 
+  const getBadgeCount = (key) => {
+    if (key === 'archived') return archivedCount;
+    if (key === 'notifications') return notificationsUnreadCount;
+    return 0;
+  };
+
+  const handleTabClick = (id) => {
+    setTab(id);
+    if (id === 'notifications') fetchMarketingNotificationsUnread();
+  };
+
   return (
     <div className="marketing-dashboard">
-      <div className="marketing-dashboard-inner">
-        <header className="marketing-hero">
-          <h1>Маркетинговий відділ</h1>
-          <p>
-            Центр обробки заявок з сайту, Meta/Facebook, Google Ads та інших каналів.
-            Аналізуйте ліди, створюйте заявки вручну (телефон) та передавайте їх менеджерам у роботу.
-          </p>
-          <span className="marketing-hero-badge">VIP · Lead Hub</span>
-        </header>
+      <div className="marketing-dashboard-main">
+        <aside className="marketing-sidebar">
+          <div className="marketing-sidebar-brand">
+            <h1>Маркетинговий відділ</h1>
+            <span className="marketing-sidebar-badge">VIP · Lead Hub</span>
+            <p className="marketing-sidebar-desc">
+              Центр обробки заявок з сайту, Meta/Facebook, Google Ads та інших каналів.
+            </p>
+          </div>
 
-        <nav className="marketing-tabs">
-          <button
-            type="button"
-            className={`marketing-tab-btn ${tab === 'leads' ? 'active' : ''}`}
-            onClick={() => setTab('leads')}
-          >
-            Заявки та ліди
-          </button>
-          <button
-            type="button"
-            className={`marketing-tab-btn marketing-tab-btn--with-badge ${tab === 'archive' ? 'active' : ''}`}
-            onClick={() => setTab('archive')}
-          >
-            Архів рекламних заявок
-            {archivedCount > 0 ? (
-              <span className="marketing-tab-badge marketing-tab-badge--muted" aria-label={`В архіві: ${archivedCount}`}>
-                {archivedCount > 99 ? '99+' : archivedCount}
-              </span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            className={`marketing-tab-btn ${tab === 'integrations' ? 'active' : ''}`}
-            onClick={() => setTab('integrations')}
-          >
-            Джерела та інтеграції
-          </button>
-          <button
-            type="button"
-            className={`marketing-tab-btn marketing-tab-btn--with-badge ${tab === 'notifications' ? 'active' : ''}`}
-            onClick={() => {
-              setTab('notifications');
-              fetchMarketingNotificationsUnread();
-            }}
-          >
-            Сповіщення
-            {notificationsUnreadCount > 0 ? (
-              <span className="marketing-tab-badge" aria-label={`Непрочитано: ${notificationsUnreadCount}`}>
-                {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
-              </span>
-            ) : null}
-          </button>
-        </nav>
+          <nav className="marketing-sidebar-nav" aria-label="Розділи маркетингу">
+            {SIDEBAR_ITEMS.map((item) => {
+              const badge = item.badgeKey ? getBadgeCount(item.badgeKey) : 0;
+              const isActive = tab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`marketing-sidebar-tab ${isActive ? 'active' : ''} ${badge > 0 ? 'marketing-sidebar-tab--with-badge' : ''}`}
+                  onClick={() => handleTabClick(item.id)}
+                >
+                  <span className="marketing-sidebar-tab-icon" aria-hidden>{item.icon}</span>
+                  <span className="marketing-sidebar-tab-label">{item.label}</span>
+                  {badge > 0 ? (
+                    <span
+                      className={`marketing-sidebar-tab-badge ${item.badgeKey === 'archived' ? 'marketing-sidebar-tab-badge--muted' : ''}`}
+                      aria-label={`${item.label}: ${badge}`}
+                    >
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-        <div className="marketing-content-panel">
-          {tab === 'leads' ? (
-            <MarketingLeadsTab user={user} onArchiveChange={setArchivedCount} />
-          ) : tab === 'archive' ? (
-            <MarketingLeadsArchiveTab user={user} onArchiveChange={setArchivedCount} />
-          ) : tab === 'integrations' ? (
-            <MarketingIntegrationsTab />
-          ) : (
-            <ManagerNotificationsTab
-              marketingFeed
-              onUnreadCountChange={fetchMarketingNotificationsUnread}
-              description="Сповіщення маркетингового відділу: нові ліди з реклами, передача менеджерам, підключення Telegram."
-              title="Сповіщення"
-            />
-          )}
-        </div>
+        <main className="marketing-main-content">
+          <div className="marketing-content-panel">
+            {tab === 'leads' ? (
+              <MarketingLeadsTab user={user} onArchiveChange={setArchivedCount} />
+            ) : tab === 'archive' ? (
+              <MarketingLeadsArchiveTab user={user} onArchiveChange={setArchivedCount} />
+            ) : tab === 'integrations' ? (
+              <MarketingIntegrationsTab />
+            ) : (
+              <ManagerNotificationsTab
+                marketingFeed
+                onUnreadCountChange={fetchMarketingNotificationsUnread}
+                description="Сповіщення маркетингового відділу: нові ліди з реклами, передача менеджерам, підключення Telegram."
+                title="Сповіщення"
+              />
+            )}
+          </div>
+        </main>
       </div>
     </div>
   );

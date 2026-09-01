@@ -8,51 +8,56 @@
 }
 
 .marketing-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
   flex-shrink: 0;
 }
 
 .marketing-stat-card {
-  padding: 14px 16px;
-  border-radius: 10px;
+  flex: 1 1 0;
+  min-width: 72px;
+  padding: 6px 10px;
+  border-radius: 8px;
   border: 1px solid rgba(212, 175, 55, 0.18);
   background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .marketing-stat-label {
-  display: block;
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: rgba(244, 244, 245, 0.55);
-  margin-bottom: 6px;
+  white-space: nowrap;
 }
 
 .marketing-stat-card strong {
-  font-size: 22px;
+  font-size: 16px;
   color: #f5ecd6;
+  margin-left: auto;
 }
 
 .marketing-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 6px;
   align-items: center;
   flex-shrink: 0;
 }
 
 .marketing-input,
 .marketing-select {
-  padding: 9px 12px;
+  padding: 7px 10px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.35);
   color: #f4f4f5;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .marketing-input {
@@ -65,11 +70,11 @@
 }
 
 .marketing-btn {
-  padding: 9px 16px;
+  padding: 7px 12px;
   border-radius: 8px;
   border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   transition: opacity 0.15s;
 }
 
@@ -136,7 +141,7 @@
 
 .marketing-table th,
 .marketing-table td {
-  padding: 10px 12px;
+  padding: 7px 10px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -208,14 +213,14 @@
 }
 
 .marketing-archive-intro {
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border-radius: 10px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   border: 1px solid rgba(212, 175, 55, 0.18);
   background: rgba(255, 255, 255, 0.03);
-  color: rgba(244, 244, 245, 0.72);
-  font-size: 13px;
-  line-height: 1.45;
+  color: rgba(244, 244, 245, 0.65);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .marketing-archive-intro p {
@@ -318,45 +323,26 @@
   margin-top: 16px;
 }
 
-@media (max-height: 800px) {
-  .marketing-stats-grid {
-    gap: 8px;
-    margin-bottom: 10px;
+@media (max-height: 720px) {
+  .marketing-archive-intro {
+    display: none;
   }
 
   .marketing-stat-card {
-    padding: 8px 12px;
+    padding: 4px 8px;
   }
 
   .marketing-stat-card strong {
-    font-size: 18px;
-  }
-
-  .marketing-toolbar {
-    margin-bottom: 8px;
-    gap: 8px;
-  }
-
-  .marketing-input,
-  .marketing-select,
-  .marketing-btn {
-    padding: 7px 10px;
-    font-size: 13px;
-  }
-}
-
-@media (max-height: 640px) {
-  .marketing-stats-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    margin-bottom: 8px;
+    font-size: 14px;
   }
 
   .marketing-stat-label {
-    font-size: 10px;
-    margin-bottom: 2px;
+    font-size: 9px;
   }
 
-  .marketing-stat-card strong {
-    font-size: 16px;
+  .marketing-table th,
+  .marketing-table td {
+    padding: 5px 8px;
+    font-size: 12px;
   }
 }

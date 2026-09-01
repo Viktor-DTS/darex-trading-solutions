@@ -204,10 +204,7 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
     <div className="marketing-leads-tab">
       {isArchiveMode ? (
         <div className="marketing-archive-intro">
-          <p>
-            Тут зберігаються заявки, які маркетинг відхилив одразу, а також заявки, перенесені в архів вручну
-            після роботи менеджера (взято в роботу, відхилено або конвертовано).
-          </p>
+          <p>Заявки, відхилені маркетингом або перенесені в архів після роботи менеджера.</p>
         </div>
       ) : (
         <div className="marketing-stats-grid">
