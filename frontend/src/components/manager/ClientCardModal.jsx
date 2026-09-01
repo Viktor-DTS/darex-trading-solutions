@@ -166,9 +166,11 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
           const files = interactionFiles[i._id] || [];
           return (
             <li key={i._id}>
-              <span className="interaction-type">{INTERACTION_TYPES[i.type] || i.type}</span>
-              <span className="interaction-date">{i.date ? new Date(i.date).toLocaleString('uk-UA') : ''}</span>
-              <span className="interaction-user">{i.userName || i.userLogin}</span>
+              <div className="interaction-meta">
+                <span className="interaction-type">{INTERACTION_TYPES[i.type] || i.type}</span>
+                <span className="interaction-date">{i.date ? new Date(i.date).toLocaleString('uk-UA') : ''}</span>
+                <span className="interaction-user">{i.userName || i.userLogin}</span>
+              </div>
               {i.notes && <div className="interaction-notes">{i.notes}</div>}
               {i.type === 'commercial_proposal' && (
                 <div className="interaction-files">
@@ -350,13 +352,15 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                             </div>
                           </form>
                         )}
-                        {renderInteractionsList(dealInteractions, showAddInteraction ? null : 'Немає записів по цій угоді')}
-                        {generalInteractions.length > 0 && (
-                          <div className="general-interactions-block">
-                            <h5>Загальна історія клієнта ({generalInteractions.length})</h5>
-                            {renderInteractionsList(generalInteractions)}
-                          </div>
-                        )}
+                        <div className="interactions-scroll-area">
+                          {renderInteractionsList(dealInteractions, showAddInteraction ? null : 'Немає записів по цій угоді')}
+                          {generalInteractions.length > 0 && (
+                            <div className="general-interactions-block">
+                              <h5>Загальна історія клієнта ({generalInteractions.length})</h5>
+                              {renderInteractionsList(generalInteractions)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </>
                   ) : !client.limited && sales.length === 0 ? (

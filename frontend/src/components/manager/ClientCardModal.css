@@ -83,7 +83,7 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 40%) minmax(340px, 1fr);
+  grid-template-columns: minmax(280px, 40%) minmax(0, 1fr);
   gap: 14px;
   overflow: hidden;
 }
@@ -91,6 +91,7 @@
 .client-card-left,
 .client-card-right {
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -100,7 +101,7 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-dark);
-  padding: 12px 14px;
+  padding: 12px 12px 12px 14px;
 }
 
 .client-info-block {
@@ -249,18 +250,26 @@
   flex-shrink: 0;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.deal-panel-header > div {
+  min-width: 0;
+  flex: 1;
 }
 
 .deal-panel-header h4 {
   margin: 0 0 4px;
   font-size: 16px;
   color: var(--text);
+  word-break: break-word;
 }
 
 .deal-panel-sub {
   margin: 0;
   font-size: 12px;
   color: var(--text-secondary);
+  word-break: break-word;
 }
 
 .deal-panel-empty {
@@ -307,15 +316,6 @@
   flex-shrink: 0;
 }
 
-.general-interactions-block {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--border);
-  flex-shrink: 0;
-  max-height: 35%;
-  overflow: auto;
-}
-
 .btn-add-interaction {
   padding: 4px 10px;
   font-size: 12px;
@@ -336,6 +336,7 @@
   padding: 7px;
   border-radius: 6px;
   border: 1px solid var(--border);
+  box-sizing: border-box;
 }
 
 .add-interaction-form textarea {
@@ -353,40 +354,58 @@
   gap: 10px;
 }
 
+.interactions-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.general-interactions-block {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
 .interactions-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
 }
 
 .interactions-list li {
-  padding: 9px 10px;
+  padding: 10px 8px 10px 10px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .interactions-list li:last-child {
   border-bottom: none;
 }
 
-.interaction-type,
-.interaction-date,
-.interaction-user {
-  margin-right: 10px;
+.interaction-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  line-height: 1.4;
 }
 
 .interaction-type { font-weight: 600; }
 .interaction-date { color: var(--text-secondary); font-size: 12px; }
-.interaction-user { color: var(--text-secondary); }
+.interaction-user { color: var(--text-secondary); font-size: 12px; }
 
 .interaction-notes {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px dashed var(--border);
   color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .interaction-files {
@@ -396,8 +415,10 @@
 }
 
 .interaction-files .file-link {
-  display: inline-block;
-  margin-right: 10px;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-right: 0;
   margin-bottom: 6px;
   padding: 4px 10px;
   background: var(--surface);
@@ -406,6 +427,9 @@
   color: var(--primary);
   cursor: pointer;
   font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .interaction-files .file-link:hover {
@@ -438,6 +462,24 @@
   font-size: 12px;
   color: var(--text-secondary);
   margin-left: 8px;
+}
+
+/* Жовтий скролбар у картці клієнта */
+.client-card-modal .interactions-scroll-area::-webkit-scrollbar,
+.client-card-modal .client-deals-table-wrap::-webkit-scrollbar {
+  width: 10px;
+}
+
+.client-card-modal .interactions-scroll-area::-webkit-scrollbar-thumb,
+.client-card-modal .client-deals-table-wrap::-webkit-scrollbar-thumb {
+  background: #ffc107;
+  border-radius: 5px;
+  border: 2px solid var(--surface-dark);
+}
+
+.client-card-modal .interactions-scroll-area {
+  scrollbar-color: #ffc107 var(--surface-dark);
+  scrollbar-width: thin;
 }
 
 @media (max-width: 960px) {
