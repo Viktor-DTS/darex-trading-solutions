@@ -181,10 +181,12 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
   await lead.save();
 
   // Telegram: нові ліди з реклами / зовнішніх джерел (чекбокс newMarketingLeads)
-  try {
-    await sendNewMarketingLeadTelegram(deps, lead);
-  } catch (e) {
-    console.error('[MARKETING TELEGRAM]', e.message || e);
+  if (!options.skipTelegram) {
+    try {
+      await sendNewMarketingLeadTelegram(deps, lead);
+    } catch (e) {
+      console.error('[MARKETING TELEGRAM]', e.message || e);
+    }
   }
 
   return {
@@ -261,8 +263,10 @@ async function processMetaLeadgenWebhook(deps, changeValue, options = {}) {
     metaPlatform: attribution.metaPlatform || '',
     rawPayload: { webhook: changeValue, graph, attribution, customFields: mapped.customFieldsRaw },
   }, {
-    actorName: attribution.metaPlatform === 'instagram' ? 'Instagram Lead Ads' : 'Facebook Lead Ads',
-    historyNote: 'Meta Lead Ads',
+    actorName: options.actorName
+      || (attribution.metaPlatform === 'instagram' ? 'Instagram Lead Ads' : 'Facebook Lead Ads'),
+    historyNote: options.historyNote || 'Meta Lead Ads',
+    skipTelegram: Boolean(options.skipTelegram),
   });
 }
 

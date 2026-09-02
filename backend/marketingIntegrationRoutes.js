@@ -15,6 +15,7 @@ const {
 const { processMetaWebhookBody } = require('./lib/metaPhase2');
 const { runMetaConnectionTest } = require('./lib/metaConnectionTest');
 const { matchMetaVerifyToken, verifyMetaWebhookProfile } = require('./lib/metaEnvProfiles');
+const { listMetaLeadForms, importMetaHistoricalLeads } = require('./lib/metaLeadImport');
 
 function registerMarketingIntegrationRoutes(app, deps) {
   const {
@@ -60,6 +61,50 @@ function registerMarketingIntegrationRoutes(app, deps) {
     } catch (e) {
       console.error('[META TEST]', e);
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Історичний імпорт Meta — ops-операція, автентифікація ключем MARKETING_INBOUND_API_KEY
+  function marketingOpsKeyOk(req) {
+    const expected = String(process.env.MARKETING_INBOUND_API_KEY || '').trim();
+    const provided = String(req.get('x-marketing-api-key') || '').trim();
+    return Boolean(expected && provided && provided === expected);
+  }
+
+  app.get('/api/marketing/integrations/meta/forms', async (req, res) => {
+    if (!marketingOpsKeyOk(req)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const result = await listMetaLeadForms({
+        profile: String(req.query.profile || '').trim(),
+        pageId: String(req.query.pageId || '').trim(),
+      });
+      res.json(result);
+    } catch (e) {
+      console.error('[META FORMS]', e);
+      res.status(e.statusCode || 500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/marketing/integrations/meta/import', async (req, res) => {
+    if (!marketingOpsKeyOk(req)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const body = req.body || {};
+      const result = await importMetaHistoricalLeads(serviceDeps, {
+        profile: body.profile,
+        pageId: body.pageId,
+        formIds: body.formIds,
+        since: body.since,
+        limit: body.limit,
+        dryRun: body.dryRun,
+      });
+      res.json(result);
+    } catch (e) {
+      console.error('[META IMPORT]', e);
+      res.status(e.statusCode || 500).json({ error: e.message });
     }
   });
 
