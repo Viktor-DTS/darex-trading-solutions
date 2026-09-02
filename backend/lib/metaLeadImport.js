@@ -109,6 +109,8 @@ function buildChangeValue(ctx, formId, lead) {
  * @param {string} [opts.since] — ISO дата; старіші ліди пропускаються
  * @param {number} [opts.limit] — скільки нових лідів створити за виклик
  * @param {boolean} [opts.dryRun] — за замовчуванням true
+ * @param {boolean} [opts.fixDates] — виправити createdAt уже наявних лідів
+ *   на дату з Meta; діє лише разом із dryRun: false
  */
 async function importMetaHistoricalLeads(deps, opts = {}) {
   const { MarketingLead } = deps;
@@ -121,6 +123,7 @@ async function importMetaHistoricalLeads(deps, opts = {}) {
   );
   const sinceMs = opts.since ? Date.parse(opts.since) : NaN;
   const since = Number.isFinite(sinceMs) ? sinceMs : null;
+  const fixDates = opts.fixDates === true && !dryRun;
   const formIds = (Array.isArray(opts.formIds) ? opts.formIds : [])
     .map((v) => String(v).trim())
     .filter(Boolean);
@@ -128,7 +131,15 @@ async function importMetaHistoricalLeads(deps, opts = {}) {
   const ctx = await resolvePageContext(profile, opts.pageId);
   const forms = await collectForms(ctx, formIds);
 
-  const totals = { scanned: 0, alreadyInCrm: 0, created: 0, pending: 0, failed: 0, skippedByDate: 0 };
+  const totals = {
+    scanned: 0,
+    alreadyInCrm: 0,
+    created: 0,
+    pending: 0,
+    failed: 0,
+    skippedByDate: 0,
+    datesFixed: 0,
+  };
   const formsReport = [];
   let budget = limit;
 
@@ -148,6 +159,7 @@ async function importMetaHistoricalLeads(deps, opts = {}) {
       scanned: 0,
       alreadyInCrm: 0,
       created: 0,
+      datesFixed: 0,
       preview: [],
       imported: [],
       failed: [],
@@ -189,6 +201,15 @@ async function importMetaHistoricalLeads(deps, opts = {}) {
         if (exists) {
           report.alreadyInCrm += 1;
           totals.alreadyInCrm += 1;
+          if (fixDates && Number.isFinite(createdMs)) {
+            await MarketingLead.updateOne(
+              { _id: exists._id },
+              { $set: { createdAt: new Date(createdMs) } },
+              { timestamps: false }
+            );
+            report.datesFixed += 1;
+            totals.datesFixed += 1;
+          }
           continue;
         }
 
@@ -206,6 +227,7 @@ async function importMetaHistoricalLeads(deps, opts = {}) {
             skipTelegram: true,
             actorName: 'Meta історичний імпорт',
             historyNote: 'Meta Lead Ads — історичний імпорт',
+            createdAt: lead.created_time || '',
           });
           report.created += 1;
           totals.created += 1;

@@ -80,6 +80,14 @@ async function findDuplicateLead(MarketingLead, { phone, metaLeadId, metaComment
   return null;
 }
 
+function parseCreatedAt(value) {
+  if (!value) return null;
+  const ms = typeof value === 'number' ? value * 1000 : Date.parse(value);
+  if (!Number.isFinite(ms)) return null;
+  const date = new Date(ms);
+  return date.getTime() > 0 && date.getTime() <= Date.now() ? date : null;
+}
+
 async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
   const { MarketingLead, getNextMarketingLeadNumber } = deps;
   const payload = sanitizeLeadPayload(rawPayload, { isInbound: true });
@@ -105,6 +113,7 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
   const { mode } = getDedupConfig();
   const actor = options.actor || { login: 'inbound', name: options.actorName || 'Зовнішнє джерело' };
   const historyNote = options.historyNote || payload.source || 'inbound';
+  const createdAtOverride = parseCreatedAt(options.createdAt);
 
   if (duplicate) {
     if (mode === 'block') {
@@ -162,7 +171,7 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
     statusHistory: [{
       from: null,
       to: 'new',
-      date: new Date(),
+      date: createdAtOverride || new Date(),
       userLogin: actor.login,
       userName: actor.name,
       note: historyNote,
@@ -179,6 +188,16 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
   }
 
   await lead.save();
+
+  // createdAt керується timestamps схеми, тому дата джерела виставляється окремо
+  if (createdAtOverride) {
+    await MarketingLead.updateOne(
+      { _id: lead._id },
+      { $set: { createdAt: createdAtOverride } },
+      { timestamps: false }
+    );
+    lead.createdAt = createdAtOverride;
+  }
 
   // Telegram: нові ліди з реклами / зовнішніх джерел (чекбокс newMarketingLeads)
   if (!options.skipTelegram) {
@@ -267,6 +286,7 @@ async function processMetaLeadgenWebhook(deps, changeValue, options = {}) {
       || (attribution.metaPlatform === 'instagram' ? 'Instagram Lead Ads' : 'Facebook Lead Ads'),
     historyNote: options.historyNote || 'Meta Lead Ads',
     skipTelegram: Boolean(options.skipTelegram),
+    createdAt: options.createdAt || '',
   });
 }
 

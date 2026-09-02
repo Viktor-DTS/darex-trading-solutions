@@ -93,6 +93,7 @@ function registerMarketingIntegrationRoutes(app, deps) {
         since: body.since,
         limit: body.limit,
         dryRun: body.dryRun,
+        fixDates: body.fixDates,
       });
       res.json(result);
     } catch (e) {
