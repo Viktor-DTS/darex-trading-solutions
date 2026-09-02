@@ -202,13 +202,14 @@ async function importMetaHistoricalLeads(deps, opts = {}) {
           report.alreadyInCrm += 1;
           totals.alreadyInCrm += 1;
           if (fixDates && Number.isFinite(createdMs)) {
-            await MarketingLead.updateOne(
+            const res = await MarketingLead.collection.updateOne(
               { _id: exists._id },
-              { $set: { createdAt: new Date(createdMs) } },
-              { timestamps: false }
+              { $set: { createdAt: new Date(createdMs) } }
             );
-            report.datesFixed += 1;
-            totals.datesFixed += 1;
+            if (res.modifiedCount > 0) {
+              report.datesFixed += 1;
+              totals.datesFixed += 1;
+            }
           }
           continue;
         }

@@ -189,12 +189,12 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
 
   await lead.save();
 
-  // createdAt керується timestamps схеми, тому дата джерела виставляється окремо
+  // createdAt під timestamps схеми immutable — Mongoose вирізає його з update,
+  // тому дата джерела пишеться нативним драйвером
   if (createdAtOverride) {
-    await MarketingLead.updateOne(
+    await MarketingLead.collection.updateOne(
       { _id: lead._id },
-      { $set: { createdAt: createdAtOverride } },
-      { timestamps: false }
+      { $set: { createdAt: createdAtOverride } }
     );
     lead.createdAt = createdAtOverride;
   }
