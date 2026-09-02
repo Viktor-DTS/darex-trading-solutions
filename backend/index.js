@@ -764,6 +764,12 @@ marketingLeadSchema.index({ status: 1, createdAt: -1 });
 marketingLeadSchema.index({ assignedManagerLogin: 1, status: 1 });
 marketingLeadSchema.index({ phoneNormalized: 1, createdAt: -1 });
 marketingLeadSchema.index({ archived: 1, archivedAt: -1 });
+// Список лідів: сортування createdAt desc; archived частіше { $ne: true },
+// тому для основної сторінки працює індекс лише по createdAt
+marketingLeadSchema.index({ createdAt: -1 });
+marketingLeadSchema.index({ archived: 1, status: 1, createdAt: -1 });
+marketingLeadSchema.index({ archived: 1, source: 1, createdAt: -1 });
+marketingLeadSchema.index({ metaLeadId: 1 }, { sparse: true });
 const MarketingLead = mongoose.model('MarketingLead', marketingLeadSchema);
 
 const marketingBotSessionSchema = new mongoose.Schema({
