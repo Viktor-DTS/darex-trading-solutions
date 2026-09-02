@@ -204,7 +204,12 @@ function sanitizeLeadPayload(body, { isInbound = false } = {}) {
     metaCommentId: pick('metaCommentId'),
     metaPostId: pick('metaPostId'),
     metaMediaId: pick('metaMediaId'),
-    interactionType: pick('interactionType'),
+    interactionType: (() => {
+      const v = pick('interactionType');
+      const allowed = ['lead_form', 'direct_message', 'comment', 'manual', 'inbound', 'bot'];
+      if (allowed.includes(v)) return v;
+      return isInbound ? 'inbound' : 'manual';
+    })(),
     trafficSource: pick('trafficSource'),
     landingPage: pick('landingPage'),
     referrer: pick('referrer'),

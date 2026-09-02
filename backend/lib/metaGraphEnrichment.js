@@ -24,8 +24,8 @@ async function metaGraphGet(objectId, fields, token) {
 /**
  * Підтягує назви кампанії / adset / ad / form та формує UTM-поля для DTS.
  */
-async function enrichMetaLeadAttribution(changeValue = {}) {
-  const token = process.env.META_PAGE_ACCESS_TOKEN || '';
+async function enrichMetaLeadAttribution(changeValue = {}, pageToken) {
+  const token = pageToken || process.env.META_PAGE_ACCESS_TOKEN || '';
   if (!token) {
     return buildUtmFromIds(changeValue, {});
   }

@@ -290,7 +290,8 @@ async function replyInstagramComment(commentId, message) {
   return data;
 }
 
-async function processMetaWebhookBody(deps, BotSession, body) {
+async function processMetaWebhookBody(deps, BotSession, body, options = {}) {
+  const metaProfile = options.metaProfile || 'prod';
   const results = [];
   const object = body.object;
 
@@ -314,7 +315,8 @@ async function processMetaWebhookBody(deps, BotSession, body) {
             const { processMetaLeadgenWebhook } = require('./marketingIntegrations');
             results.push({
               type: 'leadgen',
-              ...(await processMetaLeadgenWebhook(deps, change.value || {})),
+              metaProfile,
+              ...(await processMetaLeadgenWebhook(deps, change.value || {}, { metaProfile })),
             });
           } else if (change.field === 'feed') {
             results.push({

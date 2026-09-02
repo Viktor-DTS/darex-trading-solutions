@@ -6,6 +6,7 @@ const { canAccessMarketingPanel } = require('./lib/marketingLeads');
 const {
   createMarketingLeadFromInbound,
   verifyMetaWebhookSignature,
+  verifyMetaWebhookProfile,
   processGoogleLeadWebhook,
   handleTelegramUpdate,
   handleViberWebhook,
@@ -15,6 +16,7 @@ const {
 } = require('./lib/marketingIntegrations');
 const { processMetaWebhookBody } = require('./lib/metaPhase2');
 const { runMetaConnectionTest } = require('./lib/metaConnectionTest');
+const { matchMetaVerifyToken, verifyMetaWebhookProfile } = require('./lib/metaEnvProfiles');
 
 function registerMarketingIntegrationRoutes(app, deps) {
   const {
@@ -51,7 +53,11 @@ function registerMarketingIntegrationRoutes(app, deps) {
         return res.status(403).json({ error: 'Немає доступу' });
       }
       const pageId = String(req.query.pageId || '').trim();
-      const result = await runMetaConnectionTest(pageId ? { pageId } : {});
+      const profile = String(req.query.profile || '').trim() === 'star' ? 'star' : 'prod';
+      const result = await runMetaConnectionTest({
+        ...(pageId ? { pageId } : {}),
+        profile,
+      });
       res.json(result);
     } catch (e) {
       console.error('[META TEST]', e);
@@ -94,8 +100,7 @@ function registerMarketingIntegrationRoutes(app, deps) {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
-    const expected = process.env.META_VERIFY_TOKEN || '';
-    if (mode === 'subscribe' && token && expected && token === expected) {
+    if (mode === 'subscribe' && token && matchMetaVerifyToken(token)) {
       return res.status(200).send(challenge);
     }
     return res.status(403).send('Forbidden');
@@ -103,13 +108,14 @@ function registerMarketingIntegrationRoutes(app, deps) {
 
   app.post('/api/marketing/webhooks/meta', async (req, res) => {
     try {
-      if (!verifyMetaWebhookSignature(req)) {
+      const metaProfile = verifyMetaWebhookProfile(req);
+      if (!metaProfile) {
         return res.status(401).json({ error: 'Invalid signature' });
       }
 
       const body = req.body || {};
-      const results = await processMetaWebhookBody(serviceDeps, MarketingBotSession, body);
-      res.json({ ok: true, results });
+      const results = await processMetaWebhookBody(serviceDeps, MarketingBotSession, body, { metaProfile });
+      res.json({ ok: true, metaProfile, results });
     } catch (e) {
       console.error('[META WEBHOOK]', e);
       res.status(500).json({ error: e.message });

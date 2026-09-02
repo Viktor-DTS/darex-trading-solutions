@@ -2,7 +2,7 @@
  * Створення маркетингових лідів з inbound / webhook джерел + дедуплікація.
  */
 
-const crypto = require('crypto');
+
 const { sanitizeLeadPayload, normalizePhone, pushStatusHistory } = require('./marketingLeads');
 const {
   enrichMetaLeadAttribution,
@@ -10,6 +10,11 @@ const {
   mergeUtm,
 } = require('./metaGraphEnrichment');
 const { sendNewMarketingLeadTelegram } = require('./marketingTelegram');
+const {
+  getMetaPageAccessToken,
+  verifyMetaWebhookProfile,
+  getMetaProfileStatus,
+} = require('./metaEnvProfiles');
 
 const DEDUP_ACTIVE_STATUSES = ['new', 'in_review', 'assigned', 'transmitted', 'in_progress'];
 
@@ -195,21 +200,13 @@ async function createMarketingLeadFromInbound(deps, rawPayload, options = {}) {
 }
 
 function verifyMetaWebhookSignature(req) {
-  const secret = process.env.META_APP_SECRET || '';
-  if (!secret) return true;
-  const signature = req.get('x-hub-signature-256') || '';
-  if (!signature || !req.rawBody) return false;
-  const expected = `sha256=${crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex')}`;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch {
-    return false;
-  }
+  return Boolean(verifyMetaWebhookProfile(req));
 }
 
-async function fetchMetaLeadData(leadgenId) {
-  const token = process.env.META_PAGE_ACCESS_TOKEN || '';
-  if (!token) throw new Error('META_PAGE_ACCESS_TOKEN not configured');
+async function fetchMetaLeadData(leadgenId, metaProfile = 'prod') {
+  const token = getMetaPageAccessToken(metaProfile);
+  const suffix = metaProfile === 'star' ? '_STAR' : '';
+  if (!token) throw new Error(`META_PAGE_ACCESS_TOKEN${suffix} not configured`);
   const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(leadgenId)}?access_token=${encodeURIComponent(token)}`;
   const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
@@ -219,13 +216,15 @@ async function fetchMetaLeadData(leadgenId) {
   return data;
 }
 
-async function processMetaLeadgenWebhook(deps, changeValue) {
+async function processMetaLeadgenWebhook(deps, changeValue, options = {}) {
+  const metaProfile = options.metaProfile || 'prod';
+  const pageToken = getMetaPageAccessToken(metaProfile);
   const leadgenId = changeValue?.leadgen_id;
   if (!leadgenId) return { skipped: true, reason: 'no_leadgen_id' };
 
   const [graph, attribution] = await Promise.all([
-    fetchMetaLeadData(leadgenId),
-    enrichMetaLeadAttribution(changeValue),
+    fetchMetaLeadData(leadgenId, metaProfile),
+    enrichMetaLeadAttribution(changeValue, pageToken),
   ]);
 
   const mapped = mapMetaFieldDataExtended(graph.field_data);
@@ -237,7 +236,9 @@ async function processMetaLeadgenWebhook(deps, changeValue) {
   return createMarketingLeadFromInbound(deps, {
     source: attribution.source || 'facebook',
     interactionType: 'lead_form',
-    sourceDetail: attribution.sourceDetail,
+    sourceDetail: metaProfile === 'star'
+      ? 'Meta sandbox (STAR / Starenergy test)'
+      : attribution.sourceDetail,
     clientName: mapped.clientName,
     contactPhone: mapped.contactPhone,
     contactEmail: mapped.contactEmail,
@@ -567,6 +568,7 @@ function getIntegrationStatus() {
     baseUrl,
     inbound: Boolean(process.env.MARKETING_INBOUND_API_KEY),
     meta: Boolean(process.env.META_PAGE_ACCESS_TOKEN && process.env.META_VERIFY_TOKEN),
+    metaProfiles: getMetaProfileStatus(),
     google: Boolean(process.env.GOOGLE_LEAD_WEBHOOK_KEY),
     telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN),
     viber: Boolean(process.env.VIBER_BOT_TOKEN),

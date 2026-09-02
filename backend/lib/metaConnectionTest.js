@@ -5,6 +5,14 @@
 const GRAPH_VERSION = 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
+const {
+  getMetaVerifyToken,
+  getMetaAppSecret,
+  getMetaPageAccessToken,
+  getMetaAppId,
+  getMetaPageId,
+} = require('./metaEnvProfiles');
+
 async function graphGet(path, accessToken) {
   const url = `${GRAPH_BASE}${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(accessToken)}`;
   const res = await fetch(url);
@@ -30,47 +38,57 @@ function collectScopes(debugData) {
 /**
  * @param {object} [opts]
  * @param {string} [opts.pageId] — опційно; інакше META_PAGE_ID або id з /me
+ * @param {string} [opts.profile] — 'prod' | 'star' (sandbox *_STAR env)
  */
 async function runMetaConnectionTest(opts = {}) {
-  const pageToken = process.env.META_PAGE_ACCESS_TOKEN || '';
-  const appId = process.env.META_APP_ID || '';
-  const appSecret = process.env.META_APP_SECRET || '';
-  const verifyToken = process.env.META_VERIFY_TOKEN || '';
-  const pageIdEnv = String(opts.pageId || process.env.META_PAGE_ID || '').trim();
+  const profile = opts.profile === 'star' ? 'star' : 'prod';
+  const suffix = profile === 'star' ? '_STAR' : '';
+  const pageToken = getMetaPageAccessToken(profile);
+  const appId = getMetaAppId(profile);
+  const appSecret = getMetaAppSecret(profile);
+  const verifyToken = getMetaVerifyToken(profile);
+  const pageIdEnv = String(opts.pageId || getMetaPageId(profile) || '').trim();
 
   const checks = [];
 
   checks.push({
     id: 'env_verify_token',
     ok: Boolean(verifyToken),
-    label: 'META_VERIFY_TOKEN',
+    label: `META_VERIFY_TOKEN${suffix}`,
     message: verifyToken ? 'Задано (webhook verify)' : 'Не задано',
   });
 
   checks.push({
     id: 'env_page_token',
     ok: Boolean(pageToken),
-    label: 'META_PAGE_ACCESS_TOKEN',
+    label: `META_PAGE_ACCESS_TOKEN${suffix}`,
     message: pageToken ? 'Задано' : 'Не задано — Lead Ads не працюватимуть',
   });
 
   checks.push({
     id: 'env_app_secret',
     ok: Boolean(appSecret),
-    label: 'META_APP_SECRET',
+    label: `META_APP_SECRET${suffix}`,
     message: appSecret ? 'Задано (підпис webhook)' : 'Не задано — POST webhook без перевірки підпису',
+  });
+
+  checks.push({
+    id: 'env_app_id',
+    ok: Boolean(appId),
+    label: `META_APP_ID${suffix}`,
+    message: appId ? 'Задано (debug_token scopes)' : 'Не задано — не перевіримо leads_retrieval у тесті',
   });
 
   if (!pageToken) {
     return {
       ok: false,
       checks,
-      summary: 'Додайте META_PAGE_ACCESS_TOKEN на Render і повторіть перевірку.',
+      summary: `Додайте META_PAGE_ACCESS_TOKEN${suffix} на Render і повторіть перевірку.`,
     };
   }
 
-  // Page token → /me = Facebook Page
-  const me = await graphGet('/me?fields=id,name,link,category', pageToken);
+  // Page token → /me = Facebook Page (без category — для Page object поле може бути недоступне)
+  const me = await graphGet('/me?fields=id,name,link', pageToken);
   let pageId = pageIdEnv;
   let pageName = '';
   if (me.ok && me.data?.id) {
@@ -162,12 +180,16 @@ async function runMetaConnectionTest(opts = {}) {
         count: list.length,
       });
     } else {
+      const errMsg = forms.data?.error?.message || `HTTP ${forms.status}`;
+      const needsManageAds = /pages_manage_ads/i.test(errMsg);
       checks.push({
         id: 'leadgen_forms',
-        ok: false,
+        ok: needsManageAds ? null : false,
         label: 'Lead Forms на сторінці',
-        message: forms.data?.error?.message || `HTTP ${forms.status}`,
-        hint: 'Часто через Leads Access Manager або відсутній leads_retrieval',
+        message: errMsg,
+        hint: needsManageAds
+          ? 'Для списку форм потрібен pages_manage_ads; для прийому лідів у CRM достатньо leads_retrieval + webhook leadgen'
+          : 'Перевірте Leads Access Manager або leads_retrieval',
         error: forms.data?.error || null,
       });
     }
@@ -183,18 +205,20 @@ async function runMetaConnectionTest(opts = {}) {
   }
 
   const criticalOk = checks
-    .filter((c) => ['env_page_token', 'page', 'leadgen_forms', 'token_scopes'].includes(c.id))
+    .filter((c) => ['env_page_token', 'page', 'token_scopes'].includes(c.id))
     .every((c) => c.ok !== false);
 
-  const allOk = checks.every((c) => c.ok !== false);
+  const allOk = checks.every((c) => c.ok !== false && c.ok !== null);
 
   let summary;
-  if (allOk && hasLeadsRetrieval) {
-    summary = 'Meta Graph API доступний. Lead Forms читаються. Якщо ліди не приходять — перевірте webhook leadgen і Leads Access Manager для App.';
-  } else if (me.ok && !hasLeadsRetrieval) {
-    summary = 'Сторінка доступна, але у токені немає leads_retrieval — Lead Ads у CRM не підтягнуться.';
+  if (me.ok && hasLeadsRetrieval) {
+    summary = 'Сторінка і leads_retrieval OK. Якщо ліди не в CRM — Leads Access Manager для DTS App + webhook leadgen (не Creatio).';
+  } else if (me.ok && appId && appSecret && !hasLeadsRetrieval) {
+    summary = 'Сторінка доступна, але leads_retrieval відсутній — попросіть Meta перевипустити Page Token.';
+  } else if (me.ok && (!appId || !appSecret)) {
+    summary = 'Сторінка доступна. Додайте META_APP_ID + META_APP_SECRET на Render для перевірки leads_retrieval.';
   } else if (me.ok && formsFail(checks)) {
-    summary = 'Сторінка доступна, але Lead Forms недоступні — ймовірно Leads Access Manager або права App.';
+    summary = 'Сторінка доступна. Список форм недоступний — не блокер, якщо webhook leadgen і leads_retrieval налаштовані.';
   } else {
     summary = 'Є проблеми з Meta — див. деталі нижче.';
   }
