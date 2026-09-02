@@ -12,6 +12,7 @@ const {
   getMetaAppId,
   getMetaPageId,
 } = require('./metaEnvProfiles');
+const { resolvePageContext } = require('./metaPageToken');
 
 async function graphGet(path, accessToken) {
   const url = `${GRAPH_BASE}${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(accessToken)}`;
@@ -37,7 +38,7 @@ function collectScopes(debugData) {
 
 /**
  * @param {object} [opts]
- * @param {string} [opts.pageId] — опційно; інакше META_PAGE_ID або id з /me
+ * @param {string} [opts.pageId] — опційно; інакше META_PAGE_ID профілю
  * @param {string} [opts.profile] — 'prod' | 'star' (sandbox *_STAR env)
  */
 async function runMetaConnectionTest(opts = {}) {
@@ -87,29 +88,45 @@ async function runMetaConnectionTest(opts = {}) {
     };
   }
 
-  // Page token → /me = Facebook Page (без category — для Page object поле може бути недоступне)
-  const me = await graphGet('/me?fields=id,name,link', pageToken);
-  let pageId = pageIdEnv;
-  let pageName = '';
-  if (me.ok && me.data?.id) {
-    pageId = pageId || String(me.data.id);
-    pageName = me.data.name || '';
+  // META_PAGE_ACCESS_TOKEN може бути токеном System User — сторінкові edge-и
+  // вимагають Page-токена, тому він розв'язується через me/accounts
+  let ctx = null;
+  let ctxError = '';
+  try {
+    ctx = await resolvePageContext(profile, pageIdEnv);
+  } catch (e) {
+    ctxError = e.message;
+  }
+
+  let pageId = ctx?.pageId || pageIdEnv;
+  let pageName = ctx?.pageName || '';
+  const pageInfo = ctx && pageId
+    ? await graphGet(`/${encodeURIComponent(pageId)}?fields=id,name,link`, ctx.pageToken)
+    : null;
+
+  if (pageInfo?.ok && pageInfo.data?.id) {
+    pageId = String(pageInfo.data.id);
+    pageName = pageInfo.data.name || pageName;
     checks.push({
       id: 'page',
       ok: true,
-      label: 'Сторінка (Graph API /me)',
-      message: `${me.data.name || '—'} (ID ${me.data.id})`,
-      pageId: String(me.data.id),
-      pageName: me.data.name || '',
-      link: me.data.link || '',
+      label: 'Сторінка (Graph API)',
+      message: `${pageName || '—'} (ID ${pageId})`,
+      pageId,
+      pageName,
+      link: pageInfo.data.link || '',
+      tokenKind: ctx.tokenKind,
     });
   } else {
     checks.push({
       id: 'page',
       ok: false,
-      label: 'Сторінка (Graph API /me)',
-      message: me.data?.error?.message || `HTTP ${me.status}`,
-      error: me.data?.error || null,
+      label: 'Сторінка (Graph API)',
+      message: ctxError || pageInfo?.data?.error?.message || 'Не вдалося визначити сторінку',
+      hint: ctx?.tokenKind === 'env_token'
+        ? 'Токен не дає Page-токена через me/accounts — перевірте pages_show_list і META_PAGE_ID'
+        : '',
+      error: pageInfo?.data?.error || null,
     });
   }
 
@@ -157,10 +174,10 @@ async function runMetaConnectionTest(opts = {}) {
   }
 
   // Lead forms on page
-  if (pageId) {
+  if (ctx && pageId) {
     const forms = await graphGet(
       `/${encodeURIComponent(pageId)}/leadgen_forms?fields=id,name,status,leads_count&limit=25`,
-      pageToken
+      ctx.pageToken
     );
     if (forms.ok && Array.isArray(forms.data?.data)) {
       const list = forms.data.data.map((f) => ({
@@ -199,8 +216,8 @@ async function runMetaConnectionTest(opts = {}) {
     checks.push({
       id: 'page_id_match',
       ok: false,
-      label: 'META_PAGE_ID',
-      message: `У env: ${pageIdEnv}, токен для сторінки: ${pageId}`,
+      label: `META_PAGE_ID${suffix}`,
+      message: `У env: ${pageIdEnv}, доступна сторінка: ${pageId}`,
     });
   }
 
@@ -210,14 +227,16 @@ async function runMetaConnectionTest(opts = {}) {
 
   const allOk = checks.every((c) => c.ok !== false && c.ok !== null);
 
+  const pageOk = checks.find((c) => c.id === 'page')?.ok === true;
+
   let summary;
-  if (me.ok && hasLeadsRetrieval) {
-    summary = 'Сторінка і leads_retrieval OK. Якщо ліди не в CRM — Leads Access Manager для DTS App + webhook leadgen (не Creatio).';
-  } else if (me.ok && appId && appSecret && !hasLeadsRetrieval) {
-    summary = 'Сторінка доступна, але leads_retrieval відсутній — попросіть Meta перевипустити Page Token.';
-  } else if (me.ok && (!appId || !appSecret)) {
-    summary = 'Сторінка доступна. Додайте META_APP_ID + META_APP_SECRET на Render для перевірки leads_retrieval.';
-  } else if (me.ok && formsFail(checks)) {
+  if (pageOk && hasLeadsRetrieval) {
+    summary = 'Сторінка і leads_retrieval OK. Якщо ліди не в CRM — перевірте підписку сторінки на App (subscribed_apps) і webhook leadgen.';
+  } else if (pageOk && appId && appSecret && !hasLeadsRetrieval) {
+    summary = 'Сторінка доступна, але leads_retrieval відсутній — попросіть Meta перевипустити токен.';
+  } else if (pageOk && (!appId || !appSecret)) {
+    summary = `Сторінка доступна. Додайте META_APP_ID${suffix} + META_APP_SECRET${suffix} на Render для перевірки leads_retrieval.`;
+  } else if (pageOk && formsFail(checks)) {
     summary = 'Сторінка доступна. Список форм недоступний — не блокер, якщо webhook leadgen і leads_retrieval налаштовані.';
   } else {
     summary = 'Є проблеми з Meta — див. деталі нижче.';
