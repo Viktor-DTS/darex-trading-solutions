@@ -276,6 +276,21 @@
   color: rgba(244, 244, 245, 0.5);
 }
 
+.marketing-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(244, 244, 245, 0.08);
+}
+
+.marketing-pagination-info {
+  font-size: 13px;
+  color: rgba(244, 244, 245, 0.6);
+  white-space: nowrap;
+}
+
 .marketing-modal-overlay {
   position: fixed;
   inset: 0;

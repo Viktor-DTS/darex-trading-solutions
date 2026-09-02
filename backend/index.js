@@ -21022,9 +21022,23 @@ app.get('/api/marketing/leads', authenticateToken, async (req, res) => {
     }
     const q = buildMarketingLeadListQuery(req, req.user);
     const sort = q.archived === true ? { archivedAt: -1, createdAt: -1 } : { createdAt: -1 };
-    const list = await MarketingLead.find(q).sort(sort).limit(500).lean();
+    // paginated=1 повертає конверт з total; без параметра відповідь лишається масивом
+    const paginated = String(req.query.paginated || '') === '1';
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const limit = paginated
+      ? Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 200)
+      : 500;
+    const skip = Math.max(parseInt(req.query.skip, 10) || 0, 0);
+    const [list, total] = await Promise.all([
+      MarketingLead.find(q).sort(sort).skip(skip).limit(limit).lean(),
+      paginated ? MarketingLead.countDocuments(q) : Promise.resolve(0),
+    ]);
     await enrichLeadsWithClientOwners(list, Client, User);
-    res.json(list.map(enrichLeadForResponse));
+    const items = list.map(enrichLeadForResponse);
+    if (!paginated) {
+      return res.json(items);
+    }
+    res.json({ items, total, limit, skip });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

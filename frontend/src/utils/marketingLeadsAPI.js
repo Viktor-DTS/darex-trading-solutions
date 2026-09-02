@@ -28,6 +28,18 @@ export async function getMarketingLeads(params = {}) {
   return res.json();
 }
 
+/** Сторінка лідів: { items, total, limit, skip }. */
+export async function getMarketingLeadsPage({ limit = 50, skip = 0, ...params } = {}) {
+  const qs = new URLSearchParams({ ...params, paginated: '1', limit, skip }).toString();
+  const res = await fetch(`${API_BASE_URL}/marketing/leads?${qs}`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  const data = await res.json();
+  return {
+    items: Array.isArray(data?.items) ? data.items : [],
+    total: Number(data?.total) || 0,
+  };
+}
+
 export async function getMarketingLead(id) {
   const res = await fetch(`${API_BASE_URL}/marketing/leads/${id}`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);

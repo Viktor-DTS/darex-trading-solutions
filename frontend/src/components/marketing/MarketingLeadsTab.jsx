@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  getMarketingLeads,
+  getMarketingLeadsPage,
   getMarketingLeadsMeta,
   getMarketingLeadsStats,
   createMarketingLead,
@@ -31,6 +31,7 @@ const EMPTY_FORM = {
 };
 
 const ARCHIVABLE_STATUSES = ['in_progress', 'rejected', 'converted'];
+const PAGE_SIZE = 50;
 
 function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
   const isArchiveMode = mode === 'archive';
@@ -47,6 +48,8 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
   const [assignLogin, setAssignLogin] = useState('');
   const [saving, setSaving] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,29 +59,35 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
       if (filters.source) params.source = filters.source;
       if (debouncedSearch) params.search = debouncedSearch;
       const requests = [
-        getMarketingLeads(params),
+        getMarketingLeadsPage({ ...params, limit: PAGE_SIZE, skip: page * PAGE_SIZE }),
         getMarketingLeadsMeta(),
       ];
       if (!isArchiveMode) {
         requests.splice(1, 0, getMarketingLeadsStats().catch(() => null));
       }
       const results = await Promise.all(requests);
-      const list = results[0];
+      const pageData = results[0];
       const st = isArchiveMode ? null : results[1];
       const m = isArchiveMode ? results[1] : results[2];
-      setLeads(Array.isArray(list) ? list : []);
+      setLeads(pageData.items);
+      setTotal(pageData.total);
       setStats(st);
       setMeta(m || { sources: {}, statuses: {} });
       if (!isArchiveMode && st && typeof onArchiveChange === 'function') {
         onArchiveChange(st.archivedCount ?? 0);
       }
+      // сторінка могла спорожніти після архівації останнього ліда
+      if (pageData.items.length === 0 && page > 0) {
+        setPage((p) => Math.max(p - 1, 0));
+      }
     } catch (e) {
       console.error(e);
       setLeads([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [isArchiveMode, filters.status, filters.source, debouncedSearch, onArchiveChange]);
+  }, [isArchiveMode, filters.status, filters.source, debouncedSearch, page, onArchiveChange]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -86,6 +95,10 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
     }, 1000);
     return () => clearTimeout(timer);
   }, [filters.search]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.status, filters.source, debouncedSearch, isArchiveMode]);
 
   useEffect(() => {
     load();
@@ -339,6 +352,30 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
                 ))}
               </tbody>
             </table>
+          )}
+
+          {!loading && total > 0 && (
+            <div className="marketing-pagination">
+              <button
+                type="button"
+                className="marketing-btn marketing-btn-secondary marketing-btn-compact"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(p - 1, 0))}
+              >
+                ← Назад
+              </button>
+              <span className="marketing-pagination-info">
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} з {total}
+              </span>
+              <button
+                type="button"
+                className="marketing-btn marketing-btn-secondary marketing-btn-compact"
+                disabled={(page + 1) * PAGE_SIZE >= total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Далі →
+              </button>
+            </div>
           )}
         </div>
 
