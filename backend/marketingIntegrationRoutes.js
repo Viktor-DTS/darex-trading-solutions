@@ -5,8 +5,6 @@
 const { canAccessMarketingPanel } = require('./lib/marketingLeads');
 const {
   createMarketingLeadFromInbound,
-  verifyMetaWebhookSignature,
-  verifyMetaWebhookProfile,
   processGoogleLeadWebhook,
   handleTelegramUpdate,
   handleViberWebhook,
