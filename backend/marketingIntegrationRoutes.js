@@ -64,18 +64,11 @@ function registerMarketingIntegrationRoutes(app, deps) {
     }
   });
 
-  // Історичний імпорт Meta — ops-операція, автентифікація ключем MARKETING_INBOUND_API_KEY
-  function marketingOpsKeyOk(req) {
-    const expected = String(process.env.MARKETING_INBOUND_API_KEY || '').trim();
-    const provided = String(req.get('x-marketing-api-key') || '').trim();
-    return Boolean(expected && provided && provided === expected);
-  }
-
-  app.get('/api/marketing/integrations/meta/forms', async (req, res) => {
-    if (!marketingOpsKeyOk(req)) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+  app.get('/api/marketing/integrations/meta/forms', authenticateToken, async (req, res) => {
     try {
+      if (!canAccessMarketingPanel(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
       const result = await listMetaLeadForms({
         profile: String(req.query.profile || '').trim(),
         pageId: String(req.query.pageId || '').trim(),
@@ -87,11 +80,11 @@ function registerMarketingIntegrationRoutes(app, deps) {
     }
   });
 
-  app.post('/api/marketing/integrations/meta/import', async (req, res) => {
-    if (!marketingOpsKeyOk(req)) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+  app.post('/api/marketing/integrations/meta/import', authenticateToken, async (req, res) => {
     try {
+      if (!canAccessMarketingPanel(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
       const body = req.body || {};
       const result = await importMetaHistoricalLeads(serviceDeps, {
         profile: body.profile,
