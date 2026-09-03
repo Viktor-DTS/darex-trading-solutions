@@ -487,7 +487,7 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
             <p><strong>Коментар роботи:</strong> {selected.managerWorkComment || '—'}</p>
             {!isArchiveMode && <p><strong>Кому належить клієнт:</strong> {selected.clientOwnerName || '—'}</p>}
             <p><strong>Коментар:</strong> {selected.comment || '—'}</p>
-            <MarketingLeadAttribution lead={selected} interactionLabels={meta.interactionTypes} />
+            <MarketingLeadAttribution lead={selected} interactionLabels={meta.interactionTypes} user={user} />
             {!isArchiveMode && (
               <>
                 <div className="marketing-assign-row">

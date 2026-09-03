@@ -289,7 +289,7 @@ function ExternalAdRequestsTab({ user }) {
             {selected.marketingNotes && (
               <p><strong>Нотатки маркетингу:</strong> {selected.marketingNotes}</p>
             )}
-            <MarketingLeadAttribution lead={selected} />
+            <MarketingLeadAttribution lead={selected} user={user} />
             <label style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
               Нотатки менеджера
               <textarea
