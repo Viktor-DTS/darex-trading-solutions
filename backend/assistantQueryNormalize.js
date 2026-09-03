@@ -1,6 +1,8 @@
 /**
  * Нормалізація людського тексту перед lookup/statistics/discovery.
  * Толерантність до опечаток, скорочень, розмовних форм українською.
+ *
+ * Важливо: у Node.js `\w` часто НЕ матчить кирилицю — використовуємо `\p{L}`.
  */
 
 const FILLER_PREFIX =
@@ -19,15 +21,24 @@ function normalizeQueryText(text) {
 function softenForMatching(text) {
   let s = normalizeQueryText(text).toLowerCase();
   s = s.replace(FILLER_PREFIX, '');
-  // типові опечатки / трансліт (не повна transliteration — лише часті)
+  s = s.replace(/^мене\s+цікав\p{L}*\s+/iu, '');
   s = s
     .replace(/zayav/g, 'заяв')
     .replace(/skilky|skilki|skilko/g, 'скільки')
     .replace(/kilky|kilki|kilko/g, 'кільки')
     .replace(/kontragent/g, 'контрагент')
     .replace(/klient/g, 'клієнт')
+    .replace(/privat/g, 'приват')
     .replace(/romashka/g, 'ромашка');
   return s.trim();
+}
+
+/** Прибирає з назви клієнта хвост «в роботі», «виконано» тощо. */
+function sanitizeClientSearchTerm(name) {
+  let s = normalizeQueryText(name);
+  s = s.replace(/\s+(?:в|у)\s+робот\p{L}*.*$/iu, '');
+  s = s.replace(/\s+(?:статус|не\s+в\s+робот\p{L}*|виконан\p{L}*).*$/iu, '');
+  return s.trim().replace(/[,.?]$/, '');
 }
 
 /** @param {{ role: string, content: string }[]} priorMessages @param {string} currentMsg */
@@ -59,21 +70,30 @@ function extractEdrpouDigits(text) {
   return m ? m[1] : null;
 }
 
+/** @param {string} raw */
+function cleanClientCandidate(raw) {
+  const name = sanitizeClientSearchTerm(raw);
+  if (name.length < 2) return null;
+  if (/^(?:регіон|київ|львів|одес|дніпр|хмельниц|україн)$/iu.test(name)) return null;
+  if (/^(?:в\s+)?робот|статус|заявк\p{L}*$/iu.test(name)) return null;
+  return name;
+}
+
 /** @param {string} text */
 function extractClientNameCandidate(text) {
   const s = normalizeQueryText(text);
   const patterns = [
-    /(?:контрагент\w*|клієнт\w*|компан\w*|у\s+клієнта|у\s+контрагента|для\s+клієнта|для\s+контрагента)\s+["']?([^"'\n.?]{2,80})/iu,
-    /(?:скільк\w*|кільк\w*)\s+заяв\w*(?:\s+(?:у|в|для|по))?\s+([^?\n.]{2,60})/iu,
-    /заяв\w*\s+(?:у|в|для|по)\s+([^?\n.]{2,60})/iu,
+    /(?:контрагент\p{L}*|клієнт\p{L}*|компан\p{L}*|у\s+клієнта|у\s+контрагента|для\s+клієнта|для\s+контрагента)\s+["']?([^"'\n.?]{2,80})/iu,
+    /(?:скільк\p{L}*|кільк\p{L}*)\s+заяв\p{L}*\s+по\s+([^?\n.]{2,60})/iu,
+    /(?:скільк\p{L}*|кільк\p{L}*)\s+заяв\p{L}*(?:\s+(?:у|в|для|по))?\s+([^?\n.]{2,60})/iu,
+    /заяв\p{L}*\s+(?:у|в|для|по)\s+([^?\n.]{2,60})/iu,
+    /заяв\p{L}*\s+по\s+([^?\n.]{2,60})/iu,
   ];
   for (const re of patterns) {
     const m = s.match(re);
     if (!m?.[1]) continue;
-    const name = m[1].trim().replace(/[,.?]$/, '');
-    if (name.length < 2) continue;
-    if (/^(?:регіон|київ|львів|одес|дніпр|хмельниц|україн|в\s+робот|статус)/iu.test(name)) continue;
-    return name;
+    const cleaned = cleanClientCandidate(m[1]);
+    if (cleaned) return cleaned;
   }
   return null;
 }
@@ -81,7 +101,7 @@ function extractClientNameCandidate(text) {
 /** @param {string} text */
 function looksLikeCountQuestion(text) {
   const s = softenForMatching(text);
-  return /(?:скільк\w*|кільк\w*|число|підрахун\w*|count|how\s+many)/iu.test(s);
+  return /(?:скільк\p{L}*|кільк\p{L}*|число|підрахун\p{L}*|count|how\s+many)/iu.test(s);
 }
 
 /** @param {string} text */
@@ -100,13 +120,14 @@ function looksLikeTaskDetailQuestion(text) {
   return (
     /(?:покаж(?:и|іть)|відкри(?:й|йте)|детал(?:і|и)|що\s+в\s+заяв|інфо\s+по\s+заяв|статус\s+заяв)/iu.test(s) ||
     /\b(?:kv|nu|dp|lv)[-\s]?\d{2,}/iu.test(s) ||
-    /заявк\w*\s+\d{2,8}/iu.test(s)
+    /заявк\p{L}*\s+\d{2,8}/iu.test(s)
   );
 }
 
 module.exports = {
   normalizeQueryText,
   softenForMatching,
+  sanitizeClientSearchTerm,
   resolveEffectiveQuery,
   extractEdrpouDigits,
   extractClientNameCandidate,

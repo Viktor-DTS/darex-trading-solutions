@@ -6,6 +6,7 @@ const {
   normalizeQueryText,
   softenForMatching,
   extractClientNameCandidate,
+  sanitizeClientSearchTerm,
 } = require('./assistantQueryNormalize');
 
 const DEFAULT_REGIONS = ['Київський', 'Одеський', 'Львівський', 'Дніпровський', 'Хмельницький', 'Україна'];
@@ -32,17 +33,18 @@ function parseCounterpartyFromQuery(text) {
 
   const s = normalizeQueryText(text);
   const patterns = [
-    /(?:контрагент\w*|клієнт\w*|компан\w*)\s+["«]?([^"»?\n.]{2,80})/iu,
+    /(?:контрагент\p{L}*|клієнт\p{L}*|компан\p{L}*)\s+["«]?([^"»?\n.]{2,80})/iu,
     /(?:у|в)\s+(?:клієнта|контрагента)\s+["«]?([^"»?\n.]{2,80})/iu,
-    /по\s+контрагент\w*\s+["«]?([^"»?\n.]{2,80})/iu,
+    /по\s+контрагент\p{L}*\s+["«]?([^"»?\n.]{2,80})/iu,
+    /заяв\p{L}*\s+по\s+([^?\n.]{2,60})/iu,
   ];
   for (const re of patterns) {
     const m = s.match(re);
     if (!m?.[1]) continue;
-    const name = m[1].trim().replace(/[,.?]$/, '');
-    if (name.length < 2) continue;
-    if (/регіон|києв|львів|одес|дніпр|хмельниц|україн/i.test(name)) continue;
-    return name;
+    const cleaned = sanitizeClientSearchTerm(m[1]);
+    if (cleaned.length < 2) continue;
+    if (/регіон|київ|львів|одес|дніпр|хмельниц|україн/i.test(cleaned)) continue;
+    return cleaned;
   }
   return null;
 }
@@ -50,9 +52,10 @@ function parseCounterpartyFromQuery(text) {
 /** @param {string} text */
 function isCounterpartyStatisticsQuery(text) {
   const s = softenForMatching(text);
-  if (!/(?:скільк\w*|кільк\w*)/iu.test(s)) return false;
-  if (!/заяв\w*/iu.test(s)) return false;
+  if (!/(?:скільк\p{L}*|кільк\p{L}*)/iu.test(s)) return false;
+  if (!/заяв\p{L}*/iu.test(s)) return false;
   if (/контрагент|клієнт|компан/i.test(s)) return true;
+  if (/заяв\p{L}*\s+по\s+\S/iu.test(s)) return true;
   return Boolean(parseCounterpartyFromQuery(text));
 }
 
@@ -60,11 +63,12 @@ function isCounterpartyStatisticsQuery(text) {
 function isTaskStatisticsQuery(text) {
   const s = softenForMatching(text);
   if (s.length < 6) return false;
+  if (isCounterpartyStatisticsQuery(text)) return true;
   const hasCountIntent =
-    /скільк\w*|кільк\w*|число|статистик\w*|підрахун\w*|count|how\s+many/i.test(s);
-  const hasSumIntent = /сума|суми|загальн\w*\s+сума|разом|вартість|гривн|₴|uah/i.test(s);
-  const aboutTasks = /заяв\w*|задач\w*|task|робіт\w*|робот\w*/i.test(s);
-  if (hasCountIntent && /заяв\w*|задач\w*|task/i.test(s)) return true;
+    /скільк\p{L}*|кільк\p{L}*|число|статистик\p{L}*|підрахун\p{L}*|count|how\s+many/i.test(s);
+  const hasSumIntent = /сума|суми|загальн\p{L}*\s+сума|разом|вартість|гривн|₴|uah/i.test(s);
+  const aboutTasks = /заяв\p{L}*|задач\p{L}*|task|робіт\p{L}*|робот\p{L}*/i.test(s);
+  if (hasCountIntent && /заяв\p{L}*|задач\p{L}*|task/i.test(s)) return true;
   if (hasSumIntent && aboutTasks) return true;
   return false;
 }
@@ -122,8 +126,8 @@ function detectStatisticsFocus(text) {
   if (/не\s+підтверд.*завсклад|завсклад.*не\s+підтверд|склад.*не\s+підтверд/i.test(s)) {
     return 'pendingWarehouse';
   }
-  if (/не\s+(в\s+)?робот|не\s+взят|статус.*«?\s*заявк/i.test(s)) return 'notInWork';
-  if (/\bв\s+робот/i.test(s) && !/не\s+(в\s+)?робот/i.test(s)) return 'inWork';
+  if (/не\s+(?:в\s+)?робот|не\s+взят|статус.*«?\s*заявк/i.test(s)) return 'notInWork';
+  if (/в\s+робот\p{L}*/iu.test(s) && !/не\s+(?:в\s+)?робот/i.test(s)) return 'inWork';
   return 'all';
 }
 
@@ -187,14 +191,39 @@ function regionMongoFilter(region) {
   return { serviceRegion: region };
 }
 
+/** @param {string} clientName */
+function clientSearchWords(clientName) {
+  const cleaned = sanitizeClientSearchTerm(clientName).toLowerCase();
+  const words = cleaned
+    .split(/\s+/)
+    .map((w) => w.replace(/^(банку|банка|банком|banku)$/iu, 'банк'))
+    .filter((w) => w.length >= 3);
+  return [...new Set(words)];
+}
+
 /** @param {import('mongoose').Model} Task @param {string} clientName @param {string | null} region */
 function buildCounterpartyMatch(clientName, region) {
-  const esc = escapeRegex(clientName.trim());
-  if (!esc) return null;
-  const clientFilter = {
-    $or: [{ client: new RegExp(esc, 'i') }, { clientName: new RegExp(esc, 'i') }],
-  };
-  return { ...clientFilter, ...regionMongoFilter(region) };
+  const displayName = sanitizeClientSearchTerm(clientName);
+  const words = clientSearchWords(displayName);
+  const regionFilter = regionMongoFilter(region);
+
+  if (!words.length) {
+    const esc = escapeRegex(displayName.trim());
+    if (!esc) return null;
+    const clientFilter = {
+      $or: [{ client: new RegExp(esc, 'i') }, { clientName: new RegExp(esc, 'i') }],
+    };
+    return { ...clientFilter, ...regionFilter };
+  }
+
+  const andClauses = words.map((w) => ({
+    $or: [
+      { client: new RegExp(escapeRegex(w), 'i') },
+      { clientName: new RegExp(escapeRegex(w), 'i') },
+    ],
+  }));
+  if (Object.keys(regionFilter).length) andClauses.push(regionFilter);
+  return { $and: andClauses };
 }
 
 /**
@@ -203,9 +232,10 @@ function buildCounterpartyMatch(clientName, region) {
  * @param {string | null} region
  */
 async function fetchCounterpartyTaskStats(Task, clientName, region) {
-  const match = buildCounterpartyMatch(clientName, region);
+  const displayName = sanitizeClientSearchTerm(clientName);
+  const match = buildCounterpartyMatch(displayName, region);
   if (!match) {
-    return { total: 0, inWork: 0, notInWork: 0, done: 0, clientName };
+    return { total: 0, inWork: 0, notInWork: 0, done: 0, clientName: displayName };
   }
 
   const [total, inWork, notInWork, done] = await Promise.all([
@@ -215,21 +245,40 @@ async function fetchCounterpartyTaskStats(Task, clientName, region) {
     Task.countDocuments({ ...match, status: 'Виконано' }),
   ]);
 
-  return { total, inWork, notInWork, done, clientName };
+  return { total, inWork, notInWork, done, clientName: displayName };
 }
 
-/** @param {string} regionLabel @param {{ total: number, inWork: number, notInWork: number, done: number, clientName: string }} stats */
-function formatCounterpartyStatsReplyUk(regionLabel, stats) {
+/**
+ * @param {string} regionLabel
+ * @param {{ total: number, inWork: number, notInWork: number, done: number, clientName: string }} stats
+ * @param {'inWork'|'notInWork'|'pendingWarehouse'|'pendingAccountant'|'all'} [focus]
+ */
+function formatCounterpartyStatsReplyUk(regionLabel, stats, focus = 'all') {
   const regionNote =
     regionLabel === 'усі регіони'
       ? ''
       : ` (регіон **${regionLabel.replace(/ський$/i, 'ський')}**)`;
+
   if (stats.total === 0) {
     return (
       `Заявок для контрагента **${stats.clientName}**${regionNote} не знайдено. ` +
-      'Перевірте написання назви або спробуйте ЄДРПОУ в discovery-пошуку.'
+      'Перевірте написання (наприклад «ПриватБанк», «ПРИВАТ БАНК») або спробуйте ЄДРПОУ.'
     );
   }
+
+  if (focus === 'inWork') {
+    return (
+      `У контрагента **${stats.clientName}**${regionNote} зараз **${stats.inWork}** ` +
+      `заяв${stats.inWork === 1 ? 'ка' : stats.inWork < 5 ? 'ки' : 'ок'} у статусі «В роботі».`
+    );
+  }
+  if (focus === 'notInWork') {
+    return (
+      `У контрагента **${stats.clientName}**${regionNote} **${stats.notInWork}** ` +
+      `заяв${stats.notInWork === 1 ? 'ка' : stats.notInWork < 5 ? 'ки' : 'ок'} зі статусом «Заявка» (ще не в роботі).`
+    );
+  }
+
   const lines = [
     `У контрагента **${stats.clientName}**${regionNote}: **${stats.total}** заявок.`,
     `• «Заявка» (не в роботі): **${stats.notInWork}**`,
@@ -461,8 +510,9 @@ async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
   }
 
   if (counterpartyQuery) {
+    const statusFocus = detectStatisticsFocus(messageText);
     const cpStats = await fetchCounterpartyTaskStats(Task, counterpartyName, access.region);
-    const reply = formatCounterpartyStatsReplyUk(access.regionLabel, cpStats);
+    const reply = formatCounterpartyStatsReplyUk(access.regionLabel, cpStats, statusFocus);
     return {
       handled: true,
       reply,
@@ -470,6 +520,7 @@ async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
         region: access.regionLabel,
         kind: 'counterparty',
         client: counterpartyName,
+        focus: statusFocus,
         ...cpStats,
       },
     };
@@ -537,6 +588,7 @@ async function buildTaskStatisticsContextForLlm(userJwt, messageText, opts = {})
   }
 
   if (counterpartyQuery) {
+    const statusFocus = detectStatisticsFocus(messageText);
     const cpStats = await fetchCounterpartyTaskStats(Task, counterpartyName, access.region);
     const block =
       `[DTS-stats-counterparty] Заявки контрагента «${cpStats.clientName}» (${access.regionLabel}), дані з бази DTS:\n` +
@@ -544,6 +596,9 @@ async function buildTaskStatisticsContextForLlm(userJwt, messageText, opts = {})
       `- «Заявка»: ${cpStats.notInWork}\n` +
       `- «В роботі»: ${cpStats.inWork}\n` +
       `- «Виконано»: ${cpStats.done}\n` +
+      (statusFocus === 'inWork'
+        ? `- Користувач питає саме про «В роботі» — відповідай цифрою ${cpStats.inWork}.\n`
+        : '') +
       'Відповідай цифрами з блоку; не вигадуй.';
     return {
       textForLlm: block.trim(),

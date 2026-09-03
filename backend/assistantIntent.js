@@ -40,7 +40,7 @@ function analyzeAssistantQuery(input) {
   let intent = 'general';
   if (looksLikeNavigationQuestion(effectiveText)) intent = 'navigation';
   else if (isCounterpartyStatisticsQuery(effectiveText)) intent = 'counterparty_stats';
-  else if (looksLikeCountQuestion(effectiveText) && /заяв\w*/iu.test(normalized)) intent = 'statistics';
+  else if (looksLikeCountQuestion(effectiveText) && /заяв\p{L}*/iu.test(normalized)) intent = 'statistics';
   else if (looksLikeTaskDetailQuestion(effectiveText)) intent = 'task_lookup';
   else if (extractEdrpouDigits(effectiveText) || /(?:телефон|серійн|заводськ)/iu.test(normalized)) {
     intent = 'discovery';
