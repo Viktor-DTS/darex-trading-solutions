@@ -751,9 +751,28 @@
 
 .ved-product-orders-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ved-product-orders-filter-hint {
+  flex: 1 1 280px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #dc3545;
+}
+
+.ved-product-orders-filter-hint strong {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.ved-product-orders-filter-hint em {
+  color: #dc3545;
+  font-style: normal;
 }
 
 .ved-product-orders-subtitle {

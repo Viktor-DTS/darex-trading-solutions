@@ -1991,6 +1991,14 @@ function matchesProductOrderColumnFilter(row, key, filters) {
         <div className="ved-card">
           <div className="ved-product-orders-header">
             <h2 style={{ margin: 0 }}>Замовлення товарів</h2>
+            <p className="ved-product-orders-filter-hint">
+              <strong>Сортування:</strong> натисніть назву колонки — спочатку від більшого до меншого (▼), при
+              повторному натисканні навпаки (▲); для тексту — алфавіт, для дат і чисел — за значенням.
+              <strong> Універсальний пошук</strong> — миттєво шукає по всіх полях таблиці.
+              <strong> Фільтри під заголовками:</strong> «Фільтр…» — частковий збіг у колонці; «Статус
+              замовлення» — список (за замовчуванням «активен»); у колонках дат — діапазон <em>від</em> /{' '}
+              <em>до</em>. Вкладки ДГУ / ЗИП перемикають тип товарів.
+            </p>
             <button
               type="button"
               className="ved-btn"
