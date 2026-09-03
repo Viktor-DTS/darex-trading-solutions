@@ -291,6 +291,19 @@
   white-space: nowrap;
 }
 
+.marketing-table-check {
+  width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.marketing-table-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #fbbf24;
+}
+
 .marketing-modal-overlay {
   position: fixed;
   inset: 0;

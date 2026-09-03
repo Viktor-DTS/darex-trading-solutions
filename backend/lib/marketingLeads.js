@@ -144,6 +144,16 @@ function canManageAllMarketingLeads(user) {
   return ['admin', 'administrator', 'marketing', 'mgradm'].includes(role);
 }
 
+/** Масове архівування — лише admin / administrator (не marketing). */
+function isMarketingAdmin(user) {
+  const role = String(user?.role || '').toLowerCase();
+  return role === 'admin' || role === 'administrator';
+}
+
+function canAdminBulkArchiveLead(lead) {
+  return lead && !lead.archived;
+}
+
 function canViewManagerExternalLeads(user) {
   const role = String(user?.role || '').toLowerCase();
   return ['admin', 'administrator', 'marketing', 'mgradm', 'manager'].includes(role);
@@ -277,6 +287,8 @@ module.exports = {
   INTERACTION_TYPE_LABELS,
   canAccessMarketingPanel,
   canManageAllMarketingLeads,
+  isMarketingAdmin,
+  canAdminBulkArchiveLead,
   canViewManagerExternalLeads,
   canManuallyArchiveLead,
   normalizePhone,

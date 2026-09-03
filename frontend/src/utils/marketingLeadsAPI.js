@@ -96,6 +96,16 @@ export async function archiveMarketingLead(id, note = '') {
   return res.json();
 }
 
+export async function bulkArchiveMarketingLeads(ids, note = '') {
+  const res = await fetch(`${API_BASE_URL}/marketing/leads/bulk-archive`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ ids, note }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function restoreMarketingLead(id) {
   const res = await fetch(`${API_BASE_URL}/marketing/leads/${id}/restore`, {
     method: 'POST',

@@ -66,6 +66,8 @@ const {
   enrichLeadForResponse,
   formatUkDateTime,
   canManuallyArchiveLead,
+  isMarketingAdmin,
+  canAdminBulkArchiveLead,
   setLeadArchived,
   shouldAutoArchiveOnMarketingStatus,
 } = require('./lib/marketingLeads');
@@ -21217,6 +21219,40 @@ app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
     const saved = lead.toObject();
     const [enriched] = await enrichLeadsWithClientOwners([saved], Client, User);
     res.json(enrichLeadForResponse(enriched));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/marketing/leads/bulk-archive', authenticateToken, async (req, res) => {
+  try {
+    if (!isMarketingAdmin(req.user)) {
+      return res.status(403).json({ error: 'Доступ лише для адміністратора' });
+    }
+    const ids = Array.isArray(req.body?.ids)
+      ? [...new Set(req.body.ids.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    if (!ids.length) {
+      return res.status(400).json({ error: 'Вкажіть ids — масив заявок для архівації' });
+    }
+    if (ids.length > 100) {
+      return res.status(400).json({ error: 'За один раз можна архівувати не більше 100 заявок' });
+    }
+    const note = String(req.body?.note || '').trim() || 'Масове архівування (адмін)';
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const actor = dbUser || req.user;
+
+    const leads = await MarketingLead.find({ _id: { $in: ids }, archived: { $ne: true } });
+    let archived = 0;
+    const skipped = ids.length - leads.length;
+
+    for (const lead of leads) {
+      setLeadArchived(lead, actor, true, note);
+      await lead.save();
+      archived += 1;
+    }
+
+    res.json({ ok: true, archived, skipped, requested: ids.length });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }

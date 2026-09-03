@@ -8,6 +8,7 @@ import {
   transmitMarketingLead,
   updateMarketingLead,
   archiveMarketingLead,
+  bulkArchiveMarketingLeads,
   restoreMarketingLead,
 } from '../../utils/marketingLeadsAPI';
 import { getUsers } from '../../utils/clientsAPI';
@@ -32,6 +33,11 @@ const EMPTY_FORM = {
 
 const ARCHIVABLE_STATUSES = ['in_progress', 'rejected', 'converted'];
 const PAGE_SIZE = 50;
+const ADMIN_ROLES = ['admin', 'administrator'];
+
+function isMarketingAdminUser(user) {
+  return ADMIN_ROLES.includes(String(user?.role || '').toLowerCase());
+}
 
 function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
   const isArchiveMode = mode === 'archive';
@@ -50,6 +56,10 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
+  const isAdmin = isMarketingAdminUser(user);
+  const showBulkArchive = isAdmin && !isArchiveMode;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,7 +108,12 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
 
   useEffect(() => {
     setPage(0);
+    setSelectedIds(new Set());
   }, [filters.status, filters.source, debouncedSearch, isArchiveMode]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page]);
 
   useEffect(() => {
     load();
@@ -209,6 +224,52 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
     }
   };
 
+  const handleBulkArchive = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    if (!window.confirm(`Відправити в архів ${ids.length} заявок?`)) return;
+    setSaving(true);
+    try {
+      const result = await bulkArchiveMarketingLeads(ids);
+      setSelectedIds(new Set());
+      if (selected && ids.includes(selected._id)) setSelected(null);
+      load();
+      if (result.skipped > 0) {
+        alert(`Архівовано: ${result.archived}. Пропущено (вже в архіві): ${result.skipped}.`);
+      }
+    } catch (err) {
+      alert(err.message || 'Помилка масової архівації');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleSelectLead = (id, e) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllOnPage = () => {
+    const pageIds = leads.map((l) => l._id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const allOnPageSelected = leads.length > 0 && leads.every((l) => selectedIds.has(l._id));
+
   const canArchiveLead = (lead) => !isArchiveMode && ARCHIVABLE_STATUSES.includes(lead?.status) && !lead?.archived;
 
   const managerWorkStatusClass = (lead) => {
@@ -284,6 +345,16 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
           ))}
         </select>
         <button type="button" className="marketing-btn marketing-btn-secondary" onClick={load}>Оновити</button>
+        {showBulkArchive && selectedIds.size > 0 && (
+          <button
+            type="button"
+            className="marketing-btn marketing-btn-secondary"
+            disabled={saving}
+            onClick={handleBulkArchive}
+          >
+            В архів ({selectedIds.size})
+          </button>
+        )}
         {!isArchiveMode && (
           <button type="button" className="marketing-btn marketing-btn-primary" onClick={() => setShowCreate(true)}>
             + Нова заявка
@@ -301,6 +372,16 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
             <table className="marketing-table">
               <thead>
                 <tr>
+                  {showBulkArchive && (
+                    <th className="marketing-table-check">
+                      <input
+                        type="checkbox"
+                        checked={allOnPageSelected}
+                        onChange={toggleSelectAllOnPage}
+                        aria-label="Вибрати всі на сторінці"
+                      />
+                    </th>
+                  )}
                   <th>№</th>
                   <th>{isArchiveMode ? 'Дата архівації' : 'Дата'}</th>
                   <th>Джерело</th>
@@ -321,6 +402,16 @@ function MarketingLeadsTab({ user, mode = 'active', onArchiveChange }) {
                     className={selected?._id === l._id ? 'selected' : ''}
                     onClick={() => { setSelected(l); setAssignLogin(l.assignedManagerLogin || ''); }}
                   >
+                    {showBulkArchive && (
+                      <td className="marketing-table-check" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(l._id)}
+                          onChange={(e) => toggleSelectLead(l._id, e)}
+                          aria-label={`Вибрати ${l.requestNumber || 'заявку'}`}
+                        />
+                      </td>
+                    )}
                     <td>{l.requestNumber || '—'}</td>
                     <td>{formatDate(isArchiveMode ? (l.archivedAt || l.updatedAt) : l.createdAt)}</td>
                     <td>{meta.sources?.[l.source] || l.source}</td>
