@@ -97,8 +97,7 @@ export default function AnalyticsDashboard({ user }) {
 
   return (
     <div className="an">
-      {/* Шапка і вкладки — один липкий блок: інакше, прокрутивши довгу вкладку,
-          користувач мусив би повертатись нагору, щоб перейти на іншу. */}
+      {/* Шапка лишається на місці: прокручується лише вміст вкладки. */}
       <div className="an-head">
         <Filters
           filters={filters}
@@ -126,17 +125,19 @@ export default function AnalyticsDashboard({ user }) {
         </nav>
       </div>
 
-      {optionsError && <ErrorBox message={`Довідники фільтрів: ${optionsError}`} />}
+      <div className="an-body">
+        {optionsError && <ErrorBox message={`Довідники фільтрів: ${optionsError}`} />}
 
-      <Suspense fallback={<TabFallback />}>
-        <ActiveComponent
-          filters={filters}
-          reloadToken={reloadToken}
-          user={user}
-          navigate={navigate}
-          drill={drill}
-        />
-      </Suspense>
+        <Suspense fallback={<TabFallback />}>
+          <ActiveComponent
+            filters={filters}
+            reloadToken={reloadToken}
+            user={user}
+            navigate={navigate}
+            drill={drill}
+          />
+        </Suspense>
+      </div>
     </div>
   );
 }

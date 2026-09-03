@@ -6,7 +6,7 @@
  * «Що зависло» — це завжди стан на сьогодні, і фільтр року до нього не застосовується,
  * інакше при виборі минулого року панель показувала б, що черги порожні.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Badge, DataTable, Grid, Kpi, Panel, StatList } from '../primitives';
 import { days, int, money, num, pct } from '../format';
 import { useAnalytics } from '../useAnalytics';
@@ -16,10 +16,21 @@ export default function ProcessTab({ filters, reloadToken, drill }) {
   const { data, loading, error, reload } = useAnalytics('process', filters, { reloadToken });
   const p = data?.process;
   const [openStage, setOpenStage] = useState(null);
+  const detailRef = useRef(null);
 
   useEffect(() => {
     if (drill?.stage) setOpenStage(drill.stage);
   }, [drill]);
+
+  useEffect(() => {
+    if (!openStage) return undefined;
+    const node = detailRef.current;
+    if (!node) return undefined;
+    const timer = window.setTimeout(() => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [openStage]);
 
   const live = p?.live || {};
   const cohort = p?.cohort || {};
@@ -144,43 +155,45 @@ export default function ProcessTab({ filters, reloadToken, drill }) {
           </Grid>
 
           {openStage && (
-            <Section title={`Завислі заявки: ${(live.stages || []).find((s) => s.id === openStage)?.label || ''}`}>
-              <Panel
-                title={`${int((p.stuckByStage?.[openStage] || []).length)} заявок`}
-                icon="🚨"
-                tone="bad"
-                actions={
-                  <button type="button" className="an-btn an-btn--sm an-btn--ghost" onClick={() => setOpenStage(null)}>
-                    Закрити
-                  </button>
-                }
-              >
-                <DataTable
-                  columns={[
-                    { key: 'number', label: '№', render: (r) => <span className="an-cell-main">{r.number}</span> },
-                    {
-                      key: 'client',
-                      label: 'Клієнт',
-                      render: (r) => (
-                        <span>
-                          <span className="an-cell-main">{r.client}</span>
-                          <span className="an-cell-sub">{r.region}</span>
-                        </span>
-                      ),
-                    },
-                    { key: 'reason', label: 'Причина', render: (r) => <Badge tone="bad">{r.reason}</Badge> },
-                    { key: 'days', label: 'Днів', align: 'right', render: (r) => days(r.days) },
-                    { key: 'revenue', label: 'Сума', format: 'money', align: 'right' },
-                    { key: 'author', label: 'Автор' },
-                  ]}
-                  rows={p.stuckByStage?.[openStage]}
-                  rowKey="id"
-                  limit={20}
-                  initialSort={{ key: 'days', dir: 'desc' }}
-                  emptyText="На цьому етапі немає зависших заявок"
-                />
-              </Panel>
-            </Section>
+            <div ref={detailRef}>
+              <Section title={`Завислі заявки: ${(live.stages || []).find((s) => s.id === openStage)?.label || ''}`}>
+                <Panel
+                  title={`${int((p.stuckByStage?.[openStage] || []).length)} заявок`}
+                  icon="🚨"
+                  tone="bad"
+                  actions={
+                    <button type="button" className="an-btn an-btn--sm an-btn--ghost" onClick={() => setOpenStage(null)}>
+                      Закрити
+                    </button>
+                  }
+                >
+                  <DataTable
+                    columns={[
+                      { key: 'number', label: '№', render: (r) => <span className="an-cell-main">{r.number}</span> },
+                      {
+                        key: 'client',
+                        label: 'Клієнт',
+                        render: (r) => (
+                          <span>
+                            <span className="an-cell-main">{r.client}</span>
+                            <span className="an-cell-sub">{r.region}</span>
+                          </span>
+                        ),
+                      },
+                      { key: 'reason', label: 'Причина', render: (r) => <Badge tone="bad">{r.reason}</Badge> },
+                      { key: 'days', label: 'Днів', align: 'right', render: (r) => days(r.days) },
+                      { key: 'revenue', label: 'Сума', format: 'money', align: 'right' },
+                      { key: 'author', label: 'Автор' },
+                    ]}
+                    rows={p.stuckByStage?.[openStage]}
+                    rowKey="id"
+                    limit={20}
+                    initialSort={{ key: 'days', dir: 'desc' }}
+                    emptyText="На цьому етапі немає зависших заявок"
+                  />
+                </Panel>
+              </Section>
+            </div>
           )}
         </>
       )}
