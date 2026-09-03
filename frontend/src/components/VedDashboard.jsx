@@ -142,8 +142,7 @@ function VedDashboard({ user }) {
   const [registryFilterType, setRegistryFilterType] = useState('');
   const [registryLoading, setRegistryLoading] = useState(false);
   const [lastSearchResult, setLastSearchResult] = useState(null);
-  const [searchFormExpanded, setSearchFormExpanded] = useState(true);
-  const [registryExpanded, setRegistryExpanded] = useState(true);
+  const [manualSearchModalOpen, setManualSearchModalOpen] = useState(false);
   const [autoSearchInfoExpanded, setAutoSearchInfoExpanded] = useState(false);
   const [selectedRegistryIds, setSelectedRegistryIds] = useState([]);
   const [registryDeleting, setRegistryDeleting] = useState(false);
@@ -416,6 +415,15 @@ function VedDashboard({ user }) {
     if (selectedId) loadDetail(selectedId);
     else setDetail(null);
   }, [selectedId, loadDetail]);
+
+  useEffect(() => {
+    if (!manualSearchModalOpen) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape' && !aiRunning) setManualSearchModalOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [manualSearchModalOpen, aiRunning]);
 
   const statusLabel = (status) => meta?.statuses?.[status] || status || '—';
   const equipmentTypesMap = meta?.equipmentTypes || VED_EQUIPMENT_TYPE_LABELS;
@@ -1323,19 +1331,7 @@ function VedDashboard({ user }) {
     return (
       <div className="ved-card ved-registry-table-card">
         <div className="ved-registry-table-toolbar">
-          {isSearchSection ? (
-            <button
-              type="button"
-              className="ved-collapsible-header ved-collapsible-header-inline"
-              onClick={() => setRegistryExpanded((v) => !v)}
-              aria-expanded={registryExpanded}
-            >
-              <h3 style={{ margin: 0 }}>{tableTitle}</h3>
-              <span className="ved-collapsible-toggle">{registryExpanded ? '▼' : '▶'}</span>
-            </button>
-          ) : (
-            <h3 style={{ margin: 0 }}>{tableTitle}</h3>
-          )}
+          <h3 style={{ margin: 0 }}>{tableTitle}</h3>
           <div className="ved-registry-table-filters">
             <label>
               Фільтр типу:
@@ -1354,6 +1350,16 @@ function VedDashboard({ user }) {
             <button type="button" className="ved-btn" onClick={loadSupplierRegistry} disabled={registryLoading}>
               {registryLoading ? '…' : '↻ Оновити'}
             </button>
+            {isSearchSection && (
+              <button
+                type="button"
+                className="ved-btn ved-btn-primary"
+                onClick={() => setManualSearchModalOpen(true)}
+                disabled={aiRunning}
+              >
+                🔍 Ручний пошук постачальників
+              </button>
+            )}
             {canAdminRegistry && selectedRegistryIds.length > 0 && (
               <button
                 type="button"
@@ -1367,8 +1373,7 @@ function VedDashboard({ user }) {
           </div>
         </div>
 
-        {(isSearchSection ? registryExpanded : true) && (
-          <>
+        <>
             {registryLoading && supplierRegistry.length === 0 ? (
               <div className="ved-loading">Завантаження…</div>
             ) : supplierRegistry.length === 0 ? (
@@ -1468,7 +1473,6 @@ function VedDashboard({ user }) {
               </div>
             )}
           </>
-        )}
       </div>
     );
   };
@@ -1477,176 +1481,243 @@ function VedDashboard({ user }) {
     <div className="ved-list-panel ved-supplier-registry-panel">{renderSupplierRegistryTableCard(sectionKey)}</div>
   );
 
-  const renderSupplierSearch = () => (
-    <div className="ved-list-panel ved-supplier-registry-panel">
-      <div className="ved-card ved-ai-card ved-supplier-search-card">
-        <button
-          type="button"
-          className="ved-collapsible-header"
-          onClick={() => setSearchFormExpanded((v) => !v)}
-          aria-expanded={searchFormExpanded}
-        >
-          <h2 style={{ margin: 0 }}>🔍 Режим пошуку постачальника</h2>
-          <span className="ved-collapsible-toggle">{searchFormExpanded ? '▼' : '▶'}</span>
-        </button>
+  const renderSupplierManualSearchModal = () => {
+    if (!manualSearchModalOpen) return null;
 
-        {searchFormExpanded && (
-          <>
-        <p className="ved-ai-disclaimer">
-          Реєстр постачальників наповнюється поступово: автоматично {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. ШІ шукає виробників по всьому світу, зокрема в Азії та Європі (різні мови), а в таблицю опис додає українською. Постачальники з РФ виключені. Дублікати не додаються — ураховуються постачальники з реєстру, на розгляді, активні та відхилені.
-        </p>
-        {registryMeta?.autoSearch && (
-          <div className="ved-auto-search-info">
+    return (
+      <div
+        className="ved-modal-overlay"
+        onClick={() => {
+          if (!aiRunning) setManualSearchModalOpen(false);
+        }}
+      >
+        <div
+          className="ved-modal ved-modal-search ved-card ved-ai-card ved-supplier-search-card"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ved-manual-search-title"
+        >
+          <div className="ved-modal-header">
+            <h2 id="ved-manual-search-title" style={{ margin: 0 }}>
+              🔍 Режим пошуку постачальника
+            </h2>
             <button
               type="button"
-              className="ved-auto-search-info-toggle"
-              onClick={() => setAutoSearchInfoExpanded((v) => !v)}
+              className="ved-modal-close"
+              onClick={() => setManualSearchModalOpen(false)}
+              disabled={aiRunning}
+              aria-label="Закрити"
             >
-              {autoSearchInfoExpanded ? '▼' : '▶'} Критерії автопошуку о 02:00
+              ×
             </button>
-            {autoSearchInfoExpanded && (
-              <div className="ved-auto-search-info-body">
-                <p>{registryMeta.autoSearch.description}</p>
-                <p>
-                  <strong>Наступної ночі:</strong> {registryMeta.autoSearch.nextEquipmentType}
-                </p>
-                <p>
-                  <strong>Технічні вимоги (шаблон):</strong> {registryMeta.autoSearch.nextTechnicalRequirements}
-                </p>
-                <p>
-                  <strong>Акцент пошуку:</strong> {registryMeta.autoSearch.nextExtraSearchHint}
-                </p>
-                <p className="ved-auto-search-rotation-title">Ротація типів (по одному на ніч):</p>
-                <ul className="ved-auto-search-rotation">
-                  {registryMeta.autoSearch.rotation?.map((row) => (
-                    <li key={row.equipmentType}>
-                      <strong>{row.label}</strong> — {row.technicalRequirements}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
-        )}
-        {!meta?.aiEnabled && !aiConfig?.enabled ? (
-          <p className="ved-ai-error">
-            ШІ не налаштовано на сервері. Додайте OPENAI_API_KEY на Render і перезапустіть backend.
-          </p>
-        ) : (
-          <>
-            {aiConfig && (
-              <p className="ved-ai-meta">
-                {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi, Азія + Європа)' : '⚠ Без веб-пошуку — лише LLM'}
-                {' · '}
-                Залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
-                {registryMeta && (
-                  <>
-                    {' · '}
-                    У реєстрі: {registryMeta.workflowCounts?.registry ?? registryMeta.total}
-                    {registryMeta.workflowCounts && (
-                      <>
-                        {' · '}
-                        на розгляді: {registryMeta.workflowCounts.review || 0}
-                        {' · '}
-                        активні: {registryMeta.workflowCounts.active || 0}
-                        {' · '}
-                        відхилені: {registryMeta.workflowCounts.rejected || 0}
-                      </>
-                    )}
-                    {registryMeta.lastScheduledRunAt && (
-                      <>
-                        {' · '}
-                        Останнє авто: {formatDt(registryMeta.lastScheduledRunAt)}
-                        {registryMeta.lastScheduledAdded > 0 && ` (+${registryMeta.lastScheduledAdded})`}
-                      </>
-                    )}
-                  </>
-                )}
-              </p>
-            )}
 
-            <form className="ved-new-form ved-registry-search-form" onSubmit={runStandaloneSearch}>
-              <div className="ved-registry-form-grid">
-                <div className="ved-form-row ved-form-row-wide">
-                  <label>Тип обладнання * (можна кілька)</label>
-                  <div className="ved-equipment-type-grid">
-                    {Object.entries(equipmentTypesMap).map(([k, v]) => {
-                      const checked = (searchForm.equipmentTypes || []).includes(k);
-                      return (
-                        <label key={k} className={`ved-equipment-type-chip ${checked ? 'checked' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleSearchEquipmentType(k)}
-                          />
-                          <span>{v}</span>
-                        </label>
-                      );
-                    })}
+          <p className="ved-ai-disclaimer">
+            Реєстр постачальників наповнюється поступово: автоматично{' '}
+            {registryMeta?.nextRunHint || 'щодня о 02:00 (Europe/Kyiv)'} та вручну за кнопкою нижче. ШІ шукає
+            виробників по всьому світу, зокрема в Азії та Європі (різні мови), а в таблицю опис додає українською.
+            Постачальники з РФ виключені. Дублікати не додаються — ураховуються постачальники з реєстру, на
+            розгляді, активні та відхилені.
+          </p>
+          {registryMeta?.autoSearch && (
+            <div className="ved-auto-search-info">
+              <button
+                type="button"
+                className="ved-auto-search-info-toggle"
+                onClick={() => setAutoSearchInfoExpanded((v) => !v)}
+              >
+                {autoSearchInfoExpanded ? '▼' : '▶'} Критерії автопошуку о 02:00
+              </button>
+              {autoSearchInfoExpanded && (
+                <div className="ved-auto-search-info-body">
+                  <p>{registryMeta.autoSearch.description}</p>
+                  <p>
+                    <strong>Наступної ночі:</strong> {registryMeta.autoSearch.nextEquipmentType}
+                  </p>
+                  <p>
+                    <strong>Технічні вимоги (шаблон):</strong> {registryMeta.autoSearch.nextTechnicalRequirements}
+                  </p>
+                  <p>
+                    <strong>Акцент пошуку:</strong> {registryMeta.autoSearch.nextExtraSearchHint}
+                  </p>
+                  <p className="ved-auto-search-rotation-title">Ротація типів (по одному на ніч):</p>
+                  <ul className="ved-auto-search-rotation">
+                    {registryMeta.autoSearch.rotation?.map((row) => (
+                      <li key={row.equipmentType}>
+                        <strong>{row.label}</strong> — {row.technicalRequirements}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          {!meta?.aiEnabled && !aiConfig?.enabled ? (
+            <p className="ved-ai-error">
+              ШІ не налаштовано на сервері. Додайте OPENAI_API_KEY на Render і перезапустіть backend.
+            </p>
+          ) : (
+            <>
+              {aiConfig && (
+                <p className="ved-ai-meta">
+                  {aiConfig.hasWebSearch ? '✓ Веб-пошук (SerpApi, Азія + Європа)' : '⚠ Без веб-пошуку — лише LLM'}
+                  {' · '}
+                  Залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
+                  {registryMeta && (
+                    <>
+                      {' · '}
+                      У реєстрі: {registryMeta.workflowCounts?.registry ?? registryMeta.total}
+                      {registryMeta.workflowCounts && (
+                        <>
+                          {' · '}
+                          на розгляді: {registryMeta.workflowCounts.review || 0}
+                          {' · '}
+                          активні: {registryMeta.workflowCounts.active || 0}
+                          {' · '}
+                          відхилені: {registryMeta.workflowCounts.rejected || 0}
+                        </>
+                      )}
+                      {registryMeta.lastScheduledRunAt && (
+                        <>
+                          {' · '}
+                          Останнє авто: {formatDt(registryMeta.lastScheduledRunAt)}
+                          {registryMeta.lastScheduledAdded > 0 && ` (+${registryMeta.lastScheduledAdded})`}
+                        </>
+                      )}
+                    </>
+                  )}
+                </p>
+              )}
+
+              <form className="ved-new-form ved-registry-search-form" onSubmit={runStandaloneSearch}>
+                <div className="ved-registry-form-grid">
+                  <div className="ved-form-row ved-form-row-wide">
+                    <label>Тип обладнання * (можна кілька)</label>
+                    <div className="ved-equipment-type-grid">
+                      {Object.entries(equipmentTypesMap).map(([k, v]) => {
+                        const checked = (searchForm.equipmentTypes || []).includes(k);
+                        return (
+                          <label key={k} className={`ved-equipment-type-chip ${checked ? 'checked' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleSearchEquipmentType(k)}
+                            />
+                            <span>{v}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="ved-form-row">
+                    <label>Найменування / модель</label>
+                    <input
+                      value={searchForm.equipmentName}
+                      onChange={(e) => setSearchForm((f) => ({ ...f, equipmentName: e.target.value }))}
+                      placeholder="Напр. Perkins 50 kVA silent"
+                    />
+                  </div>
+                  <div className="ved-form-row ved-form-row-wide">
+                    <label>Технічні вимоги</label>
+                    <textarea
+                      value={searchForm.technicalRequirements}
+                      onChange={(e) => setSearchForm((f) => ({ ...f, technicalRequirements: e.target.value }))}
+                      placeholder="кВт, напруга, бренд, країна постачальника… (необов’язково — можна лише тип обладнання)"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="ved-form-row">
+                    <label>Кількість</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={searchForm.quantity}
+                      onChange={(e) => setSearchForm((f) => ({ ...f, quantity: e.target.value }))}
+                    />
+                  </div>
+                  <div className="ved-form-row">
+                    <label>Додатковий акцент</label>
+                    <input
+                      value={searchForm.extraSearchHint}
+                      onChange={(e) => setSearchForm((f) => ({ ...f, extraSearchHint: e.target.value }))}
+                      placeholder="Напр. Азія, Європа, Німеччина, Японія, OEM, CE"
+                    />
                   </div>
                 </div>
-                <div className="ved-form-row">
-                  <label>Найменування / модель</label>
-                  <input
-                    value={searchForm.equipmentName}
-                    onChange={(e) => setSearchForm((f) => ({ ...f, equipmentName: e.target.value }))}
-                    placeholder="Напр. Perkins 50 kVA silent"
-                  />
+                <div className="ved-actions">
+                  <button
+                    type="button"
+                    className="ved-btn ved-btn-secondary"
+                    onClick={() => setManualSearchModalOpen(false)}
+                    disabled={aiRunning}
+                  >
+                    Закрити
+                  </button>
+                  <button
+                    type="submit"
+                    className="ved-btn ved-btn-primary"
+                    disabled={aiRunning || aiConfig?.remainingToday === 0}
+                  >
+                    {aiRunning ? 'Пошук… (до 1–2 хв)' : '🔍 Пошук вручну'}
+                  </button>
                 </div>
-                <div className="ved-form-row ved-form-row-wide">
-                  <label>Технічні вимоги</label>
-                  <textarea
-                    value={searchForm.technicalRequirements}
-                    onChange={(e) => setSearchForm((f) => ({ ...f, technicalRequirements: e.target.value }))}
-                    placeholder="кВт, напруга, бренд, країна постачальника… (необов’язково — можна лише тип обладнання)"
-                    rows={2}
-                  />
-                </div>
-                <div className="ved-form-row">
-                  <label>Кількість</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={searchForm.quantity}
-                    onChange={(e) => setSearchForm((f) => ({ ...f, quantity: e.target.value }))}
-                  />
-                </div>
-                <div className="ved-form-row">
-                  <label>Додатковий акцент</label>
-                  <input
-                    value={searchForm.extraSearchHint}
-                    onChange={(e) => setSearchForm((f) => ({ ...f, extraSearchHint: e.target.value }))}
-                    placeholder="Напр. Азія, Європа, Німеччина, Японія, OEM, CE"
-                  />
-                </div>
-              </div>
-              <div className="ved-actions">
-                <button
-                  type="submit"
-                  className="ved-btn ved-btn-primary"
-                  disabled={aiRunning || aiConfig?.remainingToday === 0}
-                >
-                  {aiRunning ? 'Пошук… (до 1–2 хв)' : '🔍 Пошук вручну'}
-                </button>
-              </div>
-            </form>
+              </form>
 
-            {lastSearchResult && (
-              <p className="ved-registry-search-result">
-                Останній пошук
-                {lastSearchResult.equipmentTypes?.length
-                  ? ` (${lastSearchResult.equipmentTypes.map((t) => equipmentLabel(t)).join(', ')})`
-                  : ''}
-                : знайдено {lastSearchResult.candidatesFound ?? 0}, додано в таблицю{' '}
-                {lastSearchResult.added?.length ?? 0}, пропущено дублікатів {lastSearchResult.skipped ?? 0}.
-              </p>
-            )}
-          </>
-        )}
-          </>
-        )}
+              {lastSearchResult && (
+                <p className="ved-registry-search-result">
+                  Останній пошук
+                  {lastSearchResult.equipmentTypes?.length
+                    ? ` (${lastSearchResult.equipmentTypes.map((t) => equipmentLabel(t)).join(', ')})`
+                    : ''}
+                  : знайдено {lastSearchResult.candidatesFound ?? 0}, додано в таблицю{' '}
+                  {lastSearchResult.added?.length ?? 0}, пропущено дублікатів {lastSearchResult.skipped ?? 0}.
+                </p>
+              )}
+            </>
+          )}
+        </div>
       </div>
+    );
+  };
 
+  const renderSupplierSearch = () => (
+    <div className="ved-list-panel ved-supplier-registry-panel">
+      {renderSupplierManualSearchModal()}
+      {registryMeta && aiConfig && (
+        <p className="ved-supplier-search-summary">
+          Автопошук {registryMeta.nextRunHint || 'щодня о 02:00'} · У реєстрі:{' '}
+          {registryMeta.workflowCounts?.registry ?? registryMeta.total}
+          {registryMeta.workflowCounts && (
+            <>
+              {' · '}
+              на розгляді: {registryMeta.workflowCounts.review || 0}
+              {' · '}
+              активні: {registryMeta.workflowCounts.active || 0}
+              {' · '}
+              відхилені: {registryMeta.workflowCounts.rejected || 0}
+            </>
+          )}
+          {registryMeta.lastScheduledRunAt && (
+            <>
+              {' · '}
+              Останнє авто: {formatDt(registryMeta.lastScheduledRunAt)}
+            </>
+          )}
+          {' · '}
+          Ручних пошуків залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
+        </p>
+      )}
+      {lastSearchResult && !manualSearchModalOpen && (
+        <p className="ved-registry-search-result ved-supplier-search-last-result">
+          Останній пошук
+          {lastSearchResult.equipmentTypes?.length
+            ? ` (${lastSearchResult.equipmentTypes.map((t) => equipmentLabel(t)).join(', ')})`
+            : ''}
+          : знайдено {lastSearchResult.candidatesFound ?? 0}, додано {lastSearchResult.added?.length ?? 0}, дублікатів{' '}
+          {lastSearchResult.skipped ?? 0}.
+        </p>
+      )}
       {renderSupplierRegistryTableCard('supplier-search')}
     </div>
   );
