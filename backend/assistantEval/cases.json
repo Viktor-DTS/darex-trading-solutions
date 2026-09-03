@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "description": "Eval planner/tools без LLM. expectedTools — порядок не важливий.",
+  "cases": [
+    {
+      "id": "client_privatbank_in_work",
+      "message": "Мене цікавить скільки заявок по приват банку в роботі",
+      "expectedTools": ["client_stats"],
+      "expectClient": "приват банку",
+      "notes": "Не regional_stats; контрагент + inWork"
+    },
+    {
+      "id": "client_privatbank_typo",
+      "message": "скільки заявок по приватбанку",
+      "expectedTools": ["client_stats"],
+      "expectClient": "приватбанку"
+    },
+    {
+      "id": "client_romashka_typo",
+      "message": "склько заявок у ромашка",
+      "expectedTools": ["client_stats"],
+      "expectClient": "ромашка"
+    },
+    {
+      "id": "client_kontragent_explicit",
+      "message": "скільки заявок по контрагенту Ощадбанк",
+      "expectedTools": ["client_stats"],
+      "expectClient": "ощадбанк"
+    },
+    {
+      "id": "client_u_klienta",
+      "message": "скільки заявок у клієнта Монобанк",
+      "expectedTools": ["client_stats"],
+      "expectClient": "монобанк"
+    },
+    {
+      "id": "engineer_completed",
+      "message": "Скільки робіт виконав Іванов Петро",
+      "expectedTools": ["engineer_stats"],
+      "expectEngineer": "Іванов Петро"
+    },
+    {
+      "id": "engineer_self",
+      "message": "скільки я виконав заявок",
+      "expectedTools": ["engineer_stats"],
+      "expectEngineerSelf": true
+    },
+    {
+      "id": "engineer_in_work",
+      "message": "скільки заявок в роботі у інженера Коваленко",
+      "expectedTools": ["engineer_stats"],
+      "expectEngineer": "Коваленко",
+      "expectEngineerFocus": "inWork"
+    },
+    {
+      "id": "regional_stats",
+      "message": "статистика заявок по регіонах",
+      "expectedTools": ["regional_stats"]
+    },
+    {
+      "id": "regional_in_work",
+      "message": "скільки заявок в роботі",
+      "expectedTools": ["regional_stats"]
+    },
+    {
+      "id": "regional_kyiv",
+      "message": "скільки заявок в роботі по києву",
+      "expectedTools": ["regional_stats"],
+      "mustNotInclude": ["client_stats"]
+    },
+    {
+      "id": "regional_sum",
+      "message": "яка сума заявок в роботі",
+      "expectedTools": ["regional_stats"]
+    },
+    {
+      "id": "navigation_service",
+      "message": "де знайти таблицю заявок",
+      "expectedTools": ["navigation_help"]
+    },
+    {
+      "id": "navigation_create",
+      "message": "як створити заявку оператору",
+      "expectedTools": ["navigation_help"]
+    },
+    {
+      "id": "navigation_test",
+      "message": "де подати заявку на тест",
+      "expectedTools": ["navigation_help"]
+    },
+    {
+      "id": "task_lookup_kv",
+      "message": "покажи заявку KV-1234",
+      "expectedTools": ["task_lookup"]
+    },
+    {
+      "id": "task_lookup_kv_short",
+      "message": "статус kv997",
+      "expectedTools": ["task_lookup"]
+    },
+    {
+      "id": "engineer_not_client",
+      "message": "скільки виконав інженер Сидоренко",
+      "expectedTools": ["engineer_stats"],
+      "mustNotInclude": ["client_stats"],
+      "expectEngineer": "Сидоренко"
+    }
+  ]
+}

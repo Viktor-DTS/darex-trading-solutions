@@ -34,10 +34,12 @@ const {
   appendClarifyFollowUpToPrompt,
   applyClarificationTurn,
 } = require('./assistantChatClarification');
-const { tryTaskStatisticsTurn, buildTaskStatisticsContextForLlm } = require('./assistantTaskStatistics');
+const { buildTaskStatisticsContextForLlm } = require('./assistantTaskStatistics');
 const { assistantAccessGuard } = require('./assistantAccess');
 const { analyzeAssistantQuery } = require('./assistantIntent');
 const { buildHelpContextForLlm } = require('./assistantHelpContext');
+const { runAssistantTools } = require('./assistantToolRunner');
+const { buildKnowledgeLlmBlockUk } = require('./assistantKnowledge');
 
 const MAX_USER_MESSAGE = 4000;
 const MAX_LLM_USER_COMBINED = 22000;
@@ -293,25 +295,28 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
 
     try {
       const earlyAnalysis = analyzeAssistantQuery({ message: userMsg, priorMessages: [] });
-      const statsTurn = await tryTaskStatisticsTurn({
+      const toolTurn = await runAssistantTools({
         userJwt: req.user,
         dbUserLean: dbUserLeanForAssistant,
         messageText: earlyAnalysis.effectiveText,
+        panelId,
       });
-      if (statsTurn.handled) {
+      if (toolTurn.handled && toolTurn.directReply) {
         await Msg.create({ conversationId, role: 'user', content: userMsg });
-        const assistantStatsDoc = await Msg.create({
+        const assistantToolDoc = await Msg.create({
           conversationId,
           role: 'assistant',
-          content: truncate(statsTurn.reply, MESSAGE_MAX_LENGTH),
+          content: truncate(toolTurn.directReply, MESSAGE_MAX_LENGTH),
         });
         await Conv.updateOne({ _id: conversationId }, { $set: { updatedAt: new Date() } }).catch(() => {});
 
+        const toolMeta = toolTurn.toolResults?.[0]?.meta;
         return res.json({
           conversationId: String(conversationId),
-          reply: statsTurn.reply,
-          assistantMessageId: String(assistantStatsDoc._id),
-          statsMeta: statsTurn.statsMeta,
+          reply: toolTurn.directReply,
+          assistantMessageId: String(assistantToolDoc._id),
+          statsMeta: toolMeta?.kind ? toolMeta : undefined,
+          toolMeta: toolTurn.toolResults?.map((r) => ({ tool: r.tool, meta: r.meta })),
           cashlessAlert:
             cashlessAlertPayload?.tasks?.length > 0
               ? {
@@ -326,7 +331,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
         });
       }
     } catch (e) {
-      console.error('[assistant-chat] statistics:', e?.message || e);
+      console.error('[assistant-chat] tools:', e?.message || e);
     }
 
     try {
@@ -496,7 +501,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       });
     }
 
-    let contentForChat = `${effectiveUserMsg}\n\n${sessionBlock}\n\n${disclosureBlock}\n\n${queryAnalysis.llmBlock}`;
+    let contentForChat = `${effectiveUserMsg}\n\n${sessionBlock}\n\n${disclosureBlock}\n\n${buildKnowledgeLlmBlockUk()}\n\n${queryAnalysis.llmBlock}`;
 
     const helpContext = buildHelpContextForLlm(lookupText, panelId);
     if (helpContext.textForLlm) {

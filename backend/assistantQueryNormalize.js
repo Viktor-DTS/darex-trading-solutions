@@ -24,7 +24,7 @@ function softenForMatching(text) {
   s = s.replace(/^мене\s+цікав\p{L}*\s+/iu, '');
   s = s
     .replace(/zayav/g, 'заяв')
-    .replace(/skilky|skilki|skilko/g, 'скільки')
+    .replace(/skilky|skilki|skilko|склько|склькi/g, 'скільки')
     .replace(/kilky|kilki|kilko/g, 'кільки')
     .replace(/kontragent/g, 'контрагент')
     .replace(/klient/g, 'клієнт')
@@ -74,7 +74,8 @@ function extractEdrpouDigits(text) {
 function cleanClientCandidate(raw) {
   const name = sanitizeClientSearchTerm(raw);
   if (name.length < 2) return null;
-  if (/^(?:регіон|київ|львів|одес|дніпр|хмельниц|україн)$/iu.test(name)) return null;
+  if (/^(?:регіон|київ|львів|одес|дніпр|хмельниц|україн)/iu.test(name)) return null;
+  if (/регіон|київ|львів|одес|дніпр|хмельниц|україн/iu.test(name)) return null;
   if (/^(?:в\s+)?робот|статус|заявк\p{L}*$/iu.test(name)) return null;
   return name;
 }
@@ -106,6 +107,15 @@ function looksLikeCountQuestion(text) {
 
 /** @param {string} text */
 function looksLikeNavigationQuestion(text) {
+  const raw = normalizeQueryText(text).toLowerCase();
+  if (
+    /^де\s+(?:знайти|знаходиться|кнопка|вкладка|розділ|форма)/iu.test(raw) ||
+    /^як\s+(?:створити|подати|знайти|відкрити|зробити)/iu.test(raw) ||
+    /^куди\s+(?:натиснути|йти|подати)/iu.test(raw) ||
+    /^де\s+подати/iu.test(raw)
+  ) {
+    return true;
+  }
   const s = softenForMatching(text);
   return (
     /(?:де\s+(?:знайти|кнопка|вкладка|розділ|форма|створити|подати|відкрити)|як\s+(?:створити|подати|знайти|відкрити|зробити)|куди\s+(?:натиснути|йти)|де\s+тут)/iu.test(
