@@ -6,6 +6,47 @@ const { resolveLlmApiKey } = require('./productCardAssistantLlm');
 const { sanitizeAssistantReply } = require('./assistantChatSanitize');
 
 const DEFAULT_BASE = 'https://api.openai.com/v1';
+const DEFAULT_CHAT_MODEL = 'gpt-4o-mini';
+
+function looksLikeNonOpenAiModel(model) {
+  return /llama|mixtral|gemma|groq|qwen|deepseek/i.test(String(model || ''));
+}
+
+/** OpenAI + gpt-4o-mini для чату; Groq/llama лише якщо немає OPENAI_API_KEY. */
+function resolveAssistantChatClient() {
+  const openAiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  const assistantKey = String(process.env.PRODUCT_ASSISTANT_LLM_API_KEY || '').trim();
+  const chatModelOverride = String(process.env.ASSISTANT_CHAT_MODEL || '').trim();
+  const chatBaseOverride = String(process.env.ASSISTANT_CHAT_BASE_URL || '').trim();
+
+  if (openAiKey) {
+    const model =
+      chatModelOverride ||
+      (looksLikeNonOpenAiModel(process.env.PRODUCT_ASSISTANT_LLM_MODEL) ? DEFAULT_CHAT_MODEL : '') ||
+      DEFAULT_CHAT_MODEL;
+    return {
+      apiKey: openAiKey,
+      base: chatBaseOverride.replace(/\/$/, '') || DEFAULT_BASE,
+      model,
+    };
+  }
+
+  if (assistantKey) {
+    return {
+      apiKey: assistantKey,
+      base: String(
+        chatBaseOverride ||
+          process.env.PRODUCT_ASSISTANT_LLM_BASE_URL ||
+          DEFAULT_BASE,
+      ).replace(/\/$/, ''),
+      model:
+        chatModelOverride ||
+        String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || DEFAULT_CHAT_MODEL).trim(),
+    };
+  }
+
+  return { apiKey: '', base: DEFAULT_BASE, model: chatModelOverride || DEFAULT_CHAT_MODEL };
+}
 
 const ASSISTANT_SYSTEM = `Ти асистент внутрішньої службової системи DTS / Darex Trading Solutions.
 Спілкуйся українською, коротко і по справі.
@@ -34,6 +75,7 @@ const ASSISTANT_SYSTEM = `Ти асистент внутрішньої служ�
 Якщо користувач описує причину, чому не може виставити рахунок (безготівка), — коротко підтверди зрозуміння; система сама запропонує переслати бухгалтеру з підтвердженням Так/Ні. Не вигадуй, що повідомлення вже надіслано, якщо користувач ще не підтвердив «Так».
 Блок «cashlessPending» / жовте нагадування в клієнті — заявки регіону без рахунку й без заявки на рахунок на бухгалтерії; запропонуй переглянути список і запросити рахунок.
 Блок «[DTS-stats]» — агреговані підрахунки заявок по регіону (статуси «Заявка», «В роботі», очікування підтверджень). Для таких запитів не проси номер однієї заявки — відповідай цифрами з блоку.
+Блок «[DTS-stats-counterparty]» — підрахунок заявок по контрагенту/клієнту з бази; відповідай цифрами з блоку, не вигадуй.
 Блок «[DTS-stats-sum]» — перевірена **сума робіт** (serviceTotal/workPrice) по категорії заявок у регіоні. Не вигадуй суму й не кажи 0 без блоку; якщо count > 0, а сума 0 — поясни, що поля суми в заявках не заповнені.
 Не давай юридичних чи податкових гарантій; за потреби направ до бухгалтерії або керівника.
 Якщо запит поза роботою DTS (анекдот, вірш, гра, «розваж мене» тощо) — відповідай **українською**, живо і **коротко** (зазвичай 2–4 речення):
@@ -51,18 +93,11 @@ const ASSISTANT_SYSTEM = `Ти асистент внутрішньої служ�
 **Ніколи** не повторюй одне й те саме речення, репліку чи абзац; якщо думка висловлена — зупинись. Не перемикайся на російську.`;
 
 function chatModel() {
-  return String(
-    process.env.ASSISTANT_CHAT_MODEL ||
-      process.env.PRODUCT_ASSISTANT_LLM_MODEL ||
-      'gpt-4o-mini',
-  ).trim();
+  return resolveAssistantChatClient().model;
 }
 
 function chatBaseUrl() {
-  return String(process.env.ASSISTANT_CHAT_BASE_URL || process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(
-    /\/$/,
-    '',
-  );
+  return resolveAssistantChatClient().base;
 }
 
 function chatTimeoutMs() {
@@ -75,8 +110,8 @@ function chatMaxTokens(casual) {
     const c = parseInt(String(process.env.ASSISTANT_CHAT_CASUAL_MAX_TOKENS || '520'), 10);
     return Math.min(800, Math.max(200, c || 520));
   }
-  const raw = parseInt(String(process.env.ASSISTANT_CHAT_MAX_TOKENS || '1200'), 10);
-  const n = raw || 1200;
+  const raw = parseInt(String(process.env.ASSISTANT_CHAT_MAX_TOKENS || '1800'), 10);
+  const n = raw || 1800;
   return Math.min(8192, Math.max(256, n));
 }
 
@@ -107,15 +142,16 @@ function chatTemperature(casual) {
  */
 async function assistantChatCompletion(messages, options = {}) {
   const casual = Boolean(options.casual);
-  const apiKey = resolveLlmApiKey();
+  const client = resolveAssistantChatClient();
+  const apiKey = client.apiKey || resolveLlmApiKey();
   if (!apiKey) {
     const err = new Error('LLM ключ не налаштований (PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY)');
     err.code = 'NO_LLM_KEY';
     throw err;
   }
 
-  const model = chatModel();
-  const base = chatBaseUrl();
+  const model = client.model || chatModel();
+  const base = client.base || chatBaseUrl();
   const url = `${base}/chat/completions`;
 
   const body = {

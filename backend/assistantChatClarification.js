@@ -4,7 +4,7 @@
  */
 const { recordPositiveKnowledge } = require('./assistantChatLearning');
 
-const MAX_CLARIFY_ROUNDS = parseInt(String(process.env.ASSISTANT_CHAT_MAX_CLARIFY_ROUNDS || '5'), 10) || 5;
+const MAX_CLARIFY_ROUNDS = parseInt(String(process.env.ASSISTANT_CHAT_MAX_CLARIFY_ROUNDS || '2'), 10) || 2;
 
 function clarificationEnabled() {
   const raw = process.env.ASSISTANT_CHAT_CLARIFICATION;

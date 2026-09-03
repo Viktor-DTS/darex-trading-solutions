@@ -5,7 +5,7 @@
 function isAssistantTestMode() {
   const raw = process.env.ASSISTANT_CHAT_TEST_MODE;
   if (raw === undefined || raw === null || String(raw).trim() === '') {
-    return true;
+    return false;
   }
   const v = String(raw).trim().toLowerCase();
   return v !== '0' && v !== 'false' && v !== 'no' && v !== 'off';

@@ -35,6 +35,7 @@ const {
   applyClarificationTurn,
 } = require('./assistantChatClarification');
 const { tryTaskStatisticsTurn, buildTaskStatisticsContextForLlm } = require('./assistantTaskStatistics');
+const { assistantAccessGuard } = require('./assistantAccess');
 
 const MAX_USER_MESSAGE = 4000;
 const MAX_LLM_USER_COMBINED = 22000;
@@ -113,6 +114,8 @@ function validObjectId(id) {
  * @param {{ getAssistantConnection: () => import('mongoose').Connection | null, getCashlessPendingAlertsForUser?: (login: string, dbUser: object | null) => Promise<{ tasks: object[], summaryUk: string }> }} opts
  */
 function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessPendingAlertsForUser, ManagerUserNotification }) {
+  app.use('/api/assistant', assistantAccessGuard);
+
   app.get('/api/assistant/info', async (req, res) => {
     const login = req.user?.login;
     if (!login) return res.status(401).json({ error: 'Користувач не визначений' });

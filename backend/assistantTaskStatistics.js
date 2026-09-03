@@ -16,6 +16,40 @@ const STAT_LABELS = {
 const SUM_FIELD_NOTE =
   'Сума по полях serviceTotal (пріоритет) або workPrice, як у таблицях DTS; порожні значення = 0.';
 
+function escapeRegex(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** @param {string} text */
+function parseCounterpartyFromQuery(text) {
+  const s = String(text || '').trim();
+  const patterns = [
+    /(?:контрагент\w*|клієнт\w*|компан\w*)\s+["«]?([^"»?\n.]{2,80})/iu,
+    /(?:у|в)\s+(?:клієнта|контрагента)\s+["«]?([^"»?\n.]{2,80})/iu,
+    /по\s+контрагент\w*\s+["«]?([^"»?\n.]{2,80})/iu,
+    /скільк\w*\s+заяв\w*(?:\s+у|\s+в|\s+для|\s+по)?\s+(.{2,60})/iu,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (!m?.[1]) continue;
+    const name = m[1].trim().replace(/[,.?]$/, '');
+    if (name.length < 2) continue;
+    if (/регіон|києв|львів|одес|дніпр|хмельниц|україн/i.test(name)) continue;
+    if (/^(в\s+)?робот|статус|заявк/i.test(name)) continue;
+    return name;
+  }
+  return null;
+}
+
+/** @param {string} text */
+function isCounterpartyStatisticsQuery(text) {
+  const s = String(text || '');
+  if (!/скільк\w*|кількість/i.test(s)) return false;
+  if (!/заяв\w*/i.test(s)) return false;
+  if (/контрагент|клієнт/i.test(s)) return true;
+  return Boolean(parseCounterpartyFromQuery(text));
+}
+
 /** @param {string} text */
 function isTaskStatisticsQuery(text) {
   const s = String(text || '').trim();
@@ -145,6 +179,58 @@ function resolveStatisticsRegion(userJwt, dbUser, requestedRegion) {
 function regionMongoFilter(region) {
   if (!region) return {};
   return { serviceRegion: region };
+}
+
+/** @param {import('mongoose').Model} Task @param {string} clientName @param {string | null} region */
+function buildCounterpartyMatch(clientName, region) {
+  const esc = escapeRegex(clientName.trim());
+  if (!esc) return null;
+  const clientFilter = {
+    $or: [{ client: new RegExp(esc, 'i') }, { clientName: new RegExp(esc, 'i') }],
+  };
+  return { ...clientFilter, ...regionMongoFilter(region) };
+}
+
+/**
+ * @param {import('mongoose').Model} Task
+ * @param {string} clientName
+ * @param {string | null} region
+ */
+async function fetchCounterpartyTaskStats(Task, clientName, region) {
+  const match = buildCounterpartyMatch(clientName, region);
+  if (!match) {
+    return { total: 0, inWork: 0, notInWork: 0, done: 0, clientName };
+  }
+
+  const [total, inWork, notInWork, done] = await Promise.all([
+    Task.countDocuments(match),
+    Task.countDocuments({ ...match, status: 'В роботі' }),
+    Task.countDocuments({ ...match, status: 'Заявка' }),
+    Task.countDocuments({ ...match, status: 'Виконано' }),
+  ]);
+
+  return { total, inWork, notInWork, done, clientName };
+}
+
+/** @param {string} regionLabel @param {{ total: number, inWork: number, notInWork: number, done: number, clientName: string }} stats */
+function formatCounterpartyStatsReplyUk(regionLabel, stats) {
+  const regionNote =
+    regionLabel === 'усі регіони'
+      ? ''
+      : ` (регіон **${regionLabel.replace(/ський$/i, 'ський')}**)`;
+  if (stats.total === 0) {
+    return (
+      `Заявок для контрагента **${stats.clientName}**${regionNote} не знайдено. ` +
+      'Перевірте написання назви або спробуйте ЄДРПОУ в discovery-пошуку.'
+    );
+  }
+  const lines = [
+    `У контрагента **${stats.clientName}**${regionNote}: **${stats.total}** заявок.`,
+    `• «Заявка» (не в роботі): **${stats.notInWork}**`,
+    `• «В роботі»: **${stats.inWork}**`,
+    `• «Виконано»: **${stats.done}**`,
+  ];
+  return lines.join('\n');
 }
 
 /** @param {'inWork'|'notInWork'|'pendingWarehouse'|'pendingAccountant'} focus @param {string | null} region */
@@ -340,7 +426,10 @@ function buildStatisticsLlmBlock(regionLabel, stats) {
  * @param {string} messageText
  */
 async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
-  if (!isTaskStatisticsQuery(messageText)) {
+  const counterpartyName = parseCounterpartyFromQuery(messageText);
+  const counterpartyQuery = isCounterpartyStatisticsQuery(messageText) && counterpartyName;
+
+  if (!counterpartyQuery && !isTaskStatisticsQuery(messageText)) {
     return { handled: false };
   }
 
@@ -352,7 +441,6 @@ async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
     };
   }
 
-  const InvoiceRequest = mongoose.models.InvoiceRequest;
   const requestedRegion = parseRegionFromStatisticsQuery(messageText);
   const access = resolveStatisticsRegion(userJwt, dbUserLean, requestedRegion);
 
@@ -363,6 +451,21 @@ async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
       reply:
         `Статистику для регіону **${access.regionLabel}** ваш профіль не показує. ` +
         `Доступні дані: **${yours}**. Уточніть регіон або зверніться до адміністратора.`,
+    };
+  }
+
+  if (counterpartyQuery) {
+    const cpStats = await fetchCounterpartyTaskStats(Task, counterpartyName, access.region);
+    const reply = formatCounterpartyStatsReplyUk(access.regionLabel, cpStats);
+    return {
+      handled: true,
+      reply,
+      statsMeta: {
+        region: access.regionLabel,
+        kind: 'counterparty',
+        client: counterpartyName,
+        ...cpStats,
+      },
     };
   }
 
@@ -389,6 +492,7 @@ async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
     };
   }
 
+  const InvoiceRequest = mongoose.models.InvoiceRequest;
   const stats = await fetchTaskStatisticsCounts(Task, InvoiceRequest, access.region);
   const reply = formatStatisticsReplyUk(access.regionLabel, stats, focus);
 
@@ -406,7 +510,9 @@ async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
  * @param {{ dbUserLean?: object | null }} [opts]
  */
 async function buildTaskStatisticsContextForLlm(userJwt, messageText, opts = {}) {
-  if (!isTaskStatisticsQuery(messageText)) {
+  const counterpartyName = parseCounterpartyFromQuery(messageText);
+  const counterpartyQuery = isCounterpartyStatisticsQuery(messageText) && counterpartyName;
+  if (!counterpartyQuery && !isTaskStatisticsQuery(messageText)) {
     return { textForLlm: '', meta: null };
   }
 
@@ -421,6 +527,21 @@ async function buildTaskStatisticsContextForLlm(userJwt, messageText, opts = {})
       textForLlm:
         `[DTS-stats] Користувач питає про статистику регіону «${access.regionLabel}», але профіль обмежений регіонами: ${(access.userRegions || []).join(', ') || '—'}. Поясни обмеження доступу.`,
       meta: { denied: true, region: access.regionLabel },
+    };
+  }
+
+  if (counterpartyQuery) {
+    const cpStats = await fetchCounterpartyTaskStats(Task, counterpartyName, access.region);
+    const block =
+      `[DTS-stats-counterparty] Заявки контрагента «${cpStats.clientName}» (${access.regionLabel}), дані з бази DTS:\n` +
+      `- Усього: ${cpStats.total}\n` +
+      `- «Заявка»: ${cpStats.notInWork}\n` +
+      `- «В роботі»: ${cpStats.inWork}\n` +
+      `- «Виконано»: ${cpStats.done}\n` +
+      'Відповідай цифрами з блоку; не вигадуй.';
+    return {
+      textForLlm: block.trim(),
+      meta: { region: access.regionLabel, kind: 'counterparty', ...cpStats },
     };
   }
 
@@ -451,10 +572,13 @@ async function buildTaskStatisticsContextForLlm(userJwt, messageText, opts = {})
 
 module.exports = {
   isTaskStatisticsQuery,
+  isCounterpartyStatisticsQuery,
+  parseCounterpartyFromQuery,
   detectStatisticsKind,
   tryTaskStatisticsTurn,
   buildTaskStatisticsContextForLlm,
   fetchTaskStatisticsCounts,
+  fetchCounterpartyTaskStats,
   fetchWorkSumForFocus,
   parseRegionFromStatisticsQuery,
 };

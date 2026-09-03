@@ -30,8 +30,13 @@ import API_BASE_URL from './config';
 import { PANELS } from './constants/panelsCatalog';
 import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
 
-/** Тимчасово вимкнено: плаваючий асистент DTS можна повернути, змінивши на true. */
-const SHOW_DTS_ASSISTANT_WIDGET = false;
+/** AI-асистент DTS — лише для повних адміністраторів (admin / administrator). */
+const ASSISTANT_ADMIN_ROLES = ['admin', 'administrator'];
+
+function isAssistantVisibleForUser(user) {
+  const role = String(user?.role || '').trim().toLowerCase();
+  return ASSISTANT_ADMIN_ROLES.includes(role);
+}
 
 // Права доступу за замовчуванням (резервні, якщо база недоступна).
 // Перелік панелей (`PANELS`) — constants/panelsCatalog.js.
@@ -496,7 +501,7 @@ function App() {
                   {!['manager', 'inventory', 'marketing', 'tenders', 'ved'].includes(currentPanel) && (
                     <TasksStatisticsBar user={user} />
                   )}
-                  {SHOW_DTS_ASSISTANT_WIDGET ? (
+                  {isAssistantVisibleForUser(user) ? (
                     <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />
                   ) : null}
                 </div>
