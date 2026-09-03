@@ -20,6 +20,8 @@ const VED_EQUIPMENT_TYPE_LABELS = {
   other: 'Інше обладнання',
 };
 
+const PRODUCT_ORDER_DEFAULT_STATUS = 'активен';
+
 const PRODUCT_ORDER_DATE_FIELDS = new Set([
   'supplierOrderDate',
   'supplierReadyDate',
@@ -173,7 +175,10 @@ function VedDashboard({ user }) {
   const [productOrders, setProductOrders] = useState([]);
   const [productOrderLoading, setProductOrderLoading] = useState(false);
   const [productOrderSearch, setProductOrderSearch] = useState('');
-  const [productOrderColumnFilters, setProductOrderColumnFilters] = useState({});
+  const [productOrderColumnFilters, setProductOrderColumnFilters] = useState({
+    orderStatus: PRODUCT_ORDER_DEFAULT_STATUS,
+  });
+  const [productOrderSort, setProductOrderSort] = useState({ key: 'rowIndex', dir: 'asc' });
 
   const [newForm, setNewForm] = useState({
     equipmentType: 'generator_diesel',
@@ -377,7 +382,8 @@ function VedDashboard({ user }) {
   }, [section, canManage, loadProductOrderMeta, loadProductOrders]);
 
   useEffect(() => {
-    setProductOrderColumnFilters({});
+    setProductOrderColumnFilters({ orderStatus: PRODUCT_ORDER_DEFAULT_STATUS });
+    setProductOrderSort({ key: 'rowIndex', dir: 'asc' });
   }, [productOrderSheet]);
 
   const loadDetail = useCallback(
@@ -1774,6 +1780,57 @@ function parseUkDateParts(text) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function parsePriceSortValue(text) {
+  const s = String(text ?? '').trim();
+  if (!s || s === '—') return null;
+  const n = Number(s.replace(/[^\d.,-]/g, '').replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function getProductOrderSortType(key) {
+  if (key === 'rowIndex' || key === 'quantity') return 'number';
+  if (PRODUCT_ORDER_DATE_FIELDS.has(key)) return 'date';
+  if (PRODUCT_ORDER_PRICE_FIELDS.has(key)) return 'price';
+  return 'text';
+}
+
+function compareProductOrderRows(a, b, key, dir) {
+  const mul = dir === 'desc' ? -1 : 1;
+  const sortType = getProductOrderSortType(key);
+  const emptyRank = dir === 'desc' ? Infinity : -Infinity;
+
+  let va;
+  let vb;
+  if (key === 'rowIndex') {
+    va = Number(a.rowIndex);
+    vb = Number(b.rowIndex);
+  } else {
+    va = formatCellValue(a, key);
+    vb = formatCellValue(b, key);
+  }
+
+  const aEmpty = va == null || va === '' || va === '—';
+  const bEmpty = vb == null || vb === '' || vb === '—';
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1;
+  if (bEmpty) return -1;
+
+  if (sortType === 'number') {
+    return mul * ((Number(va) || 0) - (Number(vb) || 0));
+  }
+  if (sortType === 'date') {
+    const da = parseUkDateParts(String(va))?.getTime() ?? emptyRank;
+    const db = parseUkDateParts(String(vb))?.getTime() ?? emptyRank;
+    return mul * (da - db);
+  }
+  if (sortType === 'price') {
+    const pa = parsePriceSortValue(va) ?? emptyRank;
+    const pb = parsePriceSortValue(vb) ?? emptyRank;
+    return mul * (pa - pb);
+  }
+  return mul * String(va).localeCompare(String(vb), 'uk', { numeric: true, sensitivity: 'base' });
+}
+
 function matchesProductOrderColumnFilter(row, key, filters) {
   if (PRODUCT_ORDER_DATE_FIELDS.has(key)) {
     const from = String(filters[`${key}From`] || '').trim();
@@ -1796,8 +1853,11 @@ function matchesProductOrderColumnFilter(row, key, filters) {
   }
   const needle = String(filters[key] || '').trim();
   if (!needle) return true;
-  const hay = String(formatCellValue(row, key)).toLowerCase();
-  return hay.includes(needle.toLowerCase());
+  const cell = String(formatCellValue(row, key));
+  if (key === 'orderStatus') {
+    return cell.toLowerCase() === needle.toLowerCase();
+  }
+  return cell.toLowerCase().includes(needle.toLowerCase());
 }
 
   const filteredProductOrders = useMemo(() => {
@@ -1822,6 +1882,48 @@ function matchesProductOrderColumnFilter(row, key, filters) {
     });
   }, [productOrders, productOrderSearch, productOrderColumnFilters, productOrderMeta, productOrderSheet]);
 
+  const productOrderStatusOptions = useMemo(() => {
+    const fromMeta = productOrderMeta?.sheets?.[productOrderSheet]?.orderStatuses;
+    const base = Array.isArray(fromMeta)
+      ? [...fromMeta]
+      : [
+          ...new Set(
+            productOrders.map((row) => String(row.orderStatus || '').trim()).filter(Boolean)
+          ),
+        ];
+    if (!base.some((s) => s.toLowerCase() === PRODUCT_ORDER_DEFAULT_STATUS.toLowerCase())) {
+      base.push(PRODUCT_ORDER_DEFAULT_STATUS);
+    }
+    return base.sort((a, b) => a.localeCompare(b, 'uk'));
+  }, [productOrderMeta, productOrderSheet, productOrders]);
+
+  const sortedProductOrders = useMemo(() => {
+    const rows = [...filteredProductOrders];
+    if (!productOrderSort?.key) return rows;
+    rows.sort((a, b) => compareProductOrderRows(a, b, productOrderSort.key, productOrderSort.dir));
+    return rows;
+  }, [filteredProductOrders, productOrderSort]);
+
+  const handleProductOrderSort = (key) => {
+    setProductOrderSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' };
+      }
+      return { key, dir: 'desc' };
+    });
+  };
+
+  const renderProductOrderSortLabel = (key, label) => (
+    <>
+      {label}
+      {productOrderSort.key === key && (
+        <span className="ved-product-orders-sort-icon" aria-hidden="true">
+          {productOrderSort.dir === 'desc' ? ' ▼' : ' ▲'}
+        </span>
+      )}
+    </>
+  );
+
   const handleProductOrderColumnFilterChange = (key, value) => {
     setProductOrderColumnFilters((prev) => {
       const next = { ...prev };
@@ -1832,6 +1934,22 @@ function matchesProductOrderColumnFilter(row, key, filters) {
   };
 
   const renderProductOrderColumnFilter = (key) => {
+    if (key === 'orderStatus') {
+      return (
+        <select
+          className="ved-product-orders-filter-input ved-product-orders-filter-select"
+          value={productOrderColumnFilters.orderStatus ?? PRODUCT_ORDER_DEFAULT_STATUS}
+          onChange={(e) => handleProductOrderColumnFilterChange('orderStatus', e.target.value)}
+        >
+          <option value="">Усі</option>
+          {productOrderStatusOptions.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      );
+    }
     if (PRODUCT_ORDER_DATE_FIELDS.has(key)) {
       return (
         <div className="ved-product-orders-filter-date-range">
@@ -1932,10 +2050,23 @@ function matchesProductOrderColumnFilter(row, key, filters) {
           <div className="ved-product-orders-table-wrap">
             <table className="ved-table ved-product-orders-table">
               <thead>
-                <tr>
-                  <th>#</th>
+                <tr className="ved-product-orders-head-row">
+                  <th
+                    className="ved-product-orders-sortable-th"
+                    onClick={() => handleProductOrderSort('rowIndex')}
+                    title="Сортувати"
+                  >
+                    {renderProductOrderSortLabel('rowIndex', '#')}
+                  </th>
                   {columnKeys.map((key) => (
-                    <th key={key}>{columns[key]}</th>
+                    <th
+                      key={key}
+                      className="ved-product-orders-sortable-th"
+                      onClick={() => handleProductOrderSort(key)}
+                      title="Сортувати"
+                    >
+                      {renderProductOrderSortLabel(key, columns[key])}
+                    </th>
                   ))}
                 </tr>
                 <tr className="ved-product-orders-filter-row">
@@ -1954,7 +2085,7 @@ function matchesProductOrderColumnFilter(row, key, filters) {
                 </tr>
               </thead>
               <tbody>
-                {filteredProductOrders.map((row) => (
+                {sortedProductOrders.map((row) => (
                   <tr key={row._id || row.rowIndex}>
                     <td>{row.rowIndex}</td>
                     {columnKeys.map((key) => (

@@ -828,16 +828,6 @@
   font-size: 13px;
 }
 
-.ved-product-orders-filter-row th {
-  padding: 4px 6px !important;
-  background: var(--surface);
-  border-bottom: 2px solid var(--border);
-  vertical-align: middle;
-  position: sticky;
-  top: 32px;
-  z-index: 1;
-}
-
 .ved-product-orders-filter-input {
   width: 100%;
   min-width: 60px;
@@ -901,20 +891,59 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
+  --ved-po-head-row-height: 37px;
 }
 
 .ved-product-orders-table {
   min-width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ved-product-orders-table thead .ved-product-orders-head-row th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ved-product-orders-table thead .ved-product-orders-head-row th:hover {
+  color: var(--text);
+  background: rgba(25, 118, 210, 0.08);
+}
+
+.ved-product-orders-sortable-th {
+  white-space: nowrap;
+}
+
+.ved-product-orders-sort-icon {
+  font-size: 10px;
+  opacity: 0.85;
 }
 
 .ved-product-orders-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface);
   white-space: nowrap;
   font-size: 11px;
   max-width: 180px;
+}
+
+.ved-product-orders-filter-row th {
+  padding: 4px 6px !important;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  vertical-align: middle;
+  position: sticky;
+  top: var(--ved-po-head-row-height, 36px);
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.ved-product-orders-filter-select {
+  cursor: pointer;
+  padding-right: 4px;
 }
 
 .ved-product-order-cell {
