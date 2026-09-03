@@ -117,6 +117,7 @@ const { registerTenderRoutes } = require('./lib/tenderRoutes');
 const { registerVedRoutes, scheduleVedSupplierRegistryJob } = require('./lib/vedRoutes');
 const { registerWarehouseTransferRoutes } = require('./lib/warehouseTransferRoutes');
 const { registerSystemHealthRoutes } = require('./lib/systemHealth');
+const { registerAnalyticsRoutes } = require('./lib/analytics');
 const { createRequestMetricsMiddleware, attachMongoMonitoring } = require('./lib/systemHealth/requestMetrics');
 const {
   sendProcurementTelegramNotifications,
@@ -8713,59 +8714,10 @@ const TASK_TABLE_SELECT_FILTER_KEYS = new Set([
   'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager',
 ]);
 
-function buildParseNumericFieldExpr(fieldRef) {
-  return {
-    $let: {
-      vars: { raw: { $ifNull: [fieldRef, 0] } },
-      in: {
-        $switch: {
-          branches: [
-            {
-              case: { $in: [{ $type: '$$raw' }, ['double', 'int', 'long', 'decimal']] },
-              then: { $toDouble: '$$raw' },
-            },
-          ],
-          default: {
-            $convert: {
-              input: {
-                $replaceAll: {
-                  input: {
-                    $replaceAll: {
-                      input: { $trim: { input: { $toString: '$$raw' } } },
-                      find: ' ',
-                      replacement: '',
-                    },
-                  },
-                  find: ',',
-                  replacement: '.',
-                },
-              },
-              to: 'double',
-              onError: 0,
-              onNull: 0,
-            },
-          },
-        },
-      },
-    },
-  };
-}
-
-function buildNormalizedNumericStringExpr(fieldRef) {
-  return {
-    $replaceAll: {
-      input: {
-        $replaceAll: {
-          input: { $trim: { input: { $toString: { $ifNull: [fieldRef, ''] } } } },
-          find: ' ',
-          replacement: '',
-        },
-      },
-      find: ',',
-      replacement: '.',
-    },
-  };
-}
+const {
+  buildParseNumericFieldExpr,
+  buildNormalizedNumericStringExpr,
+} = require('./lib/taskAggregationExpr');
 
 function buildNumericColumnFilterMatch(key, val) {
   const escaped = String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -21404,6 +21356,8 @@ registerWarehouseTransferRoutes(app, {
 });
 
 registerSystemHealthRoutes(app, { authenticateToken });
+
+registerAnalyticsRoutes(app, { authenticateToken });
 
 registerTradingRoutes(app, { getAssistantConnection });
 scheduleTradingScanJob(getAssistantConnection);
