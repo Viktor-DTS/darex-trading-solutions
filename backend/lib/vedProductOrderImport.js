@@ -360,20 +360,38 @@ function formatDocForApi(doc) {
   return out;
 }
 
+function normalizeOrderStatuses(values) {
+  return [...new Set(values.map((s) => String(s || '').trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'uk')
+  );
+}
+
 async function getProductOrderMeta() {
-  const [lastLog, dguCount, zipCount, lastSynced] = await Promise.all([
+  const [lastLog, dguCount, zipCount, lastSynced, dguStatuses, zipStatuses] = await Promise.all([
     VedProductOrderImportLog.findOne({ status: 'success', dryRun: false })
       .sort({ createdAt: -1 })
       .lean(),
     VedProductOrder.countDocuments({ sheetType: 'dgu' }),
     VedProductOrder.countDocuments({ sheetType: 'zip' }),
     VedProductOrder.findOne().sort({ syncedAt: -1 }).select('syncedAt sourceFile').lean(),
+    VedProductOrder.distinct('orderStatus', { sheetType: 'dgu' }),
+    VedProductOrder.distinct('orderStatus', { sheetType: 'zip' }),
   ]);
 
   return {
     sheets: {
-      dgu: { label: 'ДГУ (дизель-генератори)', columns: DGU_COLUMNS, rowCount: dguCount },
-      zip: { label: 'ЗИП (запчастини)', columns: ZIP_COLUMNS, rowCount: zipCount },
+      dgu: {
+        label: 'ДГУ (дизель-генератори)',
+        columns: DGU_COLUMNS,
+        rowCount: dguCount,
+        orderStatuses: normalizeOrderStatuses(dguStatuses),
+      },
+      zip: {
+        label: 'ЗИП (запчастини)',
+        columns: ZIP_COLUMNS,
+        rowCount: zipCount,
+        orderStatuses: normalizeOrderStatuses(zipStatuses),
+      },
     },
     lastImport: lastLog
       ? {

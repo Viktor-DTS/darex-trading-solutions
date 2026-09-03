@@ -1684,6 +1684,20 @@ function formatCellValue(row, key) {
     loadProductOrders({ status: PRODUCT_ORDER_DEFAULT_STATUS });
   };
 
+  const productOrderStatusOptions = useMemo(() => {
+    const fromMeta = productOrderMeta?.sheets?.[productOrderSheet]?.orderStatuses;
+    const base = Array.isArray(fromMeta)
+      ? [...fromMeta]
+      : [
+          ...new Set(
+            productOrders.map((row) => String(row.orderStatus || '').trim()).filter(Boolean)
+          ),
+        ];
+    const current = String(productOrderStatusFilter || '').trim();
+    if (current && !base.includes(current)) base.push(current);
+    return base.sort((a, b) => a.localeCompare(b, 'uk'));
+  }, [productOrderMeta, productOrderSheet, productOrders, productOrderStatusFilter]);
+
   const renderProductOrders = () => {
     const sheetMeta = productOrderMeta?.sheets?.[productOrderSheet];
     const columns = sheetMeta?.columns || {};
@@ -1754,13 +1768,20 @@ function formatCellValue(row, key) {
               onChange={(e) => setProductOrderSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && loadProductOrders()}
             />
-            <input
-              type="text"
-              placeholder="Статус"
-              value={productOrderStatusFilter}
-              onChange={(e) => setProductOrderStatusFilter(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && loadProductOrders()}
-            />
+            <label className="ved-product-orders-status-filter">
+              Статус:
+              <select
+                value={productOrderStatusFilter}
+                onChange={(e) => setProductOrderStatusFilter(e.target.value)}
+              >
+                <option value="">Усі статуси</option>
+                {productOrderStatusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
             <input
               type="text"
               placeholder="Постачальник"
@@ -2046,14 +2067,6 @@ function formatCellValue(row, key) {
         </aside>
 
         <div className="ved-content">
-          <header className="ved-hero">
-            <h1>Відділ зовнішньоекономічної діяльності</h1>
-            <p>
-              Заявки менеджерів на імпорт обладнання (генератори, інвертори, LiFePO4). Спеціаліст ВЕД підбирає
-              постачальників і порівнює пропозиції з обов’язковими полями Incoterms, валюта, MOQ, lead time, % передоплати.
-            </p>
-          </header>
-
           {section === 'detail' && renderDetail()}
           {section === 'new' && renderNewForm()}
           {section === 'supplier-search' && renderSupplierSearch()}
