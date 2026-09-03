@@ -467,6 +467,10 @@
   margin-bottom: 12px;
 }
 
+.ved-registry-table-toolbar-no-title {
+  justify-content: flex-end;
+}
+
 .ved-registry-table-filters {
   display: flex;
   flex-wrap: wrap;
@@ -917,4 +921,35 @@
 .ved-supplier-search-last-result {
   margin: 0 0 10px;
   padding: 0 4px;
+}
+
+.ved-supplier-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ved-supplier-subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.ved-supplier-subtab.active {
+  background: rgba(25, 118, 210, 0.12);
+  border-color: #1976d2;
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.ved-supplier-subtab .ved-sidebar-tab-count {
+  margin-left: 2px;
 }

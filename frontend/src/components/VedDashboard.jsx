@@ -22,6 +22,13 @@ const VED_EQUIPMENT_TYPE_LABELS = {
 
 const PRODUCT_ORDER_DEFAULT_STATUS = 'активен';
 
+const SUPPLIER_SUB_TABS = [
+  { key: 'supplier-search', icon: '📋', label: 'Реєстр постачальників', countKey: 'registry' },
+  { key: 'suppliers-active', icon: '✅', label: 'Активні постачальники', countKey: 'active' },
+  { key: 'suppliers-review', icon: '🕐', label: 'Постачальники на розгляді', countKey: 'review' },
+  { key: 'suppliers-rejected', icon: '✕', label: 'Відхилені постачальники', countKey: 'rejected' },
+];
+
 const SUPPLIER_REGISTRY_SECTIONS = {
   'supplier-search': {
     workflowStatus: 'registry',
@@ -46,7 +53,7 @@ const SUPPLIER_REGISTRY_SECTIONS = {
 };
 
 function isSupplierRegistrySection(section) {
-  return Object.prototype.hasOwnProperty.call(SUPPLIER_REGISTRY_SECTIONS, section);
+  return section === 'suppliers' || Object.prototype.hasOwnProperty.call(SUPPLIER_REGISTRY_SECTIONS, section);
 }
 
 const EMPTY_PROPOSAL = {
@@ -124,6 +131,7 @@ function VedDashboard({ user }) {
 
   const [meta, setMeta] = useState(null);
   const [section, setSection] = useState('active');
+  const [supplierSubSection, setSupplierSubSection] = useState('supplier-search');
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -229,7 +237,8 @@ function VedDashboard({ user }) {
 
   const loadSupplierRegistry = useCallback(async () => {
     if (!canManage) return;
-    const workflowStatus = SUPPLIER_REGISTRY_SECTIONS[section]?.workflowStatus || 'registry';
+    const registrySectionKey = section === 'suppliers' ? supplierSubSection : section;
+    const workflowStatus = SUPPLIER_REGISTRY_SECTIONS[registrySectionKey]?.workflowStatus || 'registry';
     setRegistryLoading(true);
     try {
       const params = new URLSearchParams({ workflowStatus });
@@ -243,7 +252,7 @@ function VedDashboard({ user }) {
     } finally {
       setRegistryLoading(false);
     }
-  }, [authHeaders, canManage, registryFilterType, section]);
+  }, [authHeaders, canManage, registryFilterType, section, supplierSubSection]);
 
   const loadRegistryMeta = useCallback(async () => {
     if (!canManage) return;
@@ -270,7 +279,7 @@ function VedDashboard({ user }) {
       loadSupplierRegistry();
       loadRegistryMeta();
     }
-  }, [section, canManage, loadSupplierRegistry, loadRegistryMeta]);
+  }, [section, supplierSubSection, canManage, loadSupplierRegistry, loadRegistryMeta]);
 
   useEffect(() => {
     if (selectedId && canManage) loadAiSessions(selectedId);
@@ -1320,7 +1329,7 @@ function VedDashboard({ user }) {
     );
   };
 
-  const renderSupplierRegistryTableCard = (sectionKey) => {
+  const renderSupplierRegistryTableCard = (sectionKey, { hideTitle = false } = {}) => {
     const sectionConfig = SUPPLIER_REGISTRY_SECTIONS[sectionKey];
     const workflowStatus = sectionConfig?.workflowStatus || 'registry';
     const tableTitle = sectionConfig?.title || 'Реєстр постачальників';
@@ -1330,8 +1339,8 @@ function VedDashboard({ user }) {
 
     return (
       <div className="ved-card ved-registry-table-card">
-        <div className="ved-registry-table-toolbar">
-          <h3 style={{ margin: 0 }}>{tableTitle}</h3>
+        <div className={`ved-registry-table-toolbar${hideTitle ? ' ved-registry-table-toolbar-no-title' : ''}`}>
+          {!hideTitle && <h3 style={{ margin: 0 }}>{tableTitle}</h3>}
           <div className="ved-registry-table-filters">
             <label>
               Фільтр типу:
@@ -1476,10 +1485,6 @@ function VedDashboard({ user }) {
       </div>
     );
   };
-
-  const renderSupplierWorkflowSection = (sectionKey) => (
-    <div className="ved-list-panel ved-supplier-registry-panel">{renderSupplierRegistryTableCard(sectionKey)}</div>
-  );
 
   const renderSupplierManualSearchModal = () => {
     if (!manualSearchModalOpen) return null;
@@ -1681,10 +1686,28 @@ function VedDashboard({ user }) {
     );
   };
 
-  const renderSupplierSearch = () => (
+  const renderSuppliersPanel = () => (
     <div className="ved-list-panel ved-supplier-registry-panel">
       {renderSupplierManualSearchModal()}
-      {registryMeta && aiConfig && (
+
+      <div className="ved-supplier-subtabs">
+        {SUPPLIER_SUB_TABS.map((tab) => {
+          const count = registryMeta?.workflowCounts?.[tab.countKey];
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              className={`ved-supplier-subtab ${supplierSubSection === tab.key ? 'active' : ''}`}
+              onClick={() => setSupplierSubSection(tab.key)}
+            >
+              {tab.icon} {tab.label}
+              {count != null && <span className="ved-sidebar-tab-count">{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {supplierSubSection === 'supplier-search' && registryMeta && aiConfig && (
         <p className="ved-supplier-search-summary">
           Автопошук {registryMeta.nextRunHint || 'щодня о 02:00'} · У реєстрі:{' '}
           {registryMeta.workflowCounts?.registry ?? registryMeta.total}
@@ -1708,7 +1731,7 @@ function VedDashboard({ user }) {
           Ручних пошуків залишилось сьогодні: {aiConfig.remainingToday} / {aiConfig.dailyLimit}
         </p>
       )}
-      {lastSearchResult && !manualSearchModalOpen && (
+      {supplierSubSection === 'supplier-search' && lastSearchResult && !manualSearchModalOpen && (
         <p className="ved-registry-search-result ved-supplier-search-last-result">
           Останній пошук
           {lastSearchResult.equipmentTypes?.length
@@ -1718,7 +1741,7 @@ function VedDashboard({ user }) {
           {lastSearchResult.skipped ?? 0}.
         </p>
       )}
-      {renderSupplierRegistryTableCard('supplier-search')}
+      {renderSupplierRegistryTableCard(supplierSubSection, { hideTitle: true })}
     </div>
   );
 
@@ -2046,62 +2069,17 @@ function formatCellValue(row, key) {
               <>
                 <button
                   type="button"
-                  className={`ved-sidebar-tab ${section === 'supplier-search' ? 'active' : ''}`}
+                  className={`ved-sidebar-tab ${section === 'suppliers' ? 'active' : ''}`}
                   onClick={() => {
-                    setSection('supplier-search');
+                    setSection('suppliers');
                     setSelectedId(null);
                     setDetail(null);
                     setAiSessionDetail(null);
                   }}
                 >
-                  🔍 Пошук постачальника
+                  📋 Постачальники
                   {registryMeta?.workflowCounts?.registry != null && (
                     <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.registry}</span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className={`ved-sidebar-tab ${section === 'suppliers-active' ? 'active' : ''}`}
-                  onClick={() => {
-                    setSection('suppliers-active');
-                    setSelectedId(null);
-                    setDetail(null);
-                    setAiSessionDetail(null);
-                  }}
-                >
-                  ✅ Активні постачальники
-                  {registryMeta?.workflowCounts?.active != null && (
-                    <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.active}</span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className={`ved-sidebar-tab ${section === 'suppliers-review' ? 'active' : ''}`}
-                  onClick={() => {
-                    setSection('suppliers-review');
-                    setSelectedId(null);
-                    setDetail(null);
-                    setAiSessionDetail(null);
-                  }}
-                >
-                  🕐 Постачальники на розгляді
-                  {registryMeta?.workflowCounts?.review != null && (
-                    <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.review}</span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className={`ved-sidebar-tab ${section === 'suppliers-rejected' ? 'active' : ''}`}
-                  onClick={() => {
-                    setSection('suppliers-rejected');
-                    setSelectedId(null);
-                    setDetail(null);
-                    setAiSessionDetail(null);
-                  }}
-                >
-                  ✕ Відхилені постачальники
-                  {registryMeta?.workflowCounts?.rejected != null && (
-                    <span className="ved-sidebar-tab-count">{registryMeta.workflowCounts.rejected}</span>
                   )}
                 </button>
                 <button
@@ -2140,10 +2118,7 @@ function formatCellValue(row, key) {
         <div className="ved-content">
           {section === 'detail' && renderDetail()}
           {section === 'new' && renderNewForm()}
-          {section === 'supplier-search' && renderSupplierSearch()}
-          {section === 'suppliers-active' && renderSupplierWorkflowSection('suppliers-active')}
-          {section === 'suppliers-review' && renderSupplierWorkflowSection('suppliers-review')}
-          {section === 'suppliers-rejected' && renderSupplierWorkflowSection('suppliers-rejected')}
+          {section === 'suppliers' && renderSuppliersPanel()}
           {section === 'product-orders' && canManage && renderProductOrders()}
           {section === 'notifications' && (
             <div className="ved-notifications-wrap">
