@@ -22,6 +22,55 @@ const VED_EQUIPMENT_TYPE_LABELS = {
 
 const PRODUCT_ORDER_DEFAULT_STATUS = 'активен';
 
+const PRODUCT_ORDER_DETAIL_SECTIONS = [
+  {
+    id: 'product',
+    title: 'Товар',
+    icon: '📦',
+    keys: [
+      'productName',
+      'productCharacteristics',
+      'quantity',
+      'productStatus',
+      'minSalePrice',
+      'priceList',
+      'unitPrice',
+    ],
+  },
+  {
+    id: 'supplier',
+    title: 'Постачальник',
+    icon: '🏭',
+    keys: ['supplier', 'deliveryNumber', 'deliveryCode', 'supplierOrderDate', 'supplierReadyDate'],
+  },
+  {
+    id: 'logistics',
+    title: 'Логістика',
+    icon: '🚚',
+    keys: [
+      'arrivalWarehouse',
+      'expectedArrivalDate',
+      'destination',
+      'arrivalCity',
+      'deliveryCity',
+      'customerShipDeadline',
+    ],
+  },
+  {
+    id: 'customer',
+    title: 'Замовник',
+    icon: '👤',
+    keys: ['customerName', 'customerPrepayment', 'reservedByUntil'],
+  },
+  {
+    id: 'notes',
+    title: 'Примітки',
+    icon: '📝',
+    keys: ['notes'],
+    wide: true,
+  },
+];
+
 const PRODUCT_ORDER_DATE_FIELDS = new Set([
   'supplierOrderDate',
   'supplierReadyDate',
@@ -179,6 +228,7 @@ function VedDashboard({ user }) {
     orderStatus: PRODUCT_ORDER_DEFAULT_STATUS,
   });
   const [productOrderSort, setProductOrderSort] = useState({ key: 'rowIndex', dir: 'asc' });
+  const [selectedProductOrder, setSelectedProductOrder] = useState(null);
 
   const [newForm, setNewForm] = useState({
     equipmentType: 'generator_diesel',
@@ -428,6 +478,15 @@ function VedDashboard({ user }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [manualSearchModalOpen, aiRunning]);
+
+  useEffect(() => {
+    if (!selectedProductOrder) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setSelectedProductOrder(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedProductOrder]);
 
   const statusLabel = (status) => meta?.statuses?.[status] || status || '—';
   const equipmentTypesMap = meta?.equipmentTypes || VED_EQUIPMENT_TYPE_LABELS;
@@ -1794,6 +1853,14 @@ function getProductOrderSortType(key) {
   return 'text';
 }
 
+function getProductOrderStatusTone(status) {
+  const s = String(status || '').toLowerCase();
+  if (/актив|active|в\s*работ|изготов|в\s*пути|ожид/.test(s)) return 'active';
+  if (/выполн|заверш|closed|done|отгруж/.test(s)) return 'done';
+  if (/отмен|cancel|reject|стоп/.test(s)) return 'cancelled';
+  return 'neutral';
+}
+
 function compareProductOrderRows(a, b, key, dir) {
   const mul = dir === 'desc' ? -1 : 1;
   const sortType = getProductOrderSortType(key);
@@ -1981,6 +2048,195 @@ function matchesProductOrderColumnFilter(row, key, filters) {
     );
   };
 
+  const renderProductOrderDetailModal = () => {
+    if (!selectedProductOrder) return null;
+
+    const columns = productOrderMeta?.sheets?.[productOrderSheet]?.columns || {};
+    const columnKeys = new Set(Object.keys(columns));
+    const row = selectedProductOrder;
+    const sheetLabel = productOrderSheet === 'dgu' ? 'ДГУ' : 'ЗИП';
+    const orderStatus = formatCellValue(row, 'orderStatus');
+    const productName = formatCellValue(row, 'productName');
+    const supplier = formatCellValue(row, 'supplier');
+    const quantity = formatCellValue(row, 'quantity');
+    const minPrice = formatCellValue(row, 'minSalePrice');
+    const priceList = formatCellValue(row, 'priceList');
+    const unitPrice = formatCellValue(row, 'unitPrice');
+    const statusTone = getProductOrderStatusTone(orderStatus);
+
+    const timelineKeys = [
+      'supplierOrderDate',
+      'supplierReadyDate',
+      'expectedArrivalDate',
+      'customerShipDeadline',
+    ].filter((key) => columnKeys.has(key));
+
+    const promotedKeys = new Set([
+      'productName',
+      'supplier',
+      'orderStatus',
+      'quantity',
+      'minSalePrice',
+      'priceList',
+      'unitPrice',
+      'productStatus',
+      'notes',
+      ...timelineKeys,
+    ]);
+
+    const sections = PRODUCT_ORDER_DETAIL_SECTIONS.map((section) => ({
+      ...section,
+      fields: section.keys
+        .filter((key) => columnKeys.has(key) && !promotedKeys.has(key))
+        .map((key) => ({
+          key,
+          label: columns[key],
+          value: formatCellValue(row, key),
+        }))
+        .filter((field) => field.value !== '—' || section.id === 'notes'),
+    })).filter((section) => section.fields.some((f) => f.value !== '—'));
+
+    const hasHighlights =
+      quantity !== '—' ||
+      minPrice !== '—' ||
+      priceList !== '—' ||
+      unitPrice !== '—' ||
+      formatCellValue(row, 'productStatus') !== '—';
+
+    return (
+      <div className="ved-modal-overlay ved-po-detail-overlay" onClick={() => setSelectedProductOrder(null)}>
+        <div
+          className="ved-modal ved-po-detail-modal"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ved-po-detail-title"
+        >
+          <header className={`ved-po-detail-hero ved-po-detail-hero--${statusTone}`}>
+            <div className="ved-po-detail-hero-main">
+              <div className="ved-po-detail-hero-badges">
+                <span className="ved-po-detail-sheet-badge">{sheetLabel}</span>
+                <span className="ved-po-detail-row-badge">#{row.rowIndex}</span>
+                {orderStatus !== '—' && (
+                  <span className={`ved-po-detail-status-badge ved-po-detail-status-badge--${statusTone}`}>
+                    {orderStatus}
+                  </span>
+                )}
+              </div>
+              <h2 id="ved-po-detail-title" className="ved-po-detail-title">
+                {productName !== '—' ? productName : `Замовлення №${row.rowIndex}`}
+              </h2>
+              {supplier !== '—' && <p className="ved-po-detail-supplier">{supplier}</p>}
+            </div>
+            <button
+              type="button"
+              className="ved-modal-close ved-po-detail-close"
+              onClick={() => setSelectedProductOrder(null)}
+              aria-label="Закрити"
+            >
+              ×
+            </button>
+          </header>
+
+          {hasHighlights && (
+          <div className="ved-po-detail-highlights">
+            {quantity !== '—' && (
+              <div className="ved-po-detail-highlight">
+                <span className="ved-po-detail-highlight-label">Кількість</span>
+                <strong>{quantity}</strong>
+              </div>
+            )}
+            {minPrice !== '—' && (
+              <div className="ved-po-detail-highlight ved-po-detail-highlight--price">
+                <span className="ved-po-detail-highlight-label">Мін. ціна</span>
+                <strong>{minPrice}</strong>
+              </div>
+            )}
+            {priceList !== '—' && (
+              <div className="ved-po-detail-highlight ved-po-detail-highlight--price">
+                <span className="ved-po-detail-highlight-label">Прайс</span>
+                <strong>{priceList}</strong>
+              </div>
+            )}
+            {unitPrice !== '—' && (
+              <div className="ved-po-detail-highlight ved-po-detail-highlight--price">
+                <span className="ved-po-detail-highlight-label">Ціна за шт.</span>
+                <strong>{unitPrice}</strong>
+              </div>
+            )}
+            {formatCellValue(row, 'productStatus') !== '—' && (
+              <div className="ved-po-detail-highlight">
+                <span className="ved-po-detail-highlight-label">Статус товару</span>
+                <strong>{formatCellValue(row, 'productStatus')}</strong>
+              </div>
+            )}
+          </div>
+          )}
+
+          {timelineKeys.some((key) => formatCellValue(row, key) !== '—') && (
+            <section className="ved-po-detail-timeline">
+              <h3 className="ved-po-detail-section-title">📅 Хронологія</h3>
+              <ol className="ved-po-detail-timeline-list">
+                {timelineKeys.map((key) => {
+                  const value = formatCellValue(row, key);
+                  if (value === '—') return null;
+                  return (
+                    <li key={key} className="ved-po-detail-timeline-item">
+                      <span className="ved-po-detail-timeline-dot" aria-hidden="true" />
+                      <div>
+                        <span className="ved-po-detail-timeline-label">{columns[key]}</span>
+                        <strong className="ved-po-detail-timeline-value">{value}</strong>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
+
+          <div className="ved-po-detail-sections">
+            {sections
+              .filter((section) => section.id !== 'notes')
+              .map((section) => (
+                <section
+                  key={section.id}
+                  className={`ved-po-detail-section${section.wide ? ' ved-po-detail-section--wide' : ''}`}
+                >
+                  <h3 className="ved-po-detail-section-title">
+                    {section.icon} {section.title}
+                  </h3>
+                  <dl className="ved-po-detail-fields">
+                    {section.fields.map((field) => (
+                      <div key={field.key} className="ved-po-detail-field">
+                        <dt>{field.label}</dt>
+                        <dd>{field.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+          </div>
+
+          {sections.find((s) => s.id === 'notes')?.fields.some((f) => f.value !== '—') && (
+            <section className="ved-po-detail-notes">
+              <h3 className="ved-po-detail-section-title">📝 Примітки</h3>
+              <p>{formatCellValue(row, 'notes')}</p>
+            </section>
+          )}
+
+          <footer className="ved-po-detail-footer">
+            {row.syncedAtDisplay && (
+              <span className="ved-po-detail-meta">Синхронізовано: {row.syncedAtDisplay}</span>
+            )}
+            <button type="button" className="ved-btn ved-btn-secondary" onClick={() => setSelectedProductOrder(null)}>
+              Закрити
+            </button>
+          </footer>
+        </div>
+      </div>
+    );
+  };
+
   const renderProductOrders = () => {
     const sheetMeta = productOrderMeta?.sheets?.[productOrderSheet];
     const columns = sheetMeta?.columns || {};
@@ -1988,6 +2244,7 @@ function matchesProductOrderColumnFilter(row, key, filters) {
 
     return (
       <div className="ved-list-panel ved-product-orders-panel">
+        {renderProductOrderDetailModal()}
         <div className="ved-card">
           <div className="ved-product-orders-header">
             <h2 style={{ margin: 0 }}>Замовлення товарів</h2>
@@ -2094,7 +2351,12 @@ function matchesProductOrderColumnFilter(row, key, filters) {
               </thead>
               <tbody>
                 {sortedProductOrders.map((row) => (
-                  <tr key={row._id || row.rowIndex}>
+                  <tr
+                    key={row._id || row.rowIndex}
+                    className="ved-product-orders-data-row"
+                    onClick={() => setSelectedProductOrder(row)}
+                    title="Відкрити деталі замовлення"
+                  >
                     <td>{row.rowIndex}</td>
                     {columnKeys.map((key) => (
                       <td key={key} className="ved-product-order-cell">
