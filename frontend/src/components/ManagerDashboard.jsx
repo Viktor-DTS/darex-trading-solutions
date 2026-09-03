@@ -56,7 +56,7 @@ function clampReservationEndDateYmd(endYmd, basis, daysByBasis, serverTodayYmd) 
 function ManagerDashboard({ user }) {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('stock'); // 'stock' або 'history'
+  const [activeTab, setActiveTab] = useState('clients');
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [reservationForm, setReservationForm] = useState({
