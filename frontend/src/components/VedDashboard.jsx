@@ -479,15 +479,6 @@ function VedDashboard({ user }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [manualSearchModalOpen, aiRunning]);
 
-  useEffect(() => {
-    if (!selectedProductOrder) return undefined;
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') setSelectedProductOrder(null);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedProductOrder]);
-
   const statusLabel = (status) => meta?.statuses?.[status] || status || '—';
   const equipmentTypesMap = meta?.equipmentTypes || VED_EQUIPMENT_TYPE_LABELS;
   const equipmentLabel = (type) => equipmentTypesMap[type] || type || '—';
@@ -1861,6 +1852,11 @@ function getProductOrderStatusTone(status) {
   return 'neutral';
 }
 
+function getProductOrderRowKey(row) {
+  if (!row) return '';
+  return String(row._id ?? row.rowIndex ?? '');
+}
+
 function compareProductOrderRows(a, b, key, dir) {
   const mul = dir === 'desc' ? -1 : 1;
   const sortType = getProductOrderSortType(key);
@@ -1970,6 +1966,47 @@ function matchesProductOrderColumnFilter(row, key, filters) {
     rows.sort((a, b) => compareProductOrderRows(a, b, productOrderSort.key, productOrderSort.dir));
     return rows;
   }, [filteredProductOrders, productOrderSort]);
+
+  const selectedProductOrderNav = useMemo(() => {
+    if (!selectedProductOrder || !sortedProductOrders.length) {
+      return { index: -1, total: sortedProductOrders.length, hasPrev: false, hasNext: false };
+    }
+    const key = getProductOrderRowKey(selectedProductOrder);
+    const index = sortedProductOrders.findIndex((row) => getProductOrderRowKey(row) === key);
+    return {
+      index,
+      total: sortedProductOrders.length,
+      hasPrev: index > 0,
+      hasNext: index >= 0 && index < sortedProductOrders.length - 1,
+    };
+  }, [selectedProductOrder, sortedProductOrders]);
+
+  useEffect(() => {
+    if (!selectedProductOrder) return undefined;
+    const onKeyDown = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === 'Escape') {
+        setSelectedProductOrder(null);
+        return;
+      }
+
+      const key = getProductOrderRowKey(selectedProductOrder);
+      const idx = sortedProductOrders.findIndex((row) => getProductOrderRowKey(row) === key);
+      if (idx < 0) return;
+
+      if (e.key === 'ArrowLeft' && idx > 0) {
+        e.preventDefault();
+        setSelectedProductOrder(sortedProductOrders[idx - 1]);
+      } else if (e.key === 'ArrowRight' && idx < sortedProductOrders.length - 1) {
+        e.preventDefault();
+        setSelectedProductOrder(sortedProductOrders[idx + 1]);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedProductOrder, sortedProductOrders]);
 
   const handleProductOrderSort = (key) => {
     setProductOrderSort((prev) => {
@@ -2103,6 +2140,13 @@ function matchesProductOrderColumnFilter(row, key, filters) {
       unitPrice !== '—' ||
       formatCellValue(row, 'productStatus') !== '—';
 
+    const { index: navIndex, total: navTotal, hasPrev, hasNext } = selectedProductOrderNav;
+    const goToAdjacentOrder = (delta) => {
+      if (navIndex < 0) return;
+      const next = sortedProductOrders[navIndex + delta];
+      if (next) setSelectedProductOrder(next);
+    };
+
     return (
       <div className="ved-modal-overlay ved-po-detail-overlay" onClick={() => setSelectedProductOrder(null)}>
         <div
@@ -2112,6 +2156,14 @@ function matchesProductOrderColumnFilter(row, key, filters) {
           aria-modal="true"
           aria-labelledby="ved-po-detail-title"
         >
+          <div className="ved-po-detail-print-header ved-print-only">
+            <strong>Замовлення товарів · {sheetLabel}</strong>
+            <span>
+              №{row.rowIndex}
+              {orderStatus !== '—' ? ` · ${orderStatus}` : ''}
+            </span>
+          </div>
+
           <header className={`ved-po-detail-hero ved-po-detail-hero--${statusTone}`}>
             <div className="ved-po-detail-hero-main">
               <div className="ved-po-detail-hero-badges">
@@ -2130,7 +2182,7 @@ function matchesProductOrderColumnFilter(row, key, filters) {
             </div>
             <button
               type="button"
-              className="ved-modal-close ved-po-detail-close"
+              className="ved-modal-close ved-po-detail-close ved-no-print"
               onClick={() => setSelectedProductOrder(null)}
               aria-label="Закрити"
             >
@@ -2138,6 +2190,33 @@ function matchesProductOrderColumnFilter(row, key, filters) {
             </button>
           </header>
 
+          {navTotal > 1 && (
+            <nav className="ved-po-detail-nav ved-no-print" aria-label="Навігація між замовленнями">
+              <button
+                type="button"
+                className="ved-po-detail-nav-btn"
+                disabled={!hasPrev}
+                onClick={() => goToAdjacentOrder(-1)}
+                title="Попередня заявка (←)"
+              >
+                ← Попередня
+              </button>
+              <span className="ved-po-detail-nav-counter">
+                {navIndex >= 0 ? navIndex + 1 : '—'} <span>з</span> {navTotal}
+              </span>
+              <button
+                type="button"
+                className="ved-po-detail-nav-btn"
+                disabled={!hasNext}
+                onClick={() => goToAdjacentOrder(1)}
+                title="Наступна заявка (→)"
+              >
+                Наступна →
+              </button>
+            </nav>
+          )}
+
+          <div className="ved-po-detail-body">
           {hasHighlights && (
           <div className="ved-po-detail-highlights">
             {quantity !== '—' && (
@@ -2223,14 +2302,25 @@ function matchesProductOrderColumnFilter(row, key, filters) {
               <p>{formatCellValue(row, 'notes')}</p>
             </section>
           )}
+          </div>
 
-          <footer className="ved-po-detail-footer">
-            {row.syncedAtDisplay && (
-              <span className="ved-po-detail-meta">Синхронізовано: {row.syncedAtDisplay}</span>
-            )}
-            <button type="button" className="ved-btn ved-btn-secondary" onClick={() => setSelectedProductOrder(null)}>
-              Закрити
-            </button>
+          <footer className="ved-po-detail-footer ved-no-print">
+            <div className="ved-po-detail-footer-left">
+              {row.syncedAtDisplay && (
+                <span className="ved-po-detail-meta">Синхронізовано: {row.syncedAtDisplay}</span>
+              )}
+              {navTotal > 1 && (
+                <span className="ved-po-detail-kbd-hint">← → між заявками · Esc закрити</span>
+              )}
+            </div>
+            <div className="ved-po-detail-footer-actions">
+              <button type="button" className="ved-btn ved-btn-secondary" onClick={() => window.print()}>
+                🖨️ Друк
+              </button>
+              <button type="button" className="ved-btn ved-btn-secondary" onClick={() => setSelectedProductOrder(null)}>
+                Закрити
+              </button>
+            </div>
           </footer>
         </div>
       </div>
@@ -2353,7 +2443,12 @@ function matchesProductOrderColumnFilter(row, key, filters) {
                 {sortedProductOrders.map((row) => (
                   <tr
                     key={row._id || row.rowIndex}
-                    className="ved-product-orders-data-row"
+                    className={`ved-product-orders-data-row${
+                      selectedProductOrder &&
+                      getProductOrderRowKey(selectedProductOrder) === getProductOrderRowKey(row)
+                        ? ' ved-product-orders-data-row--selected'
+                        : ''
+                    }`}
                     onClick={() => setSelectedProductOrder(row)}
                     title="Відкрити деталі замовлення"
                   >
