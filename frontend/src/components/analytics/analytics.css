@@ -267,30 +267,30 @@
 }
 
 .an-info__bubble {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10050;
   width: max-content;
-  max-width: 260px;
+  max-width: min(280px, calc(100vw - 16px));
   padding: 7px 9px;
   font-size: 11.5px;
   font-weight: 400;
+  font-style: normal;
   line-height: 1.45;
-  color: var(--an-text);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #f1f5f9;
   text-align: left;
   background: #0d1424;
-  border: 1px solid var(--an-border);
-  border-radius: var(--an-radius-sm);
+  border: 1px solid #31415f;
+  border-radius: 7px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s;
-  z-index: 40;
 }
 
-.an-info:hover .an-info__bubble,
-.an-info:focus .an-info__bubble { opacity: 1; }
+.an-info__bubble.is-ready { opacity: 1; }
 
 /* ───────────────────────────── KPI ───────────────────────────── */
 
@@ -326,9 +326,13 @@
   gap: 5px;
   font-size: 11px;
   color: var(--an-text-dim);
-  white-space: nowrap;
+}
+
+.an-kpi__label-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .an-kpi__value {

@@ -4,7 +4,8 @@
  * Свої SVG замість графічної бібліотеки: набір діаграм тут невеликий і
  * передбачуваний, а зайва залежність важила б більше за весь цей файл.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { delta as toDelta, formatBy, int, pct } from './format';
 
 export const PALETTE = [
@@ -43,12 +44,88 @@ export function Panel({ title, icon, hint, actions, children, span, full, tone, 
   );
 }
 
+let hideOpenInfoDot = null;
+
+function placeInfoBubble(anchor, bubble) {
+  const a = anchor.getBoundingClientRect();
+  const b = bubble.getBoundingClientRect();
+  const pad = 8;
+  let left = a.left + a.width / 2 - b.width / 2;
+  left = Math.max(pad, Math.min(left, window.innerWidth - b.width - pad));
+  // KPI-ряд стоїть одразу під липкою шапкою, тому спочатку пробуємо вниз —
+  // інакше верхній край бульбашки ховається за фільтрами.
+  const below = a.bottom + 8;
+  const top = below + b.height <= window.innerHeight - pad
+    ? below
+    : Math.max(pad, a.top - 8 - b.height);
+  return { left, top };
+}
+
 export function InfoDot({ text }) {
+  const anchorRef = useRef(null);
+  const bubbleRef = useRef(null);
+  const hideRef = useRef(() => {});
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+
+  const hide = () => {
+    setOpen(false);
+    setPos(null);
+    if (hideOpenInfoDot === hideRef.current) hideOpenInfoDot = null;
+  };
+  hideRef.current = hide;
+
+  const show = () => {
+    if (hideOpenInfoDot && hideOpenInfoDot !== hideRef.current) hideOpenInfoDot();
+    hideOpenInfoDot = hideRef.current;
+    setOpen(true);
+  };
+
+  useLayoutEffect(() => {
+    if (!open || !anchorRef.current || !bubbleRef.current) return undefined;
+    const place = () => {
+      if (!anchorRef.current || !bubbleRef.current) return;
+      setPos(placeInfoBubble(anchorRef.current, bubbleRef.current));
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, text]);
+
+  useLayoutEffect(() => () => {
+    if (hideOpenInfoDot === hideRef.current) hideOpenInfoDot = null;
+  }, []);
+
   return (
-    <span className="an-info" tabIndex={0} aria-label={text}>
-      i
-      <span className="an-info__bubble">{text}</span>
-    </span>
+    <>
+      <span
+        ref={anchorRef}
+        className="an-info"
+        tabIndex={0}
+        aria-label={text}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+      >
+        i
+      </span>
+      {open && typeof document !== 'undefined' && createPortal(
+        <span
+          ref={bubbleRef}
+          className={`an-info__bubble${pos ? ' is-ready' : ''}`}
+          role="tooltip"
+          style={pos ? { left: pos.left, top: pos.top } : undefined}
+        >
+          {text}
+        </span>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -119,7 +196,7 @@ export function Kpi({ label, value, format = 'int', hint, delta, deltaInvert, to
       onClick={onClick}
     >
       <span className="an-kpi__label">
-        {label}
+        <span className="an-kpi__label-text">{label}</span>
         {hint && <InfoDot text={hint} />}
       </span>
       <span className="an-kpi__value">{formatBy(format, value)}</span>
