@@ -2,6 +2,11 @@
  * Агрегована статистика заявок для GPT-асистента (як GET /api/tasks/statistics).
  */
 const mongoose = require('mongoose');
+const {
+  normalizeQueryText,
+  softenForMatching,
+  extractClientNameCandidate,
+} = require('./assistantQueryNormalize');
 
 const DEFAULT_REGIONS = ['Київський', 'Одеський', 'Львівський', 'Дніпровський', 'Хмельницький', 'Україна'];
 
@@ -22,12 +27,14 @@ function escapeRegex(s) {
 
 /** @param {string} text */
 function parseCounterpartyFromQuery(text) {
-  const s = String(text || '').trim();
+  const fromHelper = extractClientNameCandidate(text);
+  if (fromHelper) return fromHelper;
+
+  const s = normalizeQueryText(text);
   const patterns = [
     /(?:контрагент\w*|клієнт\w*|компан\w*)\s+["«]?([^"»?\n.]{2,80})/iu,
     /(?:у|в)\s+(?:клієнта|контрагента)\s+["«]?([^"»?\n.]{2,80})/iu,
     /по\s+контрагент\w*\s+["«]?([^"»?\n.]{2,80})/iu,
-    /скільк\w*\s+заяв\w*(?:\s+у|\s+в|\s+для|\s+по)?\s+(.{2,60})/iu,
   ];
   for (const re of patterns) {
     const m = s.match(re);
@@ -35,7 +42,6 @@ function parseCounterpartyFromQuery(text) {
     const name = m[1].trim().replace(/[,.?]$/, '');
     if (name.length < 2) continue;
     if (/регіон|києв|львів|одес|дніпр|хмельниц|україн/i.test(name)) continue;
-    if (/^(в\s+)?робот|статус|заявк/i.test(name)) continue;
     return name;
   }
   return null;
@@ -43,19 +49,19 @@ function parseCounterpartyFromQuery(text) {
 
 /** @param {string} text */
 function isCounterpartyStatisticsQuery(text) {
-  const s = String(text || '');
-  if (!/скільк\w*|кількість/i.test(s)) return false;
-  if (!/заяв\w*/i.test(s)) return false;
-  if (/контрагент|клієнт/i.test(s)) return true;
+  const s = softenForMatching(text);
+  if (!/(?:скільк\w*|кільк\w*)/iu.test(s)) return false;
+  if (!/заяв\w*/iu.test(s)) return false;
+  if (/контрагент|клієнт|компан/i.test(s)) return true;
   return Boolean(parseCounterpartyFromQuery(text));
 }
 
 /** @param {string} text */
 function isTaskStatisticsQuery(text) {
-  const s = String(text || '').trim();
-  if (s.length < 8) return false;
+  const s = softenForMatching(text);
+  if (s.length < 6) return false;
   const hasCountIntent =
-    /скільк\w*|кількість|число|статистик\w*|підрахун\w*|count|how\s+many/i.test(s);
+    /скільк\w*|кільк\w*|число|статистик\w*|підрахун\w*|count|how\s+many/i.test(s);
   const hasSumIntent = /сума|суми|загальн\w*\s+сума|разом|вартість|гривн|₴|uah/i.test(s);
   const aboutTasks = /заяв\w*|задач\w*|task|робіт\w*|робот\w*/i.test(s);
   if (hasCountIntent && /заяв\w*|задач\w*|task/i.test(s)) return true;

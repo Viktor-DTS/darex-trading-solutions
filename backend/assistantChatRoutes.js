@@ -36,6 +36,8 @@ const {
 } = require('./assistantChatClarification');
 const { tryTaskStatisticsTurn, buildTaskStatisticsContextForLlm } = require('./assistantTaskStatistics');
 const { assistantAccessGuard } = require('./assistantAccess');
+const { analyzeAssistantQuery } = require('./assistantIntent');
+const { buildHelpContextForLlm } = require('./assistantHelpContext');
 
 const MAX_USER_MESSAGE = 4000;
 const MAX_LLM_USER_COMBINED = 22000;
@@ -290,10 +292,11 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       : null;
 
     try {
+      const earlyAnalysis = analyzeAssistantQuery({ message: userMsg, priorMessages: [] });
       const statsTurn = await tryTaskStatisticsTurn({
         userJwt: req.user,
         dbUserLean: dbUserLeanForAssistant,
-        messageText: userMsg,
+        messageText: earlyAnalysis.effectiveText,
       });
       if (statsTurn.handled) {
         await Msg.create({ conversationId, role: 'user', content: userMsg });
@@ -451,6 +454,40 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       console.warn('[assistant-chat] topic:', e?.message || e);
     }
 
+    const queryAnalysis = analyzeAssistantQuery({
+      message: effectiveUserMsg,
+      priorMessages: prior.map((m) => ({ role: m.role, content: m.content })),
+      currentPanelId: panelId,
+    });
+    const lookupText = queryAnalysis.effectiveText;
+
+    if (
+      queryAnalysis.intent === 'navigation' &&
+      !convDoc?.clarifyAwaitingUser &&
+      !convDoc?.topicAwaitingClarification &&
+      lookupText.length <= 240
+    ) {
+      const helpDirect = buildHelpContextForLlm(lookupText, panelId);
+      if (helpDirect.matchedTopics.length === 1) {
+        const navReply = helpDirect.matchedTopics[0].answer;
+        await Msg.create({ conversationId, role: 'user', content: userMsg });
+        const assistantNavDoc = await Msg.create({
+          conversationId,
+          role: 'assistant',
+          content: truncate(navReply, MESSAGE_MAX_LENGTH),
+        });
+        await Conv.updateOne({ _id: conversationId }, { $set: { updatedAt: new Date() } }).catch(() => {});
+
+        return res.json({
+          conversationId: String(conversationId),
+          reply: navReply,
+          assistantMessageId: String(assistantNavDoc._id),
+          helpMeta: { topicId: helpDirect.matchedTopics[0].id, panelId: helpDirect.matchedTopics[0].panelId },
+          ratingPrompt: getAssistantDisclosureForClient().ratingPrompt,
+        });
+      }
+    }
+
     const histForApi = [];
     for (const m of prior) {
       histForApi.push({
@@ -459,7 +496,12 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       });
     }
 
-    let contentForChat = `${effectiveUserMsg}\n\n${sessionBlock}\n\n${disclosureBlock}`;
+    let contentForChat = `${effectiveUserMsg}\n\n${sessionBlock}\n\n${disclosureBlock}\n\n${queryAnalysis.llmBlock}`;
+
+    const helpContext = buildHelpContextForLlm(lookupText, panelId);
+    if (helpContext.textForLlm) {
+      contentForChat = `${contentForChat}\n\n${helpContext.textForLlm}`;
+    }
 
     const priorUserForNumberScan = prior
       .filter((m) => m.role === 'user')
@@ -476,7 +518,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
     /** @type {Record<string, unknown> | undefined} */
     let discoveryMeta = undefined;
     try {
-      const tack = await buildTaskContextForLlm(req.user, effectiveUserMsg, {
+      const tack = await buildTaskContextForLlm(req.user, lookupText, {
         priorUserMessages: priorUserForNumberScan,
         priorAssistantMessages: priorAssistantForNumberScan,
         dbUserLean: dbUserLeanForAssistant,
@@ -504,7 +546,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
     }
 
     try {
-      const statsCtx = await buildTaskStatisticsContextForLlm(req.user, effectiveUserMsg, {
+      const statsCtx = await buildTaskStatisticsContextForLlm(req.user, lookupText, {
         dbUserLean: dbUserLeanForAssistant,
       });
       if (statsCtx.textForLlm) {
@@ -515,7 +557,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
     }
 
     try {
-      const disc = await buildDiscoveryContextForLlm(req.user, effectiveUserMsg, {
+      const disc = await buildDiscoveryContextForLlm(req.user, lookupText, {
         priorUserMessages: priorUserForNumberScan,
         priorAssistantMessages: priorAssistantForNumberScan,
         dbUserLean: dbUserLeanForAssistant,
@@ -547,7 +589,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       ? discoveryMeta.openActions.length
       : 0;
     contentForChat = appendAssistantScopeHintToUserPayload(
-      effectiveUserMsg,
+      lookupText,
       contentForChat,
       discoveryOpenActionsLen,
     );
@@ -560,7 +602,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
         Conv,
         login,
         currentConversationId: conversationId,
-        userMessage: effectiveUserMsg,
+        userMessage: lookupText,
         maskSession: privacySession,
       });
       if (crossDialogBlock) {
@@ -573,7 +615,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
     try {
       const learnedBlock = await buildLearnedContextForLlm(
         getAssistantConnection,
-        effectiveUserMsg,
+        lookupText,
         panelId,
         privacySession,
       );
