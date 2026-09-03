@@ -6,6 +6,7 @@ import ProductCardManagement from './equipment/ProductCardManagement';
 import SystemCoefficientsSettings from './SystemCoefficientsSettings';
 import OneCWorkerPanel from './onec/OneCWorkerPanel';
 import TaskExportPanel from './TaskExportPanel';
+import SystemHealthDashboard from './systemHealth/SystemHealthDashboard';
 import './AdminDashboard.css';
 
 /** Ключі панелей у матриці (як у App.jsx) */
@@ -67,6 +68,7 @@ const ADMIN_TABS = [
   { id: 'productCards', label: '📇 Карточки продуктів', icon: '📇' },
   { id: 'systemCoefficients', label: '🔢 Системні коефіцієнти', icon: '🔢' },
   { id: 'onecAgent', label: '🤖 Агент 1С', icon: '🤖' },
+  { id: 'systemHealth', label: '🩺 Аналіз роботи системи', icon: '🩺' },
 ];
 
 function AdminDashboard({ user }) {
@@ -2367,6 +2369,7 @@ function AdminDashboard({ user }) {
       case 'productCards': return <ProductCardManagement />;
       case 'systemCoefficients': return <SystemCoefficientsSettings />;
       case 'onecAgent': return <OneCWorkerPanel />;
+      case 'systemHealth': return <SystemHealthDashboard />;
       default: return renderUsersTab();
     }
   };

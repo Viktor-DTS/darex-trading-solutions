@@ -116,6 +116,8 @@ const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
 const { registerVedRoutes, scheduleVedSupplierRegistryJob } = require('./lib/vedRoutes');
 const { registerWarehouseTransferRoutes } = require('./lib/warehouseTransferRoutes');
+const { registerSystemHealthRoutes } = require('./lib/systemHealth');
+const { createRequestMetricsMiddleware, attachMongoMonitoring } = require('./lib/systemHealth/requestMetrics');
 const {
   sendProcurementTelegramNotifications,
   sendProcurementPositionRejectedTelegram,
@@ -367,6 +369,9 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Збір метрик для вкладки «Аналіз роботи системи» (до автентифікації, щоб бачити і 401)
+app.use(createRequestMetricsMiddleware());
+
 // Логування продуктивності
 function logPerformance(endpoint, startTime, resultCount = null) {
   const duration = Date.now() - startTime;
@@ -427,6 +432,7 @@ async function connectToMongoDB() {
       serverSelectionTimeoutMS: 5000, // Як в оригіналі
       socketTimeoutMS: 45000,
       heartbeatFrequencyMS: 10000, // Додано як в оригіналі
+      monitorCommands: true, // Потрібно для метрик тривалості запитів у панелі адміністратора
     });
     console.log('✅ MongoDB connected successfully');
     return true;
@@ -475,6 +481,7 @@ connectAssistantMongoDB();
 mongoose.connection.on('connected', () => {
   console.log('✅ MongoDB підключено');
   ensureOneCMovementIndexes().catch((e) => console.warn('[OneCMovement] ensureIndexes on connect:', e.message));
+  attachMongoMonitoring(mongoose);
 });
 
 mongoose.connection.on('error', (err) => {
@@ -21395,6 +21402,8 @@ registerWarehouseTransferRoutes(app, {
   telegramService,
   NotificationLog,
 });
+
+registerSystemHealthRoutes(app, { authenticateToken });
 
 registerTradingRoutes(app, { getAssistantConnection });
 scheduleTradingScanJob(getAssistantConnection);

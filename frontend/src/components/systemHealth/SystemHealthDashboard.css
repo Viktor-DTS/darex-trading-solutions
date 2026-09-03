@@ -1,0 +1,755 @@
+/* Вкладка «Аналіз роботи системи»: борди зовнішніх ресурсів і аналіз проєкту. */
+
+.sh-root {
+  --sh-bg: #0d1520;
+  --sh-panel: #152030;
+  --sh-panel-2: #1a2637;
+  --sh-line: #24354a;
+  --sh-text: #e2e8f0;
+  --sh-muted: #7d8ea3;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--sh-text);
+  font-size: 12px;
+}
+
+.sh-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: #8fa3b8;
+  font-size: 14px;
+}
+
+/* ── Верхня панель ───────────────────────────────────────────────────────── */
+
+.sh-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-line);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.sh-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.sh-alert-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.sh-alert-ok { color: #34d399; }
+.sh-alert-ok .sh-alert-dot { background: #10b981; }
+.sh-alert-warning { color: #fbbf24; }
+.sh-alert-warning .sh-alert-dot { background: #f59e0b; animation: shPulse 2s infinite; }
+.sh-alert-critical { color: #f87171; }
+.sh-alert-critical .sh-alert-dot { background: #ef4444; animation: shPulse 1.2s infinite; }
+
+@keyframes shPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.sh-topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sh-period {
+  display: flex;
+  background: #0f1a28;
+  border: 1px solid var(--sh-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.sh-period-btn {
+  background: transparent;
+  border: none;
+  color: var(--sh-muted);
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 0;
+}
+
+.sh-period-btn:hover { background: #1c2b3d; color: #fff; }
+.sh-period-btn.active { background: #1976d2; color: #fff; }
+
+.sh-auto {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sh-muted);
+  font-size: 11px;
+}
+
+.sh-auto input { width: 14px; height: 14px; }
+
+.sh-updated { color: var(--sh-muted); font-size: 11px; }
+
+/* ── Борди ───────────────────────────────────────────────────────────────── */
+
+.sh-boards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.sh-board {
+  position: relative;
+  text-align: left;
+  background: linear-gradient(160deg, #16233400 0%, #16233400 100%), var(--sh-panel);
+  border: 1px solid var(--sh-line);
+  border-radius: 12px;
+  padding: 12px;
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.sh-board:hover { transform: translateY(-2px); background: var(--sh-panel-2); }
+.sh-board-active { border-color: #3b82f6; }
+.sh-board-critical { border-color: rgba(239, 68, 68, 0.55); }
+.sh-board-warning { border-color: rgba(245, 158, 11, 0.45); }
+
+.sh-board-glow {
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  opacity: 0.12;
+  filter: blur(24px);
+  pointer-events: none;
+}
+
+.sh-board-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sh-board-title { font-size: 14px; font-weight: 700; color: #fff; }
+.sh-board-subtitle { font-size: 11px; color: var(--sh-muted); margin-top: 2px; }
+
+.sh-board-status {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.sh-board-body { display: flex; align-items: center; gap: 12px; }
+
+.sh-board-metrics { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+
+.sh-board-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  padding-bottom: 3px;
+  border-bottom: 1px dashed #22334a;
+}
+
+.sh-board-metric:last-child { border-bottom: none; }
+.sh-board-metric span { color: var(--sh-muted); }
+.sh-board-metric b { color: #fff; font-weight: 600; }
+
+/* ── Індикатори ──────────────────────────────────────────────────────────── */
+
+.sh-gauge { position: relative; flex-shrink: 0; }
+
+.sh-gauge-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sh-gauge-value { font-size: 15px; font-weight: 700; line-height: 1.1; }
+.sh-gauge-label { font-size: 8.5px; color: var(--sh-muted); text-align: center; max-width: 76px; line-height: 1.2; margin-top: 2px; }
+
+.sh-usage { margin-bottom: 10px; }
+
+.sh-usage-head { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+.sh-usage-label { color: var(--sh-muted); }
+.sh-usage-value { font-weight: 700; }
+
+.sh-usage-track {
+  position: relative;
+  height: 8px;
+  background: #0f1a28;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sh-usage-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+.sh-usage-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.sh-usage-tick-danger { background: rgba(239, 68, 68, 0.6); }
+.sh-usage-hint { font-size: 10.5px; color: #fbbf24; margin-top: 3px; }
+
+.sh-spark { margin-top: 4px; }
+.sh-spark-empty { color: var(--sh-muted); font-size: 11px; padding: 10px 0; }
+.sh-spark-title { font-size: 10.5px; color: var(--sh-muted); }
+
+.sh-spark-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--sh-muted);
+}
+
+.sh-traffic { background: #0f1a28; border-radius: 8px; padding: 8px; }
+
+.sh-traffic-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 10.5px;
+  color: var(--sh-muted);
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.sh-traffic-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+.sh-traffic-range { margin-left: auto; }
+
+.sh-rank { height: 6px; background: #0f1a28; border-radius: 3px; overflow: hidden; min-width: 60px; }
+.sh-rank-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+.sh-spend { background: #0f1a28; border-radius: 8px; padding: 10px; }
+.sh-spend-bars { display: flex; align-items: flex-end; gap: 6px; }
+
+.sh-spend-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+
+.sh-spend-stack {
+  width: 100%;
+  max-width: 60px;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+
+.sh-spend-seg { width: 100%; }
+.sh-spend-total { font-size: 10px; color: #fff; margin-top: 3px; }
+.sh-spend-month { font-size: 9.5px; color: var(--sh-muted); }
+
+/* ── Підвкладки ──────────────────────────────────────────────────────────── */
+
+.sh-subtabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--sh-line);
+  padding-bottom: 8px;
+}
+
+.sh-subtab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-line);
+  color: var(--sh-muted);
+  border-radius: 8px;
+  padding: 7px 14px;
+}
+
+.sh-subtab:hover { background: var(--sh-panel-2); color: #fff; }
+
+.sh-subtab.active {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.sh-subtab-label { font-size: 12.5px; font-weight: 600; }
+.sh-subtab-hint { font-size: 10px; opacity: 0.75; }
+
+.sh-body { display: flex; flex-direction: column; }
+.sh-stack { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Секції ──────────────────────────────────────────────────────────────── */
+
+.sh-section {
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-line);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.sh-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--sh-line);
+}
+
+.sh-section-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 13px;
+  color: #fff;
+}
+
+.sh-section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.sh-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.sh-subpanel { margin-top: 12px; }
+
+.sh-subpanel-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #9db2c8;
+  margin: 12px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sh-two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+
+.sh-muted { color: var(--sh-muted); }
+.sh-pad { padding: 12px 0; }
+.sh-mono { font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; }
+.sh-text-critical { color: #f87171; }
+
+.sh-note {
+  font-size: 11px;
+  color: var(--sh-muted);
+  background: #0f1a28;
+  border-left: 2px solid #2f4763;
+  border-radius: 0 6px 6px 0;
+  padding: 6px 10px;
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.sh-note-warning { border-left-color: #f59e0b; color: #fbbf24; }
+.sh-note code { background: #1a2637; padding: 1px 4px; border-radius: 3px; font-size: 10.5px; }
+
+/* ── Render сервіси ──────────────────────────────────────────────────────── */
+
+.sh-service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 10px; }
+
+.sh-service-card {
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-line);
+  border-left-width: 3px;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.sh-border-ok { border-left-color: #10b981; }
+.sh-border-warning { border-left-color: #f59e0b; }
+.sh-border-critical { border-left-color: #ef4444; }
+
+.sh-service-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sh-service-name { font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px; }
+.sh-service-meta { display: flex; gap: 10px; font-size: 10.5px; color: var(--sh-muted); margin-top: 3px; flex-wrap: wrap; }
+.sh-service-plan { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+
+.sh-plan-badge {
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.sh-plan-free { background: #64748b; }
+.sh-plan-price { font-size: 10px; color: var(--sh-muted); }
+
+.sh-service-gauges { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.sh-service-stats { flex: 1; min-width: 130px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.sh-service-stats div { display: flex; flex-direction: column; }
+.sh-service-stats span { font-size: 10px; color: var(--sh-muted); }
+.sh-service-stats b { font-size: 12px; color: #fff; }
+
+.sh-service-nometrics {
+  flex: 1;
+  font-size: 11px;
+  color: var(--sh-muted);
+  background: #0f1a28;
+  border-radius: 6px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.sh-service-spark { margin-top: 8px; }
+
+.sh-service-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ── Панелі MongoDB / Cloudinary ─────────────────────────────────────────── */
+
+.sh-mongo-grid { display: grid; grid-template-columns: minmax(180px, 220px) 1fr; gap: 12px; }
+
+@media (max-width: 900px) {
+  .sh-mongo-grid { grid-template-columns: 1fr; }
+}
+
+.sh-panel {
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-line);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.sh-panel-wide { align-items: stretch; }
+.sh-panel-note { font-size: 11px; color: #cbd5e1; text-align: center; line-height: 1.5; }
+
+.sh-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #24354a;
+}
+
+.sh-kv-grid div { display: flex; flex-direction: column; }
+.sh-kv-grid span { font-size: 10px; color: var(--sh-muted); }
+.sh-kv-grid b { font-size: 12px; color: #fff; }
+
+/* ── KPI ─────────────────────────────────────────────────────────────────── */
+
+.sh-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+
+.sh-kpi {
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-line);
+  border-top: 2px solid #3b82f6;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-kpi-ok { border-top-color: #10b981; }
+.sh-kpi-warning { border-top-color: #f59e0b; }
+.sh-kpi-critical { border-top-color: #ef4444; background: rgba(239, 68, 68, 0.07); }
+.sh-kpi-unknown { border-top-color: #475569; }
+
+.sh-kpi-label { font-size: 10px; color: var(--sh-muted); }
+.sh-kpi-value { font-size: 17px; font-weight: 700; color: #fff; line-height: 1.2; }
+.sh-kpi-hint { font-size: 9.5px; color: var(--sh-muted); }
+
+.sh-score-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
+.sh-score-parts { flex: 1; min-width: 260px; max-width: 560px; display: flex; flex-direction: column; gap: 6px; }
+
+.sh-score-part { display: grid; grid-template-columns: 130px 1fr 34px; align-items: center; gap: 8px; font-size: 11px; }
+.sh-score-part span { color: var(--sh-muted); }
+.sh-score-part b { text-align: right; color: #fff; }
+
+/* ── Таблиці ─────────────────────────────────────────────────────────────── */
+
+.sh-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+
+.sh-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--sh-muted);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--sh-line);
+  white-space: nowrap;
+}
+
+.sh-table td { padding: 6px 8px; border-bottom: 1px solid #1a2637; color: #cbd5e1; }
+.sh-table tbody tr:hover { background: #18273a; }
+.sh-col-bar { width: 110px; }
+.sh-route-cell { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sh-method {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 6px;
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.sh-method-get { background: #14532d; color: #86efac; }
+.sh-method-post { background: #1e3a8a; color: #93c5fd; }
+.sh-method-put { background: #78350f; color: #fcd34d; }
+.sh-method-patch { background: #713f12; color: #fde68a; }
+.sh-method-delete { background: #7f1d1d; color: #fca5a5; }
+
+.sh-row-actions { display: flex; gap: 4px; white-space: nowrap; }
+
+/* ── Значки, кнопки ──────────────────────────────────────────────────────── */
+
+.sh-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #334155;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.sh-badge-ok { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+.sh-badge-warning { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.sh-badge-critical { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+.sh-badge-muted { background: #24354a; color: var(--sh-muted); }
+.sh-badge-render { background: rgba(139, 92, 246, 0.18); color: #c4b5fd; }
+.sh-badge-mongodb { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; }
+.sh-badge-cloudinary { background: rgba(56, 189, 248, 0.18); color: #7dd3fc; }
+.sh-badge-other { background: #24354a; color: #cbd5e1; }
+
+.sh-chip {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: #24354a;
+  color: #9db2c8;
+}
+
+.sh-chip-sm { font-size: 9.5px; }
+
+.sh-btn {
+  font-size: 11.5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--sh-line);
+  background: #1e2d3d;
+  color: #cbd5e1;
+}
+
+.sh-btn:hover { background: #2a3f54; color: #fff; }
+.sh-btn-primary { background: #1976d2; border-color: #1976d2; color: #fff; }
+.sh-btn-primary:hover { background: #2288ea; }
+.sh-btn-ghost { background: transparent; }
+
+.sh-link-btn {
+  display: inline-block;
+  font-size: 11px;
+  color: #60a5fa;
+  text-decoration: none;
+  border: 1px solid #2f4763;
+  border-radius: 5px;
+  padding: 3px 9px;
+}
+
+.sh-link-btn:hover { background: #1c2b3d; color: #93c5fd; }
+.sh-link-sm { font-size: 10px; padding: 2px 7px; }
+
+.sh-icon-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 5px;
+  font-size: 12px;
+  border-radius: 4px;
+  color: #cbd5e1;
+}
+
+.sh-icon-btn:hover { background: #2a3f54; }
+.sh-icon-danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+/* ── Рекомендації ────────────────────────────────────────────────────────── */
+
+.sh-reco-compact { display: flex; flex-direction: column; gap: 6px; }
+.sh-reco-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+.sh-reco {
+  display: flex;
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sh-reco-critical { background: rgba(239, 68, 68, 0.07); border-color: rgba(239, 68, 68, 0.3); }
+.sh-reco-warning { background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.25); }
+.sh-reco-good { opacity: 0.75; }
+
+.sh-reco-side { width: 3px; flex-shrink: 0; }
+.sh-reco-body { padding: 8px 12px; flex: 1; }
+
+.sh-reco-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sh-reco-icon { font-size: 11px; }
+.sh-reco-title { font-size: 12.5px; color: #fff; }
+.sh-reco-metric { font-size: 11px; font-weight: 700; margin-left: auto; white-space: nowrap; }
+.sh-reco-detail { font-size: 11.5px; color: #b6c6d8; margin: 5px 0 0; line-height: 1.55; }
+
+.sh-reco-action {
+  font-size: 11.5px;
+  color: #7dd3fc;
+  margin: 5px 0 0;
+  line-height: 1.5;
+  display: flex;
+  gap: 6px;
+}
+
+.sh-reco-action span { color: #38bdf8; }
+
+.sh-view-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.sh-view-tabs-sub { margin-bottom: 4px; }
+
+.sh-view-tab {
+  background: #1a2637;
+  border: 1px solid var(--sh-line);
+  color: var(--sh-muted);
+  font-size: 10.5px;
+  padding: 3px 9px;
+  border-radius: 5px;
+}
+
+.sh-view-tab:hover { background: #24354a; color: #fff; }
+.sh-view-tab.active { background: #1976d2; border-color: #1976d2; color: #fff; }
+
+/* ── Ризики колекцій, журнали ────────────────────────────────────────────── */
+
+.sh-risk-list { display: flex; flex-direction: column; gap: 8px; }
+
+.sh-risk-item {
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+
+.sh-risk-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sh-risk-item ul { margin: 5px 0 0; padding-left: 18px; }
+.sh-risk-item li { font-size: 11.5px; color: #cbd5e1; line-height: 1.5; }
+.sh-risk-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.sh-risk-tags code { background: #1a2637; border-radius: 3px; padding: 1px 6px; font-size: 10px; color: #fbbf24; }
+
+.sh-log-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+
+.sh-log-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px;
+  border-bottom: 1px solid #1a2637;
+  font-size: 11px;
+}
+
+.sh-log-time { color: var(--sh-muted); font-size: 10px; white-space: nowrap; min-width: 82px; }
+.sh-log-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-log-dur { font-weight: 700; white-space: nowrap; }
+
+/* ── Форми, повідомлення ─────────────────────────────────────────────────── */
+
+.sh-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.sh-form label { display: flex; flex-direction: column; gap: 3px; }
+.sh-form label span { font-size: 10px; color: var(--sh-muted); }
+
+.sh-form input,
+.sh-form select {
+  background: #0f1a28;
+  border: 1px solid var(--sh-line);
+  border-radius: 5px;
+  padding: 5px 8px;
+  color: #fff;
+  font-size: 11.5px;
+}
+
+.sh-form input:focus, .sh-form select:focus { border-color: #1976d2; outline: none; }
+.sh-form-wide { grid-column: span 2; }
+.sh-form-actions { display: flex; align-items: flex-end; }
+
+.sh-message {
+  font-size: 11.5px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.sh-message-ok { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+.sh-message-error { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+.sh-message-warning { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+.sh-charge-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
+
+.sh-charge {
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-line);
+  border-left: 3px solid #64748b;
+  border-radius: 7px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-charge-render { border-left-color: #8b5cf6; }
+.sh-charge-mongodb { border-left-color: #10b981; }
+.sh-charge-cloudinary { border-left-color: #38bdf8; }
+.sh-charge-label { font-size: 10.5px; color: var(--sh-muted); }
+.sh-charge-amount { font-size: 17px; font-weight: 700; color: #fff; }
+.sh-charge-kind { font-size: 9.5px; color: var(--sh-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ── Порожні стани ───────────────────────────────────────────────────────── */
+
+.sh-empty-card {
+  background: var(--sh-panel);
+  border: 1px dashed #2f4763;
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+}
+
+.sh-empty-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+.sh-empty-card p { font-size: 11.5px; color: var(--sh-muted); margin: 0 0 10px; line-height: 1.5; }
+.sh-env-keys { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+.sh-env-keys code { background: #1a2637; border-radius: 4px; padding: 3px 8px; font-size: 10.5px; color: #7dd3fc; }
