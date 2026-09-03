@@ -162,6 +162,30 @@ export const getClientsFilters = async () => {
   }
 };
 
+// Міні-статистика портфеля клієнтів
+export const getClientsStats = async (params = {}) => {
+  try {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== '' && v !== undefined && v !== null) qs.set(k, String(v));
+    });
+    const url = qs.toString() ? `${API_BASE_URL}/clients/stats?${qs}` : `${API_BASE_URL}/clients/stats`;
+    const response = await fetch(url, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження статистики клієнтів:', error);
+    return {
+      total: 0,
+      overdueFollowUp: 0,
+      todayFollowUp: 0,
+      openDealsClients: 0,
+      staleNoContact: 0,
+      newThisWeek: 0,
+    };
+  }
+};
+
 // Список користувачів (для вибору менеджерів)
 export const getUsers = async () => {
   try {
@@ -189,12 +213,18 @@ export const getClientInteractions = async (clientId) => {
 };
 
 // Додати взаємодію
-export const addClientInteraction = async (clientId, { type, date, notes, saleId }) => {
+export const addClientInteraction = async (clientId, { type, date, notes, saleId, nextFollowUpAt }) => {
   try {
     const response = await fetch(`${API_BASE_URL}/clients/${clientId}/interactions`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ type: type || 'note', date: date || new Date().toISOString(), notes: notes || '', saleId: saleId || undefined })
+      body: JSON.stringify({
+        type: type || 'note',
+        date: date || new Date().toISOString(),
+        notes: notes || '',
+        saleId: saleId || undefined,
+        nextFollowUpAt: nextFollowUpAt || undefined,
+      })
     });
     if (!response.ok) {
       const err = await response.json();

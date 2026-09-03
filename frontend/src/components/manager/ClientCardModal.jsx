@@ -26,12 +26,14 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
   const [client, setClient] = useState(null);
   const [sales, setSales] = useState([]);
   const [interactions, setInteractions] = useState([]);
+  const [linkedLeads, setLinkedLeads] = useState([]);
   const [interactionFiles, setInteractionFiles] = useState({});
   const [loading, setLoading] = useState(false);
   const [selectedSaleId, setSelectedSaleId] = useState(null);
   const [showAddInteraction, setShowAddInteraction] = useState(false);
   const [newInteractionNotes, setNewInteractionNotes] = useState('');
   const [newInteractionType, setNewInteractionType] = useState('note');
+  const [newInteractionFollowUp, setNewInteractionFollowUp] = useState('');
   const [newInteractionFiles, setNewInteractionFiles] = useState([]);
   const [addingInteraction, setAddingInteraction] = useState(false);
   const [uploadingForId, setUploadingForId] = useState(null);
@@ -57,6 +59,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
         getClientInteractions(clientId),
       ]);
       setClient(clientData);
+      setLinkedLeads(Array.isArray(clientData?.linkedMarketingLeads) ? clientData.linkedMarketingLeads : []);
       const salesList = Array.isArray(salesData) ? salesData : [];
       setSales(salesList);
       const ints = Array.isArray(interactionsData) ? interactionsData : [];
@@ -104,19 +107,21 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
 
   const handleAddInteraction = async (e) => {
     e?.preventDefault();
-    if (!clientId || !client || client.limited || !selectedSaleId) return;
+    if (!clientId || !client || client.limited) return;
     setAddingInteraction(true);
     try {
       const created = await addClientInteraction(clientId, {
         type: newInteractionType,
         notes: newInteractionNotes,
-        saleId: selectedSaleId,
+        saleId: selectedSaleId || undefined,
+        nextFollowUpAt: newInteractionFollowUp || undefined,
       });
       if (newInteractionType === 'commercial_proposal' && newInteractionFiles?.length > 0 && created?._id) {
         await uploadInteractionFiles(clientId, created._id, newInteractionFiles);
       }
       setNewInteractionNotes('');
       setNewInteractionType('note');
+      setNewInteractionFollowUp('');
       setNewInteractionFiles([]);
       setShowAddInteraction(false);
       loadData(selectedSaleId);
@@ -172,6 +177,11 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                 <span className="interaction-user">{i.userName || i.userLogin}</span>
               </div>
               {i.notes && <div className="interaction-notes">{i.notes}</div>}
+              {i.nextFollowUpAt && (
+                <div className="interaction-followup">
+                  Follow-up: {new Date(i.nextFollowUpAt).toLocaleDateString('uk-UA')}
+                </div>
+              )}
               {i.type === 'commercial_proposal' && (
                 <div className="interaction-files">
                   {files.length > 0 ? (
@@ -248,6 +258,24 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                     {!client.limited && client.contactPhone && <div><strong>Телефон:</strong> {client.contactPhone}</div>}
                   </div>
 
+                  {!client.limited && linkedLeads.length > 0 && (
+                    <div className="client-info-block client-linked-leads">
+                      <h4>Ліди Meta / маркетинг ({linkedLeads.length})</h4>
+                      <ul className="linked-leads-list">
+                        {linkedLeads.map((lead) => (
+                          <li key={lead._id}>
+                            <strong>{lead.requestNumber || 'Заявка'}</strong>
+                            {' · '}
+                            {lead.source || '—'}
+                            {' · '}
+                            {lead.status || '—'}
+                            {lead.contactPhone ? ` · ${lead.contactPhone}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <div className="client-sales-block">
                     <h4>
                       Угоди ({sales.length})
@@ -296,23 +324,39 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                 </div>
 
                 <div className="client-card-right">
-                  {!client.limited && selectedSale ? (
+                  {!client.limited ? (
                     <>
-                      <div className="deal-panel-header">
-                        <div>
-                          <h4>Угода {selectedSale.saleNumber || ''}</h4>
-                          <p className="deal-panel-sub">
-                            {saleStatusLabel(selectedSale.status)} · {formatDate(selectedSale.createdAt || selectedSale.saleDate)}
-                          </p>
+                      {selectedSale ? (
+                        <div className="deal-panel-header">
+                          <div>
+                            <h4>Угода {selectedSale.saleNumber || ''}</h4>
+                            <p className="deal-panel-sub">
+                              {saleStatusLabel(selectedSale.status)} · {formatDate(selectedSale.createdAt || selectedSale.saleDate)}
+                            </p>
+                          </div>
+                          <button type="button" className="btn-small" onClick={() => openSaleEditor(selectedSale)}>
+                            Відкрити угоду
+                          </button>
                         </div>
-                        <button type="button" className="btn-small" onClick={() => openSaleEditor(selectedSale)}>
-                          Відкрити угоду
-                        </button>
-                      </div>
+                      ) : (
+                        <div className="deal-panel-header">
+                          <div>
+                            <h4>Загальна історія</h4>
+                            <p className="deal-panel-sub">
+                              {sales.length === 0 ? 'Ще немає угод — можна додати нотатку або дзвінок' : 'Оберіть угоду зліва або додайте загальний запис'}
+                            </p>
+                          </div>
+                          {sales.length === 0 && (
+                            <button type="button" className="btn-small btn-add-sale" onClick={() => openSaleEditor(null)}>
+                              + Нова угода
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       <div className="client-interactions-block">
                         <h4>
-                          Історія взаємодій ({dealInteractions.length})
+                          Історія взаємодій ({selectedSale ? dealInteractions.length : generalInteractions.length})
                           {!showAddInteraction && (
                             <button type="button" className="btn-small btn-add-interaction" onClick={() => setShowAddInteraction(true)}>+ Додати</button>
                           )}
@@ -330,6 +374,14 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                               placeholder="Текст примітки..."
                               rows={2}
                             />
+                            <label className="followup-field">
+                              Наступний контакт
+                              <input
+                                type="date"
+                                value={newInteractionFollowUp}
+                                onChange={(e) => setNewInteractionFollowUp(e.target.value)}
+                              />
+                            </label>
                             {newInteractionType === 'commercial_proposal' && (
                               <div className="form-group">
                                 <label>Файли (JPEG, PDF, Word)</label>
@@ -345,7 +397,18 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                               </div>
                             )}
                             <div className="interaction-form-actions">
-                              <button type="button" className="btn-cancel" onClick={() => { setShowAddInteraction(false); setNewInteractionNotes(''); setNewInteractionFiles([]); }}>Скасувати</button>
+                              <button
+                                type="button"
+                                className="btn-cancel"
+                                onClick={() => {
+                                  setShowAddInteraction(false);
+                                  setNewInteractionNotes('');
+                                  setNewInteractionFollowUp('');
+                                  setNewInteractionFiles([]);
+                                }}
+                              >
+                                Скасувати
+                              </button>
                               <button type="submit" className="btn-primary" disabled={addingInteraction}>
                                 {addingInteraction ? 'Збереження...' : 'Зберегти'}
                               </button>
@@ -353,8 +416,10 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                           </form>
                         )}
                         <div className="interactions-scroll-area">
-                          {renderInteractionsList(dealInteractions, showAddInteraction ? null : 'Немає записів по цій угоді')}
-                          {generalInteractions.length > 0 && (
+                          {selectedSale
+                            ? renderInteractionsList(dealInteractions, showAddInteraction ? null : 'Немає записів по цій угоді')
+                            : renderInteractionsList(generalInteractions, showAddInteraction ? null : 'Немає загальних записів')}
+                          {selectedSale && generalInteractions.length > 0 && (
                             <div className="general-interactions-block">
                               <h5>Загальна історія клієнта ({generalInteractions.length})</h5>
                               {renderInteractionsList(generalInteractions)}
@@ -363,15 +428,6 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                         </div>
                       </div>
                     </>
-                  ) : !client.limited && sales.length === 0 ? (
-                    <div className="deal-panel-empty">
-                      <p>Створіть першу угоду для цього клієнта</p>
-                      <button type="button" className="btn-small btn-add-sale" onClick={() => openSaleEditor(null)}>+ Нова угода</button>
-                    </div>
-                  ) : !client.limited ? (
-                    <div className="deal-panel-empty">
-                      <p>Оберіть угоду зі списку зліва</p>
-                    </div>
                   ) : (
                     <div className="deal-panel-empty">
                       <p>Обмежений перегляд — історія недоступна</p>

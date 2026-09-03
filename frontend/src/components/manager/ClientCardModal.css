@@ -408,6 +408,39 @@
   overflow-wrap: anywhere;
 }
 
+.interaction-followup {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.followup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.followup-field input[type="date"] {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.linked-leads-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.linked-leads-list li {
+  margin-bottom: 4px;
+}
+
 .interaction-files {
   margin-top: 8px;
   padding-top: 8px;

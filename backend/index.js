@@ -72,6 +72,12 @@ const {
   shouldAutoArchiveOnMarketingStatus,
 } = require('./lib/marketingLeads');
 const { enrichLeadsWithClientOwners, findClientByPhoneForManager } = require('./lib/clientPhoneLookup');
+const {
+  enrichClientsActivity,
+  applyActivityToClients,
+  findClientIdsByFollowUp,
+  computeClientListStats,
+} = require('./lib/clientListEnrichment');
 const { createMarketingLeadFromInbound, phoneNormalized } = require('./lib/marketingIntegrations');
 const {
   normalizePhone: normalizeUserPhone,
@@ -4209,11 +4215,13 @@ const interactionSchema = new mongoose.Schema({
   saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
   type: { type: String, required: true },
   date: { type: Date, default: Date.now },
+  nextFollowUpAt: { type: Date, default: null },
   userLogin: { type: String, required: true },
   userName: String,
   notes: String
 }, { timestamps: true });
 interactionSchema.index({ entityType: 1, entityId: 1, date: -1 });
+interactionSchema.index({ entityType: 1, entityId: 1, nextFollowUpAt: 1 });
 interactionSchema.index({ saleId: 1, date: -1 });
 const Interaction = mongoose.model('Interaction', interactionSchema);
 
@@ -7342,6 +7350,25 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
         ]
       });
     }
+
+    const followUpFilter = await findClientIdsByFollowUp(req.query.followUp, { Interaction });
+    if (followUpFilter) {
+      if (followUpFilter.mode === 'stale') {
+        const exclude = (followUpFilter.excludeIds || []).map((id) => String(id));
+        if (exclude.length) {
+          conditions.push({ _id: { $nin: exclude } });
+        }
+      } else {
+        const ids = followUpFilter.ids || [];
+        if (!ids.length) {
+          const empty = { clients: [], total: 0, page: 1, limit: 30 };
+          if (req.query.page !== undefined || req.query.limit !== undefined) return res.json(empty);
+          return res.json([]);
+        }
+        conditions.push({ _id: { $in: ids } });
+      }
+    }
+
     const query = conditions.length > 0 ? { $and: conditions } : {};
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 30));
@@ -7359,15 +7386,65 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
         ...clients.map(c => c.assignedManagerLogin).filter(Boolean),
         ...clients.map(c => c.assignedManagerLogin2).filter(Boolean)
       ])];
-      const users = await User.find({ login: { $in: logins } }).select('login name').lean();
+      const [users, activityMap] = await Promise.all([
+        User.find({ login: { $in: logins } }).select('login name').lean(),
+        enrichClientsActivity(clients, { Interaction, Sale, mongoose }),
+      ]);
       const loginToName = Object.fromEntries(users.map(u => [u.login, u.name || u.login]));
       clients.forEach(c => {
         if (c.assignedManagerLogin) c.assignedManagerName = loginToName[c.assignedManagerLogin] || c.assignedManagerLogin;
         if (c.assignedManagerLogin2) c.assignedManagerName2 = loginToName[c.assignedManagerLogin2] || c.assignedManagerLogin2;
       });
+      clients = applyActivityToClients(clients, activityMap);
+      const followMode = String(req.query.followUp || '').trim().toLowerCase();
+      if (['overdue', 'today', 'upcoming'].includes(followMode)) {
+        clients.sort((a, b) => {
+          const ta = a.nextFollowUpAt ? new Date(a.nextFollowUpAt).getTime() : Number.POSITIVE_INFINITY;
+          const tb = b.nextFollowUpAt ? new Date(b.nextFollowUpAt).getTime() : Number.POSITIVE_INFINITY;
+          return ta - tb;
+        });
+      } else if (followMode === 'stale') {
+        clients.sort((a, b) => {
+          const ta = a.lastInteractionAt ? new Date(a.lastInteractionAt).getTime() : 0;
+          const tb = b.lastInteractionAt ? new Date(b.lastInteractionAt).getTime() : 0;
+          return ta - tb;
+        });
+      }
     }
     if (usePagination) res.json({ clients, total, page, limit });
     else res.json(clients);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/clients/stats', authenticateToken, async (req, res) => {
+  try {
+    const conditions = [];
+    if (req.user?.role === 'manager') {
+      conditions.push({
+        $or: [
+          { assignedManagerLogin: req.user.login },
+          { assignedManagerLogin2: req.user.login },
+        ],
+      });
+    }
+    const managerFilter = (req.query.manager || req.query.assignedManagerLogin || '').trim();
+    if (managerFilter && ['admin', 'administrator', 'mgradm'].includes(req.user?.role)) {
+      conditions.push({
+        $or: [
+          { assignedManagerLogin: managerFilter },
+          { assignedManagerLogin2: managerFilter },
+        ],
+      });
+    }
+    const regionFilter = (req.query.region || '').trim();
+    if (regionFilter) {
+      conditions.push({ region: new RegExp(regionFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+    }
+    const baseQuery = conditions.length > 0 ? { $and: conditions } : {};
+    const stats = await computeClientListStats(baseQuery, { Client, Interaction, Sale, mongoose });
+    res.json(stats);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -7485,8 +7562,27 @@ app.get('/api/clients/:id', authenticateToken, async (req, res) => {
         result.assignedManagerName = client.assignedManagerLogin ? (loginToName[client.assignedManagerLogin] || client.assignedManagerLogin) : undefined;
         result.assignedManagerName2 = client.assignedManagerLogin2 ? (loginToName[client.assignedManagerLogin2] || client.assignedManagerLogin2) : undefined;
       }
+      try {
+        const linkedLeads = await MarketingLead.find({ convertedClientId: client._id })
+          .select('requestNumber source status clientName contactPhone createdAt metaLeadId metaFormName productInterest')
+          .sort({ createdAt: -1 })
+          .limit(20)
+          .lean();
+        result.linkedMarketingLeads = linkedLeads;
+      } catch (_) {
+        result.linkedMarketingLeads = [];
+      }
     }
-    res.json(result);
+    res.json({
+      ...result,
+      linkedMarketingLeads: result && !result.limited
+        ? await MarketingLead.find({ convertedClientId: client._id })
+            .select('requestNumber status source clientName contactPhone createdAt transmittedToManagerAt convertedSaleId')
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean()
+        : [],
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -7562,7 +7658,7 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
     if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
     const accessResult = getClientWithAccessControl(client, req.user);
     if (!accessResult || accessResult.limited) return res.status(403).json({ error: 'Немає доступу' });
-    const { type, date, notes, saleId } = req.body || {};
+    const { type, date, notes, saleId, nextFollowUpAt } = req.body || {};
     const payload = {
       entityType: 'client',
       entityId: req.params.id,
@@ -7573,6 +7669,10 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
       notes: notes || '',
     };
     if (saleId) payload.saleId = saleId;
+    if (nextFollowUpAt) {
+      const fu = new Date(nextFollowUpAt);
+      if (!Number.isNaN(fu.getTime())) payload.nextFollowUpAt = fu;
+    }
     const doc = await Interaction.create(payload);
     res.status(201).json(doc);
   } catch (err) {
@@ -21172,6 +21272,16 @@ app.put('/api/marketing/leads/:id', authenticateToken, async (req, res) => {
     }
     if (isAssignedManager && body.status === 'converted') {
       pushStatusHistory(lead, 'converted', dbUser || req.user, body.statusNote || 'Конвертовано');
+    }
+
+    const canLinkConversion = canAccessMarketingPanel(req.user) || isAssignedManager;
+    if (canLinkConversion && body.convertedClientId !== undefined) {
+      const cid = String(body.convertedClientId || '').trim();
+      lead.convertedClientId = cid || undefined;
+    }
+    if (canLinkConversion && body.convertedSaleId !== undefined) {
+      const sid = String(body.convertedSaleId || '').trim();
+      lead.convertedSaleId = sid || undefined;
     }
 
     await lead.save();

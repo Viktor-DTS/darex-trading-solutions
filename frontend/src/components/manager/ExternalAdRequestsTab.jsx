@@ -89,14 +89,40 @@ function ExternalAdRequestsTab({ user }) {
       .catch(() => setSelected(null));
   }, [selectedId]);
 
+  const linkLeadConversion = async (lead, { clientId, saleId, note } = {}) => {
+    if (!lead?._id) return null;
+    const payload = {
+      status: 'converted',
+      statusNote: note || 'Привʼязано клієнта',
+    };
+    if (clientId) payload.convertedClientId = clientId;
+    if (saleId) payload.convertedSaleId = saleId;
+    return updateMarketingLead(lead._id, payload);
+  };
+
   const openClientOrDealWorkflow = async (lead) => {
     setPendingLead(lead);
     const notes = buildLeadNotes(lead);
     const phone = lead?.contactPhone;
 
+    if (lead?.convertedClientId) {
+      // already linked — still allow opening a deal with phone match fallback
+    }
+
     if (phone) {
       const existingClient = await findMyClientByPhone(phone);
       if (existingClient) {
+        if (!lead.convertedClientId) {
+          try {
+            await linkLeadConversion(lead, {
+              clientId: existingClient._id,
+              note: 'Привʼязано існуючого клієнта за телефоном',
+            });
+            await load();
+          } catch (err) {
+            console.error(err);
+          }
+        }
         setSaleInitialClient(existingClient);
         setSaleInitialNotes(notes);
         setShowSaleModal(true);
@@ -123,14 +149,40 @@ function ExternalAdRequestsTab({ user }) {
     }
   };
 
-  const handleClientCreated = (newClient) => {
+  const handleClientCreated = async (newClient) => {
     setShowClientModal(false);
     setClientInitialForm(null);
+    if (newClient?._id && pendingLead?._id) {
+      try {
+        await linkLeadConversion(pendingLead, {
+          clientId: newClient._id,
+          note: 'Створено клієнта з заявки',
+        });
+        await load();
+      } catch (err) {
+        console.error(err);
+      }
+    }
     if (newClient?._id) {
       setSaleInitialClient(newClient);
       setSaleInitialNotes(buildLeadNotes(pendingLead));
       setShowSaleModal(true);
     }
+  };
+
+  const handleSaleSuccess = async () => {
+    if (pendingLead?._id && saleInitialClient?._id) {
+      try {
+        await linkLeadConversion(pendingLead, {
+          clientId: saleInitialClient._id,
+          note: 'Конвертовано: клієнт + угода',
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    closeSaleModal();
+    load();
   };
 
   const closeClientModal = () => {
@@ -182,7 +234,16 @@ function ExternalAdRequestsTab({ user }) {
     if (!window.confirm('Позначити заявку як конвертовану (клієнт у роботі / угода)?')) return;
     setSaving(true);
     try {
-      await updateMarketingLead(selected._id, { status: 'converted', statusNote: 'Конвертовано менеджером' });
+      let clientId = selected.convertedClientId || null;
+      if (!clientId && selected.contactPhone) {
+        const existing = await findMyClientByPhone(selected.contactPhone);
+        if (existing?._id) clientId = existing._id;
+      }
+      await updateMarketingLead(selected._id, {
+        status: 'converted',
+        statusNote: 'Конвертовано менеджером',
+        ...(clientId ? { convertedClientId: clientId } : {}),
+      });
       setSelectedId(null);
       load();
     } catch (err) {
@@ -284,6 +345,9 @@ function ExternalAdRequestsTab({ user }) {
             <p><strong>Місто:</strong> {selected.city || '—'}</p>
             <p><strong>Інтерес:</strong> {selected.productInterest || '—'}</p>
             <p><strong>Кому належить клієнт:</strong> {selected.clientOwnerName || '—'}</p>
+            {selected.convertedClientId && (
+              <p><strong>Привʼязаний CRM-клієнт:</strong> {String(selected.convertedClientId)}</p>
+            )}
             <p><strong>Коментар роботи:</strong> {selected.managerWorkComment || '—'}</p>
             <p><strong>Коментар:</strong> {selected.comment || '—'}</p>
             {selected.marketingNotes && (
@@ -342,6 +406,7 @@ function ExternalAdRequestsTab({ user }) {
       <SaleFormModal
         open={showSaleModal}
         onClose={closeSaleModal}
+        onSuccess={handleSaleSuccess}
         initialClient={saleInitialClient}
         initialNotes={saleInitialNotes}
         user={user}
