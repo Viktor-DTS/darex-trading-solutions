@@ -20,7 +20,12 @@ const VED_EQUIPMENT_TYPE_LABELS = {
   other: 'Інше обладнання',
 };
 
-const PRODUCT_ORDER_DEFAULT_STATUS = 'активен';
+const PRODUCT_ORDER_DATE_FIELDS = new Set([
+  'supplierOrderDate',
+  'supplierReadyDate',
+  'expectedArrivalDate',
+  'customerShipDeadline',
+]);
 
 const SUPPLIER_SUB_TABS = [
   { key: 'supplier-search', icon: '📋', label: 'Реєстр постачальників', countKey: 'registry' },
@@ -166,11 +171,9 @@ function VedDashboard({ user }) {
   const [productOrderMeta, setProductOrderMeta] = useState(null);
   const [productOrderSheet, setProductOrderSheet] = useState('dgu');
   const [productOrders, setProductOrders] = useState([]);
-  const [productOrderTotal, setProductOrderTotal] = useState(0);
   const [productOrderLoading, setProductOrderLoading] = useState(false);
   const [productOrderSearch, setProductOrderSearch] = useState('');
-  const [productOrderStatusFilter, setProductOrderStatusFilter] = useState(PRODUCT_ORDER_DEFAULT_STATUS);
-  const [productOrderSupplierFilter, setProductOrderSupplierFilter] = useState('');
+  const [productOrderColumnFilters, setProductOrderColumnFilters] = useState({});
 
   const [newForm, setNewForm] = useState({
     equipmentType: 'generator_diesel',
@@ -347,42 +350,24 @@ function VedDashboard({ user }) {
     setProductOrderLoading(true);
     try {
       const sheetType = overrides.sheetType ?? productOrderSheet;
-      const search = overrides.search !== undefined ? overrides.search : productOrderSearch;
-      const status = overrides.status !== undefined ? overrides.status : productOrderStatusFilter;
-      const supplier =
-        overrides.supplier !== undefined ? overrides.supplier : productOrderSupplierFilter;
-
       const params = new URLSearchParams({
         sheetType,
-        limit: '500',
+        limit: '2000',
       });
-      if (String(search || '').trim()) params.set('search', String(search).trim());
-      if (String(status || '').trim()) params.set('status', String(status).trim());
-      if (String(supplier || '').trim()) params.set('supplier', String(supplier).trim());
       const res = await fetch(`${API_BASE_URL}/ved/product-orders?${params}`, { headers: authHeaders });
       if (tryHandleUnauthorizedResponse(res)) return;
       if (res.ok) {
         const data = await res.json();
         setProductOrders(data.rows || []);
-        setProductOrderTotal(data.total ?? 0);
       } else {
         setProductOrders([]);
-        setProductOrderTotal(0);
       }
     } catch {
       setProductOrders([]);
-      setProductOrderTotal(0);
     } finally {
       setProductOrderLoading(false);
     }
-  }, [
-    authHeaders,
-    canManage,
-    productOrderSheet,
-    productOrderSearch,
-    productOrderStatusFilter,
-    productOrderSupplierFilter,
-  ]);
+  }, [authHeaders, canManage, productOrderSheet]);
 
   useEffect(() => {
     if (section === 'product-orders' && canManage) {
@@ -390,6 +375,10 @@ function VedDashboard({ user }) {
       loadProductOrders();
     }
   }, [section, canManage, loadProductOrderMeta, loadProductOrders]);
+
+  useEffect(() => {
+    setProductOrderColumnFilters({});
+  }, [productOrderSheet]);
 
   const loadDetail = useCallback(
     async (id) => {
@@ -1768,56 +1757,122 @@ function formatCellValue(row, key) {
   return String(v);
 }
 
-  const showAllProductOrders = () => {
-    setProductOrderStatusFilter('');
-    loadProductOrders({ status: '' });
+function parseFilterDate(value) {
+  const s = String(value || '').trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const d = new Date(`${s}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return parseUkDateParts(s);
+}
+
+function parseUkDateParts(text) {
+  const m = String(text || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function matchesProductOrderColumnFilter(row, key, filters) {
+  if (PRODUCT_ORDER_DATE_FIELDS.has(key)) {
+    const from = String(filters[`${key}From`] || '').trim();
+    const to = String(filters[`${key}To`] || '').trim();
+    if (!from && !to) return true;
+    const cellText = String(formatCellValue(row, key));
+    if (cellText === '—') return false;
+    const cellDate = parseUkDateParts(cellText);
+    if (from) {
+      const fromDate = parseFilterDate(from);
+      if (fromDate && cellDate && cellDate < fromDate) return false;
+      if (!cellDate && !cellText.toLowerCase().includes(from.toLowerCase())) return false;
+    }
+    if (to) {
+      const toDate = parseFilterDate(to);
+      if (toDate && cellDate && cellDate > toDate) return false;
+      if (!cellDate && !cellText.toLowerCase().includes(to.toLowerCase())) return false;
+    }
+    return true;
+  }
+  const needle = String(filters[key] || '').trim();
+  if (!needle) return true;
+  const hay = String(formatCellValue(row, key)).toLowerCase();
+  return hay.includes(needle.toLowerCase());
+}
+
+  const filteredProductOrders = useMemo(() => {
+    const search = String(productOrderSearch || '').trim().toLowerCase();
+    const columnKeys = Object.keys(productOrderMeta?.sheets?.[productOrderSheet]?.columns || {});
+
+    return productOrders.filter((row) => {
+      if (search) {
+        const haystack = [String(row.rowIndex ?? ''), ...columnKeys.map((k) => String(formatCellValue(row, k)))]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+
+      const rowIndexNeedle = String(productOrderColumnFilters.rowIndex || '').trim();
+      if (rowIndexNeedle && !String(row.rowIndex ?? '').includes(rowIndexNeedle)) return false;
+
+      for (const key of columnKeys) {
+        if (!matchesProductOrderColumnFilter(row, key, productOrderColumnFilters)) return false;
+      }
+      return true;
+    });
+  }, [productOrders, productOrderSearch, productOrderColumnFilters, productOrderMeta, productOrderSheet]);
+
+  const handleProductOrderColumnFilterChange = (key, value) => {
+    setProductOrderColumnFilters((prev) => {
+      const next = { ...prev };
+      if (value) next[key] = value;
+      else delete next[key];
+      return next;
+    });
   };
 
-  const showActiveProductOrders = () => {
-    setProductOrderStatusFilter(PRODUCT_ORDER_DEFAULT_STATUS);
-    loadProductOrders({ status: PRODUCT_ORDER_DEFAULT_STATUS });
+  const renderProductOrderColumnFilter = (key) => {
+    if (PRODUCT_ORDER_DATE_FIELDS.has(key)) {
+      return (
+        <div className="ved-product-orders-filter-date-range">
+          <input
+            type="date"
+            className="ved-product-orders-filter-input ved-product-orders-filter-date"
+            value={productOrderColumnFilters[`${key}From`] || ''}
+            onChange={(e) => handleProductOrderColumnFilterChange(`${key}From`, e.target.value)}
+            title="Від"
+          />
+          <input
+            type="date"
+            className="ved-product-orders-filter-input ved-product-orders-filter-date"
+            value={productOrderColumnFilters[`${key}To`] || ''}
+            onChange={(e) => handleProductOrderColumnFilterChange(`${key}To`, e.target.value)}
+            title="До"
+          />
+        </div>
+      );
+    }
+    return (
+      <input
+        type="text"
+        className="ved-product-orders-filter-input"
+        placeholder="Фільтр..."
+        value={productOrderColumnFilters[key] || ''}
+        onChange={(e) => handleProductOrderColumnFilterChange(key, e.target.value)}
+      />
+    );
   };
-
-  const productOrderStatusOptions = useMemo(() => {
-    const fromMeta = productOrderMeta?.sheets?.[productOrderSheet]?.orderStatuses;
-    const base = Array.isArray(fromMeta)
-      ? [...fromMeta]
-      : [
-          ...new Set(
-            productOrders.map((row) => String(row.orderStatus || '').trim()).filter(Boolean)
-          ),
-        ];
-    const current = String(productOrderStatusFilter || '').trim();
-    if (current && !base.includes(current)) base.push(current);
-    return base.sort((a, b) => a.localeCompare(b, 'uk'));
-  }, [productOrderMeta, productOrderSheet, productOrders, productOrderStatusFilter]);
 
   const renderProductOrders = () => {
     const sheetMeta = productOrderMeta?.sheets?.[productOrderSheet];
     const columns = sheetMeta?.columns || {};
     const columnKeys = Object.keys(columns);
-    const statusFilterActive = Boolean(productOrderStatusFilter.trim());
 
     return (
       <div className="ved-list-panel ved-product-orders-panel">
         <div className="ved-card">
           <div className="ved-product-orders-header">
-            <div>
-              <h2 style={{ margin: '0 0 6px' }}>Замовлення товарів</h2>
-              <p className="ved-product-orders-subtitle">
-                Дані з Excel «ЗАКАЗ ТОВАРОВ !!!.xlsx» (синхронізація агентом 1С після імпорту ведомості).
-                {productOrderMeta?.lastImport?.at && (
-                  <>
-                    {' '}
-                    Останній імпорт: {formatDt(productOrderMeta.lastImport.at)}
-                    {productOrderMeta.lastImport.fileName ? ` · ${productOrderMeta.lastImport.fileName}` : ''}
-                    {productOrderMeta.lastImport.dguRows != null
-                      ? ` · ДГУ: ${productOrderMeta.lastImport.dguRows}, ЗИП: ${productOrderMeta.lastImport.zipRows}`
-                      : ''}
-                  </>
-                )}
-              </p>
-            </div>
+            <h2 style={{ margin: 0 }}>Замовлення товарів</h2>
             <button
               type="button"
               className="ved-btn"
@@ -1831,77 +1886,37 @@ function formatCellValue(row, key) {
             </button>
           </div>
 
-          <div className="ved-product-orders-tabs">
-            <button
-              type="button"
-              className={`ved-product-orders-tab ${productOrderSheet === 'dgu' ? 'active' : ''}`}
-              onClick={() => setProductOrderSheet('dgu')}
-            >
-              ДГУ (генератори)
-              {productOrderMeta?.sheets?.dgu?.rowCount != null && (
-                <span className="ved-sidebar-tab-count">{productOrderMeta.sheets.dgu.rowCount}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              className={`ved-product-orders-tab ${productOrderSheet === 'zip' ? 'active' : ''}`}
-              onClick={() => setProductOrderSheet('zip')}
-            >
-              ЗИП (запчастини)
-              {productOrderMeta?.sheets?.zip?.rowCount != null && (
-                <span className="ved-sidebar-tab-count">{productOrderMeta.sheets.zip.rowCount}</span>
-              )}
-            </button>
-          </div>
-
-          <div className="ved-product-orders-filters">
+          <div className="ved-product-orders-toolbar-row">
+            <div className="ved-product-orders-tabs">
+              <button
+                type="button"
+                className={`ved-product-orders-tab ${productOrderSheet === 'dgu' ? 'active' : ''}`}
+                onClick={() => setProductOrderSheet('dgu')}
+              >
+                ДГУ (генератори)
+                {productOrderMeta?.sheets?.dgu?.rowCount != null && (
+                  <span className="ved-sidebar-tab-count">{productOrderMeta.sheets.dgu.rowCount}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className={`ved-product-orders-tab ${productOrderSheet === 'zip' ? 'active' : ''}`}
+                onClick={() => setProductOrderSheet('zip')}
+              >
+                ЗИП (запчастини)
+                {productOrderMeta?.sheets?.zip?.rowCount != null && (
+                  <span className="ved-sidebar-tab-count">{productOrderMeta.sheets.zip.rowCount}</span>
+                )}
+              </button>
+            </div>
             <input
               type="search"
+              className="ved-product-orders-search"
               placeholder="Пошук (товар, постачальник, замовник, примітки…)"
               value={productOrderSearch}
               onChange={(e) => setProductOrderSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && loadProductOrders()}
             />
-            <label className="ved-product-orders-status-filter">
-              Статус:
-              <select
-                value={productOrderStatusFilter}
-                onChange={(e) => setProductOrderStatusFilter(e.target.value)}
-              >
-                <option value="">Усі статуси</option>
-                {productOrderStatusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <input
-              type="text"
-              placeholder="Постачальник"
-              value={productOrderSupplierFilter}
-              onChange={(e) => setProductOrderSupplierFilter(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && loadProductOrders()}
-            />
-            <button type="button" className="ved-btn ved-btn-secondary" onClick={() => loadProductOrders()}>
-              Застосувати
-            </button>
-            {statusFilterActive ? (
-              <button type="button" className="ved-btn ved-btn-secondary" onClick={showAllProductOrders}>
-                Показати все
-              </button>
-            ) : (
-              <button type="button" className="ved-btn ved-btn-secondary" onClick={showActiveProductOrders}>
-                Лише активні
-              </button>
-            )}
           </div>
-
-          <p className="ved-product-orders-count">
-            Показано {productOrders.length} з {productOrderTotal} записів
-            {statusFilterActive ? ` · фільтр статусу: «${productOrderStatusFilter}»` : ' · усі статуси'}
-            {productOrderTotal > productOrders.length ? ' (перші 500 — уточніть пошук)' : ''}
-          </p>
         </div>
 
         {productOrderLoading ? (
@@ -1911,6 +1926,8 @@ function formatCellValue(row, key) {
             Немає даних для вкладки «{productOrderSheet === 'dgu' ? 'ДГУ' : 'ЗИП'}».
             {productOrderMeta?.lastImport ? '' : ' Дочекайтеся синхронізації агентом 1С.'}
           </div>
+        ) : filteredProductOrders.length === 0 ? (
+          <div className="ved-empty">Немає записів за обраними фільтрами.</div>
         ) : (
           <div className="ved-product-orders-table-wrap">
             <table className="ved-table ved-product-orders-table">
@@ -1921,9 +1938,23 @@ function formatCellValue(row, key) {
                     <th key={key}>{columns[key]}</th>
                   ))}
                 </tr>
+                <tr className="ved-product-orders-filter-row">
+                  <th>
+                    <input
+                      type="text"
+                      className="ved-product-orders-filter-input"
+                      placeholder="Фільтр..."
+                      value={productOrderColumnFilters.rowIndex || ''}
+                      onChange={(e) => handleProductOrderColumnFilterChange('rowIndex', e.target.value)}
+                    />
+                  </th>
+                  {columnKeys.map((key) => (
+                    <th key={key}>{renderProductOrderColumnFilter(key)}</th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
-                {productOrders.map((row) => (
+                {filteredProductOrders.map((row) => (
                   <tr key={row._id || row.rowIndex}>
                     <td>{row.rowIndex}</td>
                     {columnKeys.map((key) => (
