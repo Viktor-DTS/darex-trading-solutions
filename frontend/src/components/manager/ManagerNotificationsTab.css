@@ -1,6 +1,14 @@
 .manager-notifications-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 0 8px 24px;
   max-width: 720px;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .manager-notifications-header {
