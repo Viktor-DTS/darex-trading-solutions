@@ -590,7 +590,10 @@ const MANAGER_NOTIFICATION_KINDS = [
   'warehouse_transfer_approved',
   'warehouse_transfer_rejected',
   'client_next_action_due',
-  'client_sleeping_digest'
+  'client_sleeping_digest',
+  'shipment_request_fulfilled',
+  'shipment_request_cancelled',
+  'sale_tender_assigned'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -674,6 +677,7 @@ const managerUserNotificationSchema = new mongoose.Schema({
   dedupeKey: { type: String, sparse: true, unique: true },
   shipmentRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShipmentRequest' },
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', default: null },
+  saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale', default: null },
   warehouseTransferRequestId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'WarehouseTransferRequest',
@@ -2467,7 +2471,9 @@ const procurementRequestSchema = new mongoose.Schema(
     /** Файли виконавця: рахунки, видаткові накладні, кошториси тощо */
     executorAttachments: [procurementAttachmentSchema],
     materials: { type: [procurementMaterialLineSchema], default: [] },
-    notes: { type: String, default: '' }
+    notes: { type: String, default: '' },
+    /** Якщо заявку подано з угоди менеджера */
+    saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale', default: null }
   },
   { timestamps: true }
 );
@@ -7823,6 +7829,13 @@ app.get('/api/clients/:id', authenticateToken, async (req, res) => {
         result.assignedManagerName2 = client.assignedManagerLogin2 ? (loginToName[client.assignedManagerLogin2] || client.assignedManagerLogin2) : undefined;
       }
     }
+    if (result && !result.limited) {
+      const filled = CLIENT_PROFILE_FIELDS.filter((f) => String(result[f] || '').trim()).length;
+      result.stats = {
+        completeness: Math.round((filled / CLIENT_PROFILE_FIELDS.length) * 100),
+        missingFields: CLIENT_PROFILE_FIELDS.filter((f) => !String(result[f] || '').trim())
+      };
+    }
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -8066,6 +8079,121 @@ app.get('/api/sales/:id', authenticateToken, async (req, res) => {
   }
 });
 
+function userCanAccessSale(user, sale) {
+  if (!sale || !user) return false;
+  if (['admin', 'administrator', 'mgradm'].includes(user.role)) return true;
+  return sale.managerLogin === user.login || sale.managerLogin2 === user.login;
+}
+
+/** Стрічка етапів угоди для картки клієнта: переговори → резерв → відвантаження → премія. */
+app.get('/api/sales/:id/progress', authenticateToken, async (req, res) => {
+  try {
+    const sale = await Sale.findById(req.params.id).lean();
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    if (!userCanAccessSale(req.user, sale) && req.user?.role === 'manager') {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const eqIds = (sale.equipmentItems || []).map((i) => i.equipmentId).filter(Boolean);
+    const [shipments, procurements, reservedEq] = await Promise.all([
+      ShipmentRequest.find({ saleId: sale._id }).select('requestNumber status plannedShipmentDate').sort({ createdAt: -1 }).lean(),
+      ProcurementRequest.find({ saleId: sale._id }).select('requestNumber status materials.name').sort({ createdAt: -1 }).lean(),
+      eqIds.length
+        ? Equipment.find({ _id: { $in: eqIds }, status: 'reserved' }).select('_id').lean()
+        : []
+    ]);
+    const lockedLines = (sale.equipmentItems || []).filter((i) => i.shipmentLocked).length;
+    res.json({
+      saleId: sale._id,
+      saleNumber: sale.saleNumber || '',
+      status: sale.status,
+      tenderEmployeeLogin: sale.tenderEmployeeLogin || '',
+      reservedCount: reservedEq.length,
+      equipmentCount: (sale.equipmentItems || []).filter((i) => i.equipmentId || i.type).length,
+      lockedLines,
+      shipments: shipments.map((s) => ({
+        _id: s._id,
+        requestNumber: s.requestNumber,
+        status: s.status,
+        plannedShipmentDate: s.plannedShipmentDate || null
+      })),
+      procurements: procurements.map((p) => ({
+        _id: p._id,
+        requestNumber: p.requestNumber,
+        status: p.status,
+        name: p.materials?.[0]?.name || ''
+      })),
+      premiumAccruedAt: sale.premiumAccruedAt || null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Заявка у відділ закупівель з рядка обладнання угоди. */
+app.post('/api/sales/:id/procurement-request', authenticateToken, async (req, res) => {
+  try {
+    const sale = await Sale.findById(req.params.id).populate('clientId', 'name').lean();
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    if (!userCanAccessSale(req.user, sale)) {
+      return res.status(403).json({ error: 'Немає доступу до цієї угоди' });
+    }
+    const name = String(req.body.name || req.body.type || '').trim();
+    if (!name) return res.status(400).json({ error: 'Вкажіть назву обладнання' });
+    let applicationKind = String(req.body.applicationKind || '').trim();
+    if (!PROCUREMENT_APPLICATION_KINDS.includes(applicationKind)) {
+      applicationKind = sale.warehouseName ? 'purchase' : 'price_determination';
+    }
+    const priority = ['1_workday', '5_workdays', '7_workdays', 'more_than_7_workdays'].includes(req.body.priority)
+      ? req.body.priority
+      : '7_workdays';
+    const desiredWarehouse = String(req.body.desiredWarehouse || sale.warehouseName || '').trim();
+    let payerCompany = String(req.body.payerCompany || '').trim();
+    if (applicationKind === 'purchase') {
+      if (!PROCUREMENT_PAYER_COMPANIES.includes(payerCompany)) payerCompany = 'dts';
+      if (!desiredWarehouse) {
+        applicationKind = 'price_determination';
+      }
+    }
+    const qtyRaw = req.body.quantity;
+    const qty = qtyRaw === '' || qtyRaw == null ? 1 : Number(qtyRaw);
+    const uomList = await getUnitsOfMeasureList();
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const clientName = sale.clientId?.name || '';
+    const requestNumber = await getNextProcurementRequestNumber();
+    const createPayload = {
+      requestNumber,
+      receiptOutcome: 'pending',
+      applicationKind,
+      description: '',
+      priority,
+      desiredWarehouse: applicationKind === 'purchase' ? desiredWarehouse : (desiredWarehouse || ''),
+      projectObject: `${clientName}${sale.saleNumber ? ` / ${sale.saleNumber}` : ''}`.slice(0, 500),
+      notes: `Створено з угоди ${sale.saleNumber || sale._id}. ${String(req.body.notes || '').trim()}`.slice(0, 50000),
+      materials: [{
+        name,
+        unitOfMeasure: pickUnitFromList(req.body.unitOfMeasure || 'шт', uomList),
+        quantity: Number.isFinite(qty) ? qty : 1,
+        initialQuantity: Number.isFinite(qty) ? qty : 1,
+        price: null,
+        productId: null
+      }],
+      requesterLogin: req.user.login,
+      requesterName: String(dbUser?.name || req.user.name || req.user.login).trim(),
+      attachments: [],
+      saleId: sale._id
+    };
+    if (applicationKind === 'purchase') createPayload.payerCompany = payerCompany;
+    const doc = await ProcurementRequest.create(createPayload);
+    const out = await ProcurementRequest.findById(doc._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
+    await notifyVidZakupokNewProcurementRequest(out);
+    await dispatchProcurementTelegram('created', out);
+    res.status(201).json(out);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 async function markEquipmentAsSold(sale) {
   const ids = [];
   if (sale.equipmentItems && sale.equipmentItems.length > 0) {
@@ -8193,10 +8321,55 @@ async function notifyWarehouseUsersForShipmentRequest(sr) {
       body,
       requestNumber: sr.requestNumber,
       shipmentRequestId: sr._id,
+      saleId: sr.saleId || null,
       read: false,
       dedupeKey: `shipment_req:${String(sr._id)}:${login}`
     });
   }
+}
+
+/** Зворотний звʼязок менеджеру угоди: склад відвантажив або скасував заявку. */
+async function notifySaleManagersShipmentStatus(sr, outcome, warehouseName) {
+  if (!sr?.saleId) return;
+  const sale = await Sale.findById(sr.saleId).select('managerLogin managerLogin2 saleNumber clientId').lean();
+  if (!sale) return;
+  const logins = [...new Set([sale.managerLogin, sale.managerLogin2].filter(Boolean))];
+  const fulfilled = outcome === 'fulfilled';
+  const title = fulfilled ? 'Склад відвантажив товар' : 'Склад скасував відвантаження';
+  const body = fulfilled
+    ? `Заявку ${sr.requestNumber} по угоді ${sale.saleNumber || ''} виконано${warehouseName ? ` (${warehouseName})` : ''}.`
+    : `Заявку ${sr.requestNumber} по угоді ${sale.saleNumber || ''} скасовано. Рядки угоди знову доступні.`;
+  for (const login of logins) {
+    await createManagerNotificationDeduped({
+      recipientLogin: login,
+      kind: fulfilled ? 'shipment_request_fulfilled' : 'shipment_request_cancelled',
+      title,
+      body,
+      requestNumber: sr.requestNumber,
+      shipmentRequestId: sr._id,
+      saleId: sale._id,
+      clientId: sale.clientId || null,
+      read: false,
+      dedupeKey: `shipment_${outcome}:${sr._id}:${login}`
+    });
+  }
+}
+
+async function notifyTenderEmployeeAssigned(sale, previousLogin) {
+  const login = String(sale?.tenderEmployeeLogin || '').trim();
+  if (!login || login === String(previousLogin || '').trim()) return;
+  const saleNumber = sale.saleNumber || '';
+  await createManagerNotificationDeduped({
+    recipientLogin: login,
+    kind: 'sale_tender_assigned',
+    title: 'Вас долучили до угоди',
+    body: `Менеджер призначив вас співробітником тендерного відділу по угоді ${saleNumber}.`,
+    saleId: sale._id,
+    clientId: sale.clientId || null,
+    requestNumber: saleNumber,
+    read: false,
+    dedupeKey: `sale_tender:${sale._id}:${login}`
+  });
 }
 
 app.post('/api/sales', authenticateToken, async (req, res) => {
@@ -8219,6 +8392,7 @@ app.post('/api/sales', authenticateToken, async (req, res) => {
     if (sale.status === 'confirmed' || sale.status === 'success') {
       await markEquipmentAsSold(sale);
     }
+    await notifyTenderEmployeeAssigned(sale, null);
     res.json(sale);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -8335,6 +8509,7 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
     if (sale.status === 'confirmed' || sale.status === 'success') {
       await markEquipmentAsSold(sale);
     }
+    await notifyTenderEmployeeAssigned(sale, existing.tenderEmployeeLogin);
     res.json(sale);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -8608,6 +8783,11 @@ app.patch('/api/shipment-requests/:id/status', authenticateToken, async (req, re
       { new: true }
     ).lean();
     if (!sr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (status === 'fulfilled' && srPrev.status !== 'fulfilled') {
+      await notifySaleManagersShipmentStatus(sr, 'fulfilled', whName);
+    } else if (status === 'cancelled' && srPrev.status !== 'cancelled') {
+      await notifySaleManagersShipmentStatus(sr, 'cancelled', whName);
+    }
     res.json(sr);
   } catch (e) {
     res.status(400).json({ error: e.message });

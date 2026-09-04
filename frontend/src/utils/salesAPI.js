@@ -82,6 +82,32 @@ export const getSaleDealPreviewNumber = async () => {
   }
 };
 
+export const getSaleProgress = async (id) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sales/${id}/progress`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження прогресу угоди:', error);
+    return null;
+  }
+};
+
+export const createSaleProcurementRequest = async (saleId, data) => {
+  const response = await fetch(`${API_BASE_URL}/sales/${saleId}/procurement-request`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return await response.json();
+};
+
 // Один продаж по ID
 export const getSale = async (id) => {
   try {

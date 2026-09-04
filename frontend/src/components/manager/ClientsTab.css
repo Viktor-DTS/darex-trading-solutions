@@ -543,7 +543,7 @@
   height: 20px;
   border-radius: 50%;
   flex-shrink: 0;
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 700;
   color: var(--ct-text-dim);
   background:
@@ -620,18 +620,17 @@
 .ct-next__badge:hover { filter: brightness(1.2); }
 
 .ct-next__add {
-  color: var(--ct-text-faint);
-  font-weight: 500;
-  font-style: italic;
-  opacity: 0.6;
+  border-style: dashed;
+  border-color: var(--ct-border-strong);
+  background: var(--ct-surface-2);
+  color: var(--ct-text-dim);
 }
 
-.ct-row:hover .ct-next__add,
-.ct-row:focus-within .ct-next__add { opacity: 1; }
-
 .ct-next__add:hover {
+  border-style: solid;
+  border-color: var(--ct-accent);
+  background: var(--ct-accent-soft);
   color: var(--ct-accent);
-  border-color: var(--ct-border-strong);
 }
 
 .ct-subtle {

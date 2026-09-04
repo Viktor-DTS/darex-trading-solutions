@@ -13,6 +13,7 @@ function EquipmentEditor({
   saleId = null,
   showShipmentRequestButton = false,
   onOpenShipmentRequest,
+  onRequestProcurement,
   lockedBypass = false
 }) {
   const [pickerRowId, setPickerRowId] = useState(null);
@@ -147,6 +148,17 @@ function EquipmentEditor({
                           onClick={() => onOpenShipmentRequest?.()}
                         >
                           Запит на відвантаження товару
+                        </button>
+                      ) : null}
+                      {item.type && onRequestProcurement ? (
+                        <button
+                          type="button"
+                          className="btn-equipment-shipment-request"
+                          onClick={() => onRequestProcurement(item)}
+                          title={saleId ? 'Надіслати позицію у відділ закупівель' : 'Спочатку збережіть угоду'}
+                          disabled={!saleId}
+                        >
+                          Замовити в закупівлі
                         </button>
                       ) : null}
                     </div>

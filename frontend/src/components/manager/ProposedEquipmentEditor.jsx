@@ -2,7 +2,7 @@ import React from 'react';
 import './ProposedEquipmentEditor.css';
 
 // Вільне заповнення (обладнання під замовлення) — без прив'язки до складу
-function ProposedEquipmentEditor({ items, onChange }) {
+function ProposedEquipmentEditor({ items, onChange, saleId = null, onRequestProcurement }) {
   const addRow = () => {
     onChange([
       ...items,
@@ -42,6 +42,7 @@ function ProposedEquipmentEditor({ items, onChange }) {
               <th>Серійний №</th>
               <th className="col-amount">Сума (₴)</th>
               <th className="col-action"></th>
+              <th className="col-action"></th>
             </tr>
           </thead>
           <tbody>
@@ -72,6 +73,19 @@ function ProposedEquipmentEditor({ items, onChange }) {
                     onChange={e => updateItem(item.id, 'amount', e.target.value)}
                     placeholder="0"
                   />
+                </td>
+                <td className="col-action">
+                  {onRequestProcurement && (item.type || '').trim() ? (
+                    <button
+                      type="button"
+                      className="btn-equipment-shipment-request"
+                      onClick={() => onRequestProcurement(item)}
+                      title={saleId ? 'Надіслати позицію у відділ закупівель' : 'Спочатку збережіть угоду'}
+                      disabled={!saleId}
+                    >
+                      Закупити
+                    </button>
+                  ) : null}
                 </td>
                 <td className="col-action">
                   <button

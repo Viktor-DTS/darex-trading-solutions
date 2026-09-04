@@ -4,6 +4,7 @@ import { exportClientsToExcel } from '../../utils/clientsExport';
 import { Button, Badge } from '../ui';
 import ClientFormModal from './ClientFormModal';
 import ClientCardModal from './ClientCardModal';
+import SaleFormModal from './SaleFormModal';
 import NextActionModal from './NextActionModal';
 import DuplicatesModal from './DuplicatesModal';
 import './ManagerTabs.css';
@@ -147,6 +148,7 @@ function ClientsTab({ user }) {
   const [nextActionTargets, setNextActionTargets] = useState(null);
   const [editClient, setEditClient] = useState(null);
   const [selectedClientId, setSelectedClientId] = useState(null);
+  const [saleEditor, setSaleEditor] = useState({ open: false, sale: null, client: null, returnToCard: false });
 
   const searchRef = useRef(null);
   const selectAllRef = useRef(null);
@@ -245,7 +247,7 @@ function ClientsTab({ user }) {
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (showFormModal || showCardModal || showDuplicates || nextActionTargets) return;
+      if (showFormModal || showCardModal || showDuplicates || nextActionTargets || saleEditor.open) return;
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       e.preventDefault();
@@ -253,7 +255,7 @@ function ClientsTab({ user }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showFormModal, showCardModal, showDuplicates, nextActionTargets]);
+  }, [showFormModal, showCardModal, showDuplicates, nextActionTargets, saleEditor.open]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allOnPageSelected = clients.length > 0 && clients.every((c) => selectedSet.has(c._id));
@@ -323,6 +325,22 @@ function ClientsTab({ user }) {
   const handleAddNew = () => {
     setEditClient(null);
     setShowFormModal(true);
+  };
+
+  const handleOpenSaleFromCard = (sale, clientFromCard) => {
+    setShowCardModal(false);
+    setSaleEditor({
+      open: true,
+      sale: sale || null,
+      client: clientFromCard || null,
+      returnToCard: true,
+    });
+  };
+
+  const closeSaleEditor = () => {
+    const back = saleEditor.returnToCard && selectedClientId;
+    setSaleEditor({ open: false, sale: null, client: null, returnToCard: false });
+    if (back) setShowCardModal(true);
   };
 
   const runBulk = async (action, value, confirmText) => {
@@ -395,9 +413,9 @@ function ClientsTab({ user }) {
         className="ct-ring"
         style={{ '--pct': pct }}
         title={`Картку заповнено на ${pct}%. Не вистачає: ${missing}`}
-        aria-label={`Заповненість ${pct} відсотків`}
+        aria-label={`Заповненість картки ${pct} відсотків. Не вистачає: ${missing}`}
       >
-        {pct}
+        {pct}%
       </span>
     );
   };
@@ -452,10 +470,10 @@ function ClientsTab({ user }) {
           <button
             type="button"
             className="ct-next__add"
-            title="Запланувати наступний крок"
+            title="Запланувати наступний крок: дзвінок, зустріч, КП"
             onClick={() => setNextActionTargets([client])}
           >
-            + запланувати
+            <span aria-hidden="true">⏰</span>Запланувати
           </button>
         )}
       </div>
@@ -884,6 +902,17 @@ function ClientsTab({ user }) {
         onClose={() => { setShowCardModal(false); setSelectedClientId(null); }}
         clientId={selectedClientId}
         onEdit={handleEdit}
+        onOpenSale={handleOpenSaleFromCard}
+        user={user}
+      />
+
+      <SaleFormModal
+        open={saleEditor.open}
+        onClose={closeSaleEditor}
+        onSuccess={() => { refreshAll(); }}
+        onRefreshSale={(s) => setSaleEditor((prev) => ({ ...prev, sale: s }))}
+        editSale={saleEditor.sale}
+        initialClient={!saleEditor.sale && saleEditor.client ? saleEditor.client : null}
         user={user}
       />
 

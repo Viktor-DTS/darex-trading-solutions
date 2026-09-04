@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { searchClients } from '../../utils/clientsAPI';
 import ClientCardModal from './ClientCardModal';
+import SaleFormModal from './SaleFormModal';
 import './ManagerTabs.css';
 
 const DEBOUNCE_MS = 400;
@@ -12,6 +13,7 @@ function IncomingCallTab({ user }) {
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [selectedClientFromSearch, setSelectedClientFromSearch] = useState(null);
   const [showCardModal, setShowCardModal] = useState(false);
+  const [saleEditor, setSaleEditor] = useState({ open: false, sale: null, client: null });
   const debounceRef = useRef(null);
   const requestIdRef = useRef(0);
 
@@ -111,6 +113,24 @@ function IncomingCallTab({ user }) {
         onClose={() => { setShowCardModal(false); setSelectedClientId(null); setSelectedClientFromSearch(null); }}
         clientId={selectedClientId}
         initialClientFromSearch={selectedClientFromSearch}
+        user={user}
+        onOpenSale={(sale, clientFromCard) => {
+          setShowCardModal(false);
+          setSaleEditor({ open: true, sale: sale || null, client: clientFromCard || null });
+        }}
+      />
+
+      <SaleFormModal
+        open={saleEditor.open}
+        onClose={() => {
+          setSaleEditor({ open: false, sale: null, client: null });
+          if (selectedClientId) setShowCardModal(true);
+        }}
+        onSuccess={() => {}}
+        onRefreshSale={(s) => setSaleEditor((prev) => ({ ...prev, sale: s }))}
+        editSale={saleEditor.sale}
+        initialClient={!saleEditor.sale && saleEditor.client ? saleEditor.client : null}
+        user={user}
       />
     </div>
   );

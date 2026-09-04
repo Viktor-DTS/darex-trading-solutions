@@ -62,7 +62,23 @@
 }
 
 .proposed-equipment-table .col-amount { width: 120px; }
-.proposed-equipment-table .col-action { width: 44px; }
+.proposed-equipment-table .col-action { width: auto; }
+
+.proposed-equipment-editor .btn-equipment-shipment-request {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.proposed-equipment-editor .btn-equipment-shipment-request:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .proposed-equipment-summary {
   padding: 12px 16px;

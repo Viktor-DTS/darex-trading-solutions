@@ -9,6 +9,7 @@ import EquipmentEditor from './EquipmentEditor';
 import ProposedEquipmentEditor from './ProposedEquipmentEditor';
 import ClientFormModal from './ClientFormModal';
 import SaleShipmentRequestModal from './SaleShipmentRequestModal';
+import SaleProcurementModal from './SaleProcurementModal';
 import './SaleFormModal.css';
 
 const canAssignSaleManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
@@ -55,6 +56,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
   /** З /api/global-calculation-coefficients (sales): «Премія від продажів», % */
   const [salesBonusPercent, setSalesBonusPercent] = useState(null);
   const [showShipmentRequestModal, setShowShipmentRequestModal] = useState(false);
+  const [procurementLine, setProcurementLine] = useState(null);
   const [previewDealNumber, setPreviewDealNumber] = useState('');
   const addressMMRef = useRef(null);
   const addressMMAutocompleteRef = useRef(null);
@@ -778,6 +780,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                   <option key={u.login || u._id} value={u.login}>{u.name || u.login}</option>
                 ))}
               </select>
+              <small className="form-hint">Після збереження людина отримає сповіщення «вас долучили до угоди».</small>
             </div>
 
             <div className="form-group">
@@ -925,6 +928,8 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
               <ProposedEquipmentEditor
                 items={form.equipmentItems}
                 onChange={items => setForm(prev => ({ ...prev, equipmentItems: items }))}
+                saleId={editSale?._id || null}
+                onRequestProcurement={(item) => setProcurementLine(item)}
               />
             ) : (
               <EquipmentEditor
@@ -938,6 +943,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                 saleId={editSale?._id || null}
                 showShipmentRequestButton={!!editSale?._id && form.status === 'in_realization'}
                 onOpenShipmentRequest={() => setShowShipmentRequestModal(true)}
+                onRequestProcurement={(item) => setProcurementLine(item)}
                 lockedBypass={canAssignSaleManager(user?.role)}
               />
             )}
@@ -1117,6 +1123,16 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
           setShowClientForm(false);
         }}
         user={user}
+      />
+
+      <SaleProcurementModal
+        open={Boolean(procurementLine)}
+        onClose={() => setProcurementLine(null)}
+        sale={editSale}
+        line={procurementLine}
+        onCreated={(doc) => {
+          alert(`Заявку ${doc.requestNumber || ''} надіслано у відділ закупівель.`);
+        }}
       />
 
       <SaleShipmentRequestModal

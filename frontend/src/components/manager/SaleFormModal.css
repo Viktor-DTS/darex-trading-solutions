@@ -62,6 +62,13 @@
   font-weight: 500;
 }
 
+.sale-form-modal .form-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .sale-form-modal .form-group input,
 .sale-form-modal .form-group select,
 .sale-form-modal .form-group textarea {
