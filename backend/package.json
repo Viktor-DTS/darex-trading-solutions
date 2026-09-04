@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "node index.js",
     "postinstall": "node scripts/ensure-debug.js",
-    "render-build": "node scripts/rm-node-modules.js && npm ci",
+    "render-build": "node scripts/rm-node-modules.js && npm install --no-audit --no-fund",
     "test:analytics": "node lib/analytics/__tests__/analytics.pipeline.test.js && node lib/analytics/__tests__/analytics.routes.test.js",
     "test:assistant-eval": "node scripts/runAssistantEval.js"
   },
