@@ -17,7 +17,7 @@
 
 .equipment-editor-header .section-label {
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -78,7 +78,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -96,7 +96,7 @@
 
 .equipment-editor-pick-summary {
   font-size: 13px;
-  color: var(--text);
+  color: var(--text-primary);
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -160,7 +160,7 @@
 
 .equipment-row-total {
   font-weight: 500;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .btn-remove-equipment {
@@ -193,7 +193,7 @@
   background: var(--surface);
   border-top: 1px solid var(--border);
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .equipment-editor-summary strong {

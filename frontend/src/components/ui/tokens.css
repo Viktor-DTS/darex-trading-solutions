@@ -1,0 +1,58 @@
+/* Токени спільної UI-бібліотеки. Лише нові імена з префіксом --ds-,
+   щоб не перекривати глобальну палітру з index.css. */
+:root {
+  /* Поверхні */
+  --ds-surface: #16202f;
+  --ds-surface-2: #1b2739;
+  --ds-surface-3: #223047;
+  --ds-overlay: rgba(6, 12, 22, 0.68);
+
+  /* Межі */
+  --ds-border: #2a3a52;
+  --ds-border-strong: #3a4d6b;
+
+  /* Текст */
+  --ds-text: #e7eef9;
+  --ds-text-dim: #97a8c0;
+  --ds-text-faint: #6b7f9a;
+  /* Текст на суцільних кольорових заливках */
+  --ds-text-on-accent: #08111f;
+
+  /* Акцент */
+  --ds-accent: #5b9cf8;
+  --ds-accent-hover: #7cb0fa;
+  --ds-accent-soft: rgba(91, 156, 248, 0.14);
+  --ds-accent-border: rgba(91, 156, 248, 0.28);
+
+  /* Статуси */
+  --ds-success: #34d399;
+  --ds-success-soft: rgba(52, 211, 153, 0.14);
+  --ds-success-border: rgba(52, 211, 153, 0.3);
+  --ds-warning: #fbbf24;
+  --ds-warning-soft: rgba(251, 191, 36, 0.14);
+  --ds-warning-border: rgba(251, 191, 36, 0.3);
+  --ds-danger: #f87171;
+  --ds-danger-hover: #fa8f8f;
+  --ds-danger-soft: rgba(248, 113, 113, 0.14);
+  --ds-danger-border: rgba(248, 113, 113, 0.3);
+
+  /* Радіуси */
+  --ds-radius: 12px;
+  --ds-radius-sm: 8px;
+  --ds-radius-pill: 999px;
+
+  /* Відступи */
+  --ds-space-1: 4px;
+  --ds-space-2: 6px;
+  --ds-space-3: 8px;
+  --ds-space-4: 12px;
+  --ds-space-5: 16px;
+  --ds-space-6: 20px;
+  --ds-space-7: 24px;
+  --ds-space-8: 32px;
+
+  /* Інше */
+  --ds-focus-ring: 0 0 0 2px var(--ds-surface), 0 0 0 4px var(--ds-accent);
+  --ds-shadow: 0 10px 40px rgba(0, 0, 0, 0.38);
+  --ds-transition: 0.15s ease;
+}

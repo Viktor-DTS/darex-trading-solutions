@@ -34,7 +34,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   min-width: 220px;
 }
@@ -56,7 +56,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   min-width: 140px;
 }
@@ -66,7 +66,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 13px;
 }
@@ -274,7 +274,7 @@
 .result-name {
   font-weight: 600;
   font-size: 16px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .limited-badge {
@@ -287,13 +287,13 @@
 
 .result-edrpou {
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .result-phone {
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
@@ -345,7 +345,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   min-width: 140px;
 }

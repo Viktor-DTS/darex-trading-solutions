@@ -47,7 +47,7 @@
 .confirm-modal .modal-header h2 {
   margin: 0;
   font-size: 18px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .confirm-modal .btn-close {
@@ -65,7 +65,7 @@
 }
 
 .confirm-modal .btn-close:hover {
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .equipment-edit-modal {

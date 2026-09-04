@@ -95,7 +95,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   transition: background-color 0.2s;
   position: relative;
@@ -241,7 +241,7 @@
 .manager-header h2 {
   margin: 0;
   font-size: 20px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 @media (max-height: 720px) {
@@ -352,7 +352,7 @@
 
 .reservation-form-modal .modal-header h3 {
   margin: 0;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 18px;
 }
 
@@ -373,7 +373,7 @@
 
 .reservation-form-modal .btn-close:hover {
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .reservation-form-modal .modal-body {
@@ -389,7 +389,7 @@
   flex-direction: column;
   gap: 8px;
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .reservation-form-modal .form-group {
@@ -399,7 +399,7 @@
 .reservation-form-modal .form-group label {
   display: block;
   margin-bottom: 8px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
 }
@@ -416,7 +416,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -462,7 +462,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
 }
@@ -527,7 +527,7 @@
 
 .history-table th {
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-weight: 600;
   font-size: 13px;
   white-space: nowrap;
@@ -545,7 +545,7 @@
 }
 
 .history-table td {
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   vertical-align: top;
 }
@@ -635,7 +635,7 @@
 .reservation-form-modal .client-dropdown li {
   padding: 10px 14px;
   cursor: pointer;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 

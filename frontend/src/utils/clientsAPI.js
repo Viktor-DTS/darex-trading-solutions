@@ -28,6 +28,63 @@ export const getClients = async (params = {}) => {
   }
 };
 
+// Зведення по клієнтах для KPI (params: q, region, manager — ті самі, що у getClients)
+export const getClientsStats = async (params = {}) => {
+  try {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== '' && v !== undefined && v !== null) qs.set(k, String(v));
+    });
+    const url = qs.toString() ? `${API_BASE_URL}/clients/stats?${qs}` : `${API_BASE_URL}/clients/stats`;
+    const response = await fetch(url, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження зведення по клієнтах:', error);
+    return null;
+  }
+};
+
+// Ймовірні дублікати клієнтів (однаковий ЄДРПОУ / телефон / схожа назва)
+export const getClientDuplicates = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/clients/duplicates`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка пошуку дублікатів:', error);
+    return { groups: [], total: 0 };
+  }
+};
+
+// Планування/зняття наступного кроку по клієнту. Порожній at знімає нагадування.
+export const setClientNextAction = async (id, { at, type, note } = {}) => {
+  const response = await fetch(`${API_BASE_URL}/clients/${id}/next-action`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ at: at || null, type, note })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return await response.json();
+};
+
+// Масові дії: assignManager | assignManager2 | setRegion | setNextAction | clearNextAction
+export const bulkUpdateClients = async (ids, action, value) => {
+  const response = await fetch(`${API_BASE_URL}/clients/bulk`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ ids, action, value })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return await response.json();
+};
+
 // Один клієнт по ID
 export const getClient = async (id) => {
   try {

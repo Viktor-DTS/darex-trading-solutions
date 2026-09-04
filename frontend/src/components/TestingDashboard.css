@@ -25,7 +25,7 @@
 
 .testing-header h2 {
   margin: 0 0 8px 0;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 24px;
 }
 
@@ -47,7 +47,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s ease;
@@ -102,7 +102,7 @@
 
 .requests-table th {
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-weight: 600;
   font-size: 13px;
   white-space: nowrap;
@@ -118,7 +118,7 @@
 }
 
 .requests-table td {
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -253,7 +253,7 @@
 
 .modal-header h3 {
   margin: 0;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 18px;
 }
 
@@ -275,7 +275,7 @@
 
 .btn-close:hover {
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -306,7 +306,7 @@
 }
 
 .info-row .value {
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
 }
@@ -318,7 +318,7 @@
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
 }
@@ -329,7 +329,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   resize: vertical;
   min-height: 100px;
@@ -345,7 +345,7 @@
   border: 1px dashed var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   width: 100%;
   cursor: pointer;
 }
@@ -362,7 +362,7 @@
 
 .files-section h4 {
   margin: 0 0 12px 0;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -449,13 +449,13 @@
 
 .notes-section h4 {
   margin: 0 0 10px 0;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
 .notes-section p {
   margin: 0;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   white-space: pre-wrap;
 }
@@ -480,7 +480,7 @@
 
 .modal-footer .btn-cancel {
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   border: 1px solid var(--border);
 }
 
@@ -526,7 +526,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
 }
@@ -556,7 +556,7 @@
   border: 2px dashed var(--border);
   border-radius: 8px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   text-align: center;
   font-size: 14px;
   transition: all 0.2s ease;
@@ -610,13 +610,13 @@
 .result-block h4 {
   margin: 0 0 10px 0;
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .result-block p {
   margin: 0;
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-primary);
   white-space: pre-wrap;
   line-height: 1.5;
 }
@@ -680,7 +680,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -690,7 +690,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -700,7 +700,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
 }
@@ -739,7 +739,7 @@
   border: 2px dashed var(--border);
   border-radius: 8px;
   background: transparent;
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s ease;
@@ -769,12 +769,12 @@
   background: var(--surface);
   font-weight: 600;
   font-size: 13px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .materials-table td {
   font-size: 13px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .materials-table tbody tr:nth-child(even) {
@@ -811,7 +811,7 @@
 }
 
 .engineer-name {
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -1071,6 +1071,6 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
 }

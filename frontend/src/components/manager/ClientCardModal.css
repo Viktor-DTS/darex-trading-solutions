@@ -116,13 +116,13 @@
 .client-info-block h4 {
   margin: 0 0 10px;
   font-size: 17px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .client-info-block div {
   margin-bottom: 6px;
   font-size: 13px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .client-sales-block {
@@ -136,7 +136,7 @@
 .client-sales-block h4 {
   margin: 0 0 10px;
   font-size: 15px;
-  color: var(--text);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -261,7 +261,7 @@
 .deal-panel-header h4 {
   margin: 0 0 4px;
   font-size: 16px;
-  color: var(--text);
+  color: var(--text-primary);
   word-break: break-word;
 }
 
@@ -302,7 +302,7 @@
 .client-interactions-block h4 {
   margin: 0 0 10px;
   font-size: 15px;
-  color: var(--text);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -403,7 +403,7 @@
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px dashed var(--border);
-  color: var(--text);
+  color: var(--text-primary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

@@ -71,7 +71,7 @@
 .client-form-modal .form-group label {
   display: block;
   margin-bottom: 6px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
 }
@@ -83,7 +83,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -174,7 +174,7 @@
   flex-wrap: wrap;
   gap: 6px 10px;
   align-items: center;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 

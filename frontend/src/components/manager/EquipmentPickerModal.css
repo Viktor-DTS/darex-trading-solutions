@@ -34,7 +34,7 @@
   margin: 0;
   font-size: 17px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .equipment-picker-close {
@@ -54,7 +54,7 @@
 
 .equipment-picker-close:hover {
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .equipment-picker-toolbar {
@@ -73,7 +73,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -90,7 +90,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -141,7 +141,7 @@
 .equipment-picker-table tbody td {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
-  color: var(--text);
+  color: var(--text-primary);
   vertical-align: middle;
 }
 
@@ -174,7 +174,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
 }
 

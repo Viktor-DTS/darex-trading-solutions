@@ -1,0 +1,67 @@
+.na-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.na-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.na-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.na-field > span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ds-text-faint, #6b7f9a);
+}
+
+.na-field input,
+.na-field select,
+.na-field textarea {
+  padding: 9px 11px;
+  border-radius: var(--ds-radius-sm, 8px);
+  border: 1px solid var(--ds-border-strong, #3a4d6b);
+  background: var(--ds-surface-2, #1b2739);
+  color: var(--ds-text, #e7eef9);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.na-field textarea {
+  resize: vertical;
+  min-height: 62px;
+}
+
+.na-field input:focus,
+.na-field select:focus,
+.na-field textarea:focus {
+  outline: none;
+  border-color: var(--ds-accent, #5b9cf8);
+  box-shadow: var(--ds-focus-ring, 0 0 0 3px rgba(91, 156, 248, 0.35));
+}
+
+.na-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ds-danger, #f87171);
+}
+
+.na-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.na-actions__spacer {
+  flex: 1 1 auto;
+}

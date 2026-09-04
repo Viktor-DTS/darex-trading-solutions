@@ -51,13 +51,13 @@
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .sale-form-modal .form-group label {
   display: block;
   margin-bottom: 6px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
 }
@@ -70,7 +70,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -217,7 +217,7 @@
   flex-wrap: wrap;
   gap: 6px 10px;
   align-items: center;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -258,7 +258,7 @@
 
 .sale-status-history .status-from { text-decoration: line-through; margin-right: 6px; }
 .sale-status-history .status-arrow { margin: 0 6px; color: var(--primary); }
-.sale-status-history .status-to { font-weight: 600; color: var(--text); }
+.sale-status-history .status-to { font-weight: 600; color: var(--text-primary); }
 .sale-status-history .status-meta { margin-left: 10px; font-size: 12px; opacity: 0.8; }
 
 .sale-files-section .sale-files-list,
@@ -313,7 +313,7 @@
   background: var(--surface-dark);
   border-radius: 8px;
   font-size: 15px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .sale-total-block .sale-total-row {

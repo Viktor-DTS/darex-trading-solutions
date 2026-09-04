@@ -112,6 +112,10 @@ const {
   scheduleCashlessPendingJob,
 } = require('./assistantCashlessPending');
 const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
+const {
+  initClientCrmReminders,
+  scheduleClientCrmRemindersJob,
+} = require('./clientCrmReminders');
 const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 const { registerTenderRoutes } = require('./lib/tenderRoutes');
 const { registerVedRoutes, scheduleVedSupplierRegistryJob } = require('./lib/vedRoutes');
@@ -584,7 +588,9 @@ const MANAGER_NOTIFICATION_KINDS = [
   'ved_request_status',
   'warehouse_transfer_requested',
   'warehouse_transfer_approved',
-  'warehouse_transfer_rejected'
+  'warehouse_transfer_rejected',
+  'client_next_action_due',
+  'client_sleeping_digest'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -667,6 +673,7 @@ const managerUserNotificationSchema = new mongoose.Schema({
   /** Унікальний ключ, щоб не дублювати нагадування (3д/1д) та авто-зняття */
   dedupeKey: { type: String, sparse: true, unique: true },
   shipmentRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShipmentRequest' },
+  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', default: null },
   warehouseTransferRequestId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'WarehouseTransferRequest',
@@ -4198,8 +4205,15 @@ const clientSchema = new mongoose.Schema({
   createdByLogin: String,
   createdByName: String,
   region: String,
-  notes: String
+  notes: String,
+  // Наступний запланований крок по клієнту (нагадування менеджеру)
+  nextActionAt: Date,
+  nextActionType: { type: String, enum: ['call', 'meeting', 'email', 'quote', 'other'], default: 'call' },
+  nextActionNote: String
 }, { timestamps: true });
+
+clientSchema.index({ assignedManagerLogin: 1, nextActionAt: 1 });
+clientSchema.index({ assignedManagerLogin2: 1, nextActionAt: 1 });
 
 const Client = mongoose.model('Client', clientSchema);
 
@@ -7303,55 +7317,145 @@ function getClientWithAccessControl(client, user) {
   };
 }
 
+const CLIENT_NO_PHONE_CONDITION = {
+  $and: [
+    { $or: [{ contactPhone: { $in: [null, ''] } }, { contactPhone: { $exists: false } }] },
+    { 'contacts.phone': { $not: /\S/ } }
+  ]
+};
+const CLIENT_NO_EDRPOU_CONDITION = {
+  $or: [{ edrpou: { $in: [null, ''] } }, { edrpou: { $exists: false } }]
+};
+/** Поля, за якими рахується заповненість картки клієнта. */
+const CLIENT_PROFILE_FIELDS = ['edrpou', 'contactPerson', 'contactPhone', 'email', 'address', 'region'];
+const CLIENT_INCOMPLETE_CONDITION = {
+  $or: CLIENT_PROFILE_FIELDS.map((f) => ({ $or: [{ [f]: { $in: [null, ''] } }, { [f]: { $exists: false } }] }))
+};
+/** Скільки днів без взаємодій і без відкритих угод роблять клієнта «сплячим». */
+const CLIENT_SLEEPING_DAYS = 60;
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfTomorrow() {
+  const d = startOfToday();
+  d.setDate(d.getDate() + 1);
+  return d;
+}
+
+// Умови вибірки клієнтів з урахуванням ролі та фільтрів (?q, ?region, ?manager, ?flag)
+async function buildClientsQuery(req, { applyFlag = true } = {}) {
+  const conditions = [];
+  const roleScope = clientsRoleScope(req.user);
+  if (Object.keys(roleScope).length > 0) conditions.push(roleScope);
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const search = (req.query.q || req.query.search || '').trim();
+  if (search) {
+    const searchRegex = new RegExp(esc(search), 'i');
+    conditions.push({
+      $or: [
+        { name: searchRegex },
+        { edrpou: searchRegex },
+        { contactPhone: searchRegex },
+        { contactPerson: searchRegex },
+        { 'contacts.person': searchRegex },
+        { 'contacts.phone': searchRegex }
+      ]
+    });
+  }
+  const regionFilter = (req.query.region || '').trim();
+  if (regionFilter) {
+    conditions.push({ region: new RegExp(esc(regionFilter), 'i') });
+  }
+  const managerFilter = (req.query.manager || req.query.assignedManagerLogin || '').trim();
+  if (managerFilter && ['admin', 'administrator', 'mgradm'].includes(req.user?.role)) {
+    conditions.push({
+      $or: [
+        { assignedManagerLogin: managerFilter },
+        { assignedManagerLogin2: managerFilter }
+      ]
+    });
+  }
+  const flag = applyFlag ? String(req.query.flag || '').trim() : '';
+  if (flag === 'noPhone') {
+    conditions.push(CLIENT_NO_PHONE_CONDITION);
+  } else if (flag === 'noEdrpou') {
+    conditions.push(CLIENT_NO_EDRPOU_CONDITION);
+  } else if (flag === 'incomplete') {
+    conditions.push(CLIENT_INCOMPLETE_CONDITION);
+  } else if (flag === 'new30') {
+    conditions.push({ createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } });
+  } else if (flag === 'noDeals') {
+    const withDeals = await Sale.distinct('clientId');
+    conditions.push({ _id: { $nin: withDeals } });
+  } else if (flag === 'overdue') {
+    conditions.push({ nextActionAt: { $ne: null, $lt: startOfToday() } });
+  } else if (flag === 'today') {
+    conditions.push({ nextActionAt: { $gte: startOfToday(), $lt: startOfTomorrow() } });
+  } else if (flag === 'sleeping') {
+    conditions.push({ _id: { $nin: await getNonSleepingClientIds() } });
+  }
+  return conditions.length > 0 ? { $and: conditions } : {};
+}
+
+/** Клієнти, які НЕ вважаються сплячими: є відкрита угода або взаємодія за останні 60 днів. */
+async function getNonSleepingClientIds() {
+  const since = new Date(Date.now() - CLIENT_SLEEPING_DAYS * 24 * 60 * 60 * 1000);
+  const [withOpenDeals, recentlyTouched] = await Promise.all([
+    Sale.distinct('clientId', { status: { $in: CLIENT_OPEN_DEAL_STATUSES } }),
+    Interaction.distinct('entityId', { entityType: 'client', date: { $gte: since } })
+  ]);
+  return [...withOpenDeals, ...recentlyTouched];
+}
+
+// Угода вважається відкритою, поки не закрита успіхом або скасуванням
+const CLIENT_WON_DEAL_STATUSES = ['success', 'confirmed'];
+const CLIENT_OPEN_DEAL_STATUSES = [
+  'draft', 'primary_contact', 'quote_sent', 'in_negotiation', 'in_progress', 'in_realization', 'pnr'
+];
+
+const CLIENT_SORT_OPTIONS = {
+  name: { name: 1 },
+  '-name': { name: -1 },
+  '-createdAt': { createdAt: -1 },
+  createdAt: { createdAt: 1 },
+  '-updatedAt': { updatedAt: -1 },
+  // Сортування за датою наступного кроку — клієнти без нагадування йдуть у кінець
+  nextActionAt: { nextActionSortKey: 1, name: 1 }
+};
+const CLIENT_NO_NEXT_ACTION_SORT_DATE = new Date('2999-12-31T00:00:00.000Z');
+
 app.get('/api/clients', authenticateToken, async (req, res) => {
   try {
-    const conditions = [];
-    if (req.user?.role === 'manager') {
-      conditions.push({
-        $or: [
-          { assignedManagerLogin: req.user.login },
-          { assignedManagerLogin2: req.user.login }
-        ]
-      });
-    }
-    const search = (req.query.q || req.query.search || '').trim();
-    if (search) {
-      const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchRegex = new RegExp(esc(search), 'i');
-      conditions.push({
-        $or: [
-          { name: searchRegex },
-          { edrpou: searchRegex },
-          { contactPhone: searchRegex },
-          { contactPerson: searchRegex },
-          { 'contacts.person': searchRegex },
-          { 'contacts.phone': searchRegex }
-        ]
-      });
-    }
-    const regionFilter = (req.query.region || '').trim();
-    if (regionFilter) {
-      conditions.push({ region: new RegExp(regionFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
-    }
-    const managerFilter = (req.query.manager || req.query.assignedManagerLogin || '').trim();
-    if (managerFilter && ['admin', 'administrator', 'mgradm'].includes(req.user?.role)) {
-      conditions.push({
-        $or: [
-          { assignedManagerLogin: managerFilter },
-          { assignedManagerLogin2: managerFilter }
-        ]
-      });
-    }
-    const query = conditions.length > 0 ? { $and: conditions } : {};
+    const query = await buildClientsQuery(req);
+    const sort = CLIENT_SORT_OPTIONS[req.query.sort] || CLIENT_SORT_OPTIONS.name;
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 30));
     const usePagination = req.query.page !== undefined || req.query.limit !== undefined;
     let clients, total;
-    if (usePagination) {
+    if (req.query.sort === 'nextActionAt') {
+      // find() не вміє "nulls last", тому цей варіант рахуємо агрегацією
+      const pipeline = [
+        { $match: query },
+        { $addFields: { nextActionSortKey: { $ifNull: ['$nextActionAt', CLIENT_NO_NEXT_ACTION_SORT_DATE] } } },
+        { $sort: sort }
+      ];
+      if (usePagination) {
+        total = await Client.countDocuments(query);
+        clients = await Client.aggregate([...pipeline, { $skip: (page - 1) * limit }, { $limit: limit }]);
+      } else {
+        clients = await Client.aggregate(pipeline);
+        total = clients.length;
+      }
+      clients.forEach((c) => { delete c.nextActionSortKey; });
+    } else if (usePagination) {
       total = await Client.countDocuments(query);
-      clients = await Client.find(query).sort({ name: 1 }).skip((page - 1) * limit).limit(limit).lean();
+      clients = await Client.find(query).sort(sort).skip((page - 1) * limit).limit(limit).lean();
     } else {
-      clients = await Client.find(query).sort({ name: 1 }).lean();
+      clients = await Client.find(query).sort(sort).lean();
       total = clients.length;
     }
     if (clients.length > 0) {
@@ -7366,10 +7470,243 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
         if (c.assignedManagerLogin2) c.assignedManagerName2 = loginToName[c.assignedManagerLogin2] || c.assignedManagerLogin2;
       });
     }
+    // Агрегати по угодах та останній активності — лише на запит (?withStats=1), щоб не сповільнювати legacy-виклики
+    if (clients.length > 0 && String(req.query.withStats) === '1') {
+      const ids = clients.map(c => c._id);
+      const [dealRows, activityRows] = await Promise.all([
+        Sale.aggregate([
+          { $match: { clientId: { $in: ids } } },
+          {
+            $group: {
+              _id: '$clientId',
+              dealsTotal: { $sum: 1 },
+              dealsOpen: {
+                $sum: { $cond: [{ $in: ['$status', CLIENT_OPEN_DEAL_STATUSES] }, 1, 0] }
+              },
+              dealsWon: {
+                $sum: { $cond: [{ $in: ['$status', CLIENT_WON_DEAL_STATUSES] }, 1, 0] }
+              },
+              wonAmount: {
+                $sum: {
+                  $cond: [{ $in: ['$status', CLIENT_WON_DEAL_STATUSES] }, { $ifNull: ['$totalAmount', 0] }, 0]
+                }
+              },
+              lastDealDate: { $max: { $ifNull: ['$saleDate', '$createdAt'] } }
+            }
+          }
+        ]),
+        Interaction.aggregate([
+          { $match: { entityType: 'client', entityId: { $in: ids } } },
+          { $group: { _id: '$entityId', lastInteractionAt: { $max: '$date' } } }
+        ])
+      ]);
+      const dealsById = Object.fromEntries(dealRows.map(r => [String(r._id), r]));
+      const activityById = Object.fromEntries(activityRows.map(r => [String(r._id), r.lastInteractionAt]));
+      clients.forEach(c => {
+        const d = dealsById[String(c._id)];
+        const filled = CLIENT_PROFILE_FIELDS.filter((f) => String(c[f] || '').trim()).length;
+        c.stats = {
+          dealsTotal: d?.dealsTotal || 0,
+          dealsOpen: d?.dealsOpen || 0,
+          dealsWon: d?.dealsWon || 0,
+          wonAmount: d?.wonAmount || 0,
+          lastDealDate: d?.lastDealDate || null,
+          lastInteractionAt: activityById[String(c._id)] || null,
+          completeness: Math.round((filled / CLIENT_PROFILE_FIELDS.length) * 100),
+          missingFields: CLIENT_PROFILE_FIELDS.filter((f) => !String(c[f] || '').trim())
+        };
+      });
+    }
     if (usePagination) res.json({ clients, total, page, limit });
     else res.json(clients);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Зведення по клієнтах для KPI-карток (враховує ті самі фільтри, що й список)
+app.get('/api/clients/stats', authenticateToken, async (req, res) => {
+  try {
+    const query = await buildClientsQuery(req, { applyFlag: false });
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [
+      total, newLast30d, noPhone, noEdrpou, incomplete, overdueTasks, todayTasks, sleeping, clientIds
+    ] = await Promise.all([
+      Client.countDocuments(query),
+      Client.countDocuments({ $and: [query, { createdAt: { $gte: since30 } }] }),
+      Client.countDocuments({ $and: [query, CLIENT_NO_PHONE_CONDITION] }),
+      Client.countDocuments({ $and: [query, CLIENT_NO_EDRPOU_CONDITION] }),
+      Client.countDocuments({ $and: [query, CLIENT_INCOMPLETE_CONDITION] }),
+      Client.countDocuments({ $and: [query, { nextActionAt: { $ne: null, $lt: startOfToday() } }] }),
+      Client.countDocuments({ $and: [query, { nextActionAt: { $gte: startOfToday(), $lt: startOfTomorrow() } }] }),
+      getNonSleepingClientIds().then((ids) => Client.countDocuments({ $and: [query, { _id: { $nin: ids } }] })),
+      Client.find(query).select('_id').lean()
+    ]);
+    const ids = clientIds.map(c => c._id);
+    const dealRows = ids.length
+      ? await Sale.aggregate([
+          { $match: { clientId: { $in: ids } } },
+          {
+            $group: {
+              _id: null,
+              openDeals: { $sum: { $cond: [{ $in: ['$status', CLIENT_OPEN_DEAL_STATUSES] }, 1, 0] } },
+              clientsWithDeals: { $addToSet: '$clientId' }
+            }
+          }
+        ])
+      : [];
+    const agg = dealRows[0] || {};
+    res.json({
+      total,
+      newLast30d,
+      noPhone,
+      noEdrpou,
+      incomplete,
+      overdueTasks,
+      todayTasks,
+      sleeping,
+      openDeals: agg.openDeals || 0,
+      clientsWithDeals: (agg.clientsWithDeals || []).length,
+      clientsWithoutDeals: Math.max(0, total - (agg.clientsWithDeals || []).length)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Обмеження вибірки клієнтів за роллю, без пошукових фільтрів. */
+function clientsRoleScope(user) {
+  if (user?.role === 'manager') {
+    return { $or: [{ assignedManagerLogin: user.login }, { assignedManagerLogin2: user.login }] };
+  }
+  return {};
+}
+
+const CLIENT_LEGAL_FORM_RE = /\b(тов|пп|фоп|пат|прат|тзов|дп|кп|ат|ооо|чп|llc|ltd|inc)\b/gi;
+
+function normalizeClientName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/["'«»„“”`]/g, '')
+    .replace(CLIENT_LEGAL_FORM_RE, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .trim();
+}
+
+/** Останні 9 цифр — щоб +380671234567 і 0671234567 вважались одним номером. */
+function normalizePhoneKey(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length >= 9 ? digits.slice(-9) : '';
+}
+
+// Ймовірні дублікати клієнтів: однаковий ЄДРПОУ, телефон або нормалізована назва
+app.get('/api/clients/duplicates', authenticateToken, async (req, res) => {
+  try {
+    const clients = await Client.find(clientsRoleScope(req.user))
+      .select('name edrpou contactPhone contacts region assignedManagerLogin createdAt')
+      .lean();
+
+    const buckets = new Map();
+    const addTo = (reason, key, client) => {
+      if (!key) return;
+      const id = `${reason}:${key}`;
+      if (!buckets.has(id)) buckets.set(id, { reason, key, clients: [] });
+      buckets.get(id).clients.push(client);
+    };
+
+    clients.forEach((c) => {
+      const edrpou = String(c.edrpou || '').replace(/\D/g, '');
+      if (edrpou) addTo('edrpou', edrpou, c);
+      addTo('name', normalizeClientName(c.name), c);
+      const phones = [c.contactPhone, ...(c.contacts || []).map((x) => x.phone)];
+      new Set(phones.map(normalizePhoneKey).filter(Boolean)).forEach((p) => addTo('phone', p, c));
+    });
+
+    // Одна й та сама пара може збігтись за кількома ознаками — лишаємо найнадійнішу
+    const REASON_RANK = { edrpou: 3, phone: 2, name: 1 };
+    const REASON_LABEL = { edrpou: 'Однаковий ЄДРПОУ', phone: 'Однаковий телефон', name: 'Схожа назва' };
+    const bySignature = new Map();
+    [...buckets.values()]
+      .filter((g) => g.clients.length > 1)
+      .forEach((g) => {
+        const signature = g.clients.map((c) => String(c._id)).sort().join('|');
+        const prev = bySignature.get(signature);
+        if (!prev || REASON_RANK[g.reason] > REASON_RANK[prev.reason]) bySignature.set(signature, g);
+      });
+
+    const groups = [...bySignature.values()]
+      .sort((a, b) => REASON_RANK[b.reason] - REASON_RANK[a.reason] || b.clients.length - a.clients.length)
+      .slice(0, 100)
+      .map((g) => ({
+        reason: g.reason,
+        label: REASON_LABEL[g.reason],
+        matchedValue: g.key,
+        clients: g.clients.map((c) => ({
+          _id: c._id,
+          name: c.name,
+          edrpou: c.edrpou || '',
+          contactPhone: c.contactPhone || '',
+          region: c.region || '',
+          createdAt: c.createdAt
+        }))
+      }));
+
+    res.json({ groups, total: groups.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const CLIENT_BULK_ACTIONS = ['assignManager', 'assignManager2', 'setRegion', 'setNextAction', 'clearNextAction'];
+
+// Масові дії над вибраними клієнтами
+app.post('/api/clients/bulk', authenticateToken, async (req, res) => {
+  try {
+    const { ids, action, value } = req.body || {};
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Не вибрано жодного клієнта' });
+    if (ids.length > 500) return res.status(400).json({ error: 'За раз можна змінити не більше 500 клієнтів' });
+    if (!CLIENT_BULK_ACTIONS.includes(action)) return res.status(400).json({ error: 'Невідома дія' });
+    if ((action === 'assignManager' || action === 'assignManager2') && !canAssignManager(req.user)) {
+      return res.status(403).json({ error: 'Переназначення менеджера доступне лише адміністратору' });
+    }
+
+    const clients = await Client.find({ _id: { $in: ids } }).lean();
+    const allowedIds = clients
+      .filter((c) => {
+        const access = getClientWithAccessControl(c, req.user);
+        return access && !access.limited;
+      })
+      .map((c) => c._id);
+    if (allowedIds.length === 0) return res.status(403).json({ error: 'Немає доступу до вибраних клієнтів' });
+
+    let update;
+    if (action === 'assignManager') {
+      if (!value) return res.status(400).json({ error: 'Не вказано менеджера' });
+      update = { assignedManagerLogin: String(value) };
+    } else if (action === 'assignManager2') {
+      update = value ? { assignedManagerLogin2: String(value) } : { $unset: { assignedManagerLogin2: '' } };
+    } else if (action === 'setRegion') {
+      update = { region: String(value || '').trim() };
+    } else if (action === 'setNextAction') {
+      const at = value?.at ? new Date(value.at) : null;
+      if (!at || Number.isNaN(at.getTime())) return res.status(400).json({ error: 'Некоректна дата' });
+      update = { nextActionAt: at, nextActionType: value.type || 'call', nextActionNote: value.note || '' };
+    } else {
+      update = { $unset: { nextActionAt: '', nextActionNote: '' } };
+    }
+
+    const result = await Client.updateMany(
+      { _id: { $in: allowedIds } },
+      update.$unset ? update : { $set: update }
+    );
+    res.json({
+      ok: true,
+      matched: allowedIds.length,
+      modified: result.modifiedCount ?? 0,
+      skipped: ids.length - allowedIds.length
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -7534,6 +7871,30 @@ app.put('/api/clients/:id', authenticateToken, async (req, res) => {
       delete body.assignedManagerLogin2;
     }
     const client = await Client.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
+    res.json(client);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Швидке планування/зняття наступного кроку зі списку клієнтів
+app.patch('/api/clients/:id/next-action', authenticateToken, async (req, res) => {
+  try {
+    const existing = await Client.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    const access = getClientWithAccessControl(existing, req.user);
+    if (!access || access.limited) return res.status(403).json({ error: 'Немає доступу до клієнта' });
+
+    const { at, type, note } = req.body || {};
+    let update;
+    if (at) {
+      const date = new Date(at);
+      if (Number.isNaN(date.getTime())) return res.status(400).json({ error: 'Некоректна дата' });
+      update = { $set: { nextActionAt: date, nextActionType: type || 'call', nextActionNote: note || '' } };
+    } else {
+      update = { $unset: { nextActionAt: '', nextActionNote: '' } };
+    }
+    const client = await Client.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
     res.json(client);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -21331,6 +21692,15 @@ initAssistantAccountantRelay({
   createManagerNotificationDeduped,
 });
 scheduleCashlessPendingJob();
+
+initClientCrmReminders({
+  Client,
+  Sale,
+  Interaction,
+  createManagerNotificationDeduped,
+  openDealStatuses: CLIENT_OPEN_DEAL_STATUSES,
+});
+scheduleClientCrmRemindersJob();
 
 registerTenderRoutes(app, {
   User,

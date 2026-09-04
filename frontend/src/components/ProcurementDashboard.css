@@ -63,7 +63,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   line-height: 1.35;
   transition: background-color 0.2s;
@@ -150,7 +150,7 @@
   font-size: 1.35rem;
   font-weight: 600;
   margin: 0;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .procurement-hint {
@@ -197,7 +197,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   font: inherit;
   box-sizing: border-box;
 }
@@ -216,7 +216,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
 }
@@ -325,7 +325,7 @@
 
 .procurement-bulk-actions-count {
   font-size: 13px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .procurement-btn-bulk-delete {
@@ -524,7 +524,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
 }
@@ -802,7 +802,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .procurement-field--inline input[type='text'] {
@@ -961,7 +961,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   width: 100%;
   box-sizing: border-box;
 }
@@ -977,7 +977,7 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -1025,7 +1025,7 @@
   cursor: pointer;
   text-align: left;
   font: inherit;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .procurement-hint-item:hover {
@@ -1158,7 +1158,7 @@
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   min-width: 220px;
 }
 
@@ -1267,7 +1267,7 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   box-sizing: border-box;
 }
 
@@ -1417,7 +1417,7 @@
   resize: vertical;
   box-sizing: border-box;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .procurement-td-center {
@@ -1460,7 +1460,7 @@
 }
 
 .procurement-line-rejected-reason {
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .procurement-btn-reject-line,
@@ -1511,7 +1511,7 @@
   margin-top: 12px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .procurement-reject-reason-textarea {
@@ -1604,7 +1604,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-hover);
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 11px;
   line-height: 1.2;
@@ -1666,7 +1666,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
 }
 

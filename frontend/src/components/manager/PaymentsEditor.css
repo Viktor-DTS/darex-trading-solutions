@@ -17,7 +17,7 @@
 
 .payments-editor-header .section-label {
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -69,7 +69,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -112,7 +112,7 @@
   background: var(--surface);
   border-top: 1px solid var(--border);
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .payments-summary strong {

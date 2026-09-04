@@ -1540,7 +1540,7 @@ function EquipmentEditModal({
               paddingBottom: '15px',
               borderBottom: '1px solid var(--border)'
             }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text)' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text-primary)' }}>
                 {confirmAction === 'reserve' ? '🔒 Підтвердження резервування' : '🔓 Підтвердження скасування резервування'}
               </h2>
               <button 
@@ -1563,7 +1563,7 @@ function EquipmentEditModal({
                 ×
               </button>
             </div>
-            <div style={{ marginBottom: '20px', color: 'var(--text)' }}>
+            <div style={{ marginBottom: '20px', color: 'var(--text-primary)' }}>
               <p style={{ margin: 0, fontSize: '14px' }}>
                 {confirmAction === 'reserve' 
                   ? 'Ви впевнені, що хочете зарезервувати це обладнання?'
@@ -1584,7 +1584,7 @@ function EquipmentEditModal({
                   border: '1px solid var(--border)',
                   borderRadius: '5px',
                   background: 'var(--surface-dark)',
-                  color: 'var(--text)',
+                  color: 'var(--text-primary)',
                   cursor: 'pointer',
                   fontSize: '14px'
                 }}
@@ -1641,7 +1641,7 @@ function EquipmentEditModal({
               paddingBottom: '12px',
               borderBottom: '1px solid var(--border)'
             }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text)' }}>Передати резерв</h2>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text-primary)' }}>Передати резерв</h2>
               <button
                 type="button"
                 className="btn-close"
@@ -1676,7 +1676,7 @@ function EquipmentEditModal({
                     borderRadius: '6px',
                     border: '1px solid var(--border)',
                     background: 'var(--surface-dark)',
-                    color: 'var(--text)',
+                    color: 'var(--text-primary)',
                     fontSize: '14px'
                   }}
                 >
@@ -1741,7 +1741,7 @@ function EquipmentEditModal({
               background: 'var(--surface)',
               zIndex: 10
             }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text)' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text-primary)' }}>
                 📋 Інформація по тестуванню
               </h2>
               <button 
@@ -1776,19 +1776,19 @@ function EquipmentEditModal({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Тип обладнання:</span>
-                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.type || '—'}</div>
+                    <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{equipment.type || '—'}</div>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Серійний номер:</span>
-                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.serialNumber || '—'}</div>
+                    <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{equipment.serialNumber || '—'}</div>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Виробник:</span>
-                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.manufacturer || '—'}</div>
+                    <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{equipment.manufacturer || '—'}</div>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Склад:</span>
-                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.currentWarehouseName || '—'}</div>
+                    <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{equipment.currentWarehouseName || '—'}</div>
                   </div>
                 </div>
               </div>
@@ -1823,11 +1823,11 @@ function EquipmentEditModal({
               }}>
                 <div style={{ background: 'var(--surface-dark)', padding: '12px', borderRadius: '6px' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Тестував:</span>
-                  <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.testingCompletedByName || '—'}</div>
+                  <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{equipment.testingCompletedByName || '—'}</div>
                 </div>
                 <div style={{ background: 'var(--surface-dark)', padding: '12px', borderRadius: '6px' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Дата тестування:</span>
-                  <div style={{ color: 'var(--text)', fontWeight: '500' }}>
+                  <div style={{ color: 'var(--text-primary)', fontWeight: '500' }}>
                     {equipment.testingDate ? new Date(equipment.testingDate).toLocaleDateString('uk-UA', {
                       day: '2-digit',
                       month: '2-digit',
@@ -1848,7 +1848,7 @@ function EquipmentEditModal({
                   marginBottom: '15px'
                 }}>
                   <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>📋 Процедура тестування</h4>
-                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingProcedure}</p>
+                  <p style={{ margin: 0, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingProcedure}</p>
                 </div>
               )}
 
@@ -1860,7 +1860,7 @@ function EquipmentEditModal({
                   marginBottom: '15px'
                 }}>
                   <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>📊 Результат тестування</h4>
-                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingResult}</p>
+                  <p style={{ margin: 0, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingResult}</p>
                 </div>
               )}
 
@@ -1894,7 +1894,7 @@ function EquipmentEditModal({
                             padding: '8px 12px', 
                             textAlign: 'left', 
                             borderBottom: '1px solid var(--border)',
-                            color: 'var(--text)',
+                            color: 'var(--text-primary)',
                             fontSize: '13px',
                             fontWeight: '600'
                           }}>Тип матеріалу</th>
@@ -1902,7 +1902,7 @@ function EquipmentEditModal({
                             padding: '8px 12px', 
                             textAlign: 'left', 
                             borderBottom: '1px solid var(--border)',
-                            color: 'var(--text)',
+                            color: 'var(--text-primary)',
                             fontSize: '13px',
                             fontWeight: '600'
                           }}>Кількість</th>
@@ -1914,13 +1914,13 @@ function EquipmentEditModal({
                             <td style={{ 
                               padding: '8px 12px', 
                               borderBottom: '1px solid var(--border)',
-                              color: 'var(--text)',
+                              color: 'var(--text-primary)',
                               fontSize: '13px'
                             }}>{mat.type || '—'}</td>
                             <td style={{ 
                               padding: '8px 12px', 
                               borderBottom: '1px solid var(--border)',
-                              color: 'var(--text)',
+                              color: 'var(--text-primary)',
                               fontSize: '13px'
                             }}>{mat.quantity} {mat.unit}</td>
                           </tr>
@@ -1939,7 +1939,7 @@ function EquipmentEditModal({
                   marginBottom: '15px'
                 }}>
                   <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>📝 Додаткові примітки</h4>
-                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingNotes}</p>
+                  <p style={{ margin: 0, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingNotes}</p>
                 </div>
               )}
 
@@ -1955,19 +1955,19 @@ function EquipmentEditModal({
                     {equipment.testingEngineer1 && (
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <span style={{ color: 'var(--text-secondary)', fontSize: '13px', minWidth: '30px' }}>№1:</span>
-                        <span style={{ color: 'var(--text)', fontSize: '13px' }}>{equipment.testingEngineer1}</span>
+                        <span style={{ color: 'var(--text-primary)', fontSize: '13px' }}>{equipment.testingEngineer1}</span>
                       </div>
                     )}
                     {equipment.testingEngineer2 && (
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <span style={{ color: 'var(--text-secondary)', fontSize: '13px', minWidth: '30px' }}>№2:</span>
-                        <span style={{ color: 'var(--text)', fontSize: '13px' }}>{equipment.testingEngineer2}</span>
+                        <span style={{ color: 'var(--text-primary)', fontSize: '13px' }}>{equipment.testingEngineer2}</span>
                       </div>
                     )}
                     {equipment.testingEngineer3 && (
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <span style={{ color: 'var(--text-secondary)', fontSize: '13px', minWidth: '30px' }}>№3:</span>
-                        <span style={{ color: 'var(--text)', fontSize: '13px' }}>{equipment.testingEngineer3}</span>
+                        <span style={{ color: 'var(--text-primary)', fontSize: '13px' }}>{equipment.testingEngineer3}</span>
                       </div>
                     )}
                   </div>
