@@ -15,7 +15,7 @@ import './SaleFormModal.css';
 const canAssignSaleManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
 const TENDER_ROLES = new Set(['tender', 'tenderviddil', 'tendervid']);
-const ENGINEER_ROLES = new Set(['service']);
+const ENGINEER_ROLES = new Set(['service', 'regkerivn', 'igeniring', 'engineering', 'ingeniring']);
 
 function userRoleKey(u) {
   return String(u?.role || '').toLowerCase();
@@ -28,7 +28,17 @@ function isTenderRole(role) {
 
 function isEngineerRole(role) {
   const key = String(role || '').toLowerCase();
-  return ENGINEER_ROLES.has(key) || key.includes('engineer') || key.includes('інженер');
+  return ENGINEER_ROLES.has(key)
+    || key.includes('igenir')
+    || key.includes('ingenir')
+    || key.includes('engineer')
+    || key.includes('інженер');
+}
+
+function userOptionLabel(u) {
+  const name = u.name || u.login || '—';
+  const region = String(u.region || '').trim();
+  return region ? `${name} · ${region}` : name;
 }
 
 function sortUsersByName(list) {
@@ -466,17 +476,10 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     [allUsers]
   );
 
-  const engineerEmployees = useMemo(() => {
-    const seen = new Set();
-    return sortUsersByName(allUsers.filter((u) => {
-      const role = userRoleKey(u);
-      if (!isTenderRole(role) && !isEngineerRole(role)) return false;
-      const key = u.login || u._id;
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }));
-  }, [allUsers]);
+  const engineerEmployees = useMemo(
+    () => sortUsersByName(allUsers.filter((u) => isEngineerRole(userRoleKey(u)))),
+    [allUsers]
+  );
 
   const selectedClient = useMemo(() => {
     if (!form.clientId) return null;
@@ -942,7 +945,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                   >
                     <option value="">— Немає —</option>
                     {tenderEmployees.map(u => (
-                      <option key={u.login || u._id} value={u.login}>{u.name || u.login}</option>
+                      <option key={u.login || u._id} value={u.login}>{userOptionLabel(u)}</option>
                     ))}
                     {form.tenderEmployeeLogin && !tenderEmployees.some(u => u.login === form.tenderEmployeeLogin) && (
                       <option value={form.tenderEmployeeLogin}>{userLabel(form.tenderEmployeeLogin)}</option>
@@ -957,7 +960,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                   >
                     <option value="">— Оберіть —</option>
                     {engineerEmployees.map(u => (
-                      <option key={u.login || u._id} value={u.name || u.login}>{u.name || u.login}</option>
+                      <option key={u.login || u._id} value={u.name || u.login}>{userOptionLabel(u)}</option>
                     ))}
                     {form.engineer && !engineerEmployees.some(u => (u.name || u.login) === form.engineer) && (
                       <option value={form.engineer}>{form.engineer}</option>
