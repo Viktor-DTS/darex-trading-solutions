@@ -14,6 +14,27 @@ import './SaleFormModal.css';
 
 const canAssignSaleManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
+const TENDER_ROLES = new Set(['tender', 'tenderviddil', 'tendervid']);
+const ENGINEER_ROLES = new Set(['service']);
+
+function userRoleKey(u) {
+  return String(u?.role || '').toLowerCase();
+}
+
+function isTenderRole(role) {
+  const key = String(role || '').toLowerCase();
+  return TENDER_ROLES.has(key) || key.includes('tender') || key.includes('тендер');
+}
+
+function isEngineerRole(role) {
+  const key = String(role || '').toLowerCase();
+  return ENGINEER_ROLES.has(key) || key.includes('engineer') || key.includes('інженер');
+}
+
+function sortUsersByName(list) {
+  return [...list].sort((a, b) => (a.name || a.login || '').localeCompare(b.name || b.login || '', 'uk'));
+}
+
 const SALES_BONUS_PCT_ID = 'sales_bonus';
 
 function roundMoney(n) {
@@ -440,10 +461,22 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     return eq?.currentWarehouseName || eq?.currentWarehouse || '';
   }, [form.equipmentItems, equipmentWithSale]);
 
-  const serviceEmployees = useMemo(() =>
-    allUsers.filter(u => (u.role || '').toLowerCase() === 'service'),
+  const tenderEmployees = useMemo(
+    () => sortUsersByName(allUsers.filter((u) => isTenderRole(userRoleKey(u)))),
     [allUsers]
   );
+
+  const engineerEmployees = useMemo(() => {
+    const seen = new Set();
+    return sortUsersByName(allUsers.filter((u) => {
+      const role = userRoleKey(u);
+      if (!isTenderRole(role) && !isEngineerRole(role)) return false;
+      const key = u.login || u._id;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }));
+  }, [allUsers]);
 
   const selectedClient = useMemo(() => {
     if (!form.clientId) return null;
@@ -908,9 +941,12 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                     onChange={e => setForm(prev => ({ ...prev, tenderEmployeeLogin: e.target.value || '' }))}
                   >
                     <option value="">— Немає —</option>
-                    {allUsers.map(u => (
+                    {tenderEmployees.map(u => (
                       <option key={u.login || u._id} value={u.login}>{u.name || u.login}</option>
                     ))}
+                    {form.tenderEmployeeLogin && !tenderEmployees.some(u => u.login === form.tenderEmployeeLogin) && (
+                      <option value={form.tenderEmployeeLogin}>{userLabel(form.tenderEmployeeLogin)}</option>
+                    )}
                   </select>
                 </div>
                 <div className="form-group">
@@ -920,10 +956,10 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                     onChange={e => setForm(prev => ({ ...prev, engineer: e.target.value || '' }))}
                   >
                     <option value="">— Оберіть —</option>
-                    {serviceEmployees.map(u => (
+                    {engineerEmployees.map(u => (
                       <option key={u.login || u._id} value={u.name || u.login}>{u.name || u.login}</option>
                     ))}
-                    {form.engineer && !serviceEmployees.some(u => (u.name || u.login) === form.engineer) && (
+                    {form.engineer && !engineerEmployees.some(u => (u.name || u.login) === form.engineer) && (
                       <option value={form.engineer}>{form.engineer}</option>
                     )}
                   </select>
