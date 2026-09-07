@@ -21250,14 +21250,27 @@ app.get('/api/telegram/status', authenticateToken, async (req, res) => {
         webhookInfo = { error: e.message };
       }
     }
+    const webhookUrl = String(webhookInfo?.url || '');
+    const webhookHijackedByMarketing = /\/api\/marketing\/webhooks\/telegram/i.test(webhookUrl);
+    const expectedWebhookPath = '/api/telegram/webhook';
+    const webhookOk = Boolean(webhookUrl) && webhookUrl.includes(expectedWebhookPath) && !webhookHijackedByMarketing;
     res.json({
       botTokenConfigured: !!process.env.TELEGRAM_BOT_TOKEN,
       botUsername,
       botDisplayName: 'DTS-Service',
+      botPurpose: 'notifications',
       adminChatIdConfigured: !!(process.env.ADMIN_TELEGRAM_CHAT_ID || process.env.TELEGRAM_ADMIN_CHAT_ID),
       smsConfigured: smsService.isConfigured(),
       publicApiUrlConfigured: !!process.env.PUBLIC_API_URL,
       webhookInfo,
+      webhookOk,
+      webhookHijackedByMarketing,
+      webhookExpectedPath: expectedWebhookPath,
+      webhookWarning: webhookHijackedByMarketing
+        ? 'Webhook бота сповіщень зараз вказує на маркетинговий URL. Натисніть «Налаштувати webhook бота», щоб відновити реєстрацію та сповіщення.'
+        : (!webhookUrl && process.env.TELEGRAM_BOT_TOKEN
+          ? 'Webhook не встановлено. Натисніть «Налаштувати webhook бота».'
+          : null),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -21972,4 +21985,19 @@ scheduleTradingScanJob(getAssistantConnection);
 app.listen(PORT, () => {
   console.log(`🚀 NewServiceGidra Backend запущено на порту ${PORT}`);
   console.log(`📊 MongoDB: ${MONGODB_URI ? 'підключено' : 'не підключено'}`);
+
+  // Авто-відновлення: службовий бот не повинен слухати маркетинговий webhook лідів
+  if (process.env.TELEGRAM_BOT_TOKEN && process.env.PUBLIC_API_URL) {
+    setTimeout(() => {
+      telegramService.getWebhookInfo()
+        .then(async (info) => {
+          const url = String(info?.url || '');
+          if (!/\/api\/marketing\/webhooks\/telegram/i.test(url)) return;
+          console.warn('[TELEGRAM] Webhook hijacked by marketing path — restoring staff webhook:', url);
+          const restored = await telegramService.setupWebhook(process.env.PUBLIC_API_URL);
+          console.log('[TELEGRAM] Staff webhook restored:', restored.url);
+        })
+        .catch((e) => console.warn('[TELEGRAM] webhook auto-repair skipped:', e.message));
+    }, 5000);
+  }
 });

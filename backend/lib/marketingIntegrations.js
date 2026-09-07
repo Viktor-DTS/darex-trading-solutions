@@ -347,9 +347,47 @@ async function processGoogleLeadWebhook(deps, body) {
   });
 }
 
+/** Службовий бот Гідри (сповіщення / привʼязка chat ID). Не для лідів. */
+function getStaffTelegramToken() {
+  return String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
+}
+
+/**
+ * Окремий бот для маркетингових лідів.
+ * НІКОЛИ не використовує TELEGRAM_BOT_TOKEN — інакше webhook сповіщень перезаписується.
+ */
+function getMarketingTelegramToken() {
+  return String(process.env.MARKETING_TELEGRAM_BOT_TOKEN || '').trim();
+}
+
+function getMarketingTelegramUsername() {
+  return String(process.env.MARKETING_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim();
+}
+
+function assertMarketingTelegramConfigured() {
+  const marketing = getMarketingTelegramToken();
+  if (!marketing) {
+    const err = new Error(
+      'Маркетинговий Telegram-бот вимкнено. TELEGRAM_BOT_TOKEN зарезервовано для сповіщень «Гідра». '
+      + 'Для лідів додайте окремий MARKETING_TELEGRAM_BOT_TOKEN.'
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+  const staff = getStaffTelegramToken();
+  if (staff && marketing === staff) {
+    const err = new Error(
+      'MARKETING_TELEGRAM_BOT_TOKEN не може збігатися з TELEGRAM_BOT_TOKEN. '
+      + 'Службовий бот лише для реєстрації та сповіщень, не для лідів.'
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+  return marketing;
+}
+
 async function telegramApi(method, payload) {
-  const token = process.env.TELEGRAM_BOT_TOKEN || '';
-  if (!token) throw new Error('TELEGRAM_BOT_TOKEN not configured');
+  const token = assertMarketingTelegramConfigured();
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -391,14 +429,20 @@ function isValidPhone(value) {
 }
 
 async function finalizeBotLead(deps, BotSession, platform, chatId, data) {
+  if (platform === 'telegram') {
+    assertMarketingTelegramConfigured();
+  }
   const result = await createMarketingLeadFromInbound(deps, {
     source: platform,
-    sourceDetail: platform === 'telegram' ? process.env.TELEGRAM_BOT_USERNAME || '' : 'viber',
+    sourceDetail: platform === 'telegram'
+      ? (getMarketingTelegramUsername() || 'marketing-telegram-bot')
+      : 'viber',
     clientName: data.clientName,
     contactPhone: data.contactPhone,
     city: data.city,
     productInterest: data.productInterest,
     comment: data.comment || '',
+    interactionType: 'bot',
   }, {
     actorName: platform === 'telegram' ? 'Telegram Bot' : 'Viber Bot',
     historyNote: platform,
@@ -409,6 +453,8 @@ async function finalizeBotLead(deps, BotSession, platform, chatId, data) {
 }
 
 async function handleTelegramUpdate(deps, BotSession, update) {
+  assertMarketingTelegramConfigured();
+
   const message = update.message || update.edited_message;
   if (!message || message.chat?.type !== 'private') return { handled: false };
 
@@ -588,19 +634,32 @@ function getIntegrationStatus() {
     || process.env.RENDER_EXTERNAL_URL
     || 'https://darex-trading-solutions.onrender.com';
 
+  const staffToken = getStaffTelegramToken();
+  const marketingToken = getMarketingTelegramToken();
+  const sharedConflict = Boolean(staffToken && marketingToken && staffToken === marketingToken);
+  const telegramReady = Boolean(marketingToken) && !sharedConflict;
+
   return {
     baseUrl,
     inbound: Boolean(process.env.MARKETING_INBOUND_API_KEY),
     meta: Boolean(process.env.META_PAGE_ACCESS_TOKEN && process.env.META_VERIFY_TOKEN),
     metaProfiles: getMetaProfileStatus(),
     google: Boolean(process.env.GOOGLE_LEAD_WEBHOOK_KEY),
-    telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+    telegram: telegramReady,
+    telegramStaffBotReserved: Boolean(staffToken),
+    telegramSharedTokenBlocked: sharedConflict,
+    telegramNote: telegramReady
+      ? 'Окремий маркетинговий бот (MARKETING_TELEGRAM_BOT_TOKEN)'
+      : sharedConflict
+        ? 'Заблоковано: MARKETING_TELEGRAM_BOT_TOKEN збігається зі службовим TELEGRAM_BOT_TOKEN'
+        : 'Ліди з Telegram вимкнені. TELEGRAM_BOT_TOKEN лише для сповіщень «Гідра»; для лідів потрібен окремий MARKETING_TELEGRAM_BOT_TOKEN',
     viber: Boolean(process.env.VIBER_BOT_TOKEN),
     dedup: getDedupConfig(),
     webhooks: {
       meta: `${baseUrl}/api/marketing/webhooks/meta`,
       google: `${baseUrl}/api/marketing/webhooks/google`,
       telegram: `${baseUrl}/api/marketing/webhooks/telegram`,
+      telegramNotifications: `${baseUrl}/api/telegram/webhook`,
       viber: `${baseUrl}/api/marketing/webhooks/viber`,
       inbound: `${baseUrl}/api/marketing/leads/inbound`,
     },
@@ -627,4 +686,7 @@ module.exports = {
   telegramApi,
   viberApi,
   getIntegrationStatus,
+  getMarketingTelegramToken,
+  getStaffTelegramToken,
+  assertMarketingTelegramConfigured,
 };

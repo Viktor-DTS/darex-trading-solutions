@@ -31,11 +31,19 @@ const ENV_GROUPS = [
     vars: [{ key: 'GOOGLE_LEAD_WEBHOOK_KEY', label: 'google_key для webhook' }],
   },
   {
-    title: 'Telegram Bot',
+    title: 'Telegram (ліди) — окремий бот',
     vars: [
-      { key: 'TELEGRAM_BOT_TOKEN', label: 'Bot Token від @BotFather' },
-      { key: 'TELEGRAM_WEBHOOK_SECRET', label: 'Секрет у URL webhook (опційно)' },
-      { key: 'TELEGRAM_BOT_USERNAME', label: '@username бота' },
+      { key: 'MARKETING_TELEGRAM_BOT_TOKEN', label: 'Token окремого бота для лідів (НЕ TELEGRAM_BOT_TOKEN)' },
+      { key: 'MARKETING_TELEGRAM_BOT_USERNAME', label: '@username маркетингового бота' },
+      { key: 'MARKETING_TELEGRAM_WEBHOOK_SECRET', label: 'Секрет webhook (опційно)' },
+    ],
+  },
+  {
+    title: 'Telegram (Гідра) — лише сповіщення',
+    vars: [
+      { key: 'TELEGRAM_BOT_TOKEN', label: 'Службовий бот сповіщень (не для лідів)' },
+      { key: 'TELEGRAM_BOT_USERNAME', label: '@username службового бота' },
+      { key: 'TELEGRAM_WEBHOOK_SECRET', label: 'Секрет службового webhook' },
     ],
   },
   {
@@ -177,19 +185,37 @@ function MarketingIntegrationsTab() {
           <div className="marketing-api-hint" style={{ marginTop: 10, fontSize: 11 }}>{webhooks.google}</div>
         </div>
         <div className="marketing-integration-card">
-          <h4>Telegram Bot</h4>
-          <p>Діалог: ім’я → телефон → місто → продукт.</p>
+          <h4>Telegram Bot (ліди)</h4>
+          <p>
+            Окремий бот для анкети лідів. Службовий <code>TELEGRAM_BOT_TOKEN</code> (Гідра) сюди
+            не підключається — щоб не зламати реєстрацію й сповіщення.
+          </p>
           <span className={`marketing-integration-status marketing-integration-status--${flags.telegram ? 'ready' : 'planned'}`}>
-            {flags.telegram ? 'Token OK' : 'Додайте TELEGRAM_BOT_TOKEN'}
+            {flags.telegram ? 'Token OK' : (status?.telegramNote || 'Додайте MARKETING_TELEGRAM_BOT_TOKEN')}
           </span>
+          {status?.telegramNote && !flags.telegram && (
+            <div className="marketing-api-hint" style={{ marginTop: 8, fontSize: 11, color: '#fca5a5' }}>
+              {status.telegramNote}
+            </div>
+          )}
+          <div className="marketing-api-hint" style={{ marginTop: 10, fontSize: 11 }}>
+            Ліди: {webhooks.telegram}
+            {webhooks.telegramNotifications ? (
+              <>
+                <br />
+                Сповіщення Гідри: {webhooks.telegramNotifications}
+              </>
+            ) : null}
+          </div>
           <button
             type="button"
             className="marketing-btn marketing-btn-secondary"
             style={{ marginTop: 10 }}
             disabled={!flags.telegram || busy === 'telegram'}
             onClick={handleTelegramSetup}
+            title={!flags.telegram ? 'Потрібен окремий MARKETING_TELEGRAM_BOT_TOKEN' : ''}
           >
-            Підключити webhook
+            Підключити webhook лід-бота
           </button>
         </div>
         <div className="marketing-integration-card">

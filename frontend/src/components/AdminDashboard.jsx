@@ -2093,10 +2093,18 @@ function AdminDashboard({ user }) {
             </div>
           </div>
           {telegramStatus.webhookInfo?.url && (
-            <div className="status-warning ok">
+            <div className={`status-warning ${telegramStatus.webhookOk ? 'ok' : ''}`} style={telegramStatus.webhookHijackedByMarketing ? { borderColor: '#ef4444', color: '#fecaca' } : undefined}>
               🔗 Webhook: {telegramStatus.webhookInfo.url}
             </div>
           )}
+          {telegramStatus.webhookWarning && (
+            <div className="status-warning" style={{ borderColor: '#ef4444', color: '#fecaca' }}>
+              ⚠️ {telegramStatus.webhookWarning}
+            </div>
+          )}
+          <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.85 }}>
+            Цей бот лише для реєстрації Chat ID та сповіщень «Гідра». Маркетингові ліди сюди не підключаються.
+          </p>
           {!telegramStatus.botTokenConfigured && (
             <div className="status-warning">
               ⚠️ Для роботи сповіщень потрібно налаштувати TELEGRAM_BOT_TOKEN в змінних середовища

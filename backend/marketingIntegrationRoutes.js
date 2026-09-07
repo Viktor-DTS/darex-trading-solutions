@@ -11,6 +11,8 @@ const {
   telegramApi,
   viberApi,
   getIntegrationStatus,
+  getMarketingTelegramToken,
+  assertMarketingTelegramConfigured,
 } = require('./lib/marketingIntegrations');
 const { processMetaWebhookBody } = require('./lib/metaPhase2');
 const { runMetaConnectionTest } = require('./lib/metaConnectionTest');
@@ -107,15 +109,24 @@ function registerMarketingIntegrationRoutes(app, deps) {
       if (!canAccessMarketingPanel(req.user)) {
         return res.status(403).json({ error: 'Немає доступу' });
       }
+      // Окремий маркетинговий токен — ніколи не перезаписує webhook бота сповіщень «Гідра»
+      assertMarketingTelegramConfigured();
+
       const status = getIntegrationStatus();
-      const secret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+      const secret = process.env.MARKETING_TELEGRAM_WEBHOOK_SECRET
+        || process.env.TELEGRAM_WEBHOOK_SECRET
+        || '';
       const url = secret
         ? `${status.webhooks.telegram}?secret=${encodeURIComponent(secret)}`
         : status.webhooks.telegram;
       await telegramApi('setWebhook', { url, allowed_updates: ['message', 'edited_message'] });
-      res.json({ ok: true, url });
+      res.json({
+        ok: true,
+        url,
+        note: 'Webhook встановлено лише для MARKETING_TELEGRAM_BOT_TOKEN (не службовий бот Гідри).',
+      });
     } catch (e) {
-      res.status(400).json({ error: e.message });
+      res.status(e.statusCode || 400).json({ error: e.message });
     }
   });
 
@@ -180,10 +191,19 @@ function registerMarketingIntegrationRoutes(app, deps) {
     }
   });
 
-  // Telegram bot webhook
+  // Telegram marketing bot webhook (окремий MARKETING_TELEGRAM_BOT_TOKEN)
   app.post('/api/marketing/webhooks/telegram', async (req, res) => {
     try {
-      const secret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+      if (!getMarketingTelegramToken()) {
+        return res.status(503).json({
+          error: 'Marketing Telegram bot disabled. Staff notifications use /api/telegram/webhook.',
+        });
+      }
+      assertMarketingTelegramConfigured();
+
+      const secret = process.env.MARKETING_TELEGRAM_WEBHOOK_SECRET
+        || process.env.TELEGRAM_WEBHOOK_SECRET
+        || '';
       if (secret) {
         const q = String(req.query.secret || '');
         if (q !== secret) return res.status(401).json({ error: 'Unauthorized' });
@@ -192,7 +212,7 @@ function registerMarketingIntegrationRoutes(app, deps) {
       res.json({ ok: true, ...result });
     } catch (e) {
       console.error('[TELEGRAM BOT]', e);
-      res.status(500).json({ error: e.message });
+      res.status(e.statusCode || 500).json({ error: e.message });
     }
   });
 
