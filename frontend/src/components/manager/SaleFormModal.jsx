@@ -60,6 +60,10 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
   const [previewDealNumber, setPreviewDealNumber] = useState('');
   const addressMMRef = useRef(null);
   const addressMMAutocompleteRef = useRef(null);
+  const formRef = useRef(null);
+  const [copiedKey, setCopiedKey] = useState('');
+  const [showExtras, setShowExtras] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const [form, setForm] = useState({
     clientId: '',
@@ -260,8 +264,10 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
 
   // Google Places Autocomplete для адреси ММ (як у заявках)
   useEffect(() => {
-    if (!open) return;
+    if (!open || !showExtras) return;
+    let cancelled = false;
     const initAutocomplete = () => {
+      if (cancelled) return;
       if (!addressMMRef.current) {
         setTimeout(initAutocomplete, 100);
         return;
@@ -285,10 +291,11 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     };
     const t = setTimeout(initAutocomplete, 50);
     return () => {
+      cancelled = true;
       clearTimeout(t);
       addressMMAutocompleteRef.current = null;
     };
-  }, [open]);
+  }, [open, showExtras]);
 
   useEffect(() => {
     if (open) {
@@ -301,6 +308,34 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
       });
     }
   }, [open, user?.role]);
+
+  useEffect(() => {
+    if (!open) return;
+    const has = Boolean(
+      editSale?.addressMM
+      || editSale?.buyer
+      || editSale?.invoiceNumber
+      || editSale?.paymentMethod
+      || editSale?.partner
+      || editSale?.partnerContactName
+      || editSale?.warehouseName
+    );
+    setShowExtras(has || !!viewOnly);
+    setShowHistory(!!viewOnly);
+    setCopiedKey('');
+  }, [open, editSale, viewOnly]);
+
+  useEffect(() => {
+    if (!open || viewOnly) return undefined;
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        formRef.current?.requestSubmit();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, viewOnly]);
 
   useEffect(() => {
     const q = (form.edrpou || '').trim();
@@ -409,6 +444,58 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     allUsers.filter(u => (u.role || '').toLowerCase() === 'service'),
     [allUsers]
   );
+
+  const selectedClient = useMemo(() => {
+    if (!form.clientId) return null;
+    const fromList = clients.find((c) => String(c._id) === String(form.clientId));
+    if (fromList) return fromList;
+    const fromSale = editSale?.clientId;
+    if (fromSale && typeof fromSale === 'object' && String(fromSale._id) === String(form.clientId)) {
+      return fromSale;
+    }
+    return null;
+  }, [clients, form.clientId, editSale]);
+
+  const clientPhone = selectedClient?.contactPhone
+    || selectedClient?.contacts?.[0]?.phone
+    || '';
+  const clientPerson = selectedClient?.contactPerson
+    || selectedClient?.contacts?.[0]?.person
+    || '';
+
+  const dealNumberRaw = editSale?.saleNumber || previewDealNumber || '';
+  const dealNumberLabel = dealNumberRaw
+    ? `№ ${dealNumberRaw}`
+    : (editSale ? 'Буде присвоєно після збереження' : '№ NU-…');
+
+  const extrasFilledCount = [
+    form.addressMM,
+    form.buyer,
+    form.paymentMethod,
+    form.invoiceNumber,
+    form.partner,
+    form.partnerContactName,
+    warehouseFromEquipment || form.warehouseName
+  ].filter(Boolean).length;
+
+  const copyValue = async (text, key) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      window.setTimeout(() => {
+        setCopiedKey((cur) => (cur === key ? '' : cur));
+      }, 1600);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  const userLabel = (login) => {
+    if (!login) return '';
+    const u = allUsers.find((x) => x.login === login);
+    return u?.name || login;
+  };
 
   const filteredClients = clients.filter(c =>
     (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) ||
@@ -598,49 +685,57 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
   if (!open) return null;
 
   const isViewOnly = !!viewOnly;
+  const statusLocked = !!editSale?.premiumAccruedAt;
+  const money = (n, digits = 0) =>
+    (Number(n) || 0).toLocaleString('uk-UA', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal-content sale-form-modal${isViewOnly ? ' sale-form-modal--view-only' : ''}`} onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{isViewOnly ? '👁️ Перегляд угоди' : editSale ? '✏️ Редагувати продаж' : '💰 Новий продаж'}</h3>
-          <button className="btn-close" onClick={onClose}>×</button>
+        <div className="modal-header sale-form-header">
+          <div className="sale-form-header-top">
+            <div className="sale-form-title-wrap">
+              <p className="sale-form-kicker">{isViewOnly ? 'Перегляд' : editSale ? 'Редагування' : 'Нова угода'}</p>
+              <h3>{isViewOnly ? 'Угода' : editSale ? 'Редагувати продаж' : 'Новий продаж'}</h3>
+            </div>
+            <div className="sale-deal-badge" title="Номер формується автоматично">
+              <span className="sale-deal-badge-label">Номер</span>
+              <strong>{dealNumberLabel}</strong>
+              {dealNumberRaw ? (
+                <button
+                  type="button"
+                  className="sale-copy-btn"
+                  onClick={() => copyValue(dealNumberRaw, 'deal')}
+                  title="Скопіювати номер угоди"
+                >
+                  {copiedKey === 'deal' ? 'Скопійовано' : 'Копіювати'}
+                </button>
+              ) : null}
+            </div>
+            <button type="button" className="btn-close" onClick={onClose} aria-label="Закрити">×</button>
+          </div>
+          <div className="sale-status-pills" role="radiogroup" aria-label="Статус угоди">
+            {SALE_STATUS_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={form.status === o.value}
+                className={`sale-status-pill sale-status-pill--${o.value}${form.status === o.value ? ' is-active' : ''}`}
+                onClick={() => setForm((prev) => ({ ...prev, status: o.value }))}
+                disabled={isViewOnly || statusLocked}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form ref={formRef} className="sale-form" onSubmit={handleSubmit}>
           <fieldset className="sale-form-fieldset" disabled={isViewOnly}>
           <div className="modal-body sale-form-body">
-            <div className="form-group sale-deal-number-field">
-              <label>Номер угоди</label>
-              <input
-                type="text"
-                readOnly
-                className="field-readonly"
-                value={
-                  editSale
-                    ? editSale.saleNumber
-                      ? `№ ${editSale.saleNumber}`
-                      : 'Буде присвоєно після збереження (NU-#####)'
-                    : previewDealNumber
-                      ? `№ ${previewDealNumber}`
-                      : '№ NU-…'
-                }
-                title="Номер формується автоматично, редагування недоступне"
-              />
-              <span className="sale-deal-number-hint">Формат № NU-#####, присвоюється системою</span>
-            </div>
             {editSale?.premiumAccruedAt && (
-              <div
-                className="sale-premium-accrued-banner"
-                style={{
-                  marginBottom: 16,
-                  padding: '12px 14px',
-                  borderRadius: 8,
-                  background: 'var(--success-bg, rgba(46, 125, 50, 0.12))',
-                  border: '1px solid var(--success-border, rgba(46, 125, 50, 0.35))',
-                  fontSize: 14
-                }}
-              >
+              <div className="sale-premium-accrued-banner">
                 <strong>Премію затверджено</strong> бухгалтерією відділу продажів
                 {editSale.premiumAccrualPeriod ? ` (період ${editSale.premiumAccrualPeriod})` : ''}.
                 {editSale.premiumAccruedByLogin ? ` Користувач: ${editSale.premiumAccruedByLogin}.` : ''}{' '}
@@ -650,279 +745,311 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                 </strong>
               </div>
             )}
-            <div className="form-group">
-              <label>Клієнт <span className="required">*</span></label>
-              <div className="client-autocomplete-with-btn">
-                <div className="client-autocomplete">
-                  <input
-                    type="text"
-                    value={clientSearch}
-                    onChange={e => {
-                      setClientSearch(e.target.value);
-                      setShowClientDropdown(true);
-                      if (!e.target.value) setForm(prev => ({ ...prev, clientId: '', clientName: '', edrpou: '' }));
-                    }}
-                    onFocus={() => setShowClientDropdown(true)}
-                    onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
-                    placeholder="Пошук за назвою або ЄДРПОУ"
-                  />
-                  {showClientDropdown && (
-                    <ul className="client-dropdown">
-                      {filteredClients.slice(0, 10).map(c => (
-                        <li key={c._id} onMouseDown={() => handleSelectClient(c)}>
-                          <span>{c.name}</span>
-                          {c.edrpou && <span className="edrpou-badge">{c.edrpou}</span>}
-                        </li>
-                      ))}
-                      {filteredClients.length === 0 && <li className="empty">Клієнтів не знайдено</li>}
-                      <li className="add-client-item" onMouseDown={() => { setShowClientDropdown(false); setShowClientForm(true); }}>
-                        <span className="add-client-btn">+ Створити нового клієнта</span>
-                      </li>
-                    </ul>
-                  )}
-                </div>
-                <button type="button" className="btn-add-client" onClick={() => setShowClientForm(true)} title="Створити клієнта">
-                  + Клієнт
-                </button>
-              </div>
-            </div>
 
-            <div className="form-group">
-              <label>ЄДРПОУ</label>
-              <div className="client-autocomplete edrpou-autocomplete">
-                <input
-                  type="text"
-                  value={form.edrpou || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setForm((prev) => ({ ...prev, edrpou: val }));
-                    setShowEdrpouDropdown(true);
-                    if (!val.trim()) {
-                      setForm((prev) => ({ ...prev, clientId: '', clientName: '' }));
-                      setClientSearch('');
-                    }
-                  }}
-                  onFocus={() => setShowEdrpouDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowEdrpouDropdown(false), 200)}
-                  placeholder="ЄДРПОУ — підказка з CRM та реєстрів"
-                  autoComplete="off"
-                />
-                {edrpouLookupLoading && (
-                  <span className="edrpou-lookup-status" aria-live="polite">
-                    <span className="edrpou-lookup-spinner" aria-hidden />
-                    Шукаємо…
-                  </span>
-                )}
-                {showEdrpouDropdown && (form.edrpou || '').trim().length >= 2 && (
-                  <ul className="client-dropdown">
-                    {edrpouLookupLoading && edrpouSuggestions.length === 0 && (
-                      <li className="empty">Пошук у CRM та реєстрах…</li>
+            <section className="sale-section">
+              <div className="sale-section-head">
+                <h4>Клієнт</h4>
+                <p className="sale-section-lead">Пошук за назвою або ЄДРПОУ. Номер угоди присвоює система.</p>
+              </div>
+              <div className="sale-grid sale-grid-2">
+                <div className="form-group">
+                  <label>Клієнт <span className="required">*</span></label>
+                  <div className="client-autocomplete-with-btn">
+                    <div className="client-autocomplete">
+                      <input
+                        type="text"
+                        value={clientSearch}
+                        onChange={e => {
+                          setClientSearch(e.target.value);
+                          setShowClientDropdown(true);
+                          if (!e.target.value) setForm(prev => ({ ...prev, clientId: '', clientName: '', edrpou: '' }));
+                        }}
+                        onFocus={() => setShowClientDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
+                        placeholder="Пошук за назвою або ЄДРПОУ"
+                      />
+                      {showClientDropdown && (
+                        <ul className="client-dropdown">
+                          {filteredClients.slice(0, 10).map(c => (
+                            <li key={c._id} onMouseDown={() => handleSelectClient(c)}>
+                              <span>{c.name}</span>
+                              {c.edrpou && <span className="edrpou-badge">{c.edrpou}</span>}
+                            </li>
+                          ))}
+                          {filteredClients.length === 0 && <li className="empty">Клієнтів не знайдено</li>}
+                          <li className="add-client-item" onMouseDown={() => { setShowClientDropdown(false); setShowClientForm(true); }}>
+                            <span className="add-client-btn">+ Створити нового клієнта</span>
+                          </li>
+                        </ul>
+                      )}
+                    </div>
+                    <button type="button" className="btn-add-client" onClick={() => setShowClientForm(true)} title="Створити клієнта">
+                      + Клієнт
+                    </button>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>ЄДРПОУ</label>
+                  <div className="client-autocomplete edrpou-autocomplete">
+                    <input
+                      type="text"
+                      value={form.edrpou || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setForm((prev) => ({ ...prev, edrpou: val }));
+                        setShowEdrpouDropdown(true);
+                        if (!val.trim()) {
+                          setForm((prev) => ({ ...prev, clientId: '', clientName: '' }));
+                          setClientSearch('');
+                        }
+                      }}
+                      onFocus={() => setShowEdrpouDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowEdrpouDropdown(false), 200)}
+                      placeholder="ЄДРПОУ — підказка з CRM та реєстрів"
+                      autoComplete="off"
+                    />
+                    {edrpouLookupLoading && (
+                      <span className="edrpou-lookup-status" aria-live="polite">
+                        <span className="edrpou-lookup-spinner" aria-hidden />
+                        Шукаємо…
+                      </span>
                     )}
-                    {!edrpouLookupLoading && edrpouSuggestions.length === 0 && (
-                      <li className="empty">За цим ЄДРПОУ нічого не знайдено</li>
-                    )}
-                    {edrpouSuggestions.slice(0, 10).map((c, idx) => (
-                      <li
-                        key={c._id || `registry-${c.edrpou}-${idx}`}
-                        onMouseDown={() => handleSelectEdrpouSuggestion(c)}
-                      >
-                        <span className="edrpou-badge">{c.edrpou || '—'}</span>
-                        <span>{c.name}</span>
-                        {c.lookupSource && (
-                          <span className="edrpou-source-badge">{edrpouSourceLabel(c.lookupSource)}</span>
+                    {showEdrpouDropdown && (form.edrpou || '').trim().length >= 2 && (
+                      <ul className="client-dropdown">
+                        {edrpouLookupLoading && edrpouSuggestions.length === 0 && (
+                          <li className="empty">Пошук у CRM та реєстрах…</li>
                         )}
-                        {c.contactPhone && <span className="client-dropdown-phone">{c.contactPhone}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-
-            {canAssignSaleManager(user?.role) && (
-              <>
-                <div className="form-group">
-                  <label>Відповідальний менеджер <span className="required">*</span></label>
-                  <select
-                    value={form.managerLogin}
-                    onChange={e => setForm(prev => ({ ...prev, managerLogin: e.target.value }))}
-                    required
-                  >
-                    <option value="">— Оберіть менеджера —</option>
-                    {managers.map(m => (
-                      <option key={m.login || m._id} value={m.login}>{m.name || m.login}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Другий відповідальний</label>
-                  <select
-                    value={form.managerLogin2 || ''}
-                    onChange={e => setForm(prev => ({ ...prev, managerLogin2: e.target.value || '' }))}
-                  >
-                    <option value="">— Немає —</option>
-                    {managers.filter(m => m.login !== form.managerLogin).map(m => (
-                      <option key={m.login || m._id} value={m.login}>{m.name || m.login}</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-
-            <div className="form-group">
-              <label>Співробітник тендерного відділу</label>
-              <select
-                value={form.tenderEmployeeLogin || ''}
-                onChange={e => setForm(prev => ({ ...prev, tenderEmployeeLogin: e.target.value || '' }))}
-              >
-                <option value="">— Немає —</option>
-                {allUsers.map(u => (
-                  <option key={u.login || u._id} value={u.login}>{u.name || u.login}</option>
-                ))}
-              </select>
-              <small className="form-hint">Після збереження людина отримає сповіщення «вас долучили до угоди».</small>
-            </div>
-
-            <div className="form-group">
-              <label>Інженер</label>
-              <select
-                value={form.engineer || ''}
-                onChange={e => setForm(prev => ({ ...prev, engineer: e.target.value || '' }))}
-              >
-                <option value="">— Оберіть —</option>
-                {serviceEmployees.map(u => (
-                  <option key={u.login || u._id} value={u.name || u.login}>{u.name || u.login}</option>
-                ))}
-                {form.engineer && !serviceEmployees.some(u => (u.name || u.login) === form.engineer) && (
-                  <option value={form.engineer}>{form.engineer}</option>
-                )}
-              </select>
-            </div>
-
-            <div className="sale-form-additional-section">
-              <h4 className="section-title">Додаткові дані угоди</h4>
-              <div className="form-row">
-                <div className="form-group autocomplete-wrapper">
-                  <label>Адрес ММ (об'єкт)</label>
-                  <input
-                    ref={addressMMRef}
-                    type="text"
-                    value={form.addressMM || ''}
-                    onChange={e => setForm(prev => ({ ...prev, addressMM: e.target.value }))}
-                    placeholder="Почніть вводити адресу..."
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Фактичний покупець (опція)</label>
-                  <input
-                    type="text"
-                    value={form.buyer || ''}
-                    onChange={e => setForm(prev => ({ ...prev, buyer: e.target.value }))}
-                    placeholder="Фактичний покупець"
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Спосіб оплати</label>
-                  <select
-                    value={form.paymentMethod || ''}
-                    onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                  >
-                    {PAYMENT_METHOD_OPTIONS.map(o => (
-                      <option key={o.value || 'empty'} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Номер видаткової накладної/Дата</label>
-                  <input
-                    type="text"
-                    value={form.invoiceNumber || ''}
-                    onChange={e => setForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
-                    placeholder="Номер / Дата"
-                    disabled={form.paymentMethod !== 'Безготівка'}
-                  />
-                </div>
-              </div>
-              {editSale?._id && (
-                <div className="form-group sale-invoice-files-section">
-                  <label>Файли видаткової накладної</label>
-                  <div className="sale-files-list">
-                    {saleInvoiceFiles.length > 0 ? (
-                      saleInvoiceFiles.map(f => (
-                        <button key={f.id || f._id} type="button" className="sale-file-link" onClick={() => openSaleFile(f.id || f._id)} title="Відкрити/скачати">
-                          📎 {f.originalName || 'Файл'}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="sale-no-files">Немає файлів</span>
+                        {!edrpouLookupLoading && edrpouSuggestions.length === 0 && (
+                          <li className="empty">За цим ЄДРПОУ нічого не знайдено</li>
+                        )}
+                        {edrpouSuggestions.slice(0, 10).map((c, idx) => (
+                          <li
+                            key={c._id || `registry-${c.edrpou}-${idx}`}
+                            onMouseDown={() => handleSelectEdrpouSuggestion(c)}
+                          >
+                            <span className="edrpou-badge">{c.edrpou || '—'}</span>
+                            <span>{c.name}</span>
+                            {c.lookupSource && (
+                              <span className="edrpou-source-badge">{edrpouSourceLabel(c.lookupSource)}</span>
+                            )}
+                            {c.contactPhone && <span className="client-dropdown-phone">{c.contactPhone}</span>}
+                          </li>
+                        ))}
+                      </ul>
                     )}
-                    <label className="sale-btn-upload">
-                      <input type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" multiple hidden onChange={handleSaleInvoiceFileUpload} />
-                      {invoiceFilesUploading ? 'Завантаження...' : '+ Завантажити файл'}
-                    </label>
+                  </div>
+                </div>
+              </div>
+              {(form.clientId || form.clientName) && (
+                <div className="sale-client-card">
+                  <div className="sale-client-card-main">
+                    <strong>{form.clientName || selectedClient?.name || 'Клієнт'}</strong>
+                    {form.edrpou ? <span>ЄДРПОУ {form.edrpou}</span> : <span className="sale-muted">ЄДРПОУ не вказано</span>}
+                  </div>
+                  <div className="sale-client-card-meta">
+                    {clientPerson ? <span>{clientPerson}</span> : null}
+                    {clientPhone ? (
+                      <a href={`tel:${clientPhone.replace(/[^\d+]/g, '')}`}>{clientPhone}</a>
+                    ) : null}
+                    {selectedClient?.region ? <span>{selectedClient.region}</span> : null}
+                    {form.edrpou ? (
+                      <button
+                        type="button"
+                        className="sale-copy-btn"
+                        onClick={() => copyValue(form.edrpou, 'edrpou')}
+                      >
+                        {copiedKey === 'edrpou' ? 'ЄДРПОУ скопійовано' : 'Копіювати ЄДРПОУ'}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               )}
-              <div className="form-row">
+            </section>
+
+            <section className="sale-section">
+              <div className="sale-section-head">
+                <h4>Команда</h4>
+                <p className="sale-section-lead">Після збереження нові учасники отримають сповіщення «вас долучили до угоди».</p>
+              </div>
+              <div className="sale-grid sale-grid-2">
+                {canAssignSaleManager(user?.role) && (
+                  <>
+                    <div className="form-group">
+                      <label>Відповідальний менеджер <span className="required">*</span></label>
+                      <select
+                        value={form.managerLogin}
+                        onChange={e => setForm(prev => ({ ...prev, managerLogin: e.target.value }))}
+                        required
+                      >
+                        <option value="">— Оберіть менеджера —</option>
+                        {managers.map(m => (
+                          <option key={m.login || m._id} value={m.login}>{m.name || m.login}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Другий відповідальний</label>
+                      <select
+                        value={form.managerLogin2 || ''}
+                        onChange={e => setForm(prev => ({ ...prev, managerLogin2: e.target.value || '' }))}
+                      >
+                        <option value="">— Немає —</option>
+                        {managers.filter(m => m.login !== form.managerLogin).map(m => (
+                          <option key={m.login || m._id} value={m.login}>{m.name || m.login}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
                 <div className="form-group">
-                  <label>Склад відвантаження</label>
-                  <input
-                    type="text"
-                    value={warehouseFromEquipment || form.warehouseName || ''}
-                    readOnly
-                    placeholder="Автоматично з обладнання"
-                    className="field-readonly"
-                  />
+                  <label>Співробітник тендерного відділу</label>
+                  <select
+                    value={form.tenderEmployeeLogin || ''}
+                    onChange={e => setForm(prev => ({ ...prev, tenderEmployeeLogin: e.target.value || '' }))}
+                  >
+                    <option value="">— Немає —</option>
+                    {allUsers.map(u => (
+                      <option key={u.login || u._id} value={u.login}>{u.name || u.login}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Інженер</label>
+                  <select
+                    value={form.engineer || ''}
+                    onChange={e => setForm(prev => ({ ...prev, engineer: e.target.value || '' }))}
+                  >
+                    <option value="">— Оберіть —</option>
+                    {serviceEmployees.map(u => (
+                      <option key={u.login || u._id} value={u.name || u.login}>{u.name || u.login}</option>
+                    ))}
+                    {form.engineer && !serviceEmployees.some(u => (u.name || u.login) === form.engineer) && (
+                      <option value={form.engineer}>{form.engineer}</option>
+                    )}
+                  </select>
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Партнер</label>
-                  <input
-                    type="text"
-                    value={form.partner || ''}
-                    onChange={e => setForm(prev => ({ ...prev, partner: e.target.value }))}
-                    placeholder="Назва партнера"
-                  />
+              {(form.managerLogin || form.managerLogin2 || form.tenderEmployeeLogin || form.engineer) && (
+                <div className="sale-team-chips">
+                  {form.managerLogin ? <span className="sale-chip">Менеджер: {userLabel(form.managerLogin)}</span> : null}
+                  {form.managerLogin2 ? <span className="sale-chip">Другий: {userLabel(form.managerLogin2)}</span> : null}
+                  {form.tenderEmployeeLogin ? <span className="sale-chip">Тендер: {userLabel(form.tenderEmployeeLogin)}</span> : null}
+                  {form.engineer ? <span className="sale-chip">Інженер: {form.engineer}</span> : null}
                 </div>
-                <div className="form-group">
-                  <label>ФІО контактної особи партнера</label>
-                  <input
-                    type="text"
-                    value={form.partnerContactName || ''}
-                    onChange={e => setForm(prev => ({ ...prev, partnerContactName: e.target.value }))}
-                    placeholder="ПІБ"
-                  />
+              )}
+            </section>
+
+            <section className="sale-section">
+              <div className="sale-section-head sale-section-head--toggle">
+                <div>
+                  <h4>Обʼєкт, оплата і партнер</h4>
+                  <p className="sale-section-lead">Адреса ММ, спосіб оплати, накладна, склад і партнер.</p>
                 </div>
+                <button
+                  type="button"
+                  className="sale-section-toggle"
+                  onClick={() => setShowExtras((v) => !v)}
+                  aria-expanded={showExtras}
+                >
+                  {showExtras ? 'Згорнути' : extrasFilledCount ? `Розгорнути · ${extrasFilledCount}` : 'Розгорнути'}
+                </button>
               </div>
-            </div>
-
-            <div className="form-group">
-              <label>Статус угоди</label>
-              <select
-                value={form.status || 'in_negotiation'}
-                onChange={e => setForm(prev => ({ ...prev, status: e.target.value }))}
-              >
-                {SALE_STATUS_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Знижка, %</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={form.discountPercent || ''}
-                onChange={e => setForm(prev => ({ ...prev, discountPercent: e.target.value }))}
-              />
-            </div>
+              {showExtras && (
+                <div className="sale-form-additional-section">
+                  <div className="sale-grid sale-grid-2">
+                    <div className="form-group autocomplete-wrapper">
+                      <label>Адреса ММ (обʼєкт)</label>
+                      <input
+                        ref={addressMMRef}
+                        type="text"
+                        value={form.addressMM || ''}
+                        onChange={e => setForm(prev => ({ ...prev, addressMM: e.target.value }))}
+                        placeholder="Почніть вводити адресу..."
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Фактичний покупець</label>
+                      <input
+                        type="text"
+                        value={form.buyer || ''}
+                        onChange={e => setForm(prev => ({ ...prev, buyer: e.target.value }))}
+                        placeholder="Якщо відрізняється від клієнта"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Спосіб оплати</label>
+                      <select
+                        value={form.paymentMethod || ''}
+                        onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                      >
+                        {PAYMENT_METHOD_OPTIONS.map(o => (
+                          <option key={o.value || 'empty'} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Номер видаткової накладної / дата</label>
+                      <input
+                        type="text"
+                        value={form.invoiceNumber || ''}
+                        onChange={e => setForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
+                        placeholder="Номер / дата"
+                        disabled={form.paymentMethod !== 'Безготівка'}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Склад відвантаження</label>
+                      <input
+                        type="text"
+                        value={warehouseFromEquipment || form.warehouseName || ''}
+                        readOnly
+                        placeholder="Автоматично з обладнання"
+                        className="field-readonly"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Партнер</label>
+                      <input
+                        type="text"
+                        value={form.partner || ''}
+                        onChange={e => setForm(prev => ({ ...prev, partner: e.target.value }))}
+                        placeholder="Назва партнера"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Контактна особа партнера</label>
+                      <input
+                        type="text"
+                        value={form.partnerContactName || ''}
+                        onChange={e => setForm(prev => ({ ...prev, partnerContactName: e.target.value }))}
+                        placeholder="ПІБ"
+                      />
+                    </div>
+                  </div>
+                  {editSale?._id && (
+                    <div className="form-group sale-invoice-files-section">
+                      <label>Файли видаткової накладної</label>
+                      <div className="sale-files-list">
+                        {saleInvoiceFiles.length > 0 ? (
+                          saleInvoiceFiles.map(f => (
+                            <button key={f.id || f._id} type="button" className="sale-file-link" onClick={() => openSaleFile(f.id || f._id)} title="Відкрити/скачати">
+                              {f.originalName || 'Файл'}
+                            </button>
+                          ))
+                        ) : (
+                          <span className="sale-no-files">Немає файлів</span>
+                        )}
+                        <label className="sale-btn-upload">
+                          <input type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" multiple hidden onChange={handleSaleInvoiceFileUpload} />
+                          {invoiceFilesUploading ? 'Завантаження...' : '+ Завантажити файл'}
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
 
             {form.status === 'in_negotiation' ? (
               <ProposedEquipmentEditor
@@ -948,81 +1075,96 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
               />
             )}
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>Дата продажу</label>
-                {form.status === 'in_negotiation' ? (
-                  <div className="field-placeholder">—</div>
-                ) : (
+            <section className="sale-section">
+              <div className="sale-section-head">
+                <h4>Умови та витрати</h4>
+                <p className="sale-section-lead">Дата, гарантія, знижка і витрати по угоді.</p>
+              </div>
+              <div className="sale-grid sale-grid-3">
+                <div className="form-group">
+                  <label>Дата продажу</label>
+                  {form.status === 'in_negotiation' ? (
+                    <div className="field-placeholder">Доступно після переходу в реалізацію</div>
+                  ) : (
+                    <input
+                      type="date"
+                      value={form.saleDate}
+                      onChange={e => setForm(prev => ({ ...prev, saleDate: e.target.value }))}
+                      required
+                    />
+                  )}
+                </div>
+                <div className="form-group">
+                  <label>Гарантія</label>
+                  {form.status === 'in_negotiation' ? (
+                    <div className="field-placeholder">Доступно після переходу в реалізацію</div>
+                  ) : (
+                    <select
+                      value={form.warrantyMonths}
+                      onChange={e => setForm(prev => ({ ...prev, warrantyMonths: parseInt(e.target.value) }))}
+                    >
+                      <option value={6}>6 місяців</option>
+                      <option value={12}>12 місяців</option>
+                      <option value={24}>24 місяці</option>
+                      <option value={36}>36 місяців</option>
+                    </select>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label>Знижка, %</label>
                   <input
-                    type="date"
-                    value={form.saleDate}
-                    onChange={e => setForm(prev => ({ ...prev, saleDate: e.target.value }))}
-                    required
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={form.discountPercent || ''}
+                    onChange={e => setForm(prev => ({ ...prev, discountPercent: e.target.value }))}
                   />
-                )}
+                </div>
+                <div className="form-group">
+                  <label>Транспортні, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.transportCosts || ''}
+                    onChange={e => setForm(prev => ({ ...prev, transportCosts: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>ПНР, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.pnrCosts || ''}
+                    onChange={e => setForm(prev => ({ ...prev, pnrCosts: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Представницькі, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.representativeCosts || ''}
+                    onChange={e => setForm(prev => ({ ...prev, representativeCosts: e.target.value }))}
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Гарантія (місяців)</label>
-                {form.status === 'in_negotiation' ? (
-                  <div className="field-placeholder">—</div>
-                ) : (
-                  <select
-                    value={form.warrantyMonths}
-                    onChange={e => setForm(prev => ({ ...prev, warrantyMonths: parseInt(e.target.value) }))}
-                  >
-                    <option value={6}>6</option>
-                    <option value={12}>12</option>
-                    <option value={24}>24</option>
-                    <option value={36}>36</option>
-                  </select>
-                )}
-              </div>
-            </div>
-
-            <div className="form-row form-row-3">
-              <div className="form-group">
-                <label>Транспортні витрати, ₴</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.transportCosts || ''}
-                  onChange={e => setForm(prev => ({ ...prev, transportCosts: e.target.value }))}
-                />
-              </div>
-              <div className="form-group">
-                <label>ПНР витрати, ₴</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.pnrCosts || ''}
-                  onChange={e => setForm(prev => ({ ...prev, pnrCosts: e.target.value }))}
-                />
-              </div>
-              <div className="form-group">
-                <label>Представницькі, ₴</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.representativeCosts || ''}
-                  onChange={e => setForm(prev => ({ ...prev, representativeCosts: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <AdditionalCostsEditor
-              costs={form.additionalCosts}
-              onChange={costs => setForm(prev => ({ ...prev, additionalCosts: costs }))}
-            />
+              <AdditionalCostsEditor
+                costs={form.additionalCosts}
+                onChange={costs => setForm(prev => ({ ...prev, additionalCosts: costs }))}
+              />
+            </section>
 
             {form.status === 'in_negotiation' ? (
-              <div className="form-group">
-                <label>Платежі</label>
-                <div className="field-placeholder">—</div>
-              </div>
+              <section className="sale-section">
+                <div className="sale-section-head">
+                  <h4>Платежі</h4>
+                </div>
+                <div className="field-placeholder">Платежі зʼявляться після переходу в реалізацію угоди</div>
+              </section>
             ) : (
               <PaymentsEditor
                 payments={form.payments || [{ id: '1', date: new Date().toISOString().slice(0, 10), amount: 0 }]}
@@ -1030,86 +1172,98 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
               />
             )}
 
-            <div className="form-group">
-              <label>Примітки</label>
-              <textarea
-                value={form.notes}
-                onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder="Додаткові примітки"
-                rows={2}
-              />
-            </div>
-
-            {editSale?._id && (editSale.statusHistory || []).length > 0 && (
-              <div className="form-group sale-status-history">
-                <label>Історія зміни статусів</label>
-                <ul className="status-history-list">
-                  {(editSale.statusHistory || []).map((h, idx) => (
-                    <li key={idx}>
-                      <span className="status-from">{statusLabel(h.from)}</span>
-                      <span className="status-arrow">→</span>
-                      <span className="status-to">{statusLabel(h.to)}</span>
-                      <span className="status-meta">
-                        {h.date ? new Date(h.date).toLocaleString('uk-UA') : ''}
-                        {h.userLogin && ` · ${h.userLogin}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+            <section className="sale-section">
+              <div className="sale-section-head">
+                <h4>Примітки та файли</h4>
               </div>
-            )}
-
-            {editSale?._id && (
-              <div className="form-group sale-files-section">
-                <label>Файли угоди</label>
-                <div className="sale-files-list">
-                  {saleFiles.length > 0 ? (
-                    saleFiles.map(f => (
-                      <button key={f.id || f._id} type="button" className="sale-file-link" onClick={() => openSaleFile(f.id || f._id)} title="Відкрити/скачати">
-                        📎 {f.originalName || 'Файл'}
-                      </button>
-                    ))
-                  ) : (
-                    <span className="sale-no-files">Немає файлів</span>
-                  )}
-                  <label className="sale-btn-upload">
-                    <input type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" multiple hidden onChange={handleSaleFileUpload} />
-                    {filesUploading ? 'Завантаження...' : '+ Завантажити файл'}
-                  </label>
+              <div className="form-group">
+                <label>Примітки</label>
+                <textarea
+                  value={form.notes}
+                  onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Додаткові примітки для команди"
+                  rows={3}
+                />
+              </div>
+              {editSale?._id && (
+                <div className="form-group sale-files-section">
+                  <label>Файли угоди{saleFiles.length ? ` · ${saleFiles.length}` : ''}</label>
+                  <div className="sale-files-list">
+                    {saleFiles.length > 0 ? (
+                      saleFiles.map(f => (
+                        <button key={f.id || f._id} type="button" className="sale-file-link" onClick={() => openSaleFile(f.id || f._id)} title="Відкрити/скачати">
+                          {f.originalName || 'Файл'}
+                        </button>
+                      ))
+                    ) : (
+                      <span className="sale-no-files">Немає файлів</span>
+                    )}
+                    <label className="sale-btn-upload">
+                      <input type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" multiple hidden onChange={handleSaleFileUpload} />
+                      {filesUploading ? 'Завантаження...' : '+ Завантажити файл'}
+                    </label>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="sale-total-block">
-              <div className="sale-total-row">
-                <strong>Загальна сума тільки Відвантажене обладнання:</strong>
-                <span>{totalEquipmentAmount.toLocaleString('uk-UA')} ₴</span>
-              </div>
-              <div className="sale-total-row">
-                <strong>Загальна сума мінус всі витрати на угоду:</strong>
-                <span>{totalWithAllExpenses.toLocaleString('uk-UA')} ₴</span>
-              </div>
-              <div className="sale-total-row">
-                <strong>Премія за виконану угоду:</strong>
-                <span title="Значення «Премія від продажів» (%) з Фінансового відділу ÷ 100 × сума з урахуванням витрат">
-                  {completedDealPremium.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₴
-                </span>
-              </div>
-            </div>
+              )}
+              {editSale?._id && (editSale.statusHistory || []).length > 0 && (
+                <div className="form-group sale-status-history">
+                  <button
+                    type="button"
+                    className="sale-section-toggle sale-section-toggle--inline"
+                    onClick={() => setShowHistory((v) => !v)}
+                    aria-expanded={showHistory}
+                  >
+                    Історія статусів · {(editSale.statusHistory || []).length} {showHistory ? '▾' : '▸'}
+                  </button>
+                  {showHistory && (
+                    <ul className="status-history-list">
+                      {(editSale.statusHistory || []).map((h, idx) => (
+                        <li key={idx}>
+                          <span className="status-from">{statusLabel(h.from)}</span>
+                          <span className="status-arrow">→</span>
+                          <span className="status-to">{statusLabel(h.to)}</span>
+                          <span className="status-meta">
+                            {h.date ? new Date(h.date).toLocaleString('uk-UA') : ''}
+                            {h.userLogin && ` · ${h.userLogin}`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </section>
           </div>
           </fieldset>
 
-          <div className="modal-footer">
-            {isViewOnly ? (
-              <button type="button" className="btn-primary" onClick={onClose}>Закрити</button>
-            ) : (
-              <>
-                <button type="button" className="btn-cancel" onClick={onClose} disabled={loading}>Скасувати</button>
-                <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? 'Збереження...' : (editSale ? 'Зберегти' : '💰 Створити продаж')}
-                </button>
-              </>
-            )}
+          <div className="modal-footer sale-form-footer">
+            <div className="sale-footer-totals" aria-label="Підсумок угоди">
+              <div className="sale-footer-total">
+                <span>Обладнання</span>
+                <strong>{money(totalEquipmentAmount)} ₴</strong>
+              </div>
+              <div className="sale-footer-total">
+                <span>Після витрат</span>
+                <strong>{money(totalWithAllExpenses)} ₴</strong>
+              </div>
+              <div className="sale-footer-total sale-footer-total--accent">
+                <span title="«Премія від продажів» з фінансового відділу × сума після витрат">Премія</span>
+                <strong>{money(completedDealPremium, 2)} ₴</strong>
+              </div>
+            </div>
+            <div className="sale-footer-actions">
+              {isViewOnly ? (
+                <button type="button" className="btn-primary" onClick={onClose}>Закрити</button>
+              ) : (
+                <>
+                  <span className="sale-save-hint">Ctrl+S</span>
+                  <button type="button" className="btn-cancel" onClick={onClose} disabled={loading}>Скасувати</button>
+                  <button type="submit" className="btn-primary" disabled={loading || !form.clientId}>
+                    {loading ? 'Збереження...' : (editSale ? 'Зберегти' : 'Створити продаж')}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </form>
       </div>
