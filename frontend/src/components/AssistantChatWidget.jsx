@@ -8,15 +8,117 @@ import AddTaskModal from './AddTaskModal';
 import { AssistantMessageContent } from './assistantChatFormat';
 import './AssistantChatWidget.css';
 
-const PANEL_DEFAULT = { width: 440, height: 560 };
-const PANEL_WIDE = { width: 620, height: 680 };
-const PANEL_MIN_WIDTH = 340;
+const PANEL_DEFAULT = { width: 420, height: 560 };
+const PANEL_WIDE = { width: 560, height: 680 };
+const PANEL_MIN_WIDTH = 360;
 const PANEL_MIN_HEIGHT = 380;
+
+const SUGGESTIONS = [
+  { id: 'invoice', label: 'Що без рахунку?', text: 'Покажи заявки без рахунку', inbox: true },
+  { id: 'find', label: 'Знайти заявку', text: 'Знайди заявку KV-', fillOnly: true },
+  { id: 'help', label: 'Що ти вмієш?', text: 'Коротко: що ти вмієш і як з тобою працювати?' },
+];
+
+function AssistantIcon({ name }) {
+  const stroke = {
+    width: 16,
+    height: 16,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  };
+  switch (name) {
+    case 'mark':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="4.2" y="4.2" width="15.6" height="15.6" rx="5" stroke="#67e8f9" strokeWidth="1.6" />
+          <circle cx="12" cy="12" r="2.5" fill="#67e8f9" />
+        </svg>
+      );
+    case 'plus':
+      return (
+        <svg {...stroke}>
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      );
+    case 'history':
+      return (
+        <svg {...stroke}>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 8v4l3 2" />
+        </svg>
+      );
+    case 'inbox':
+      return (
+        <svg {...stroke}>
+          <path d="M4 8h16v11H4z" />
+          <path d="M4 13h4l2 2.5h4L16 13h4" />
+        </svg>
+      );
+    case 'wide':
+      return (
+        <svg {...stroke}>
+          <path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" />
+        </svg>
+      );
+    case 'full':
+      return (
+        <svg {...stroke}>
+          <path d="M9 4H4v5M15 4h5v5M4 15v5h5M20 15v5h-5" />
+        </svg>
+      );
+    case 'window':
+      return (
+        <svg {...stroke}>
+          <rect x="5" y="6" width="14" height="12" rx="2" />
+        </svg>
+      );
+    case 'close':
+      return (
+        <svg {...stroke}>
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      );
+    case 'info':
+      return (
+        <svg {...stroke}>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 11v5M12 8h.01" />
+        </svg>
+      );
+    case 'send':
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 19V5M6 11l6-6 6 6" />
+        </svg>
+      );
+    case 'report':
+      return (
+        <svg {...stroke}>
+          <path d="M12 9v4M12 16h.01" />
+          <path d="M10.3 5.6 3.8 16.6A2 2 0 0 0 5.5 19.5h13a2 2 0 0 0 1.7-2.9L13.7 5.6a2 2 0 0 0-3.4 0z" />
+        </svg>
+      );
+    case 'chat':
+      return (
+        <svg {...stroke}>
+          <path d="M5 6h14v10H8l-3 3z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 /** Модалка заявки з чату — завжди поверх панелі асистента (fullscreen = 10020). */
 const ASSISTANT_TASK_MODAL_Z = 10030;
 
 function panelSizeStorageKey(login) {
-  return `dts-assistant-panel-v1:${String(login || 'guest').trim() || 'guest'}`;
+  return `dts-assistant-panel-v2:${String(login || 'guest').trim() || 'guest'}`;
 }
 
 function clampPanelSize(size) {
@@ -81,9 +183,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [convListLoading, setConvListLoading] = useState(false);
   const [deletingConversationId, setDeletingConversationId] = useState(null);
   const [purgeBusy, setPurgeBusy] = useState(false);
-  const [showConvList, setShowConvList] = useState(false);
-  /** Розгорнути жовтий/зелений інтро-блок (за замовч. згорнуто, якщо є cashless). */
-  const [introExpanded, setIntroExpanded] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState('chat');
+  const [infoOpen, setInfoOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -121,6 +222,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const abortRef = useRef(null);
   const resizeSessionRef = useRef(null);
   const prevCashlessCountRef = useRef(0);
+  const inputRef = useRef(null);
 
   const userLogin = String(user?.login || '').trim();
 
@@ -135,16 +237,23 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
-    if (!open || !panelFullscreen) return undefined;
+    if (!open) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (panelFullscreen) {
         setPanelFullscreen(false);
+        return;
       }
+      if (infoOpen) {
+        setInfoOpen(false);
+        return;
+      }
+      setOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, panelFullscreen]);
+  }, [open, panelFullscreen, infoOpen]);
 
   useEffect(() => {
     if (!open) setPanelFullscreen(false);
@@ -201,14 +310,13 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   );
 
   const onPanelResizeMove = useCallback(
-    (clientX, clientY) => {
+    (clientX) => {
       const session = resizeSessionRef.current;
       if (!session) return;
       const deltaX = session.startX - clientX;
-      const deltaY = session.startY - clientY;
       const next = clampPanelSize({
         width: session.startW + deltaX,
-        height: session.startH + deltaY,
+        height: session.startH,
       });
       setPanelSize(next);
       setPanelWide(false);
@@ -232,9 +340,9 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
       setPanelResizing(true);
       setPanelWide(false);
       document.body.style.userSelect = 'none';
-      document.body.style.cursor = 'nwse-resize';
+      document.body.style.cursor = 'ew-resize';
 
-      const onMouseMove = (ev) => onPanelResizeMove(ev.clientX, ev.clientY);
+      const onMouseMove = (ev) => onPanelResizeMove(ev.clientX);
       const onMouseUp = () => {
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
@@ -264,7 +372,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
 
       const onTouchMove = (ev) => {
         if (ev.touches.length !== 1) return;
-        onPanelResizeMove(ev.touches[0].clientX, ev.touches[0].clientY);
+        onPanelResizeMove(ev.touches[0].clientX);
       };
       const onTouchEnd = () => {
         document.removeEventListener('touchmove', onTouchMove);
@@ -358,6 +466,9 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
       taskId,
       requestNumber: String(row?.requestNumber || '').trim(),
     });
+    setWorkspaceView('chat');
+    setInfoOpen(false);
+    window.setTimeout(() => inputRef.current?.focus(), 30);
   }, []);
 
   const isAssistantAdmin = ['admin', 'administrator', 'mgradm'].includes(
@@ -521,15 +632,16 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
 
   const cashlessCount = cashlessAlert?.openActions?.length ?? 0;
   const hasCashlessAlert = cashlessCount > 0;
-  const showIntroBanners = !hasCashlessAlert || introExpanded;
 
   useEffect(() => {
     if (cashlessCount > 0 && prevCashlessCountRef.current === 0) {
-      setShowConvList(false);
-      setIntroExpanded(false);
+      setInfoOpen(false);
+      if (open && messages.length === 0 && !conversationId) {
+        setWorkspaceView('inbox');
+      }
     }
     prevCashlessCountRef.current = cashlessCount;
-  }, [cashlessCount]);
+  }, [cashlessCount, open, messages.length, conversationId]);
 
   const loadConversationList = useCallback(async () => {
     setConvListLoading(true);
@@ -682,6 +794,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setAssistantTaskReadOnly(false);
     setPendingTaskProposal(null);
     loadConversationList();
+    setWorkspaceView('chat');
+    setInfoOpen(false);
   };
 
   const formatConvDate = (iso) => {
@@ -710,7 +824,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setAssistantTaskInitial(null);
     setAssistantTaskReadOnly(false);
     setPendingTaskProposal(null);
-    setShowConvList(true);
+    setWorkspaceView('chat');
+    setInfoOpen(false);
   };
 
   const sendTopicAnswer = (yes) => {
@@ -732,6 +847,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setError('');
     setTaskContextHint(null);
     setInput('');
+    setWorkspaceView('chat');
+    setInfoOpen(false);
     setMessages([...snapshot, { role: 'user', content: text }]);
 
     try {
@@ -875,51 +992,66 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
 
   const hasUnreadAssistantAlerts = assistantUnreadCount > 0;
 
-  const cashlessAlertBlock = hasCashlessAlert ? (
-    <div className="assistant-chat-priority-zone" role="region" aria-label="Заявки без рахунку">
-      <div className="assistant-chat-cashless-alert assistant-chat-cashless-alert--priority">
-        <div className="assistant-chat-cashless-alert-title">
-          ⚠ Безготівка без рахунку ({cashlessCount})
-        </div>
-        <p className="assistant-chat-cashless-alert-text">
-          Заявки на затвердженні у бухгалтера з безготівковою оплатою, але без рахунку та без заявки на
-          рахунок. Перевірте список і запросіть рахунок.
-        </p>
-        <p className="assistant-chat-cashless-alert-hint">
-          «Відкрити» — перегляд картки. «Пояснити» — прив’язати наступне повідомлення до цієї заявки.
-        </p>
-        <ul className="assistant-chat-cashless-task-list" role="list">
-          {cashlessAlert.openActions.map((row) => {
-            const label = row.requestNumber || row.taskId;
-            const selected = relayTaskContext?.taskId === row.taskId;
-            return (
-              <li key={row.taskId} className={`assistant-chat-cashless-task-row${selected ? ' selected' : ''}`}>
-                <span className="assistant-chat-cashless-task-label">{label}</span>
-                <div className="assistant-chat-cashless-task-actions">
-                  <button
-                    type="button"
-                    className="assistant-chat-cashless-open-btn"
-                    title={`Відкрити заявку ${label}`}
-                    onClick={() => openTaskFromAssistant(row.taskId)}
-                  >
-                    Відкрити
-                  </button>
-                  <button
-                    type="button"
-                    className={`assistant-chat-cashless-explain-btn${selected ? ' active' : ''}`}
-                    title={`Пояснення для ${label}`}
-                    onClick={() => selectRelayTask(row)}
-                  >
-                    Пояснити
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+  const runSuggestion = (item) => {
+    if (item.inbox && hasCashlessAlert) {
+      setWorkspaceView('inbox');
+      setInfoOpen(false);
+      return;
+    }
+    if (item.fillOnly) {
+      setInput(item.text);
+      setWorkspaceView('chat');
+      setInfoOpen(false);
+      window.setTimeout(() => inputRef.current?.focus(), 30);
+      return;
+    }
+    send(item.text);
+  };
+
+  const inboxList = hasCashlessAlert ? (
+    <div className="assistant-chat-inbox" role="region" aria-label="Заявки без рахунку">
+      <div className="assistant-chat-inbox-lead">
+        <div className="assistant-chat-inbox-kicker">Потребує уваги</div>
+        <h4>{cashlessCount} без рахунку</h4>
+        <p>Безготівка на затвердженні в бухгалтера — немає рахунку й заявки на рахунок.</p>
+      </div>
+      {cashlessAlert.openActions.map((row) => {
+        const label = row.requestNumber || row.taskId;
+        const selected = relayTaskContext?.taskId === row.taskId;
+        return (
+          <article key={row.taskId} className={`assistant-chat-inbox-item${selected ? ' selected' : ''}`}>
+            <div className="assistant-chat-inbox-item-id">{label}</div>
+            <div className="assistant-chat-inbox-item-actions">
+              <button
+                type="button"
+                className="assistant-chat-cashless-open-btn"
+                title={`Відкрити заявку ${label}`}
+                onClick={() => openTaskFromAssistant(row.taskId)}
+              >
+                Відкрити
+              </button>
+              <button
+                type="button"
+                className={`assistant-chat-cashless-explain-btn${selected ? ' active' : ''}`}
+                title={`Пояснення для ${label}`}
+                onClick={() => selectRelayTask(row)}
+              >
+                {selected ? 'Пишемо…' : 'Пояснити'}
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  ) : (
+    <div className="assistant-chat-inbox">
+      <div className="assistant-chat-inbox-lead">
+        <div className="assistant-chat-inbox-kicker">Увага</div>
+        <h4>Поки чисто</h4>
+        <p>Немає заявок без рахунку. Можна повернутися до чату.</p>
       </div>
     </div>
-  ) : null;
+  );
 
   return (
     <>
@@ -927,8 +1059,11 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         type="button"
         className={[
           'assistant-chat-fab',
+          open ? 'is-open' : '',
           hasUnreadAssistantAlerts ? 'assistant-chat-fab--angry' : 'assistant-chat-fab--happy',
-        ].join(' ')}
+        ]
+          .filter(Boolean)
+          .join(' ')}
         aria-label={
           hasUnreadAssistantAlerts
             ? `Відкрити асистента (${assistantUnreadCount} непрочитаних сповіщень)`
@@ -938,35 +1073,23 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           hasUnreadAssistantAlerts
             ? `Асистент DTS — ${assistantUnreadCount} нових сповіщень`
             : assistantInfo?.testMode
-            ? 'Асистент DTS — тестовий режим (beta)'
+            ? 'Асистент DTS — тестовий режим'
             : 'Асистент DTS'
         }
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setOpen((o) => {
+            const next = !o;
+            if (next) {
+              setWorkspaceView(hasCashlessAlert ? 'inbox' : 'chat');
+              setInfoOpen(false);
+            }
+            return next;
+          });
+        }}
       >
-        {hasUnreadAssistantAlerts ? (
-          <span className="assistant-chat-fab-steam" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
-        ) : null}
         <svg className="assistant-chat-fab-face" viewBox="0 0 48 48" aria-hidden="true">
-          <rect className="assistant-fab-head" x="8" y="10" width="32" height="28" rx="6" />
-          <line className="assistant-fab-antenna" x1="24" y1="10" x2="24" y2="4" />
-          <circle className="assistant-fab-antenna-tip" cx="24" cy="3" r="2.5" />
-          {hasUnreadAssistantAlerts ? (
-            <>
-              <path className="assistant-fab-brow assistant-fab-brow--left" d="M14 16 L22 18" />
-              <path className="assistant-fab-brow assistant-fab-brow--right" d="M34 16 L26 18" />
-            </>
-          ) : null}
-          <circle className="assistant-fab-eye assistant-fab-eye--left" cx="18" cy="22" r="3" />
-          <circle className="assistant-fab-eye assistant-fab-eye--right" cx="30" cy="22" r="3" />
-          {hasUnreadAssistantAlerts ? (
-            <path className="assistant-fab-mouth assistant-fab-mouth--angry" d="M17 32 Q24 28 31 32" />
-          ) : (
-            <path className="assistant-fab-mouth assistant-fab-mouth--happy" d="M17 30 Q24 36 31 30" />
-          )}
+          <rect className="assistant-fab-head" x="10" y="10" width="28" height="28" rx="9" />
+          <circle className="assistant-fab-core" cx="24" cy="24" r="5" />
         </svg>
         {hasUnreadAssistantAlerts ? (
           <span className="assistant-chat-fab-badge" aria-hidden="true">
@@ -980,6 +1103,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           ref={panelRef}
           className={[
             'assistant-chat-panel',
+            hasCashlessAlert ? 'has-alerts' : '',
             panelFullscreen ? 'assistant-chat-panel--fullscreen' : 'assistant-chat-panel--sized',
             panelResizing ? 'assistant-chat-panel--resizing' : '',
           ]
@@ -990,7 +1114,6 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               ? undefined
               : {
                   width: `${panelSize.width}px`,
-                  height: `${panelSize.height}px`,
                 }
           }
           role="dialog"
@@ -1001,99 +1124,161 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             <div
               className="assistant-chat-resize-handle"
               role="separator"
-              aria-orientation="both"
-              aria-label="Змінити розмір вікна асистента"
-              title="Перетягніть для зміни ширини та висоти (розмір зберігається для вашого облікового запису)"
+              aria-orientation="vertical"
+              aria-label="Змінити ширину асистента"
+              title="Перетягніть лівий край, щоб змінити ширину"
               onMouseDown={onPanelResizeStart}
               onTouchStart={onPanelResizeTouchStart}
             />
           ) : null}
           <div className="assistant-chat-panel-header">
-            <h3>
-              Асистент DTS
-              {hasCashlessAlert ? (
-                <span className="assistant-chat-urgent-badge" title="Потребують вашої уваги">
-                  {cashlessCount} без рахунку
+            <div className="assistant-chat-identity">
+              <div className="assistant-chat-mark">
+                <AssistantIcon name="mark" />
+              </div>
+              <div className="assistant-chat-identity-text">
+                <h3>Асистент DTS</h3>
+                <span className="assistant-chat-status">
+                  <span className={`assistant-chat-status-dot${hasCashlessAlert ? ' is-alert' : ''}`} />
+                  {hasCashlessAlert
+                    ? `${cashlessCount} без рахунку`
+                    : !conversationId
+                    ? 'Новий діалог'
+                    : 'Готовий'}
                 </span>
-              ) : null}
-              {assistantInfo?.badge ? (
-                <span className="assistant-chat-beta-badge" title="Асистент у розробці">
-                  {assistantInfo.badge}
-                </span>
-              ) : null}
-            </h3>
+              </div>
+            </div>
             <div className="assistant-chat-actions">
               <button
                 type="button"
-                className="assistant-chat-toggle-wide"
-                aria-pressed={panelWide}
-                title={panelWide ? 'Звичний розмір вікна' : 'Ширший і вищий — зручніше читати'}
-                onClick={togglePanelWide}
+                className="assistant-chat-icon-btn"
+                title="Новий чат"
+                aria-label="Новий чат"
+                onClick={newChat}
               >
-                {panelWide ? 'Компактно' : 'Ширше'}
+                <AssistantIcon name="plus" />
               </button>
               <button
                 type="button"
-                className="assistant-chat-toggle-fullscreen"
+                className={`assistant-chat-icon-btn${infoOpen ? ' is-active' : ''}`}
+                title="Як працює асистент"
+                aria-pressed={infoOpen}
+                onClick={() => setInfoOpen((v) => !v)}
+              >
+                <AssistantIcon name="info" />
+              </button>
+              <button
+                type="button"
+                className="assistant-chat-icon-btn"
+                aria-pressed={panelWide}
+                title={panelWide ? 'Звична ширина' : 'Ширше'}
+                onClick={togglePanelWide}
+              >
+                <AssistantIcon name="wide" />
+              </button>
+              <button
+                type="button"
+                className="assistant-chat-icon-btn"
                 aria-pressed={panelFullscreen}
-                title={panelFullscreen ? 'Згорнути до вікна' : 'На весь екран — зручніше переглядати списки заявок'}
+                title={panelFullscreen ? 'Згорнути до панелі' : 'На весь екран'}
                 onClick={() => setPanelFullscreen((f) => !f)}
               >
-                {panelFullscreen ? 'Вікно' : 'На весь екран'}
-              </button>
-              <button type="button" onClick={newChat}>
-                Новий чат
+                <AssistantIcon name={panelFullscreen ? 'window' : 'full'} />
               </button>
               {isAssistantAdmin ? (
                 <button
                   type="button"
-                  className="assistant-chat-feedback-report-btn"
-                  title="Звіт оцінок асистента за 7 днів"
+                  className={`assistant-chat-icon-btn${feedbackReportOpen ? ' is-active' : ''}`}
+                  title="Звіт оцінок за 7 днів"
                   disabled={feedbackReportLoading}
                   onClick={() => {
                     if (feedbackReportOpen) {
                       setFeedbackReportOpen(false);
+                      setWorkspaceView('chat');
                     } else {
+                      setWorkspaceView('report');
                       loadFeedbackReport();
                     }
                   }}
                 >
-                  {feedbackReportLoading ? '…' : feedbackReportOpen ? 'Звіт ▲' : 'Звіт 👎'}
+                  <AssistantIcon name="report" />
                 </button>
               ) : null}
-              <button type="button" onClick={() => setOpen(false)}>
-                Закрити
+              <button
+                type="button"
+                className="assistant-chat-icon-btn is-danger"
+                title="Закрити"
+                aria-label="Закрити"
+                onClick={() => setOpen(false)}
+              >
+                <AssistantIcon name="close" />
               </button>
             </div>
           </div>
 
-          {cashlessAlertBlock}
-
-          {hasCashlessAlert && !introExpanded ? (
+          <nav className="assistant-chat-nav" aria-label="Розділи асистента">
             <button
               type="button"
-              className="assistant-chat-intro-toggle"
-              onClick={() => setIntroExpanded(true)}
+              className={`assistant-chat-nav-btn${workspaceView === 'chat' ? ' is-active' : ''}`}
+              onClick={() => {
+                setWorkspaceView('chat');
+                setFeedbackReportOpen(false);
+              }}
             >
-              ℹ️ Про тестовий режим, 👍 навчання та конфіденційність
+              <AssistantIcon name="chat" />
+              Чат
+            </button>
+            <button
+              type="button"
+              className={`assistant-chat-nav-btn${workspaceView === 'inbox' ? ' is-active' : ''}`}
+              onClick={() => {
+                setWorkspaceView('inbox');
+                setFeedbackReportOpen(false);
+              }}
+            >
+              <AssistantIcon name="inbox" />
+              Увага
+              {hasCashlessAlert ? <span className="assistant-chat-nav-count">{cashlessCount}</span> : null}
+            </button>
+            <button
+              type="button"
+              className={`assistant-chat-nav-btn${workspaceView === 'history' ? ' is-active' : ''}`}
+              onClick={() => {
+                setWorkspaceView('history');
+                setFeedbackReportOpen(false);
+                loadConversationList();
+              }}
+            >
+              <AssistantIcon name="history" />
+              Діалоги
+              {conversations.length > 0 ? (
+                <span className="assistant-chat-nav-count is-neutral">
+                  {conversations.length}
+                </span>
+              ) : null}
+            </button>
+          </nav>
+
+          {hasCashlessAlert && workspaceView === 'chat' ? (
+            <button
+              type="button"
+              className="assistant-chat-attention-strip"
+              onClick={() => setWorkspaceView('inbox')}
+            >
+              <span className="assistant-chat-attention-strip-copy">
+                <span className="assistant-chat-attention-strip-kicker">Потребує дії</span>
+                <span>{cashlessCount} заявок без рахунку</span>
+              </span>
+              <span className="assistant-chat-attention-strip-go">Відкрити</span>
             </button>
           ) : null}
 
-          {assistantInfo?.testMode && showIntroBanners ? (
-            <div className="assistant-chat-beta-banner" role="note" aria-label="Про тестовий режим асистента">
-              {hasCashlessAlert ? (
-                <button
-                  type="button"
-                  className="assistant-chat-intro-collapse"
-                  onClick={() => setIntroExpanded(false)}
-                >
-                  Згорнути ▲
-                </button>
-              ) : null}
-              <div className="assistant-chat-beta-banner-title">
+          {infoOpen ? (
+            <div className="assistant-chat-info-pop" role="note" aria-label="Про асистента">
+              <div className="assistant-chat-info-pop-title">
                 {assistantInfo.title || 'Асистент у тестовому режимі'}
               </div>
-              <ul className="assistant-chat-beta-banner-list">
+              <ul>
                 {(assistantInfo.lines?.length
                   ? assistantInfo.lines
                   : [
@@ -1104,16 +1289,77 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                   <li key={line}>{line}</li>
                 ))}
               </ul>
+              {ratingPrompt ? <div className="assistant-chat-info-pop-note">{ratingPrompt}</div> : null}
             </div>
           ) : null}
 
-          {ratingPrompt && showIntroBanners ? (
-            <div className="assistant-chat-rating-banner" role="note">
-              {ratingPrompt}
+          <div className="assistant-chat-panel-body">
+          {workspaceView === 'history' ? (
+            <div className="assistant-chat-conv-list-wrap">
+              {conversations.length === 0 && !convListLoading ? (
+                <div className="assistant-chat-conv-empty">Ще немає збережених чатів — напишіть перше повідомлення.</div>
+              ) : null}
+              <ul className="assistant-chat-conv-list" role="list">
+                {conversations.map((c) => (
+                  <li key={c.id} className="assistant-chat-conv-row">
+                    <button
+                      type="button"
+                      className={`assistant-chat-conv-item ${conversationId === c.id ? 'active' : ''}`}
+                      disabled={String(deletingConversationId) === String(c.id)}
+                      onClick={() => pickConversation(c.id)}
+                    >
+                      <span className="assistant-chat-conv-item-title">{c.title || 'Чат'}</span>
+                      <span className="assistant-chat-conv-item-meta">
+                        {c.lastPanelId ? `${c.lastPanelId} · ` : ''}
+                        {formatConvDate(c.updatedAt)}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="assistant-chat-conv-delete"
+                      aria-label="Видалити діалог з бази"
+                      title="Видалити діалог і повідомлення з MongoDB"
+                      disabled={purgeBusy || loading || Boolean(deletingConversationId)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        deleteConversationPermanently(c.id);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {conversations.length > 0 ? (
+                <div className="assistant-chat-conv-purge" role="group" aria-label="Очистити старі збережені діалоги">
+                  <span className="assistant-chat-conv-purge-label">Неактивні:</span>
+                  <button
+                    type="button"
+                    className="assistant-chat-conv-purge-btn"
+                    title="Видалити чати без оновлень понад 30 діб"
+                    disabled={purgeBusy || Boolean(deletingConversationId) || loading}
+                    onClick={() => purgeInactiveConversations(30)}
+                  >
+                    &gt;30 д.
+                  </button>
+                  <button
+                    type="button"
+                    className="assistant-chat-conv-purge-btn"
+                    title="Видалити чати без оновлень понад 90 діб"
+                    disabled={purgeBusy || Boolean(deletingConversationId) || loading}
+                    onClick={() => purgeInactiveConversations(90)}
+                  >
+                    &gt;90 д.
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
-          {feedbackReportOpen && feedbackReport ? (
+          {workspaceView === 'inbox' ? inboxList : null}
+
+          {feedbackReportOpen && feedbackReport && workspaceView === 'report' ? (
             <div className="assistant-chat-feedback-report" role="region" aria-label="Звіт зворотного зв’язку">
               <div className="assistant-chat-feedback-report-head">
                 <strong>Зворотний зв’язок за {feedbackReport.periodDays} д.</strong>
@@ -1171,102 +1417,40 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           ) : null}
 
-          <div className="assistant-chat-panel-body">
-          <div className="assistant-chat-conv-toolbar">
-            <button
-              type="button"
-              className="assistant-chat-toggle-list"
-              onClick={() => setShowConvList((v) => !v)}
-              aria-expanded={showConvList}
-            >
-              Діалоги {showConvList ? '▼' : '▶'}
-              {convListLoading ? (
-                <span className="assistant-chat-conv-loading"> …</span>
-              ) : (
-                <span className="assistant-chat-conv-count"> ({conversations.length})</span>
-              )}
-            </button>
-            {!conversationId ? <span className="assistant-chat-draft-badge">Чернетка</span> : null}
-          </div>
-
-          {showConvList ? (
-            <div className="assistant-chat-conv-list-wrap">
-              {conversations.length === 0 && !convListLoading ? (
-                <div className="assistant-chat-conv-empty">Ще немає збережених чатів — напишіть перше повідомлення нижче.</div>
-              ) : null}
-              <ul className="assistant-chat-conv-list" role="list">
-                {conversations.map((c) => (
-                  <li key={c.id} className="assistant-chat-conv-row">
-                    <button
-                      type="button"
-                      className={`assistant-chat-conv-item ${conversationId === c.id ? 'active' : ''}`}
-                      disabled={String(deletingConversationId) === String(c.id)}
-                      onClick={() => pickConversation(c.id)}
-                    >
-                      <span className="assistant-chat-conv-item-title">{c.title || 'Чат'}</span>
-                      <span className="assistant-chat-conv-item-meta">
-                        {c.lastPanelId ? `${c.lastPanelId} · ` : ''}
-                        {formatConvDate(c.updatedAt)}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="assistant-chat-conv-delete"
-                      aria-label="Видалити діалог з бази"
-                      title="Видалити діалог і повідомлення з MongoDB"
-                      disabled={purgeBusy || loading || Boolean(deletingConversationId)}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        deleteConversationPermanently(c.id);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {conversations.length > 0 ? (
-                <div className="assistant-chat-conv-purge" role="group" aria-label="Очистити старі збережені діалоги">
-                  <span className="assistant-chat-conv-purge-label">Неактивні в MongoDB:</span>
-                  <button
-                    type="button"
-                    className="assistant-chat-conv-purge-btn"
-                    title="Видалити з асистентської бази ваші чати без оновлень понад 30 діб"
-                    disabled={purgeBusy || Boolean(deletingConversationId) || loading}
-                    onClick={() => purgeInactiveConversations(30)}
-                  >
-                    &gt;30 д.
-                  </button>
-                  <button
-                    type="button"
-                    className="assistant-chat-conv-purge-btn"
-                    title="Видалити з асистентської бази ваші чати без оновлень понад 90 діб"
-                    disabled={purgeBusy || Boolean(deletingConversationId) || loading}
-                    onClick={() => purgeInactiveConversations(90)}
-                  >
-                    &gt;90 д.
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
+          {workspaceView === 'chat' ? (
           <div className="assistant-chat-panel-main" ref={panelScrollRef}>
             {error ? <div className="assistant-chat-error">{error}</div> : null}
-            {historyLoading ? <div className="assistant-chat-loading">Завантаження історії…</div> : null}
 
           <div className="assistant-chat-messages">
             {messages.length === 0 && !historyLoading && !conversationId && (
-              <div className="assistant-chat-msg assistant-chat-msg--ai">
-                <span className="assistant-chat-msg-label">Асистент</span>
-                <div className="assistant-chat-bubble assistant-chat-bubble-ai assistant-chat-welcome">
-                  Привіт! Я асистент DTS у <strong>тестовому режимі</strong>.
-                  <strong> Оцінюйте відповіді 👍</strong> — так я навчаюся для всієї команди DTS.
-                  Бачу ваші інші збережені чати; якщо зміните тему в одному чаті — запитаю «Так/Ні», чи це продовження попереднього.
+              <div className="assistant-chat-empty">
+                <div className="assistant-chat-empty-mark">
+                  <AssistantIcon name="mark" />
+                </div>
+                <h4>Чим допомогти?</h4>
+                <p>
+                  Пишіть як колезі: номер заявки, статус, пояснення для бухгалтерії.
+                  Оцінюйте відповіді — так навчається вся команда.
+                </p>
+                <div className="assistant-chat-suggestions">
+                  {SUGGESTIONS.map((item) => (
+                    <button key={item.id} type="button" className="assistant-chat-chip" onClick={() => runSuggestion(item)}>
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
+            {historyLoading ? (
+              <div className="assistant-chat-typing">
+                <span className="assistant-chat-typing-dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                Історія…
+              </div>
+            ) : null}
             {messages.map((m, i) => {
               const panelHint = getPanelById(currentPanel)?.label || currentPanel || '';
               const userMetaLine = m.createdAt
@@ -1288,7 +1472,10 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               ) : (
                 <div key={msgKey} className="assistant-chat-msg assistant-chat-msg--ai">
                   <div className="assistant-chat-msg-head">
-                    <span className="assistant-chat-msg-label">Асистент</span>
+                    <span className="assistant-chat-msg-persona">
+                      <span className="assistant-chat-msg-persona-dot" />
+                      Асистент
+                    </span>
                     <div className="assistant-chat-msg-actions">
                       {canRate ? (
                         <>
@@ -1370,7 +1557,16 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                 </div>
               );
             })}
-            {loading ? <div className="assistant-chat-loading">Асистент думає…</div> : null}
+            {loading ? (
+              <div className="assistant-chat-typing">
+                <span className="assistant-chat-typing-dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                Думає
+              </div>
+            ) : null}
           </div>
 
           {taskContextHint?.requestNumbers?.length > 0 ||
@@ -1482,6 +1678,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           ) : null}
           </div>
+          ) : null}
           </div>
 
           <div className="assistant-chat-compose">
@@ -1527,7 +1724,9 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                 </button>
               </div>
             ) : null}
+            <div className="assistant-chat-composer-box">
             <textarea
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
@@ -1535,23 +1734,23 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                 topicMeta?.awaitingTopicConfirm
                   ? 'Або введіть Так / Ні…'
                   : clarifyMeta?.awaitingClarification
-                  ? 'Ваша відповідь на уточнення… (Enter — надіслати)'
+                  ? 'Відповідь на уточнення…'
                   : relayTaskContext?.requestNumber
-                  ? `Пояснення для ${relayTaskContext.requestNumber}… (Enter — надіслати)`
-                  : 'Запит… (Enter — надіслати, Shift+Enter — новий рядок)'
+                  ? `Пояснення для ${relayTaskContext.requestNumber}…`
+                  : 'Напишіть запит'
               }
               disabled={loading}
               maxLength={4500}
             />
-            <div className="assistant-chat-send-row">
               {loading ? (
-                <button type="button" className="assistant-chat-stop" onClick={abortSend}>
-                  Зупинити
+                <button type="button" className="assistant-chat-stop" onClick={abortSend} title="Зупинити">
+                  ■
                 </button>
-              ) : null}
-              <button type="button" className="assistant-chat-send" onClick={() => send()} disabled={loading}>
-                Надіслати
-              </button>
+              ) : (
+                <button type="button" className="assistant-chat-send" onClick={() => send()} disabled={loading || !input.trim()} aria-label="Надіслати" title="Надіслати">
+                  <AssistantIcon name="send" />
+                </button>
+              )}
             </div>
           </div>
         </div>
