@@ -3,6 +3,7 @@
   --surface: #ffffff;
   --surface-hover: #f3f4f6;
   --text: #111111;
+  --text-primary: #111111;
   --text-secondary: #4b5563;
   --border: #d1d5db;
   --primary: #1565c0;
@@ -805,6 +806,15 @@
   color: var(--text-primary);
 }
 
+.procurement-dashboard select option,
+.procurement-field select option,
+.procurement-material-cell--unit select option,
+.procurement-uom-select option,
+.procurement-exec-doc-kind select option {
+  color: #111111;
+  background-color: #ffffff;
+}
+
 .procurement-field--inline input[type='text'] {
   width: 100%;
   max-width: 400px;
@@ -1032,8 +1042,10 @@
   background: var(--surface-hover);
 }
 
+.procurement-field .procurement-hint-label,
 .procurement-hint-label {
   font-weight: 500;
+  color: var(--text-primary);
 }
 
 .procurement-hint-sub {
