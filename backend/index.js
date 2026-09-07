@@ -20641,6 +20641,9 @@ class TelegramService {
     const user = await User.findOne({ login }).lean();
     if (!user) return { ok: false, reason: 'user_not_found' };
 
+    const prevChat = String(user.telegramChatId || '').trim();
+    const alreadySame = isValidTelegramChatId(prevChat) && prevChat === String(chatId);
+
     await User.updateOne(
       { login },
       { $set: { telegramChatId: String(chatId), telegramLinkedAt: new Date() } }
@@ -20660,7 +20663,58 @@ class TelegramService {
       { reply_markup: { remove_keyboard: true } }
     );
     console.log(`[TELEGRAM] Користувача ${login} прив'язано до chat_id ${chatId}`);
+
+    if (!alreadySame) {
+      try {
+        await this.notifyAdminsUserLinkedTelegram(user, String(chatId), {
+          isFirstLink: !isValidTelegramChatId(prevChat),
+        });
+      } catch (notifyErr) {
+        console.error('[TELEGRAM] Сповіщення адміну про підключення:', notifyErr);
+      }
+    }
+
     return { ok: true, user };
+  }
+
+  getAdminTelegramChatIds() {
+    return [...new Set(
+      [process.env.TELEGRAM_ADMIN_CHAT_ID, process.env.ADMIN_TELEGRAM_CHAT_ID]
+        .map((value) => String(value || '').trim())
+        .filter((id) => id && id !== 'Chat ID')
+    )];
+  }
+
+  async notifyAdminsUserLinkedTelegram(user, chatId, { isFirstLink } = {}) {
+    const adminIds = this.getAdminTelegramChatIds();
+    if (!adminIds.length) {
+      console.warn('[TELEGRAM] Немає ADMIN_TELEGRAM_CHAT_ID / TELEGRAM_ADMIN_CHAT_ID — адміна не сповіщено про підключення бота');
+      return;
+    }
+
+    const esc = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const title = isFirstLink
+      ? '🔔 Telegram: співробітник підключив бота'
+      : '🔔 Telegram: повторне підключення бота';
+    const message = [
+      `<b>${title}</b>`,
+      '',
+      `<b>ПІБ:</b> ${esc(user.name || '—')}`,
+      `<b>Логін:</b> ${esc(user.login || '—')}`,
+      `<b>Роль:</b> ${esc(user.role || '—')}`,
+      `<b>Регіон:</b> ${esc(user.region || '—')}`,
+      `<b>Chat ID:</b> <code>${esc(chatId)}</code>`,
+    ].join('\n');
+
+    for (const adminId of adminIds) {
+      const ok = await this.sendMessage(adminId, message);
+      if (!ok) {
+        console.error(`[TELEGRAM] Не вдалося сповістити адміна ${adminId} про підключення ${user.login}`);
+      }
+    }
   }
 
   async handleContactShare(message) {
@@ -21200,7 +21254,7 @@ app.get('/api/telegram/status', authenticateToken, async (req, res) => {
       botTokenConfigured: !!process.env.TELEGRAM_BOT_TOKEN,
       botUsername,
       botDisplayName: 'DTS-Service',
-      adminChatIdConfigured: !!process.env.ADMIN_TELEGRAM_CHAT_ID,
+      adminChatIdConfigured: !!(process.env.ADMIN_TELEGRAM_CHAT_ID || process.env.TELEGRAM_ADMIN_CHAT_ID),
       smsConfigured: smsService.isConfigured(),
       publicApiUrlConfigured: !!process.env.PUBLIC_API_URL,
       webhookInfo,
