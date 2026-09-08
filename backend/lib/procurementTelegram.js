@@ -3,6 +3,7 @@
  */
 
 const { decodeMultipartFilename } = require('./multipartFilename');
+const { isValidTelegramChatId, getAdminTelegramChatIds } = require('./telegramLink');
 
 const PRIORITY_LABELS = {
   '1_workday': 'На протязі 1 робочого дня',
@@ -252,86 +253,72 @@ function formatProcurementTelegramMessage(pr, event) {
   return body;
 }
 
-function isValidTelegramChatId(chatId) {
-  const s = String(chatId || '').trim();
-  return s && s !== 'Chat ID' && /^\d+$/.test(s);
+function isAdminRole(role) {
+  return ['admin', 'administrator'].includes(String(role || '').toLowerCase());
 }
 
-async function collectProcurementRejectedChatIds(deps, pr) {
+function isNotificationSettingOn(user, field) {
+  const value = user?.notificationSettings?.[field];
+  return value === true || value === 1 || value === 'true' || value === '1';
+}
+
+const TELEGRAM_MAX_MESSAGE = 4000;
+
+function clipTelegramMessage(message) {
+  const text = String(message || '');
+  if (text.length <= TELEGRAM_MAX_MESSAGE) return text;
+  return `${text.slice(0, TELEGRAM_MAX_MESSAGE - 20)}\n\n… (скорочено)`;
+}
+
+/** event: created | executor_completed | warehouse_confirmed | request_completed | rejected */
+async function collectProcurementEventChatIds(deps, event) {
   const { User } = deps;
-  const settingField = EVENT_SETTING_FIELD.rejected;
+  const settingField = EVENT_SETTING_FIELD[event];
   const chatIds = new Set();
+  if (!settingField || !User) return [];
 
-  const usersWithSetting = await User.find({
+  const users = await User.find({
     dismissed: { $ne: true },
     telegramChatId: { $exists: true, $ne: '' },
-    [`notificationSettings.${settingField}`]: true,
   })
-    .select('login role telegramChatId')
+    .select('login role telegramChatId notificationSettings')
     .lean();
 
-  usersWithSetting.forEach((u) => {
+  users.forEach((u) => {
     const cid = String(u.telegramChatId || '').trim();
-    if (isValidTelegramChatId(cid)) chatIds.add(cid);
+    if (!isValidTelegramChatId(cid)) return;
+    const enabled = isNotificationSettingOn(u, settingField);
+    const admin = isAdminRole(u.role);
+    // Відхилення: адміни завжди (як раніше). Інші VZ-події — строго за чекбоксом, включно з адміном.
+    if (enabled || (event === 'rejected' && admin)) {
+      chatIds.add(cid);
+    }
   });
 
-  const admins = await User.find({
-    dismissed: { $ne: true },
-    role: { $in: ['admin', 'administrator'] },
-    telegramChatId: { $exists: true, $ne: '' },
-  })
-    .select('telegramChatId')
-    .lean();
-
-  admins.forEach((u) => {
-    const cid = String(u.telegramChatId || '').trim();
-    if (isValidTelegramChatId(cid)) chatIds.add(cid);
-  });
-
-  if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    const adminId = String(process.env.TELEGRAM_ADMIN_CHAT_ID).trim();
-    if (isValidTelegramChatId(adminId)) chatIds.add(adminId);
-  }
-
+  getAdminTelegramChatIds().forEach((id) => chatIds.add(id));
   return [...chatIds];
 }
 
+async function collectProcurementRejectedChatIds(deps, pr) {
+  return collectProcurementEventChatIds(deps, 'rejected');
+}
+
 async function sendProcurementTelegramNotifications(deps, event, pr) {
-  const { telegramService, User, NotificationLog } = deps;
+  const { telegramService, NotificationLog } = deps;
   if (!telegramService || !pr) return { sent: 0 };
 
   const settingField = EVENT_SETTING_FIELD[event];
   if (!settingField) return { sent: 0 };
 
-  let uniqueChatIds;
-  if (event === 'rejected') {
-    uniqueChatIds = await collectProcurementRejectedChatIds(deps, pr);
-  } else {
-    const users = await User.find({
-      dismissed: { $ne: true },
-      telegramChatId: { $exists: true, $ne: '' },
-      [`notificationSettings.${settingField}`]: true,
-    })
-      .select('login telegramChatId')
-      .lean();
-
-    const chatIds = [
-      ...new Set(
-        users.map((u) => String(u.telegramChatId || '').trim()).filter(isValidTelegramChatId)
-      ),
-    ];
-
-    if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
-      const adminId = String(process.env.TELEGRAM_ADMIN_CHAT_ID).trim();
-      if (isValidTelegramChatId(adminId)) chatIds.push(adminId);
-    }
-
-    uniqueChatIds = [...new Set(chatIds)];
+  const uniqueChatIds = await collectProcurementEventChatIds(deps, event);
+  if (!uniqueChatIds.length) {
+    console.warn(`[procurement-telegram] ${event}: немає отримувачів (чекбокс ${settingField})`);
+    return { sent: 0 };
   }
-  if (!uniqueChatIds.length) return { sent: 0 };
 
-  const message = formatProcurementTelegramMessage(pr, event);
+  const message = clipTelegramMessage(formatProcurementTelegramMessage(pr, event));
   const logType = `procurement_${event}`;
+  console.log(`[procurement-telegram] ${event}: надсилання на ${uniqueChatIds.length} чат(ів)`);
 
   let sent = 0;
   for (const chatId of uniqueChatIds) {
@@ -445,6 +432,7 @@ module.exports = {
   formatProcurementTelegramMessage,
   formatProcurementPositionRejectedPlain,
   formatProcurementPositionRejectedMessage,
+  collectProcurementEventChatIds,
   collectProcurementRejectedChatIds,
   sendProcurementTelegramNotifications,
   sendProcurementPositionRejectedTelegram,

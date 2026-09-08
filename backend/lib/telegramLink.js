@@ -108,7 +108,15 @@ function extractTelegramInviteLink(text) {
 
 function isValidTelegramChatId(chatId) {
   const v = String(chatId || '').trim();
-  return v && v !== 'Chat ID' && /^\d+$/.test(v);
+  return v && v !== 'Chat ID' && /^-?\d+$/.test(v);
+}
+
+function getAdminTelegramChatIds() {
+  return [...new Set(
+    [process.env.TELEGRAM_ADMIN_CHAT_ID, process.env.ADMIN_TELEGRAM_CHAT_ID]
+      .map((value) => String(value || '').trim())
+      .filter((id) => isValidTelegramChatId(id))
+  )];
 }
 
 module.exports = {
@@ -121,4 +129,5 @@ module.exports = {
   buildTelegramConnectNotificationBody,
   extractTelegramInviteLink,
   isValidTelegramChatId,
+  getAdminTelegramChatIds,
 };

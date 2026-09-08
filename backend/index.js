@@ -6266,6 +6266,7 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
         .select(PROCUREMENT_DOC_LIST_PROJECTION)
         .lean();
       stripProcurementLineBinaryFields(outImported);
+      await dispatchProcurementTelegram('request_completed', outImported);
       logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
       return res.json(outImported);
     }
@@ -20702,6 +20703,9 @@ class TelegramService {
       });
       
       const result = await response.json();
+      if (!result.ok) {
+        console.error('[TELEGRAM] sendMessage failed:', result.description || result, 'chat', chatId);
+      }
       return result.ok;
     } catch (error) {
       console.error('[TELEGRAM] Помилка відправки:', error);

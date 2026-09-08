@@ -2284,7 +2284,7 @@ function AdminDashboard({ user }) {
           .filter(u => {
             const chatId = u.telegramChatId?.trim();
             // Перевіряємо що це реальний ID (число), а не placeholder типу "Chat ID"
-            return chatId && chatId !== 'Chat ID' && /^\d+$/.test(chatId);
+            return chatId && chatId !== 'Chat ID' && /^-?\d+$/.test(chatId);
           })
           .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk'));
         
@@ -2318,7 +2318,8 @@ function AdminDashboard({ user }) {
       
       for (const u of usersWithTelegram) {
         const userSettings = notificationSettings[u.login] || {};
-        await fetch(`${API_BASE_URL}/users/${u._id || u.id}`, {
+        const userId = u._id || u.id;
+        const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -2326,6 +2327,10 @@ function AdminDashboard({ user }) {
           },
           body: JSON.stringify({ ...u, notificationSettings: userSettings })
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Не вдалося зберегти налаштування для ${u.login}`);
+        }
       }
       
       alert('✅ Налаштування збережено!');
@@ -2527,10 +2532,12 @@ function AdminDashboard({ user }) {
           <div className="notifications-info">
             <span className="with-telegram">✅ Користувачів з Telegram: {usersWithTelegram.length}</span>
             <p className="notifications-info-hint">
-              Колонки «VZ: …» — Telegram про заявки закупівель (створення, виконання, підтвердження складом, повне завершення, відхилення).
-              «VZ: виконано (матеріал на складі)» — після підтвердження документів, коли заявку закрито повністю.
-              «VZ: відхилено» — заявнику (якщо увімкнено) та адміністраторам завжди (навіть якщо вони заявники).
-              Лише для заявок, створених у системі (не імпортованих з Google Sheets).
+              Колонки «VZ: …» — Telegram про заявки закупівель. Користувач отримує лише ті типи, де стоїть його чекбокс.
+              Адміністратор з активним чекбоксом отримує той самий тип у свій бот; канал TELEGRAM_ADMIN_CHAT_ID — як і для сервісних заявок.
+              «VZ: виконано (чекає склад)» — виконавець закрив заявку, склад ще не підтвердив.
+              «VZ: підтверджено складом» — завсклад підтвердив надходження.
+              «VZ: виконано (матеріал на складі)» — документи підтверджено і заявку закрито (також імпортовані з Google Sheets після закриття виконавцем).
+              «VZ: відхилено» — за чекбоксом; адміністратори отримують завжди.
             </p>
           </div>
           <div className="notifications-table-wrapper">
