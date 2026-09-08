@@ -2248,7 +2248,7 @@ function AdminDashboard({ user }) {
   const [sendingMessage, setSendingMessage] = useState(false);
 
   const NOTIFICATION_TYPES = [
-    { key: 'newRequests', label: 'Нові заявки' },
+    { key: 'newRequests', label: 'Нові заявки та зміни заявок у статусі «Заявка»' },
     { key: 'pendingApproval', label: 'Потребує підтвердження Завсклада' },
     { key: 'accountantApproval', label: 'Затвердження Бухгалтера' },
     { key: 'approvedRequests', label: 'Підтверджені заявки' },

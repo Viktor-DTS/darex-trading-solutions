@@ -10077,6 +10077,48 @@ function resolveTaskRestoreStatus(task) {
   return 'В роботі';
 }
 
+const TASK_EDIT_NOTIFY_FIELDS = [
+  'requestNumber', 'requestAuthor', 'requestDate', 'company', 'serviceRegion',
+  'plannedDate', 'contactPerson', 'contactPhone', 'requestDesc', 'urgentRequest',
+  'internalWork', 'client', 'edrpou', 'address', 'contractNumber', 'contractDate',
+  'worksWithoutContract', 'equipment', 'equipmentSerial', 'engineModel', 'engineSerial',
+  'customerEquipmentNumber', 'equipmentOperatingHours', 'work', 'date',
+  'engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6',
+  'comments'
+];
+
+function normalizeTaskEditCompareValue(value) {
+  if (value == null || value === '' || value === '-' || value === 'Н/Д' || value === false) return '';
+  if (typeof value === 'boolean') return value ? '1' : '';
+  if (typeof value === 'number') return value === 0 ? '' : String(value);
+  if (Array.isArray(value)) return value.map(normalizeTaskEditCompareValue).join('|');
+  if (typeof value === 'object' && !(value instanceof Date)) {
+    try { return JSON.stringify(value); } catch { return String(value); }
+  }
+  const raw = value instanceof Date ? value : String(value).trim();
+  const looksLikeDate = value instanceof Date
+    || /^\d{4}-\d{2}-\d{2}/.test(raw)
+    || /^\d{2}\.\d{2}\.\d{4}/.test(raw);
+  if (looksLikeDate) {
+    const d = value instanceof Date ? value : new Date(typeof raw === 'string' && /^\d{2}\.\d{2}\.\d{4}/.test(raw)
+      ? raw.replace(/^(\d{2})\.(\d{2})\.(\d{4})/, '$3-$2-$1')
+      : raw);
+    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 16);
+  }
+  return String(value).trim();
+}
+
+function hasMeaningfulTaskEdit(currentTask, updateData) {
+  return TASK_EDIT_NOTIFY_FIELDS.some((field) => {
+    if (!Object.prototype.hasOwnProperty.call(updateData, field)) return false;
+    return normalizeTaskEditCompareValue(updateData[field]) !== normalizeTaskEditCompareValue(currentTask[field]);
+  });
+}
+
+function isTaskStatusZayavka(status) {
+  return String(status || '').trim() === 'Заявка';
+}
+
 function buildTaskDeletionMarkFields(task, user) {
   const now = new Date();
   const name = String(user?.name || user?.login || '').trim();
@@ -10216,6 +10258,13 @@ app.put('/api/tasks/:id', async (req, res) => {
       } else if (updateData.approvedByWarehouse === 'Відмова' || updateData.approvedByAccountant === 'Відмова') {
         await telegramService.sendTaskNotification('task_rejected', task, user);
         await sendFcmTaskNotification('task_rejected', task, user);
+      } else if (
+        isTaskStatusZayavka(currentTask.status)
+        && isTaskStatusZayavka(effectiveStatus)
+        && hasMeaningfulTaskEdit(currentTask, updateData)
+      ) {
+        await telegramService.sendTaskNotification('task_edited', task, user);
+        await sendFcmTaskNotification('task_edited', task, user);
       }
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при оновленні заявки:', notificationError);
@@ -20532,6 +20581,7 @@ function resolveTaskNotificationDateTime(type, task) {
 
   switch (type) {
     case 'task_created':
+    case 'task_edited':
       return tryFields([task.autoCreatedAt, task.requestDate, task.createdAt, task.date]);
     case 'task_completed':
     case 'task_approval':
@@ -20549,6 +20599,81 @@ function resolveTaskNotificationDateTime(type, task) {
     default:
       return tryFields([task.date, task.requestDate, task.autoCreatedAt, task.autoCompletedAt]);
   }
+}
+
+const TASK_NOTIFICATION_TITLES = {
+  task_created: '🆕 Нова заявка',
+  task_edited: '⚠️ Увага заявка була змінена',
+  task_completed: '✅ Заявка виконана',
+  task_approval: '⏳ Потребує підтвердження Завсклада',
+  accountant_approval: '💰 Потребує затвердження Бухгалтера',
+  task_approved: '✅ Заявка затверджена',
+  task_rejected: '❌ Заявка відхилена',
+  invoice_request: '📄 Запит на рахунок',
+  invoice_completed: '📄 Рахунок завантажено'
+};
+
+function isFilledTaskNotifyValue(value) {
+  if (value == null) return false;
+  if (typeof value === 'boolean') return value === true;
+  const s = String(value).trim();
+  return s !== '' && s !== 'Н/Д' && s !== '-' && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined';
+}
+
+function resolveTaskNotificationCreatedBy(type, task, user) {
+  return (task.requestAuthor && String(task.requestAuthor).trim())
+    || (type === 'task_created' || type === 'task_edited' ? (user?.name || user?.login) : null)
+    || task.createdByName
+    || task.createdBy
+    || task.engineer1
+    || user?.name
+    || 'Система';
+}
+
+/** Поля сповіщення: для task_edited — лише заповнені, з актуальними даними після редагування. */
+function collectTaskNotificationRows(type, task, user) {
+  const displayStatus = type === 'task_completed' ? 'Виконано' : (task.status || '');
+  const createdBy = resolveTaskNotificationCreatedBy(type, task, user);
+  const notificationDateTime = resolveTaskNotificationDateTime(type, task);
+  const onlyFilled = type === 'task_edited';
+
+  const rows = [
+    ['📋', 'Номер', task.requestNumber],
+    ['👤', 'Створив', createdBy],
+    ['📊', 'Статус', displayStatus],
+    ['📅', 'Дата', notificationDateTime === 'Н/Д' ? '' : notificationDateTime],
+    ['📍', 'Регіон', task.serviceRegion],
+    ['👥', 'Замовник', task.client],
+    ['🏠', 'Адреса', task.address],
+    ['🧑', 'Контактна особа', task.contactPerson],
+    ['📞', 'Тел. контактної особи', task.contactPhone],
+    ['⚙️', 'Обладнання', task.equipment]
+  ];
+
+  if (type === 'task_edited') {
+    rows.push(
+      ['🔢', 'Заводський номер', task.equipmentSerial],
+      ['🏢', 'Компанія виконавець', task.company],
+      ['🪪', 'ЄДРПОУ', task.edrpou],
+      ['📝', 'Опис заявки', task.requestDesc],
+      ['📆', 'Дата заявки', formatTaskDateTimeUk(task.requestDate)],
+      ['🗓️', 'Запланована дата робіт', formatTaskDateTimeUk(task.plannedDate)],
+      ['🛠️', 'Дата проведення робіт', formatTaskDateTimeUk(task.date)]
+    );
+  }
+
+  if (task.warehouseComment) rows.push(['📦', 'Коментар складу', task.warehouseComment]);
+  if (task.accountantComment) rows.push(['💰', 'Коментар бухгалтера', task.accountantComment]);
+
+  return rows
+    .filter(([, , value]) => !onlyFilled || isFilledTaskNotifyValue(value))
+    .map(([emoji, label, value]) => [emoji, label, isFilledTaskNotifyValue(value) ? String(value).trim() : 'Н/Д']);
+}
+
+function formatTaskNotificationFieldLines(type, task, user, { html }) {
+  return collectTaskNotificationRows(type, task, user).map(([emoji, label, value]) => (
+    html ? `${emoji} <b>${label}:</b> ${value}` : `${emoji} ${label}: ${value}`
+  )).join('\n');
 }
 
 // Клас для роботи з Telegram
@@ -20841,50 +20966,17 @@ class TelegramService {
 
   // Форматування повідомлення
   formatTaskMessage(type, task, user) {
-    const displayStatus = type === 'task_completed' ? 'Виконано' : (task.status || 'Н/Д');
-    
-    let commentsInfo = '';
-    if (task.warehouseComment) commentsInfo += `\n📦 <b>Коментар складу:</b> ${task.warehouseComment}`;
-    if (task.accountantComment) commentsInfo += `\n💰 <b>Коментар бухгалтера:</b> ${task.accountantComment}`;
-    
-    // "Створив" — завжди автор заявки (requestAuthor), не інженер. Для task_created — user як fallback
-    const createdBy = (task.requestAuthor && task.requestAuthor.trim())
-      || (type === 'task_created' ? (user?.name || user?.login) : null)
-      || task.createdByName
-      || task.createdBy
-      || task.engineer1
-      || user?.name
-      || 'Система';
-
-    const typeNames = {
-      'task_created': '🆕 Нова заявка',
-      'task_completed': '✅ Заявка виконана',
-      'task_approval': '⏳ Потребує підтвердження Завсклада',
-      'accountant_approval': '💰 Потребує затвердження Бухгалтера',
-      'task_approved': '✅ Заявка затверджена',
-      'task_rejected': '❌ Заявка відхилена',
-      'invoice_request': '📄 Запит на рахунок',
-      'invoice_completed': '📄 Рахунок завантажено'
-    };
-
-    const notificationDateTime = resolveTaskNotificationDateTime(type, task);
+    const title = TASK_NOTIFICATION_TITLES[type] || 'Оновлення';
+    const fieldLines = formatTaskNotificationFieldLines(type, task, user, { html: true });
 
     const baseMessage = `
-<b>🔔 ${typeNames[type] || 'Оновлення'}</b>
+<b>🔔 ${title}</b>
 
-📋 <b>Номер:</b> ${task.requestNumber || 'Н/Д'}
-👤 <b>Створив:</b> ${createdBy}
-📊 <b>Статус:</b> ${displayStatus}
-📅 <b>Дата:</b> ${notificationDateTime}
-📍 <b>Регіон:</b> ${task.serviceRegion || 'Н/Д'}
-👥 <b>Замовник:</b> ${task.client || 'Н/Д'}
-🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
-🧑 <b>Контактна особа:</b> ${task.contactPerson || 'Н/Д'}
-📞 <b>Тел. контактної особи:</b> ${task.contactPhone || 'Н/Д'}
-⚙️ <b>Обладнання:</b> ${task.equipment || 'Н/Д'}${commentsInfo}`;
+${fieldLines}`;
 
     const actions = {
       'task_created': '\n\n💡 <b>Дія:</b> Розглянути та призначити виконавця',
+      'task_edited': '\n\n💡 <b>Дія:</b> Перевірити актуальні дані заявки',
       'task_completed': '\n\n⏳ <b>Очікує підтвердження від:</b>\n• Зав. склад\n• Бухгалтер',
       'task_approval': '\n\n📋 <b>Необхідно перевірити</b>',
       'accountant_approval': '\n\n💰 <b>Завсклад підтвердив. Очікує затвердження бухгалтера.</b>',
@@ -20901,48 +20993,16 @@ class TelegramService {
    * Той самий зміст, що formatTaskMessage, але без HTML — для FCM (push) і data.expandedBody.
    */
   formatTaskMessagePlain(type, task, user) {
-    const displayStatus = type === 'task_completed' ? 'Виконано' : (task.status || 'Н/Д');
-
-    let commentsInfo = '';
-    if (task.warehouseComment) commentsInfo += `\n📦 Коментар складу: ${task.warehouseComment}`;
-    if (task.accountantComment) commentsInfo += `\n💰 Коментар бухгалтера: ${task.accountantComment}`;
-
-    const createdBy = (task.requestAuthor && task.requestAuthor.trim())
-      || (type === 'task_created' ? (user?.name || user?.login) : null)
-      || task.createdByName
-      || task.createdBy
-      || task.engineer1
-      || user?.name
-      || 'Система';
-
-    const typeNames = {
-      task_created: '🆕 Нова заявка',
-      task_completed: '✅ Заявка виконана',
-      task_approval: '⏳ Потребує підтвердження Завсклада',
-      accountant_approval: '💰 Потребує затвердження Бухгалтера',
-      task_approved: '✅ Заявка затверджена',
-      task_rejected: '❌ Заявка відхилена',
-      invoice_request: '📄 Запит на рахунок',
-      invoice_completed: '📄 Рахунок завантажено'
-    };
-
-    const header = `🔔 ${typeNames[type] || 'Оновлення'}`;
-    const notificationDateTime = resolveTaskNotificationDateTime(type, task);
+    const title = TASK_NOTIFICATION_TITLES[type] || 'Оновлення';
+    const fieldLines = formatTaskNotificationFieldLines(type, task, user, { html: false });
+    const header = `🔔 ${title}`;
     const baseMessage = `${header}
 
-📋 Номер: ${task.requestNumber || 'Н/Д'}
-👤 Створив: ${createdBy}
-📊 Статус: ${displayStatus}
-📅 Дата: ${notificationDateTime}
-📍 Регіон: ${task.serviceRegion || 'Н/Д'}
-👥 Замовник: ${task.client || 'Н/Д'}
-🏠 Адреса: ${task.address || 'Н/Д'}
-🧑 Контактна особа: ${task.contactPerson || 'Н/Д'}
-📞 Тел. контактної особи: ${task.contactPhone || 'Н/Д'}
-⚙️ Обладнання: ${task.equipment || 'Н/Д'}${commentsInfo}`;
+${fieldLines}`;
 
     const actions = {
       task_created: '\n\n💡 Дія: Розглянути та призначити виконавця',
+      task_edited: '\n\n💡 Дія: Перевірити актуальні дані заявки',
       task_completed: '\n\n⏳ Очікує підтвердження від:\n• Зав. склад\n• Бухгалтер',
       task_approval: '\n\n📋 Необхідно перевірити',
       accountant_approval: '\n\n💰 Завсклад підтвердив. Очікує затвердження бухгалтера.',
@@ -20963,6 +21023,7 @@ class TelegramService {
       // Мапінг типів сповіщень на поля в notificationSettings
       const typeToSettingField = {
         'task_created': 'newRequests',
+        'task_edited': 'newRequests',
         'task_completed': 'pendingApproval',
         'task_approval': 'pendingApproval',
         'accountant_approval': 'accountantApproval',
@@ -21009,6 +21070,7 @@ class TelegramService {
     try {
       const typeToSettingField = {
         'task_created': 'newRequests',
+        'task_edited': 'newRequests',
         'task_completed': 'pendingApproval',
         'task_approval': 'pendingApproval',
         'accountant_approval': 'accountantApproval',
@@ -21157,13 +21219,7 @@ async function sendFcmTaskNotification(type, task, user) {
     if (!body) body = expandedBody;
 
     const displayStatus = type === 'task_completed' ? 'Виконано' : (task.status || '');
-    const createdBy = (task.requestAuthor && task.requestAuthor.trim())
-      || (type === 'task_created' ? (user?.name || user?.login) : null)
-      || task.createdByName
-      || task.createdBy
-      || task.engineer1
-      || user?.name
-      || '';
+    const createdBy = resolveTaskNotificationCreatedBy(type, task, user);
 
     await sendPushToUsers(users, {
       title,
