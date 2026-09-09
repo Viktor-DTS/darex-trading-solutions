@@ -378,6 +378,17 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   });
 
   useEffect(() => {
+    if (!open) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.classList.add('task-modal-open');
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.classList.remove('task-modal-open');
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!open || !isServicePanel) return undefined;
     let cancelled = false;
     (async () => {
@@ -2183,9 +2194,19 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   return (
     <div
-      className={`modal-overlay${modernLayout && stockPanel ? ' modal-overlay--with-stock-board' : ''}`}
+      className={`modal-overlay${modernLayout && stockPanel ? ' modal-overlay--with-stock-board' : ''}${modernLayout ? ' modal-overlay--modern' : ''}`}
       style={overlayStyle}
       onClick={onClose}
+      onWheel={(e) => {
+        const overlay = e.currentTarget;
+        const scrollRoot = overlay.querySelector('.modal-body-modern-split, .modal-body-split, .modal-body-single');
+        const stockBoard = overlay.querySelector('.task-stock-sideboard');
+        if (scrollRoot && scrollRoot.contains(e.target)) return;
+        if (stockBoard && stockBoard.contains(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (scrollRoot) scrollRoot.scrollTop += e.deltaY;
+      }}
     >
       <div
         className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--with-onec-panel' : ''} ${modernLayout ? 'modal-content--modern' : ''}`}

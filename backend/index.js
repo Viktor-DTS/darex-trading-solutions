@@ -9679,6 +9679,12 @@ app.get('/api/tasks/filter', async (req, res) => {
           case 'notDone':
             statusConditions.push({ status: { $in: ['Заявка', 'В роботі'] } });
             break;
+          case 'newRequests':
+            statusConditions.push({ status: 'Заявка' });
+            break;
+          case 'inWork':
+            statusConditions.push({ status: 'В роботі' });
+            break;
           case 'inProgress':
             // Для оператора: Заявка, В роботі, або Виконано (не підтверджені)
             statusConditions.push({ status: { $in: ['Заявка', 'В роботі'] } });
@@ -9726,6 +9732,12 @@ app.get('/api/tasks/filter', async (req, res) => {
         case 'notDone':
           // Невиконані заявки: статус 'Заявка' або 'В роботі'
           matchStage.status = { $in: ['Заявка', 'В роботі'] };
+          break;
+        case 'newRequests':
+          matchStage.status = 'Заявка';
+          break;
+        case 'inWork':
+          matchStage.status = 'В роботі';
           break;
         case 'inProgress':
           // Заявки на виконанні (для оператора): 

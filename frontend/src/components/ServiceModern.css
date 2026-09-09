@@ -49,6 +49,27 @@
   color: #e7eef9;
 }
 
+.dashboard.is-modern .sidebar-tab .tab-count {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d7e3f4;
+  flex-shrink: 0;
+}
+
+.dashboard.is-modern .sidebar-tab .tab-count.is-hanging {
+  background: rgba(248, 113, 113, 0.22);
+  color: #fca5a5;
+}
+
+.dashboard.is-modern .sidebar-tab.active .tab-count {
+  background: rgba(91, 156, 248, 0.28);
+  color: #fff;
+}
+
+.dashboard.is-modern .sidebar-tab.active .tab-count.is-hanging {
+  background: rgba(248, 113, 113, 0.32);
+  color: #fecaca;
+}
+
 .dashboard.is-modern .sidebar-checkbox {
   align-items: flex-start;
   gap: 8px;
@@ -78,6 +99,17 @@
   background: #0e1622;
   padding: 10px 12px;
   overflow: hidden;
+}
+
+body.task-modal-open {
+  overflow: hidden;
+}
+
+body.task-modal-open .dashboard.is-modern .table-area,
+body.task-modal-open .task-kanban,
+body.task-modal-open .task-kanban-lane-body,
+body.task-modal-open .task-kanban-grid {
+  overflow: hidden !important;
 }
 
 .dashboard.is-modern .sidebar-btn.btn-settings {
@@ -936,12 +968,23 @@
   max-width: none;
 }
 
+.modal-overlay--modern,
 .modal-overlay--with-stock-board {
   align-items: center;
   justify-content: center;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.modal-overlay--with-stock-board {
   gap: 12px;
   padding: 12px 16px;
-  overflow: auto;
+}
+
+.modal-overlay--modern .modal-body-modern-split,
+.modal-overlay--modern .modal-body-split,
+.modal-overlay--modern .modal-body-single {
+  overscroll-behavior: contain;
 }
 
 .modal-overlay--with-stock-board .modal-content.modal-content--modern {

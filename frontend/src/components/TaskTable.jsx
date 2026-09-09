@@ -595,7 +595,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     const userRole = user?.role || '';
     
     // Для вкладок "Невиконані" та "Очікують підтвердження"
-    if (status === 'notDone' || status === 'pending') {
+    if (status === 'notDone' || status === 'newRequests' || status === 'inWork' || status === 'pending') {
       return ['regkerivn', 'admin', 'administrator'].includes(userRole);
     }
     

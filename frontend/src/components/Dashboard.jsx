@@ -23,7 +23,16 @@ function Dashboard({ user, panelType = 'service' }) {
       return 'classic';
     }
   });
-  const [activeTab, setActiveTab] = useState('notDone');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      return panelType === 'service' && localStorage.getItem(SERVICE_LAYOUT_KEY) === 'modern'
+        ? 'newRequests'
+        : 'notDone';
+    } catch {
+      return 'notDone';
+    }
+  });
+  const [taskCounts, setTaskCounts] = useState({ notInWork: 0, inWork: 0 });
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showRejectedApprovals, setShowRejectedApprovals] = useState(false);
   const [showRejectedInvoices, setShowRejectedInvoices] = useState(false);
@@ -44,6 +53,43 @@ function Dashboard({ user, panelType = 'service' }) {
     }
     return undefined;
   }, [layoutMode, panelType]);
+
+  useEffect(() => {
+    setActiveTab((current) => {
+      if (isModern && current === 'notDone') return 'newRequests';
+      if (!isModern && (current === 'newRequests' || current === 'inWork')) return 'notDone';
+      return current;
+    });
+  }, [isModern]);
+
+  useEffect(() => {
+    if (panelType !== 'service') return undefined;
+    let cancelled = false;
+    const region = user?.region && user.region !== 'Україна' ? user.region : '';
+    const loadCounts = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/tasks/statistics?region=${encodeURIComponent(region)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setTaskCounts({
+          notInWork: Number(data?.notInWork) || 0,
+          inWork: Number(data?.inWork) || 0,
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+    loadCounts();
+    const id = setInterval(loadCounts, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [panelType, user?.region]);
 
   const fetchNotificationsUnread = useCallback(async () => {
     try {
@@ -128,7 +174,14 @@ function Dashboard({ user, panelType = 'service' }) {
   };
 
   const tabs = [
-    { id: 'notDone', label: 'Невиконані заявки', icon: '📋', group: 'work' },
+    ...(isModern
+      ? [
+          { id: 'newRequests', label: 'Нові заявки', icon: '📋', group: 'work', count: taskCounts.notInWork, countTone: 'hanging' },
+          { id: 'inWork', label: 'В роботі', icon: '🔧', group: 'work', count: taskCounts.inWork },
+        ]
+      : [
+          { id: 'notDone', label: 'Невиконані заявки', icon: '📋', group: 'work' },
+        ]),
     { id: 'pending', label: 'Очікують підтвердження', icon: '⏳', group: 'work' },
     { id: 'done', label: 'Архів заявок', icon: '✅', group: 'work' },
     { id: 'blocked', label: 'Заблоковані', icon: '🚫', group: 'work' },
@@ -140,7 +193,10 @@ function Dashboard({ user, panelType = 'service' }) {
     { id: 'notifications', label: 'Системні сповіщення', icon: '🔔', group: 'other' }
   ];
 
-  const renderTabButton = (tab) => (
+  const renderTabButton = (tab) => {
+    const count = tab.id === 'notifications' ? notificationsUnreadCount : tab.count;
+    const showCount = typeof count === 'number' && (tab.id === 'notifications' ? count > 0 : true);
+    return (
     <button
       key={tab.id}
       className={`sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
@@ -148,13 +204,14 @@ function Dashboard({ user, panelType = 'service' }) {
     >
       <span className="tab-icon">{tab.icon}</span>
       <span className="tab-label">{tab.label}</span>
-      {tab.id === 'notifications' && notificationsUnreadCount > 0 ? (
-        <span className="tab-count">
-          {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
+      {showCount ? (
+        <span className={`tab-count${tab.countTone === 'hanging' && count > 0 ? ' is-hanging' : ''}`}>
+          {count > 99 ? '99+' : count}
         </span>
       ) : null}
     </button>
-  );
+    );
+  };
 
   return (
     <div className={`dashboard no-header${isModern ? ' is-modern' : ''}`}>
