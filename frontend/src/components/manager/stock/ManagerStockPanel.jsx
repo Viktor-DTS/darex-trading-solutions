@@ -917,7 +917,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
               ))}
             </div>
             {modalAnalogues.length ? (
-              <div className="msp-analog">
+              <div className="msp-analog is-analogues">
                 <strong>Аналоги</strong>
                 {modalAnalogues.map((a) => (
                   <RelatedFamilyRow
@@ -931,7 +931,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
               </div>
             ) : null}
             {showComplements ? (
-              <div className="msp-analog">
+              <div className="msp-analog is-complements">
                 <div className="msp-related-head">
                   <strong>Комплектація</strong>
                   <label className="msp-check">
@@ -1009,7 +1009,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                 </Button>
               </div>
               {analogues.length ? (
-                <div className="msp-analog">
+                <div className="msp-analog is-analogues">
                   <strong>Аналоги на складі</strong>
                   {analogues.map((a) => (
                     <RelatedFamilyRow

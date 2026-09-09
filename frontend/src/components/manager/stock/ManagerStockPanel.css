@@ -664,6 +664,60 @@
   gap: 6px;
 }
 
+.msp-analog > strong,
+.msp-related-head strong {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.msp-analog.is-analogues {
+  --rel-title: #8fcfc4;
+  --rel-text: #d5e8e4;
+  --rel-muted: #93b5af;
+  --rel-card: rgba(90, 180, 168, 0.08);
+  --rel-border: rgba(90, 180, 168, 0.28);
+}
+
+.msp-analog.is-complements {
+  --rel-title: #d9b787;
+  --rel-text: #eadbc3;
+  --rel-muted: #b59a74;
+  --rel-card: rgba(217, 183, 135, 0.08);
+  --rel-border: rgba(217, 183, 135, 0.28);
+}
+
+.msp-analog.is-analogues > strong,
+.msp-analog.is-complements .msp-related-head strong {
+  color: var(--rel-title);
+}
+
+.msp-analog.is-analogues .msp-related-main,
+.msp-analog.is-complements .msp-related-main {
+  background: var(--rel-card);
+  border-color: var(--rel-border);
+  color: var(--rel-text);
+}
+
+.msp-analog.is-analogues .msp-related-main b,
+.msp-analog.is-complements .msp-related-main b {
+  color: var(--rel-text);
+}
+
+.msp-analog.is-analogues .msp-related-main small,
+.msp-analog.is-complements .msp-related-main small,
+.msp-analog.is-complements .msp-check,
+.msp-analog.is-complements .msp-related-empty {
+  color: var(--rel-muted);
+}
+
+.msp-analog.is-analogues .msp-related-main:hover,
+.msp-analog.is-analogues .msp-related.is-in .msp-related-main,
+.msp-analog.is-complements .msp-related-main:hover,
+.msp-analog.is-complements .msp-related.is-in .msp-related-main {
+  border-color: var(--rel-title);
+}
+
 .msp-related-head {
   display: flex;
   align-items: center;
