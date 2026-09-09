@@ -1,6 +1,6 @@
 /**
- * Роль bczvskl: перегляд залишків лише по складах Білої Церкви (Дарекс Енерго + ДТС),
- * без підтверджень і змін у панелі завсклада; замовлення товару — через відділ закупівель.
+ * Роль bczvskl: перегляд залишків і журналів лише по складах Білої Церкви
+ * (Дарекс Енерго + ДТС), без підтверджень у панелі завсклада.
  */
 
 const BCZVSKL_ROLE = 'bczvskl';
@@ -9,6 +9,10 @@ const BCZVSKL_WAREHOUSE_NAMES = [
   'Склад Біла Церква Дарекс Енерго',
   'Склад Біла Церква ДТС',
 ];
+
+/** Назви DTS + типові назви 1С (Белая Церковь / СОЛЮШН). */
+const BCZVSKL_WAREHOUSE_RX_SOURCE =
+  'біла\\s+церква\\s+(дтс|дарекс)|белая\\s+церковь.*(солюшн|solution|дтс|dts|дарекс|энерго|енерго)';
 
 function isBczvsklRole(role) {
   return String(role || '').trim().toLowerCase() === BCZVSKL_ROLE;
@@ -28,9 +32,7 @@ function isBczvsklAllowedWarehouseName(name) {
   if (!n) return false;
   if (BCZVSKL_WAREHOUSE_NAME_SET.has(n)) return true;
   if (n === 'біла церква дарекс енерго' || n === 'біла церква дтс') return true;
-  if (/^склад\s+біла\s+церква\s+дарекс\s+енерго$/.test(n)) return true;
-  if (/^склад\s+біла\s+церква\s+дтс$/.test(n)) return true;
-  return false;
+  return new RegExp(BCZVSKL_WAREHOUSE_RX_SOURCE, 'i').test(n);
 }
 
 function buildBczvsklDefaultAccessRow() {
@@ -52,7 +54,6 @@ function applyBczvsklAccessDefaults(rules) {
     if (!current.procurement || current.procurement === 'none') current.procurement = 'full';
     if (!current.inventory) current.inventory = 'none';
   }
-  // Панель завсклада для цієї ролі завжди лише перегляд — навіть якщо в матриці випадково стоїть full.
   current.warehouse = 'read';
   out[BCZVSKL_ROLE] = current;
   return out;
@@ -64,14 +65,100 @@ function warehouseDocMatchesBczvskl(wh) {
   return (wh.oneCNames || []).some((n) => isBczvsklAllowedWarehouseName(n));
 }
 
-async function loadBczvsklAllowedWarehouses(Warehouse) {
+async function loadBczvsklAllowedWarehouses(Warehouse, lookup = null) {
   const all = await Warehouse.find({ isActive: true }).select('_id name oneCNames region').lean();
-  return all.filter(warehouseDocMatchesBczvskl);
+  const matched = all.filter(warehouseDocMatchesBczvskl);
+  if (lookup && lookup.warehouseMap) {
+    const extraIds = new Set();
+    for (const [oneCName, entry] of lookup.warehouseMap) {
+      if (!entry?.id) continue;
+      if (isBczvsklAllowedWarehouseName(oneCName) || isBczvsklAllowedWarehouseName(entry.name)) {
+        extraIds.add(String(entry.id));
+      }
+    }
+    if (extraIds.size) {
+      const have = new Set(matched.map((w) => String(w._id)));
+      for (const w of all) {
+        if (extraIds.has(String(w._id)) && !have.has(String(w._id))) matched.push(w);
+      }
+    }
+  }
+  return matched;
 }
 
 async function loadBczvsklAllowedWarehouseIds(Warehouse) {
   const whs = await loadBczvsklAllowedWarehouses(Warehouse);
   return new Set(whs.map((w) => String(w._id)));
+}
+
+/**
+ * Імена складів DTS + 1С-аліаси, щоб журнали ловили і warehouseId, і warehouse1c / from / to.
+ */
+async function collectBczvsklWarehouseScope(Warehouse, lookup) {
+  const whs = await loadBczvsklAllowedWarehouses(Warehouse, lookup);
+  const allowedIds = new Set(whs.map((w) => String(w._id)));
+  const names = new Set(BCZVSKL_WAREHOUSE_NAMES);
+  for (const w of whs) {
+    const n = String(w.name || '').trim();
+    if (n) names.add(n);
+    for (const nm of w.oneCNames || []) {
+      const s = String(nm || '').trim();
+      if (s) names.add(s);
+    }
+  }
+  if (lookup && lookup.warehouseMap) {
+    for (const [oneCName, entry] of lookup.warehouseMap) {
+      if (entry && allowedIds.has(String(entry.id))) {
+        const s = String(oneCName || '').trim();
+        if (s) names.add(s);
+      }
+      if (entry && isBczvsklAllowedWarehouseName(entry.name)) {
+        const s = String(oneCName || '').trim();
+        if (s) names.add(s);
+        if (entry.id) allowedIds.add(String(entry.id));
+      }
+    }
+  }
+  return { allowedIds, names: [...names].filter(Boolean), warehouses: whs };
+}
+
+function mongoBczvsklNameMatch(field) {
+  return { [field]: { $regex: BCZVSKL_WAREHOUSE_RX_SOURCE, $options: 'i' } };
+}
+
+/** Фільтр OneCMovement: склади Біла Церква ДТС / Дарекс Енерго, включно з переміщеннями з/на них. */
+function buildBczvsklOneCMovementFilter(scope, mongoose) {
+  const or = [];
+  const ids = scope?.allowedIds || new Set();
+  const oids = [...ids]
+    .filter((id) => mongoose.isValidObjectId(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (oids.length) or.push({ warehouseId: { $in: oids } });
+
+  const names = (scope?.names || []).filter(Boolean);
+  const nameFields = ['warehouse1c', 'fromWarehouse1c', 'toWarehouse1c'];
+  if (names.length) {
+    for (const field of nameFields) {
+      or.push({ [field]: { $in: names } });
+    }
+  }
+  for (const field of nameFields) {
+    or.push(mongoBczvsklNameMatch(field));
+  }
+  return or.length ? { $or: or } : { _id: { $in: [] } };
+}
+
+/** Внутрішній журнал руху — лише події, де фігурують склади Білої Церкви. */
+function buildBczvsklInternalLogFilter(scope) {
+  const names = (scope?.names || []).filter(Boolean);
+  const or = [];
+  if (names.length) {
+    or.push({ sourceWarehouseName: { $in: names } });
+    or.push({ destinationWarehouseName: { $in: names } });
+  }
+  or.push(mongoBczvsklNameMatch('sourceWarehouseName'));
+  or.push(mongoBczvsklNameMatch('destinationWarehouseName'));
+  return { $or: or };
 }
 
 function isBczvsklAllowedApiWrite(req) {
@@ -93,6 +180,7 @@ function isBczvsklAllowedApiWrite(req) {
 module.exports = {
   BCZVSKL_ROLE,
   BCZVSKL_WAREHOUSE_NAMES,
+  BCZVSKL_WAREHOUSE_RX_SOURCE,
   isBczvsklRole,
   normalizeWarehouseName,
   isBczvsklAllowedWarehouseName,
@@ -101,5 +189,8 @@ module.exports = {
   warehouseDocMatchesBczvskl,
   loadBczvsklAllowedWarehouses,
   loadBczvsklAllowedWarehouseIds,
+  collectBczvsklWarehouseScope,
+  buildBczvsklOneCMovementFilter,
+  buildBczvsklInternalLogFilter,
   isBczvsklAllowedApiWrite,
 };

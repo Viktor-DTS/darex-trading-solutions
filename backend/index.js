@@ -58,7 +58,11 @@ const {
   applyBczvsklAccessDefaults,
   loadBczvsklAllowedWarehouses,
   loadBczvsklAllowedWarehouseIds,
+  collectBczvsklWarehouseScope,
+  buildBczvsklOneCMovementFilter,
+  buildBczvsklInternalLogFilter,
   isBczvsklAllowedApiWrite,
+  BCZVSKL_WAREHOUSE_RX_SOURCE,
 } = require('./lib/bczvsklRole');
 const {
   canAccessMarketingPanel,
@@ -8860,16 +8864,11 @@ app.get('/api/inventory-movement-log', authenticateToken, async (req, res) => {
     let journalRegionalScope = false;
 
     if (isBczvsklRole(req.user.role)) {
-      const allowedIds = await loadBczvsklAllowedWarehouseIds(Warehouse);
       const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
-      const allowedOneCNames = collectOneCNamesForWarehouseIds(lookup, allowedIds);
-      const allowedWarehouseNames = await collectAllowedWarehouseNames(
-        Warehouse,
-        allowedIds,
-        mongoose
-      );
-      internalFilter = buildRegionalInternalLogFilter(allowedWarehouseNames);
-      onecFilter = buildJournalOneCMovementFilter(allowedIds, allowedOneCNames, mongoose);
+      const scope = await collectBczvsklWarehouseScope(Warehouse, lookup);
+      internalFilter = buildBczvsklInternalLogFilter(scope);
+      onecFilter = buildBczvsklOneCMovementFilter(scope, mongoose);
+      journalRegionalScope = true;
     } else if (
       isRegionalWarehouseStaffRole(req.user.role) &&
       !bypassesRegionalWarehouseInventoryLock(req.user.role)
@@ -13255,7 +13254,8 @@ app.get('/api/warehouses', authenticateToken, async (req, res) => {
     );
     let warehouses;
     if (isBczvsklRole(req.user.role)) {
-      warehouses = forMoveDest ? [] : await loadBczvsklAllowedWarehouses(Warehouse);
+      const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
+      warehouses = forMoveDest ? [] : await loadBczvsklAllowedWarehouses(Warehouse, lookup);
       warehouses = [...warehouses].sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''), 'uk')
       );
@@ -14929,7 +14929,13 @@ app.get('/api/onec/movements', async (req, res) => {
         : null;
 
     const bczvsklScope = isBczvsklRole(req.user.role);
-    const bczvsklAllowedIds = bczvsklScope ? await loadBczvsklAllowedWarehouseIds(Warehouse) : null;
+    const bczvsklWarehouseScope = bczvsklScope
+      ? await collectBczvsklWarehouseScope(
+          Warehouse,
+          await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias)
+        )
+      : null;
+    const bczvsklAllowedIds = bczvsklWarehouseScope ? bczvsklWarehouseScope.allowedIds : null;
 
     const scopeToRegion =
       dbUser &&
@@ -14968,11 +14974,7 @@ app.get('/api/onec/movements', async (req, res) => {
 
     const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
     if (bczvsklScope) {
-      const allowedOneCNames = collectOneCNamesForWarehouseIds(lookup, bczvsklAllowedIds);
-      filter = mergeMongoFilters(
-        filter,
-        buildRegionalMovementMongoFilter(bczvsklAllowedIds, allowedOneCNames, mongoose)
-      );
+      filter = mergeMongoFilters(filter, buildBczvsklOneCMovementFilter(bczvsklWarehouseScope, mongoose));
     } else if (scopeToRegion) {
       const allowedIds = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
       const allowedOneCNames = collectOneCNamesForWarehouseIds(lookup, allowedIds);
@@ -15085,7 +15087,7 @@ const {
 // Рух 1С за номером сервісної заявки (KV-… у коментарі/документі)
 app.get('/api/onec/movements/for-request', async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!canViewOneCMovements(req.user)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const requestNumber = String(req.query.requestNumber || '').trim();
@@ -15103,7 +15105,7 @@ app.get('/api/onec/movements/for-request', async (req, res) => {
 
 app.post('/api/onec/movements/status-by-requests', async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!canViewOneCMovements(req.user)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const numbers = Array.isArray(req.body?.requestNumbers) ? req.body.requestNumbers : [];
@@ -15669,19 +15671,16 @@ async function buildEquipmentListQuery(req) {
     const scopeOr = [];
     if (oidList.length) scopeOr.push({ currentWarehouse: { $in: oidList } });
     if (allowedNames.length) scopeOr.push({ currentWarehouseName: { $in: allowedNames } });
-    if (!scopeOr.length) {
-      query._id = { $in: [] };
+    scopeOr.push({ currentWarehouseName: { $regex: BCZVSKL_WAREHOUSE_RX_SOURCE, $options: 'i' } });
+    const cw = query.currentWarehouse;
+    if (cw != null) {
+      const requested = cw.$in ? cw.$in.map(String) : [String(cw)];
+      const filtered = requested.filter((id) => allowedIds.has(String(id)));
+      query.currentWarehouse = {
+        $in: filtered.filter((id) => mongoose.isValidObjectId(id)).map((id) => new mongoose.Types.ObjectId(id)),
+      };
     } else {
-      const cw = query.currentWarehouse;
-      if (cw != null) {
-        const requested = cw.$in
-          ? cw.$in.map(String)
-          : [String(cw)];
-        const filtered = requested.filter((id) => allowedIds.has(String(id)));
-        query.currentWarehouse = { $in: filtered.map((id) => new mongoose.Types.ObjectId(id)) };
-      } else {
-        pushEquipmentQueryAnd(query, { $or: scopeOr });
-      }
+      pushEquipmentQueryAnd(query, { $or: scopeOr });
     }
   }
 

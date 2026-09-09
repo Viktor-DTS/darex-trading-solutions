@@ -341,6 +341,10 @@ function InventoryDashboard({
     equipmentListRef.current?.refresh();
   };
 
+  const bcJournalHint = readOnly
+    ? ' Показано лише склади «Склад Біла Церква ДТС» та «Склад Біла Церква Дарекс Енерго» (включно з переміщеннями з/на ці склади).'
+    : '';
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'stock':
@@ -374,7 +378,7 @@ function InventoryDashboard({
             docType="receipt"
             warehouses={warehouses}
             user={user}
-            description="Журнал надходжень товару з 1С (документи «Поступление» зі звіту «Ведомость по товарам на складах»)."
+            description={`Журнал надходжень товару з 1С (документи «Поступление» зі звіту «Ведомость по товарам на складах»).${bcJournalHint}`}
           />
         );
       case 'movement':
@@ -384,7 +388,7 @@ function InventoryDashboard({
             docType="move"
             warehouses={warehouses}
             user={user}
-            description="Журнал переміщень між складами з 1С (документи «Перемещение» зі звіту «Ведомость»)."
+            description={`Журнал переміщень між складами з 1С (документи «Перемещение» зі звіту «Ведомость»).${bcJournalHint}`}
           />
         );
       case 'shipment':
@@ -394,7 +398,7 @@ function InventoryDashboard({
             docType="sale"
             warehouses={warehouses}
             user={user}
-            description="Журнал відвантажень / реалізацій з 1С (документи «Реализация товаров и услуг» зі звіту «Ведомость»)."
+            description={`Журнал відвантажень / реалізацій з 1С (документи «Реализация товаров и услуг» зі звіту «Ведомость»).${bcJournalHint}`}
           />
         );
       case 'transfer-requests':
@@ -425,7 +429,7 @@ function InventoryDashboard({
             docType="writeoff"
             warehouses={warehouses}
             user={user}
-            description="Журнал списань товару з 1С (документи «Списание» зі звіту «Ведомость»)."
+            description={`Журнал списань товару з 1С (документи «Списание» зі звіту «Ведомость»).${bcJournalHint}`}
           />
         );
       case 'approval':
@@ -461,6 +465,11 @@ function InventoryDashboard({
       case 'movement-journal':
         return (
           <div className="inventory-tab-content inventory-movement-journal-tab">
+            {readOnly ? (
+              <p className="inventory-readonly-hint">
+                Журнал руху лише по складах «Склад Біла Церква ДТС» та «Склад Біла Церква Дарекс Енерго».
+              </p>
+            ) : null}
             <InventoryMovementJournal />
           </div>
         );
