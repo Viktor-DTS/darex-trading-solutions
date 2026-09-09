@@ -182,6 +182,27 @@ export function itemPowerKw(item) {
   return null;
 }
 
+/** Макс. кВт: для ДГ — standby/макс., для АВР — з ампер. */
+export function itemMaxPowerKw(item) {
+  const diesel = parseDieselRatings(item);
+  if (diesel?.maxKw != null) return diesel.maxKw;
+  const fromSpec = parsePowerKw(item?.standbyPower || item?.primePower);
+  if (fromSpec != null) return fromSpec;
+  if (isAvrItem(item)) {
+    const amps = itemAmperage(item);
+    if (amps != null) return avrMaxPowerKw(amps);
+    const linked = linkedGensetRatings(item);
+    if (linked?.maxKw != null) return linked.maxKw;
+  }
+  return itemPowerKw(item);
+}
+
+export function equipmentGroup(item) {
+  if (isAvrItem(item)) return 'avr';
+  if (isDieselGenerator(item)) return 'generator';
+  return 'other';
+}
+
 function formatKwNumber(kw) {
   if (kw == null || !Number.isFinite(kw)) return '';
   const n = Math.round(kw * 10) / 10;
@@ -596,13 +617,15 @@ export function catalogStats(items, login) {
   return { total, free, reserved, mine, testing, ready, rows: items.length };
 }
 
-export function findAnalogues(family, families, { tolerance = 0.25, limit = 6 } = {}) {
+export function findAnalogues(family, families, { tolerance = 0.25, limit = 8 } = {}) {
   if (!family) return [];
+  const group = equipmentGroup(family);
   const kw = family.powerKw;
   const amp = family.amp;
   const scored = [];
   for (const other of families) {
     if (other.key === family.key) continue;
+    if (equipmentGroup(other) !== group) continue;
     let score = Infinity;
     if (kw != null && other.powerKw != null) {
       const rel = Math.abs(other.powerKw - kw) / Math.max(kw, 1);
@@ -621,6 +644,32 @@ export function findAnalogues(family, families, { tolerance = 0.25, limit = 6 } 
     .sort((a, b) => a.score - b.score || b.family.freeQty - a.family.freeQty)
     .slice(0, limit)
     .map((x) => x.family);
+}
+
+/** Для генератора — АВР з більшою макс. потужністю (або всі АВР, якщо showAll). */
+export function findComplements(family, families, { showAll = false, limit = 60 } = {}) {
+  if (!family || !isDieselGenerator(family)) return [];
+  const genKw = itemMaxPowerKw(family);
+  const list = [];
+  for (const other of families) {
+    if (!isAvrItem(other)) continue;
+    const avrKw = itemMaxPowerKw(other);
+    if (!showAll) {
+      if (genKw == null || avrKw == null || avrKw <= genKw) continue;
+    }
+    list.push(other);
+  }
+  return list
+    .sort((a, b) => {
+      const aw = itemMaxPowerKw(a);
+      const bw = itemMaxPowerKw(b);
+      const aFit = genKw != null && aw != null && aw > genKw ? 0 : 1;
+      const bFit = genKw != null && bw != null && bw > genKw ? 0 : 1;
+      if (aFit !== bFit) return aFit - bFit;
+      if (aw != null && bw != null && aw !== bw) return aw - bw;
+      return b.freeQty - a.freeQty;
+    })
+    .slice(0, limit);
 }
 
 export function detectBoardScale(families) {

@@ -24,11 +24,13 @@ import {
   displayText,
   familyKey,
   findAnalogues,
+  findComplements,
   formatAmps,
   formatPower,
   formatPowerCompact,
   formatQty,
   freesAtLabel,
+  isDieselGenerator,
   isFullyReady,
   isMine,
   isOfferable,
@@ -92,6 +94,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const [basket, setBasket] = useState([]);
   const [compare, setCompare] = useState([]);
   const [familyModalKey, setFamilyModalKey] = useState(null);
+  const [showAllAvr, setShowAllAvr] = useState(false);
   const [detail, setDetail] = useState(null);
   const [detailFull, setDetailFull] = useState(null);
   const [showSale, setShowSale] = useState(false);
@@ -213,7 +216,10 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     [allFamilies, families, familyModalKey]
   );
   const openFamilyModal = useCallback((key) => {
-    if (key) setFamilyModalKey(key);
+    if (key) {
+      setShowAllAvr(false);
+      setFamilyModalKey(key);
+    }
   }, []);
   const closeFamilyModal = useCallback(() => {
     if (detail || detailFull) return;
@@ -589,9 +595,14 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const shownFamily = shown ? allFamilies.find((f) => f.key === familyKey(shown)) : null;
   const analogues = shownFamily ? findAnalogues(shownFamily, allFamilies) : [];
   const modalAnalogues = familyModal ? familyAnalogues(familyModal) : [];
+  const modalComplements = familyModal
+    ? findComplements(familyModal, allFamilies, { showAll: showAllAvr })
+    : [];
+  const showComplements = !!(familyModal && isDieselGenerator(familyModal));
   const modalPower = familyModal
     ? [formatPower(familyModal) || formatAmps(familyModal), familyModal.phase].filter(Boolean).join(' · ')
     : '';
+  const familyInBasket = (family) => family.units.some((u) => inBasket(u._id));
 
   return (
     <div className="msp">
@@ -860,11 +871,45 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
             {modalAnalogues.length ? (
               <div className="msp-analog">
                 <strong>Аналоги</strong>
-                {modalAnalogues.slice(0, 6).map((a) => (
-                  <button key={a.key} type="button" onClick={() => openFamilyModal(a.key)}>
-                    {a.type} · {formatPower(a) || formatAmps(a) || '—'} · вільних {a.freeQty}
-                  </button>
+                {modalAnalogues.map((a) => (
+                  <RelatedFamilyRow
+                    key={a.key}
+                    family={a}
+                    inBasket={familyInBasket(a)}
+                    onOpen={() => openFamilyModal(a.key)}
+                    onBasket={() => addFamilyToBasket(a)}
+                  />
                 ))}
+              </div>
+            ) : null}
+            {showComplements ? (
+              <div className="msp-analog">
+                <div className="msp-related-head">
+                  <strong>Комплектація</strong>
+                  <label className="msp-check">
+                    <input
+                      type="checkbox"
+                      checked={showAllAvr}
+                      onChange={(e) => setShowAllAvr(e.target.checked)}
+                    />
+                    Показати всі АВР
+                  </label>
+                </div>
+                {modalComplements.length ? (
+                  modalComplements.map((a) => (
+                    <RelatedFamilyRow
+                      key={a.key}
+                      family={a}
+                      inBasket={familyInBasket(a)}
+                      onOpen={() => openFamilyModal(a.key)}
+                      onBasket={() => addFamilyToBasket(a)}
+                    />
+                  ))
+                ) : (
+                  <div className="msp-related-empty">
+                    {showAllAvr ? 'АВР на складі немає' : 'Немає АВР з більшою потужністю'}
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
@@ -919,16 +964,16 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                 <div className="msp-analog">
                   <strong>Аналоги на складі</strong>
                   {analogues.map((a) => (
-                    <button
+                    <RelatedFamilyRow
                       key={a.key}
-                      type="button"
-                      onClick={() => {
+                      family={a}
+                      inBasket={familyInBasket(a)}
+                      onOpen={() => {
                         const next = a.units.find(isOfferable) || a.units[0];
                         if (next) openDetail(next);
                       }}
-                    >
-                      {a.type} · {formatPower(a) || formatAmps(a) || '—'} · вільних {a.freeQty} з {a.totalQty}
-                    </button>
+                      onBasket={() => addFamilyToBasket(a)}
+                    />
                   ))}
                 </div>
               ) : null}
@@ -951,6 +996,23 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     </div>
   );
 });
+
+function RelatedFamilyRow({ family, inBasket, onOpen, onBasket }) {
+  return (
+    <div className={`msp-related ${inBasket ? 'is-in' : ''}`}>
+      <button type="button" className="msp-related-main" onClick={onOpen}>
+        <b>{family.type}</b>
+        <small>
+          {formatPower(family) || formatAmps(family) || '—'} · вільних {family.freeQty}
+          {family.totalQty != null ? ` з ${family.totalQty}` : ''}
+        </small>
+      </button>
+      <Button size="sm" variant="ghost" disabled={!family.units.length} onClick={onBasket}>
+        {inBasket ? 'У кошику' : 'КП'}
+      </Button>
+    </div>
+  );
+}
 
 function UnitRow({
   unit,

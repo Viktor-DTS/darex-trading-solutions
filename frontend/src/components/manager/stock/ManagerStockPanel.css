@@ -598,7 +598,32 @@
   gap: 6px;
 }
 
-.msp-analog button {
+.msp-related-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.msp-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--msp-text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.msp-related {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.msp-related-main {
   text-align: left;
   border: 1px solid var(--msp-border);
   background: var(--msp-surface);
@@ -606,6 +631,31 @@
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
+  min-width: 0;
+}
+
+.msp-related.is-in .msp-related-main,
+.msp-related-main:hover {
+  border-color: var(--msp-accent);
+}
+
+.msp-related-main b {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.msp-related-main small {
+  display: block;
+  margin-top: 2px;
+  color: var(--msp-text-faint);
+  font-size: 11px;
+}
+
+.msp-related-empty {
+  font-size: 12px;
+  color: var(--msp-text-dim);
+  padding: 4px 2px;
 }
 
 .msp-compare {
