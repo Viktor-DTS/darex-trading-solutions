@@ -620,7 +620,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
-  align-items: center;
+  align-items: start;
 }
 
 .msp-related-main {
@@ -650,6 +650,10 @@
   margin-top: 2px;
   color: var(--msp-text-faint);
   font-size: 11px;
+}
+
+.msp-related-main .msp-wh-line {
+  margin-top: 6px;
 }
 
 .msp-related-empty {

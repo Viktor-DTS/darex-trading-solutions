@@ -998,6 +998,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
 });
 
 function RelatedFamilyRow({ family, inBasket, onOpen, onBasket }) {
+  const warehouses = family.warehouses || [];
   return (
     <div className={`msp-related ${inBasket ? 'is-in' : ''}`}>
       <button type="button" className="msp-related-main" onClick={onOpen}>
@@ -1006,6 +1007,15 @@ function RelatedFamilyRow({ family, inBasket, onOpen, onBasket }) {
           {formatPower(family) || formatAmps(family) || '—'} · вільних {family.freeQty}
           {family.totalQty != null ? ` з ${family.totalQty}` : ''}
         </small>
+        {warehouses.length ? (
+          <span className="msp-wh-line">
+            {warehouses.map((w) => (
+              <span key={w.id} className="msp-wh-pill" title={w.name}>
+                {warehouseDisplayName(w.name)} · {w.freeQty}/{w.qty}
+              </span>
+            ))}
+          </span>
+        ) : null}
       </button>
       <Button size="sm" variant="ghost" disabled={!family.units.length} onClick={onBasket}>
         {inBasket ? 'У кошику' : 'КП'}
