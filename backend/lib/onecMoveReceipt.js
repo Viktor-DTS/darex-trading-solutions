@@ -102,7 +102,7 @@ async function notifySourceWarehousePartialMoveReceipt(helpers, fromRegion, info
     const pattern = new RegExp(escapeRegExpForRegion(String(fromRegion).trim()), 'i');
     const users = await User.find({
       dismissed: { $ne: true },
-      role: { $in: ['warehouse', 'zavsklad'] },
+      role: { $in: ['warehouse', 'zavsklad', 'golovzvsk'] },
       region: pattern,
     })
       .select('login')
@@ -134,13 +134,28 @@ async function notifySourceWarehousePartialMoveReceipt(helpers, fromRegion, info
 }
 
 async function buildReceiptScope(Warehouse, OneCWarehouseAlias, user, dbUser, helpers) {
-  const { loadActiveWarehouseIdsForUserRegion, bypassesRegionalWarehouseInventoryLock, isRegionalWarehouseStaffRole } =
-    helpers;
+  const {
+    loadActiveWarehouseIdsForUserRegion,
+    bypassesRegionalWarehouseInventoryLock,
+    isRegionalWarehouseStaffRole,
+    isGolovzvskRole,
+  } = helpers;
   const lookup = await buildOneCWarehouseLookup(Warehouse, OneCWarehouseAlias);
   let allowedDestIds = null;
+  let confirmDestIds = null;
   let scopeToRegion = false;
+  let monitorAllRegions = false;
+
+  const golov = typeof isGolovzvskRole === 'function' && isGolovzvskRole(user.role);
 
   if (
+    golov &&
+    dbUser &&
+    !isNationalWarehouseRegion(dbUser.region)
+  ) {
+    monitorAllRegions = true;
+    confirmDestIds = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+  } else if (
     isRegionalWarehouseStaffRole(user.role) &&
     !bypassesRegionalWarehouseInventoryLock(user.role) &&
     dbUser &&
@@ -148,13 +163,25 @@ async function buildReceiptScope(Warehouse, OneCWarehouseAlias, user, dbUser, he
   ) {
     scopeToRegion = true;
     allowedDestIds = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+    confirmDestIds = allowedDestIds;
   }
 
   const allowedDestOneCNames = allowedDestIds
     ? collectOneCNamesForWarehouseIds(lookup, allowedDestIds)
     : null;
+  const confirmDestOneCNames = confirmDestIds
+    ? collectOneCNamesForWarehouseIds(lookup, confirmDestIds)
+    : null;
 
-  return { lookup, allowedDestIds, allowedDestOneCNames, scopeToRegion };
+  return {
+    lookup,
+    allowedDestIds,
+    allowedDestOneCNames,
+    confirmDestIds,
+    confirmDestOneCNames,
+    scopeToRegion,
+    monitorAllRegions,
+  };
 }
 
 function destinationInScope(row, lookup, allowedDestIds, allowedDestOneCNames) {
@@ -177,15 +204,32 @@ function sourceInScope(row, lookup, allowedSourceIds, allowedSourceOneCNames) {
 
 /** Видимість рядка: прийом (можна підтвердити) або відправка (лише контроль). */
 function resolveReceiptVisibility(anchor, group, lookup, scope) {
-  const { allowedDestIds, allowedDestOneCNames } = scope;
+  const { allowedDestIds, allowedDestOneCNames, confirmDestIds, confirmDestOneCNames } = scope;
   const destOk = destinationInScope(anchor, lookup, allowedDestIds, allowedDestOneCNames);
   const srcOk = sourceInScope(anchor, lookup, allowedDestIds, allowedDestOneCNames);
+  const destConfirmOk = destinationInScope(
+    anchor,
+    lookup,
+    confirmDestIds || allowedDestIds,
+    confirmDestOneCNames || allowedDestOneCNames
+  );
+  const srcConfirmOk = sourceInScope(
+    anchor,
+    lookup,
+    confirmDestIds || allowedDestIds,
+    confirmDestOneCNames || allowedDestOneCNames
+  );
 
   if (!allowedDestIds) {
+    if (confirmDestIds) {
+      if (destConfirmOk) return { visible: true, canConfirm: true, receiptSide: 'incoming' };
+      if (srcConfirmOk) return { visible: true, canConfirm: false, receiptSide: 'outgoing' };
+      return { visible: true, canConfirm: false, receiptSide: 'incoming' };
+    }
     return { visible: true, canConfirm: true, receiptSide: 'incoming' };
   }
   if (destOk) {
-    return { visible: true, canConfirm: true, receiptSide: 'incoming' };
+    return { visible: true, canConfirm: destConfirmOk, receiptSide: 'incoming' };
   }
   if (srcOk) {
     return { visible: true, canConfirm: false, receiptSide: 'outgoing' };
@@ -334,7 +378,7 @@ async function confirmMoveReceipts(OneCMovement, items, user, scope, helpers) {
     bypassesRegionalWarehouseInventoryLock,
     warehouseIdInRegionalSet,
   } = helpers;
-  const { lookup, allowedDestIds } = scope;
+  const { lookup } = scope;
   const now = new Date();
   const confirmed = [];
   const errors = [];
@@ -369,7 +413,9 @@ async function confirmMoveReceipts(OneCMovement, items, user, scope, helpers) {
       errors.push({ moveKey: key, error: 'Підтвердження не потрібне для переміщень в межах одного регіону' });
       continue;
     }
-    if (!destinationInScope(anchor, lookup, allowedDestIds, scope.allowedDestOneCNames)) {
+    const destLockIds = scope.confirmDestIds || scope.allowedDestIds;
+    const destLockNames = scope.confirmDestOneCNames || scope.allowedDestOneCNames;
+    if (!destinationInScope(anchor, lookup, destLockIds, destLockNames)) {
       errors.push({ moveKey: key, error: 'Склад призначення не у вашому регіоні' });
       continue;
     }
@@ -377,10 +423,10 @@ async function confirmMoveReceipts(OneCMovement, items, user, scope, helpers) {
     if (
       isRegionalWarehouseStaffRole(user.role) &&
       !bypassesRegionalWarehouseInventoryLock(user.role) &&
-      allowedDestIds
+      destLockIds
     ) {
       const destId = resolveDestinationWarehouseId(anchor, lookup);
-      if (destId && !warehouseIdInRegionalSet(destId, allowedDestIds)) {
+      if (destId && !warehouseIdInRegionalSet(destId, destLockIds)) {
         errors.push({ moveKey: key, error: 'Немає доступу до складу призначення' });
         continue;
       }

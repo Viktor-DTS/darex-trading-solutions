@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import { computeProcurementCrossRegionNotices } from '../../utils/procurementCrossRegionNotice';
+import { isGolovzvskRole } from '../../constants/golovzvskRole';
 import './ReceiptApproval.css';
 
 /** Узгоджено з backend: основна кількість + аналог (якщо відвантажується аналог). */
@@ -57,6 +58,7 @@ function ReceiptApproval({
   const [approving, setApproving] = useState(false);
   const [movePage, setMovePage] = useState(0);
   const [moveRegionalScope, setMoveRegionalScope] = useState(false);
+  const [moveMonitorAll, setMoveMonitorAll] = useState(false);
   const [moveReceiptDrafts, setMoveReceiptDrafts] = useState({});
   const [showMoveHistory, setShowMoveHistory] = useState(false);
   const [procurementInbound, setProcurementInbound] = useState([]);
@@ -157,6 +159,7 @@ function ReceiptApproval({
       const items = Array.isArray(data.items) ? data.items : [];
       setPendingMoves(items);
       setMoveRegionalScope(Boolean(data.regionalScope));
+      setMoveMonitorAll(Boolean(data.monitorAllRegions));
       const drafts = {};
       for (const m of items) {
         if (m.moveKey && m.canConfirm) {
@@ -391,16 +394,18 @@ function ReceiptApproval({
 
   const activeMoves = pendingMoves.filter((m) => !m.isConfirmed);
   const totalMovesCount = activeMoves.length;
-  const confirmableMoves = activeMoves.filter((m) => m.canConfirm);
+  const incomingMoves = activeMoves.filter((m) => m.receiptSide !== 'outgoing');
+  const confirmableMoves = incomingMoves.filter((m) => m.canConfirm);
   const outgoingMoves = activeMoves.filter((m) => m.receiptSide === 'outgoing');
   const confirmableCount = confirmableMoves.length;
   const outgoingCount = outgoingMoves.length;
+  const monitorIncomingCount = incomingMoves.filter((m) => !m.canConfirm).length;
   const historyMovesCount = pendingMoves.length - activeMoves.length;
   const movePageCount = Math.max(1, Math.ceil(totalMovesCount / MOVE_PAGE_SIZE));
   const safeMovePage = Math.min(movePage, movePageCount - 1);
   const moveSkip = safeMovePage * MOVE_PAGE_SIZE;
   const pageMoves = activeMoves.slice(moveSkip, moveSkip + MOVE_PAGE_SIZE);
-  const pageIncoming = pageMoves.filter((m) => m.canConfirm);
+  const pageIncoming = pageMoves.filter((m) => m.receiptSide !== 'outgoing');
   const pageOutgoing = pageMoves.filter((m) => m.receiptSide === 'outgoing');
   const historyIncoming = showMoveHistory
     ? pendingMoves.filter((m) => m.isConfirmed && m.receiptSide === 'incoming')
@@ -469,19 +474,27 @@ function ReceiptApproval({
                       ? 'receipt-move-confirmed'
                       : isOutgoing
                         ? 'receipt-move-outgoing'
-                        : selectedMoveKeys.has(move.moveKey)
-                          ? 'fully-selected'
-                          : ''
+                        : !move.canConfirm
+                          ? 'receipt-move-monitor'
+                          : selectedMoveKeys.has(move.moveKey)
+                            ? 'fully-selected'
+                            : ''
                   }
                 >
                   {!isOutgoing && !history ? (
                     <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedMoveKeys.has(move.moveKey)}
-                        onChange={() => handleToggleSelect(move.moveKey)}
-                        aria-label="Обрати переміщення"
-                      />
+                      {move.canConfirm ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedMoveKeys.has(move.moveKey)}
+                          onChange={() => handleToggleSelect(move.moveKey)}
+                          aria-label="Обрати переміщення"
+                        />
+                      ) : (
+                        <span className="receipt-move-monitor-tag" title="Лише перегляд: інший регіон">
+                          перегляд
+                        </span>
+                      )}
                     </td>
                   ) : null}
                   <td className="receipt-moves-cell-date">{formatDate(move.docDate)}</td>
@@ -515,15 +528,21 @@ function ReceiptApproval({
                     </td>
                   ) : (
                     <td className="receipt-moves-cell-received">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        className="receipt-moves-qty-input"
-                        value={moveReceiptDrafts[move.moveKey] ?? ''}
-                        disabled={approving}
-                        onChange={(e) => updateMoveReceiptDraft(move.moveKey, e.target.value)}
-                        aria-label={`Прийнято факт: ${move.nomenclature || move.docNumber || ''}`}
-                      />
+                      {move.canConfirm ? (
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="receipt-moves-qty-input"
+                          value={moveReceiptDrafts[move.moveKey] ?? ''}
+                          disabled={approving}
+                          onChange={(e) => updateMoveReceiptDraft(move.moveKey, e.target.value)}
+                          aria-label={`Прийнято факт: ${move.nomenclature || move.docNumber || ''}`}
+                        />
+                      ) : (
+                        <span className="receipt-move-monitor-qty">
+                          {move.qty != null ? move.qty : '—'} {move.unit || ''}
+                        </span>
+                      )}
                     </td>
                   )}
                   {history ? (
@@ -554,7 +573,8 @@ function ReceiptApproval({
   const procurementEmpty = !procurementLoading && procurementInbound.length === 0;
   const procurementHistoryCount = procurementHistory.length;
   const procurementActiveCount = procurementInbound.length;
-  const movesActiveCount = confirmableCount;
+  const movesActiveCount = incomingMoves.length;
+  const chiefWarehouseMonitor = isGolovzvskRole(user?.role) || moveMonitorAll;
 
   const renderReceiptSubTabButton = (id, label, count) => (
     <button
@@ -585,9 +605,15 @@ function ReceiptApproval({
   const renderProcurementReceiptCard = (pr, { history = false } = {}) => {
     const historyLines = (pr.materials || [])
       .map((m, idx) => ({ m, idx }))
-      .filter(({ m }) => (history ? m.receiptLineHistory : m.receiptLineEditable !== false));
+      .filter(({ m }) => {
+        if (history) return m.receiptLineHistory;
+        if (pr.receiptMonitorAll || m.receiptLineMonitor) return true;
+        return m.receiptLineEditable !== false;
+      });
 
-    if (history && historyLines.length === 0) return null;
+    if (historyLines.length === 0) return null;
+
+    const canSubmitThis = !history && (pr.materials || []).some((m) => m.receiptLineEditable);
 
     return (
       <div
@@ -673,10 +699,17 @@ function ReceiptApproval({
                           type="text"
                           inputMode="decimal"
                           value={val}
-                          disabled={readOnly || procurementSubmitting === pr._id}
+                          disabled={
+                            readOnly ||
+                            procurementSubmitting === pr._id ||
+                            m.receiptLineEditable === false
+                          }
                           onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
                           aria-label={`Прийнято факт, позиція ${idx + 1}`}
                         />
+                        {m.receiptLineEditable === false ? (
+                          <span className="receipt-move-monitor-tag">інший регіон</span>
+                        ) : null}
                       )}
                     </td>
                     {history ? (
@@ -691,7 +724,7 @@ function ReceiptApproval({
             </tbody>
           </table>
         </div>
-        {!history && !readOnly ? (
+        {!history && !readOnly && canSubmitThis ? (
           <div className="procurement-receipt-actions">
             <button
               type="button"
@@ -702,6 +735,10 @@ function ReceiptApproval({
               Підтвердити прийом на складі
             </button>
           </div>
+        ) : !history && (pr.receiptMonitorAll || chiefWarehouseMonitor) && !canSubmitThis ? (
+          <p className="receipt-monitor-only-hint">
+            Лише перегляд: склади цієї заявки не у вашому регіоні. Затвердити може завсклад відповідного регіону.
+          </p>
         ) : null}
       </div>
     );
@@ -713,6 +750,9 @@ function ReceiptApproval({
         <p className="receipt-procurement-hint">
           Заявки «Чекає відвантаження на склад». У колонці «Прийнято факт» вкажіть кількість; при розбіжностях
           закупівлі отримають сповіщення.
+          {chiefWarehouseMonitor
+            ? ' Ви бачите заявки всіх регіонів; підтвердити можна лише склади вашого регіону.'
+            : ''}
         </p>
         <label className="receipt-moves-history-toggle receipt-procurement-history-toggle">
           <input
@@ -779,9 +819,11 @@ function ReceiptApproval({
               title="Вхідні — підтвердіть прийом. Відправлені — контроль до підтвердження складом одержувача."
             >
               {confirmableCount > 0 ? `${confirmableCount} на прийом` : ''}
-              {confirmableCount > 0 && outgoingCount > 0 ? ' · ' : ''}
+              {confirmableCount > 0 && (outgoingCount > 0 || monitorIncomingCount > 0) ? ' · ' : ''}
+              {monitorIncomingCount > 0 ? `${monitorIncomingCount} в інших регіонах` : ''}
+              {monitorIncomingCount > 0 && outgoingCount > 0 ? ' · ' : ''}
               {outgoingCount > 0 ? `${outgoingCount} відправлено` : ''}
-              {moveRegionalScope ? ' · ваш регіон' : ''}
+              {moveMonitorAll ? ' · усі регіони, затвердження лише ваш' : moveRegionalScope ? ' · ваш регіон' : ''}
             </span>
             {confirmableCount > 0 && !readOnly ? (
               <div className="receipt-moves-actions">
@@ -821,7 +863,9 @@ function ReceiptApproval({
             <div className="receipt-approval-content">
               {pageIncoming.length > 0 ? (
                 <>
-                  <div className="receipt-moves-section-label">Прийом на склад (підтвердити)</div>
+                  <div className="receipt-moves-section-label">
+                    {monitorIncomingCount > 0 ? 'Прийом на склад' : 'Прийом на склад (підтвердити)'}
+                  </div>
                   {renderMovesTable(pageIncoming, 'incoming')}
                 </>
               ) : null}
@@ -886,6 +930,11 @@ function ReceiptApproval({
     <div className="receipt-approval">
       <div className="receipt-approval-topbar">
         <h2>Затвердження отримання товару</h2>
+        {chiefWarehouseMonitor ? (
+          <p className="receipt-chief-monitor-hint">
+            Черги всіх регіонів видно для контролю. Затверджувати можна лише склади вашого регіону.
+          </p>
+        ) : null}
       </div>
 
       <div className="receipt-approval-subtabs" role="tablist" aria-label="Тип затвердження отримання">

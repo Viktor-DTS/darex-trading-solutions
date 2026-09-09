@@ -57,7 +57,7 @@ function EquipmentMoveModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showBatchQuantityModal]);
 
-  const isRegionalStaff = ['warehouse', 'zavsklad'].includes(String(user?.role || '').toLowerCase());
+  const isRegionalStaff = ['warehouse', 'zavsklad', 'golovzvsk'].includes(String(user?.role || '').toLowerCase());
   const destWarehouses = useMemo(() => {
     if (destinationWarehouses === null) {
       return isRegionalStaff ? [] : warehouses;

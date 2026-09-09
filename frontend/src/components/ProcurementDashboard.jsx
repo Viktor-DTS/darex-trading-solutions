@@ -594,7 +594,7 @@ function ProcurementDashboard({ user }) {
 
   const role = String(user?.role || '').toLowerCase();
   const isVidZakupok = ['vidzakupok', 'admin', 'administrator'].includes(role);
-  const isWarehouseConfirmer = ['warehouse', 'zavsklad', 'admin', 'administrator'].includes(role);
+  const isWarehouseConfirmer = ['warehouse', 'zavsklad', 'golovzvsk', 'admin', 'administrator'].includes(role);
   const isAdmin = ['admin', 'administrator'].includes(role);
 
   const isRequester = useCallback(

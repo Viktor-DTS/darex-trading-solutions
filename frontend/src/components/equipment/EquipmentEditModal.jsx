@@ -10,10 +10,11 @@ import EquipmentHistoryModal from './EquipmentHistoryModal';
 import ProductCardQuickCreateModal from './ProductCardQuickCreateModal';
 import EquipmentPassportView from './EquipmentPassportView';
 import { useUnitsOfMeasure } from '../../hooks/useUnitsOfMeasure';
+import { isRegionalWarehouseStaffRole, isWarehouseInventoryMutatorRole } from '../../constants/golovzvskRole';
 import './EquipmentEditModal.css';
 
 function canCreateProductCardRole(role) {
-  return ['admin', 'administrator', 'warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
+  return isWarehouseInventoryMutatorRole(role);
 }
 
 function flattenCategories(nodes, level = 0) {
@@ -43,10 +44,6 @@ function isMyEquipmentReserve(equipment, user) {
   const uid = user._id != null ? String(user._id) : '';
   if (rid && uid && rid === uid) return true;
   return false;
-}
-
-function isRegionalWarehouseStaffRole(role) {
-  return ['warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
 }
 
 /** Файли з карточки продукту, що виглядають як зображення (для прев’ю в формі). */

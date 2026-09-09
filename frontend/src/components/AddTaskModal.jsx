@@ -3524,7 +3524,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="approvedByWarehouse" 
                       value={formData.approvedByWarehouse || 'На розгляді'} 
                       onChange={handleChange}
-                      disabled={!['admin', 'administrator', 'zavsklad'].includes(user?.role)}
+                      disabled={!['admin', 'administrator', 'zavsklad', 'warehouse', 'golovzvsk'].includes(String(user?.role || '').toLowerCase())}
                     >
                       <option value="На розгляді">На розгляді</option>
                       <option value="Підтверджено">Підтверджено</option>
@@ -3539,7 +3539,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       onChange={handleChange}
                       placeholder="Опис причини відмови..."
                       rows="2"
-                      disabled={!['admin', 'administrator', 'zavsklad'].includes(user?.role)}
+                      disabled={!['admin', 'administrator', 'zavsklad', 'warehouse', 'golovzvsk'].includes(String(user?.role || '').toLowerCase())}
                     />
                   </div>
                 </div>

@@ -64,6 +64,7 @@ const {
   isBczvsklAllowedApiWrite,
   BCZVSKL_WAREHOUSE_RX_SOURCE,
 } = require('./lib/bczvsklRole');
+const { isGolovzvskRole } = require('./lib/golovzvskRole');
 const {
   canAccessMarketingPanel,
   canManageAllMarketingLeads,
@@ -2678,11 +2679,21 @@ function syncProcurementRequestDenormalizedWarehouses(pr) {
     : '';
 }
 
-async function getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser) {
+async function getAllActiveWarehouseNames() {
+  const all = await Warehouse.find({ isActive: true }).select('name').lean();
+  return all.map((w) => String(w.name || '').trim()).filter(Boolean);
+}
+
+/**
+ * Назви складів для прийому закупівель.
+ * scope: 'confirm' (за замовчуванням) — склади, які можна затвердити;
+ *        'view' — склади, які можна бачити (golovzvsk: усі регіони).
+ */
+async function getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser, options = {}) {
   const r = String(reqUser.role || '').toLowerCase();
-  if (['admin', 'administrator', 'mgradm'].includes(r)) {
-    const all = await Warehouse.find({ isActive: true }).select('name').lean();
-    return all.map((w) => String(w.name || '').trim()).filter(Boolean);
+  const scope = options.scope === 'view' ? 'view' : 'confirm';
+  if (['admin', 'administrator', 'mgradm'].includes(r) || (isGolovzvskRole(r) && scope === 'view')) {
+    return getAllActiveWarehouseNames();
   }
   if (!isRegionalWarehouseStaffRole(reqUser.role)) return [];
   const allowedIds = await loadActiveWarehouseIdsForUserRegion(dbUser?.region);
@@ -2797,8 +2808,7 @@ function procurementUserRegionReceiptLinesComplete(reqUser, allowed, whNeeded, p
 /** Показувати в лічильнику / pending-запиті: заявка ще потребує дій саме цього користувача. */
 function procurementReceiptAwaitingThisUserAction(reqUser, names, pr) {
   const whNeeded = procurementRequestWhNeededNameSet(pr);
-  const r = String(reqUser.role || '').toLowerCase();
-  if (['admin', 'administrator', 'mgradm'].includes(r)) {
+  if (isProcurementReceiptMonitorAllRole(reqUser.role)) {
     return !allProcurementShippableLinesHaveReceivedValue(pr);
   }
   return !procurementUserRegionReceiptLinesComplete(reqUser, names, whNeeded, pr);
@@ -2869,8 +2879,7 @@ function procurementReceiptInHistoryForUser(reqUser, names, pr) {
     return false;
   }
   const whNeeded = procurementRequestWhNeededNameSet(pr);
-  const r = String(reqUser.role || '').toLowerCase();
-  if (!['admin', 'administrator', 'mgradm'].includes(r)) {
+  if (!isProcurementReceiptMonitorAllRole(reqUser.role)) {
     if (![...whNeeded].some((n) => names.includes(n))) return false;
   }
   if (procurementReceiptAwaitingThisUserAction(reqUser, names, pr)) return false;
@@ -2883,14 +2892,15 @@ function procurementReceiptInHistoryForUser(reqUser, names, pr) {
 
 function enrichProcurementWarehouseReceiptHistoryRow(reqUser, names, pr) {
   const whNeeded = procurementRequestWhNeededNameSet(pr);
+  const monitorAll = isGolovzvskRole(reqUser.role);
   for (const line of pr.materials || []) {
     const inScope = procurementLineInReceiptScopeForUser(reqUser, names, whNeeded, pr, line);
+    const recorded = procurementLineHasWarehouseReceiptRecorded(line);
     const meta =
-      inScope && procurementLineHasWarehouseReceiptRecorded(line)
-        ? procurementLineReceiptHistoryMeta(line, pr)
-        : null;
+      (inScope || monitorAll) && recorded ? procurementLineReceiptHistoryMeta(line, pr) : null;
     line.receiptLineEditable = false;
     line.receiptLineHistory = !!meta;
+    if (monitorAll && !inScope) line.receiptLineMonitor = true;
     line.receiptHistoryMeta = meta;
   }
   pr.historySortAt = procurementHistorySortTimestamp(pr);
@@ -2953,7 +2963,7 @@ async function notifyWarehouseStaffProcurementIncoming(pr) {
       const pattern = new RegExp(escapeRegExpForRegion(String(wh.region).trim()), 'i');
       const users = await User.find({
         dismissed: { $ne: true },
-        role: { $in: ['warehouse', 'zavsklad'] },
+        role: { $in: ['warehouse', 'zavsklad', 'golovzvsk'] },
         region: pattern
       })
         .select('login')
@@ -3635,7 +3645,7 @@ async function userCanReadProcurementRequest(reqUser, dbUser, pr) {
   if (isImportedProcurementRequest(pr)) return true;
   if (String(pr.requesterLogin || '').trim() === String(reqUser.login || '').trim()) return true;
   if (isWarehouseProcurementConfirmRole(reqUser.role)) {
-    const names = await getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser);
+    const names = await getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser, { scope: 'view' });
     const lineNames = new Set();
     for (const m of pr.materials || []) {
       const w = String(m.actualWarehouse || '').trim();
@@ -3662,7 +3672,9 @@ function isVidZakupokProcurementRole(role) {
 }
 
 function isWarehouseProcurementConfirmRole(role) {
-  return ['warehouse', 'zavsklad', 'admin', 'administrator'].includes(String(role || '').toLowerCase());
+  return ['warehouse', 'zavsklad', 'golovzvsk', 'admin', 'administrator'].includes(
+    String(role || '').toLowerCase()
+  );
 }
 
 /** Ролі завсклада: мутації складу лише в межах регіону користувача (див. ensureWarehouseStaff*). */
@@ -3671,7 +3683,18 @@ function escapeRegExpForRegion(s) {
 }
 
 function isRegionalWarehouseStaffRole(role) {
-  return ['warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
+  return ['warehouse', 'zavsklad', 'golovzvsk'].includes(String(role || '').toLowerCase());
+}
+
+function isWarehouseInventoryMutatorRole(role) {
+  return ['admin', 'administrator', 'warehouse', 'zavsklad', 'golovzvsk'].includes(
+    String(role || '').toLowerCase()
+  );
+}
+
+function isProcurementReceiptMonitorAllRole(role) {
+  const r = String(role || '').toLowerCase();
+  return ['admin', 'administrator', 'mgradm'].includes(r) || isGolovzvskRole(r);
 }
 
 function bypassesRegionalWarehouseInventoryLock(role) {
@@ -6368,19 +6391,19 @@ app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req,
   const startTime = Date.now();
   try {
     const dbUser = await User.findOne({ login: req.user.login }).select('login role region').lean();
-    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
-    if (names.length === 0) {
+    const viewNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'view' });
+    if (viewNames.length === 0) {
       logPerformance('GET pending-warehouse-receipt/count', startTime, 0);
       return res.json({ count: 0 });
     }
     const candidates = await ProcurementRequest.find({
       status: 'awaiting_warehouse',
       ...procurementNotImportedMongoFilter(),
-      $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
+      $or: [{ actualWarehouse: { $in: viewNames } }, { 'materials.actualWarehouse': { $in: viewNames } }]
     })
       .select(PROCUREMENT_RECEIPT_COUNT_PROJECTION)
       .lean();
-    const count = candidates.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, names, pr)).length;
+    const count = candidates.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, viewNames, pr)).length;
     logPerformance('GET pending-warehouse-receipt/count', startTime, count);
     res.json({ count });
   } catch (error) {
@@ -6393,25 +6416,35 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
   const startTime = Date.now();
   try {
     const dbUser = await User.findOne({ login: req.user.login }).lean();
-    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
-    if (names.length === 0) {
+    const viewNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'view' });
+    const confirmNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'confirm' });
+    if (viewNames.length === 0) {
       logPerformance('GET pending-warehouse-receipt', startTime, 0);
       return res.json([]);
     }
+    const monitorAll = isGolovzvskRole(req.user.role);
     const rowsAll = await ProcurementRequest.find({
       status: 'awaiting_warehouse',
       ...procurementNotImportedMongoFilter(),
-      $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
+      $or: [{ actualWarehouse: { $in: viewNames } }, { 'materials.actualWarehouse': { $in: viewNames } }]
     })
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .lean();
-    const rows = rowsAll.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, names, pr));
+    const rows = rowsAll.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, viewNames, pr));
     const warehouseDocs = await Warehouse.find({ isActive: true }).select('name region').lean();
     for (const pr of rows) {
       const whNeeded = procurementRequestWhNeededNameSet(pr);
+      if (monitorAll) pr.receiptMonitorAll = true;
       for (const line of pr.materials || []) {
-        line.receiptLineEditable = procurementLineInReceiptScopeForUser(req.user, names, whNeeded, pr, line);
+        line.receiptLineEditable = procurementLineInReceiptScopeForUser(
+          req.user,
+          confirmNames,
+          whNeeded,
+          pr,
+          line
+        );
+        if (monitorAll && !line.receiptLineEditable) line.receiptLineMonitor = true;
       }
       pr.crossRegionNotices = computeProcurementCrossRegionNotices(pr, warehouseDocs);
     }
@@ -6428,7 +6461,10 @@ app.get('/api/procurement-requests/warehouse-receipt-history', async (req, res) 
   const startTime = Date.now();
   try {
     const dbUser = await User.findOne({ login: req.user.login }).lean();
-    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'view' });
+    const confirmNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, {
+      scope: 'confirm',
+    });
     if (names.length === 0) {
       logPerformance('GET warehouse-receipt-history', startTime, 0);
       return res.json([]);
@@ -6459,7 +6495,7 @@ app.get('/api/procurement-requests/warehouse-receipt-history', async (req, res) 
       .slice(0, 200);
     const warehouseDocs = await Warehouse.find({ isActive: true }).select('name region').lean();
     for (const pr of rows) {
-      enrichProcurementWarehouseReceiptHistoryRow(req.user, names, pr);
+      enrichProcurementWarehouseReceiptHistoryRow(req.user, confirmNames, pr);
       pr.crossRegionNotices = computeProcurementCrossRegionNotices(pr, warehouseDocs);
     }
     logPerformance('GET warehouse-receipt-history', startTime, rows.length);
@@ -6755,7 +6791,9 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       });
     }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
-    const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, {
+      scope: 'confirm',
+    });
     const whNeeded = procurementRequestWhNeededNameSet(pr);
     if (whNeeded.size === 0) {
       return res.status(400).json({
@@ -7083,7 +7121,9 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
       });
     }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
-    const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, {
+      scope: 'confirm',
+    });
     const whNeeded = procurementRequestWhNeededNameSet(pr);
     if (whNeeded.size === 0) {
       return res.status(400).json({
@@ -8287,7 +8327,7 @@ async function peekShipmentRequestPreviewNumber() {
 
 function canAccessInventoryShipmentRequests(user) {
   const r = String(user?.role || '').toLowerCase();
-  return ['warehouse', 'zavsklad', 'admin', 'administrator', 'mgradm'].includes(r);
+  return ['warehouse', 'zavsklad', 'golovzvsk', 'admin', 'administrator', 'mgradm'].includes(r);
 }
 
 function canViewWarehouseInventoryData(user) {
@@ -8302,6 +8342,7 @@ function canViewOneCMovements(user) {
     'administrator',
     'warehouse',
     'zavsklad',
+    'golovzvsk',
     'mgradm',
     'accountant',
     'buhgalteria',
@@ -8321,7 +8362,7 @@ function requestNumberExactFilter(requestNumber) {
 async function notifyWarehouseUsersForShipmentRequest(sr) {
   const rows = await User.find({
     dismissed: { $ne: true },
-    role: { $in: ['warehouse', 'zavsklad'] }
+    role: { $in: ['warehouse', 'zavsklad', 'golovzvsk'] }
   })
     .select('login')
     .lean();
@@ -13329,7 +13370,7 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
     // Перевірка прав доступу
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
 
@@ -13379,7 +13420,7 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
     // Перевірка прав доступу
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
 
@@ -13581,7 +13622,7 @@ app.get('/api/categories/for-stock-import', authenticateToken, async (req, res) 
 app.post('/api/categories', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const { parentId, name, itemKind, sortOrder, visibleToManagers } = req.body;
@@ -13608,7 +13649,7 @@ app.post('/api/categories', authenticateToken, async (req, res) => {
 app.put('/api/categories/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const { name, parentId, itemKind, sortOrder, visibleToManagers } = req.body;
@@ -13633,7 +13674,7 @@ app.put('/api/categories/:id', authenticateToken, async (req, res) => {
 app.delete('/api/categories/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const id = req.params.id;
@@ -13860,7 +13901,7 @@ app.get('/api/product-cards', authenticateToken, async (req, res) => {
 app.post('/api/product-cards', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const {
@@ -14058,7 +14099,7 @@ const { getProductCardLlmStatus } = require('./productCardAssistantLlm');
 
 app.get('/api/product-card-assistant/llm-status', authenticateToken, async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     res.json(getProductCardLlmStatus());
@@ -14069,7 +14110,7 @@ app.get('/api/product-card-assistant/llm-status', authenticateToken, async (req,
 
 app.post('/api/product-card-assistant/suggest', authenticateToken, async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const query = String(req.body?.query || '').trim();
@@ -14086,7 +14127,7 @@ app.post('/api/product-card-assistant/suggest', authenticateToken, async (req, r
 
 app.post('/api/product-card-assistant/import-image', authenticateToken, async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const imageUrl = req.body?.imageUrl;
@@ -14870,7 +14911,7 @@ app.get('/api/onec/import-journal', async (req, res) => {
 // Черга мапінгу складів 1С: список виявлених назв
 app.get('/api/onec/warehouse-aliases', async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const filter = {};
@@ -15123,7 +15164,7 @@ app.post('/api/onec/movements/status-by-requests', async (req, res) => {
 const { reconcile: reconcileOneC } = require('./lib/onecReconcile');
 app.get('/api/onec/reconciliation', async (req, res) => {
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const to = req.query.to ? new Date(req.query.to) : new Date();
@@ -17393,7 +17434,7 @@ const { bulkCreateProductCardsFromEquipment } = require('./lib/bulkCreateProduct
 app.post('/api/equipment/bulk-create-product-cards', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const dryRun =
@@ -17430,7 +17471,7 @@ app.post('/api/equipment/bulk-create-product-cards', authenticateToken, async (r
 app.post('/api/equipment/link-product-cards-by-name', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const dryRun =
@@ -17456,7 +17497,7 @@ const { backfillEquipmentRootCategory } = require('./lib/backfillEquipmentRootCa
 app.post('/api/equipment/backfill-root-category', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+    if (!isWarehouseInventoryMutatorRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const dryRun =
@@ -19194,6 +19235,7 @@ app.get('/api/equipment/in-transit/count', authenticateToken, async (req, res) =
       loadActiveWarehouseIdsForUserRegion,
       bypassesRegionalWarehouseInventoryLock,
       isRegionalWarehouseStaffRole,
+      isGolovzvskRole,
     });
     const count = await countPendingMoveReceipts(OneCMovement, scope);
     logPerformance('GET /api/equipment/in-transit/count', startTime, count);
@@ -19216,6 +19258,7 @@ app.get('/api/onec/pending-move-receipts', authenticateToken, async (req, res) =
       loadActiveWarehouseIdsForUserRegion,
       bypassesRegionalWarehouseInventoryLock,
       isRegionalWarehouseStaffRole,
+      isGolovzvskRole,
     });
     const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
     const items = await listPendingMoveReceipts(OneCMovement, scope, { includeHistory });
@@ -19230,6 +19273,7 @@ app.get('/api/onec/pending-move-receipts', authenticateToken, async (req, res) =
       incomingCount,
       outgoingCount,
       regionalScope: scope.scopeToRegion,
+      monitorAllRegions: Boolean(scope.monitorAllRegions),
       includeHistory,
     });
   } catch (error) {
@@ -19268,6 +19312,7 @@ app.post('/api/onec/confirm-move-receipts', authenticateToken, async (req, res) 
       loadActiveWarehouseIdsForUserRegion,
       bypassesRegionalWarehouseInventoryLock,
       isRegionalWarehouseStaffRole,
+      isGolovzvskRole,
     });
     const result = await confirmMoveReceipts(OneCMovement, items, user, scope, {
       logInventoryMovement,

@@ -51,14 +51,14 @@ function isNationalRegion(regionRaw) {
 
 function canCreateTransferRequest(user) {
   const role = String(user?.role || '').toLowerCase();
-  return ['service', 'regional', 'regkerivn', 'admin', 'administrator', 'warehouse', 'zavsklad'].includes(
+  return ['service', 'regional', 'regkerivn', 'admin', 'administrator', 'warehouse', 'zavsklad', 'golovzvsk'].includes(
     role,
   );
 }
 
 function canProcessTransferInbox(user) {
   const role = String(user?.role || '').toLowerCase();
-  return ['warehouse', 'zavsklad', 'admin', 'administrator'].includes(role);
+  return ['warehouse', 'zavsklad', 'golovzvsk', 'admin', 'administrator'].includes(role);
 }
 
 async function getNextTransferRequestNumber(Counter) {
@@ -88,7 +88,7 @@ async function findWarehouseStaffLogins(User, warehouseRegion) {
   const region = String(warehouseRegion || '').trim();
   const filter = {
     dismissed: { $ne: true },
-    role: { $in: ['warehouse', 'zavsklad', 'admin', 'administrator'] },
+    role: { $in: ['warehouse', 'zavsklad', 'golovzvsk', 'admin', 'administrator'] },
   };
   if (!isNationalRegion(region)) {
     filter.region = { $regex: new RegExp(`^${escapeRegExp(region)}$`, 'i') };

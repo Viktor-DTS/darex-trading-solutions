@@ -234,6 +234,18 @@
   line-height: 1.2;
 }
 
+.receipt-chief-monitor-hint,
+.receipt-monitor-only-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary, #666);
+}
+
+.receipt-monitor-only-hint {
+  margin-top: 10px;
+}
+
 .receipt-procurement-block {
   flex-shrink: 0;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
@@ -641,6 +653,25 @@
 
 .receipt-move-outgoing {
   opacity: 0.92;
+}
+
+.receipt-move-monitor {
+  opacity: 0.88;
+}
+
+.receipt-move-monitor-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #374151;
+  background: #e5e7eb;
+  white-space: nowrap;
+}
+
+.receipt-move-monitor-qty {
+  color: var(--text-secondary, #666);
 }
 
 .receipt-move-status-pending {

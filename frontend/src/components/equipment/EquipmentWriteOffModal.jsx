@@ -27,7 +27,7 @@ function EquipmentWriteOffModal({ equipment, warehouses = [], user, onClose, onS
   const [quantityBasedQuantities, setQuantityBasedQuantities] = useState({});
   const [preflightError, setPreflightError] = useState('');
 
-  const isRegionalStaff = ['warehouse', 'zavsklad'].includes(String(user?.role || '').toLowerCase());
+  const isRegionalStaff = ['warehouse', 'zavsklad', 'golovzvsk'].includes(String(user?.role || '').toLowerCase());
   const sourceWarehouseIdsParam = useMemo(() => {
     const ids = (warehouses || []).map((w) => w._id).filter(Boolean).map(String);
     return ids.join(',');

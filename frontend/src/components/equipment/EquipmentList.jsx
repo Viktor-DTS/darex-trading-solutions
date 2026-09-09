@@ -14,6 +14,7 @@ import EquipmentDeleteModal from './EquipmentDeleteModal';
 import EquipmentDetailsModal from './EquipmentDetailsModal';
 import EquipmentEditModal from './EquipmentEditModal';
 import BulkCreateProductCardsModal from './BulkCreateProductCardsModal';
+import { isWarehouseInventoryMutatorRole } from '../../constants/golovzvskRole';
 import './EquipmentList.css';
 
 // Функції для обробки статусів (винесені за межі компонента)
@@ -77,7 +78,7 @@ function getEquipmentRowForProductCardCheck(item) {
 const PAGE_SIZE = 100;
 
 function canLinkProductCardsByName(role) {
-  return ['admin', 'administrator', 'warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
+  return isWarehouseInventoryMutatorRole(role);
 }
 
 const ALL_COLUMNS = [

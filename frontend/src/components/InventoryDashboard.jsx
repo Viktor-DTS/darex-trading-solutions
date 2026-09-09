@@ -194,7 +194,7 @@ function InventoryDashboard({
   useEffect(() => {
     if (!showMoveModal) return;
     const r = (user?.role || '').toLowerCase();
-    const regional = ['warehouse', 'zavsklad'].includes(r);
+    const regional = ['warehouse', 'zavsklad', 'golovzvsk'].includes(r);
     if (!regional) {
       setMoveDestinationWarehouses(warehouses);
       return;
