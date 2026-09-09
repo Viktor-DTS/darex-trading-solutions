@@ -85,6 +85,13 @@ export function shortWarehouseName(name) {
     .trim() || raw;
 }
 
+/** Назва складу для борду: без префікса «Склад», але з Дарекс/ДТС, щоб два Києва не зливались. */
+export function warehouseDisplayName(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return '—';
+  return raw.replace(/^склад\s+/i, '').trim() || raw;
+}
+
 export function warehouseLabel(item) {
   return displayText(item?.currentWarehouseName || item?.currentWarehouse, '—');
 }

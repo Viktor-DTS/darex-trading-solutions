@@ -44,6 +44,7 @@ import {
   testingLabel,
   testingKey,
   unitMatchesFilters,
+  warehouseDisplayName,
   warehouseLabel,
 } from './stockUtils';
 import './ManagerStockPanel.css';
@@ -383,8 +384,8 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
         {power ? <div className="msp-spec">{power}{family.phase ? ` · ${family.phase}` : ''}</div> : null}
         <div className="msp-wh-line">
           {family.warehouses.map((w) => (
-            <span key={w.id} className="msp-wh-pill">
-              {w.short} · {w.freeQty}/{w.qty}
+            <span key={w.id} className="msp-wh-pill" title={w.name}>
+              {warehouseDisplayName(w.name)} · {w.freeQty}/{w.qty}
             </span>
           ))}
         </div>
@@ -463,16 +464,16 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
       ? warehouses.map((w) => ({
           id: String(w._id),
           name: w.name,
-          short: shortWarehouseName(w.name),
+          title: warehouseDisplayName(w.name),
         }))
       : [...new Map(visibleItems.map((i) => {
           const name = warehouseLabel(i);
-          return [String(i.currentWarehouse || name), { id: String(i.currentWarehouse || name), name, short: shortWarehouseName(name) }];
+          return [String(i.currentWarehouse || name), { id: String(i.currentWarehouse || name), name, title: warehouseDisplayName(name) }];
         })).values()];
     const transitCol = {
       id: 'transit',
       name: 'В дорозі',
-      short: 'В дорозі',
+      title: 'В дорозі',
     };
     const allCols = [...cols, transitCol];
     return (
@@ -490,8 +491,8 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
             .filter(Boolean);
           return (
             <section key={col.id} className="msp-col">
-              <div className="msp-col-h">
-                {col.short}
+              <div className="msp-col-h" title={col.name}>
+                {col.title}
                 <span>{colFams.length}</span>
               </div>
               <div className="msp-col-b">
@@ -541,7 +542,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   >
                     <strong>{f.type}</strong>
                     <em>
-                      {formatPower(f) || formatAmps(f) || '—'} · {f.warehouses.map((w) => w.short).join(', ')}
+                      {formatPower(f) || formatAmps(f) || '—'} · {f.warehouses.map((w) => warehouseDisplayName(w.name)).join(', ')}
                     </em>
                   </button>
                 ))}
