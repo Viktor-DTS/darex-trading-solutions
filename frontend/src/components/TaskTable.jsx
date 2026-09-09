@@ -1613,6 +1613,25 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         </header>
         <div className="task-board-card-client">{task.client || 'Без замовника'}</div>
         <div className="task-board-card-address">{task.address || 'Адреса не вказана'}</div>
+        <div className="task-board-card-contact">
+          <small>Контакт</small>
+          <div className="task-board-card-meta">
+            <span><small>Контактна особа</small><b>{task.contactPerson || '—'}</b></span>
+            <span>
+              <small>Тел. контактної особи</small>
+              {task.contactPhone ? (
+                <a
+                  href={`tel:${String(task.contactPhone).replace(/\s/g, '')}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {task.contactPhone}
+                </a>
+              ) : (
+                <b>—</b>
+              )}
+            </span>
+          </div>
+        </div>
         <div className="task-board-card-meta">
           <span><small>Обладнання</small><b>{task.equipment || '—'}</b></span>
           <span><small>Зав. №</small><b>{task.equipmentSerial || '—'}</b></span>
@@ -1620,6 +1639,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           <span><small>Дата заявки</small><b>{formatValue(task.requestDate, 'requestDate')}</b></span>
           <span><small>План</small><b>{formatValue(task.plannedDate, 'plannedDate')}</b></span>
           <span><small>Роботи</small><b>{formatValue(task.date, 'date')}</b></span>
+        </div>
+        <div className="task-board-card-desc">
+          <small>Опис робіт</small>
+          <p>{task.requestDesc || '—'}</p>
         </div>
         {task.work && <p className="task-board-card-work">{task.work}</p>}
         <div className="task-board-card-foot">
