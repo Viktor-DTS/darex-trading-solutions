@@ -2173,6 +2173,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     (panelType === 'warehouse' || panelType === 'accountant');
   const boardClass = (name) => (modernLayout ? `task-board task-board--${name}` : undefined);
   const boardTitle = (text) => (modernLayout ? <strong className="task-board-title">{text}</strong> : null);
+  const showMaterialsHintBoard =
+    modernLayout &&
+    isServicePanel &&
+    (formData.status === 'Заявка' || formData.status === 'В роботі');
   const stockPanel = isServicePanel ? (
     <NomenclatureStockPanel
       title="Залишки матеріалів на складах"
@@ -2194,20 +2198,53 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   return (
     <div
-      className={`modal-overlay${modernLayout && stockPanel ? ' modal-overlay--with-stock-board' : ''}${modernLayout ? ' modal-overlay--modern' : ''}`}
+      className={`modal-overlay${modernLayout && stockPanel ? ' modal-overlay--with-stock-board' : ''}${showMaterialsHintBoard ? ' modal-overlay--with-hint-board' : ''}${modernLayout ? ' modal-overlay--modern' : ''}`}
       style={overlayStyle}
       onClick={onClose}
       onWheel={(e) => {
         const overlay = e.currentTarget;
         const scrollRoot = overlay.querySelector('.modal-body-modern-split, .modal-body-split, .modal-body-single');
         const stockBoard = overlay.querySelector('.task-stock-sideboard');
+        const hintBoard = overlay.querySelector('.task-materials-hint-board');
         if (scrollRoot && scrollRoot.contains(e.target)) return;
         if (stockBoard && stockBoard.contains(e.target)) return;
+        if (hintBoard && hintBoard.contains(e.target)) return;
         e.preventDefault();
         e.stopPropagation();
         if (scrollRoot) scrollRoot.scrollTop += e.deltaY;
       }}
     >
+      {showMaterialsHintBoard ? (
+        <aside className="task-materials-hint-board" onClick={(e) => e.stopPropagation()}>
+          <strong className="task-materials-hint-title">Підказка по матеріалах</strong>
+          <p className="task-materials-hint-lead">
+            З’являється лише коли статус заявки — «Заявка» або «В роботі». Поки тут опис,
+            аналіз заявок підключимо наступним кроком.
+          </p>
+          <ol className="task-materials-hint-guide">
+            <li>
+              Вкажіть <b>тип обладнання</b>. Система знайде виконані заявки з таким самим типом
+              і збере всі матеріали, які там ставили.
+            </li>
+            <li>
+              Для кожної позиції побачите <b>назву</b> і <b>кількість</b>. Якщо в різних заявках
+              кількість різна — покажемо діапазон «від — до».
+            </li>
+            <li>
+              Якщо під один тип обладнання на одну роль (наприклад масляний фільтр) ставили
+              <b> різні назви</b> — вони відобразяться як <b>аналоги</b>.
+            </li>
+            <li>
+              Поруч будуть <b>залишки на складах вашого регіону</b>, щоб одразу бачити, чи є позиція.
+            </li>
+            <li>
+              Якщо варіант підходить — <b>автопідстановка</b> запише назву й кількість у відповідні
+              поля заявки. Для рідин із діапазоном підставиться <b>максимальне</b> значення.
+              Після цього все можна змінити вручну.
+            </li>
+          </ol>
+        </aside>
+      ) : null}
       <div
         className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--with-onec-panel' : ''} ${modernLayout ? 'modal-content--modern' : ''}`}
         onClick={(e) => e.stopPropagation()}

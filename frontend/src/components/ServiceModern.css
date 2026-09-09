@@ -1056,6 +1056,59 @@ body.task-modal-open .task-kanban-grid {
   max-height: 94vh;
 }
 
+.modal-overlay--with-hint-board .modal-content.modal-content--modern {
+  width: min(1180px, calc(96vw - 380px)) !important;
+}
+
+.modal-overlay--with-hint-board.modal-overlay--with-stock-board .modal-content.modal-content--modern {
+  width: min(1040px, calc(96vw - 820px)) !important;
+}
+
+.task-materials-hint-board {
+  flex: 0 0 348px;
+  width: 348px;
+  max-width: min(348px, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  background: #16202f;
+  border: 1px solid #2a3a52;
+  border-radius: 16px;
+  padding: 14px 16px 16px;
+  box-shadow: inset 3px 0 0 #fb923c, 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.task-materials-hint-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fb923c;
+  margin-bottom: 8px;
+}
+
+.task-materials-hint-lead {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #c5d4e8;
+}
+
+.task-materials-hint-guide {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #d7e3f4;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.task-materials-hint-guide b {
+  color: #fff;
+}
+
 .task-stock-sideboard {
   flex: 0 0 428px;
   width: 428px;
@@ -1246,20 +1299,35 @@ body.task-modal-open .task-kanban-grid {
   display: none;
 }
 
+@media (max-width: 1400px) {
+  .modal-overlay--with-hint-board.modal-overlay--with-stock-board {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .modal-overlay--with-hint-board.modal-overlay--with-stock-board .modal-content.modal-content--modern {
+    width: min(1180px, 96vw) !important;
+    flex: 1 1 100%;
+  }
+}
+
 @media (max-width: 1100px) {
-  .modal-overlay--with-stock-board {
+  .modal-overlay--with-stock-board,
+  .modal-overlay--with-hint-board {
     flex-direction: column;
     align-items: stretch;
   }
 
   .modal-overlay--with-stock-board .modal-content.modal-content--modern,
-  .task-stock-sideboard {
+  .task-stock-sideboard,
+  .task-materials-hint-board {
     width: min(1180px, 96vw) !important;
     max-width: 1180px !important;
     flex: none;
   }
 
-  .task-stock-sideboard {
+  .task-stock-sideboard,
+  .task-materials-hint-board {
     max-height: 48vh;
   }
 }
