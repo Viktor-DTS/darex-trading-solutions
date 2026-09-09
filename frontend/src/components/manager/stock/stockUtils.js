@@ -49,11 +49,61 @@ export function parseAmperage(raw) {
   return m ? Number(m[1]) : null;
 }
 
+/** √3 × 400 В / 1000 — макс. потужність АВР у кВт з номіналу в амперах. */
+export const AVR_SQRT3 = 1.73;
+export const AVR_LINE_VOLTAGE = 400;
+
+export function isAvrItem(item) {
+  const type = String(typeof item === 'string' ? item : item?.type || '');
+  if (!type.trim()) return false;
+  if (/без\s*(?:авр|abp|ats)(?![а-яa-z0-9])/i.test(type)) return false;
+  return /(?:^|[^а-яa-z0-9])(?:авр|abp|ats)(?![а-яa-z0-9])/i.test(type);
+}
+
+export function parseAmpsFromTypeName(type) {
+  const s = String(type || '');
+  const matches = [...s.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:а|a)(?![а-яa-z])/gi)];
+  if (!matches.length) return null;
+  const values = matches
+    .map((m) => Number(String(m[1]).replace(',', '.')))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (!values.length) return null;
+  return Math.max(...values);
+}
+
+export function avrMaxPowerKw(amps) {
+  if (amps == null || !Number.isFinite(amps) || amps <= 0) return null;
+  return Math.round((amps * AVR_SQRT3 * AVR_LINE_VOLTAGE) / 100) / 10;
+}
+
+export function itemAmperage(item) {
+  const fromField = parseAmperage(item?.amperage);
+  if (fromField != null) return fromField;
+  return parseAmpsFromTypeName(item?.type);
+}
+
+export function itemPowerKw(item) {
+  const fromSpec = parsePowerKw(item?.standbyPower || item?.primePower);
+  if (fromSpec != null) return fromSpec;
+  if (!isAvrItem(item)) return null;
+  return avrMaxPowerKw(itemAmperage(item));
+}
+
+function formatKwNumber(kw) {
+  if (kw == null || !Number.isFinite(kw)) return '';
+  const n = Math.round(kw * 10) / 10;
+  return `${n} кВт`;
+}
+
 export function formatPower(item) {
   const standby = displayText(item?.standbyPower, '');
   const prime = displayText(item?.primePower, '');
   if (standby && prime && standby !== prime) return `${standby} / ${prime}`;
-  return standby || prime || '';
+  if (standby || prime) return standby || prime;
+  const amps = isAvrItem(item) ? itemAmperage(item) : null;
+  const kw = avrMaxPowerKw(amps);
+  if (kw == null) return '';
+  return `макс. ${formatKwNumber(kw)} (${amps} А)`;
 }
 
 export function formatAmps(item) {
@@ -184,8 +234,8 @@ export function familyKey(item) {
   if (pid) return `p:${pid}`;
   const type = norm(item?.type) || 'без-типу';
   const mfr = norm(item?.manufacturer);
-  const kw = parsePowerKw(item?.standbyPower || item?.primePower);
-  const amp = parseAmperage(item?.amperage);
+  const kw = itemPowerKw(item);
+  const amp = itemAmperage(item);
   return `t:${type}|${mfr}|${kw ?? ''}|${amp ?? ''}`;
 }
 
@@ -316,13 +366,13 @@ export function unitMatchesFilters(item, filters, login) {
   if (filters.reservedOnly && !isReserved(item)) return false;
   if (filters.myOnly && !isMine(item, login)) return false;
   if (filters.powerMin != null || filters.powerMax != null) {
-    const kw = parsePowerKw(item.standbyPower || item.primePower);
+    const kw = itemPowerKw(item);
     if (kw == null) return false;
     if (filters.powerMin != null && kw < filters.powerMin) return false;
     if (filters.powerMax != null && kw > filters.powerMax) return false;
   }
   if (filters.ampMin != null || filters.ampMax != null) {
-    const amp = parseAmperage(item.amperage);
+    const amp = itemAmperage(item);
     if (amp == null) return false;
     if (filters.ampMin != null && amp < filters.ampMin) return false;
     if (filters.ampMax != null && amp > filters.ampMax) return false;
@@ -357,8 +407,8 @@ export function buildFamilies(items, login) {
         phase: item.phase || '',
         voltage: item.voltage || '',
         photoUrl: item.photoUrl || '',
-        powerKw: parsePowerKw(item.standbyPower || item.primePower),
-        amp: parseAmperage(item.amperage),
+        powerKw: itemPowerKw(item),
+        amp: itemAmperage(item),
         units: [],
         totalQty: 0,
         freeQty: 0,
@@ -373,8 +423,8 @@ export function buildFamilies(items, login) {
     fam.units.push(item);
     if (!fam.photoUrl && item.photoUrl) fam.photoUrl = item.photoUrl;
     if (!fam.manufacturer && !isBlankLabel(item.manufacturer)) fam.manufacturer = item.manufacturer;
-    if (fam.powerKw == null) fam.powerKw = parsePowerKw(item.standbyPower || item.primePower);
-    if (fam.amp == null) fam.amp = parseAmperage(item.amperage);
+    if (fam.powerKw == null) fam.powerKw = itemPowerKw(item);
+    if (fam.amp == null) fam.amp = itemAmperage(item);
     const q = qtyOf(item);
     fam.totalQty += q;
     if (isReserved(item)) {
@@ -463,13 +513,10 @@ export function findAnalogues(family, families, { tolerance = 0.25, limit = 6 } 
 }
 
 export function detectBoardScale(families) {
-  let kw = 0;
-  let amp = 0;
   for (const f of families) {
-    if (f.powerKw != null) kw += 1;
-    if (f.amp != null) amp += 1;
+    if (f.powerKw != null) return 'kw';
   }
-  return kw >= amp ? 'kw' : 'amp';
+  return 'amp';
 }
 
 export function printOfferHtml(client, items) {

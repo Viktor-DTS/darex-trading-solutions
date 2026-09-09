@@ -7,6 +7,7 @@ import {
   getItemKindFilterSelectOptions
 } from '../../utils/equipmentNomenclatureFilter';
 import { exportEquipmentToExcel, printEquipmentStock } from '../../utils/equipmentExport';
+import { formatPower as formatStockPower } from '../manager/stock/stockUtils';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import EquipmentQRModal from './EquipmentQRModal';
 import EquipmentDeleteModal from './EquipmentDeleteModal';
@@ -1358,8 +1359,11 @@ const EquipmentList = forwardRef(({
                     ) : null}
                   </td>
                   {managerCategoryContext ? (
-                    <td className="cell-truncate" title={[item.standbyPower, item.primePower, item.amperage].filter(Boolean).join(' / ')}>
-                      {item.standbyPower || item.primePower || item.amperage || '—'}
+                    <td
+                      className="cell-truncate"
+                      title={formatStockPower(item) || [item.standbyPower, item.primePower, item.amperage].filter(Boolean).join(' / ') || '—'}
+                    >
+                      {formatStockPower(item) || '—'}
                     </td>
                   ) : null}
                   <td>
