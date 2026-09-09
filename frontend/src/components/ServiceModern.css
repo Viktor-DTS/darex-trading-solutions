@@ -365,7 +365,6 @@
 .modal-content--modern .task-board--brief,
 .modal-content--modern .task-board--contract,
 .modal-content--modern .materials-sheet,
-.modal-content--modern .invoice-request-block,
 .modal-content--modern .debt-status-group {
   grid-column: 1 / -1;
 }
@@ -511,16 +510,33 @@
   overflow-x: auto;
 }
 
-.materials-sheet-head,
 .modal-content--modern .materials-sheet .form-row.four-cols {
-  display: grid;
-  grid-template-columns: minmax(140px, 1.7fr) 64px 88px 88px;
+  display: grid !important;
+  grid-template-columns: minmax(220px, 1fr) 72px 96px 96px;
   gap: 6px 8px;
   align-items: end;
-  min-width: 420px;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.modal-content--modern .materials-sheet .form-row.four-cols > .form-group {
+  max-width: none;
+  flex: unset;
+  width: auto;
+  min-width: 0;
+}
+
+.modal-content--modern .materials-sheet .form-row.four-cols > .form-group:first-child,
+.modal-content--modern .materials-sheet .form-row.four-cols > .form-group:first-child .material-autocomplete-wrapper,
+.modal-content--modern .materials-sheet .form-row.four-cols > .form-group:first-child input {
+  width: 100%;
+  max-width: none;
 }
 
 .materials-sheet-head {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 72px 96px 96px;
+  gap: 6px 8px;
   padding: 0 2px 6px;
   color: #7f93ad;
   font-size: 10.5px;
@@ -554,7 +570,60 @@
 }
 
 .modal-content--modern .other-material-line-row {
-  grid-template-columns: minmax(180px, 1.5fr) 72px 100px 100px minmax(140px, 1fr) auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(220px, 1.6fr) 72px 100px 100px minmax(120px, 0.9fr) auto !important;
+}
+
+.modal-content--modern .other-material-line-row > .form-group {
+  max-width: none;
+  flex: unset;
+  min-width: 0;
+}
+
+.modal-content--modern .other-material-line-row > .form-group:first-child,
+.modal-content--modern .other-material-line-row > .form-group:first-child .material-autocomplete-wrapper,
+.modal-content--modern .other-material-line-row > .form-group:first-child input {
+  width: 100%;
+  max-width: none;
+}
+
+.modal-content--modern .materials-workspace {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.7fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.modal-content--modern .materials-workspace-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-content--modern .service-task-stock-block {
+  position: sticky;
+  top: 8px;
+  max-height: min(68vh, 620px);
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  background: #16202f;
+  border: 1px solid #2a3a52;
+  border-radius: 14px;
+  box-shadow: inset 3px 0 0 #34d399;
+}
+
+.modal-content--modern .task-board--pay .invoice-request-block {
+  margin-top: 10px;
+  padding: 10px;
+  background: #121a28;
+  border-color: #2a3a52;
+}
+
+.modal-content--modern .invoice-request-block {
+  grid-column: auto;
 }
 
 .modal-content--modern .section-engineers .section-content {
@@ -662,7 +731,14 @@
   }
 
   .modal-content--modern .section-engineers,
-  .modal-content--modern .section-expenses {
+  .modal-content--modern .section-expenses,
+  .modal-content--modern .materials-workspace {
     grid-column: 1 / -1;
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content--modern .service-task-stock-block {
+    position: static;
+    max-height: none;
   }
 }

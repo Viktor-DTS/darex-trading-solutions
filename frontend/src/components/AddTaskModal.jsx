@@ -2588,6 +2588,34 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <textarea name="invoiceRecipientDetails" value={formData.invoiceRecipientDetails} onChange={handleChange} rows="2" />
                   </div>
                 </div>
+                {(initialData?._id || initialData?.id) && (
+                  <InvoiceRequestBlock
+                    task={{
+                      ...formData,
+                      id: initialData?._id || initialData?.id,
+                      _id: initialData?._id || initialData?.id
+                    }}
+                    user={user}
+                    readOnly={isReadOnly}
+                    onBeforeOpenModal={async () => {
+                      // Спочатку зберігаємо заявку з поточними даними форми (без валідації), потім відкривається модалка запиту на рахунок
+                      return await saveTaskToServer();
+                    }}
+                    onSyncWorksWithoutContract={async (worksWithoutContract) => {
+                      const value = !!worksWithoutContract;
+                      setFormData((prev) => {
+                        const next = { ...prev, worksWithoutContract: value };
+                        formDataRef.current = next;
+                        return next;
+                      });
+                      return await saveTaskToServer({ worksWithoutContract: value });
+                    }}
+                    onRequest={async () => {
+                      console.log('[DEBUG] Запит на рахунок створено');
+                      await reloadTaskData();
+                    }}
+                  />
+                )}
                 </div>
                 <div className={boardClass('contract')}>
                 {boardTitle('Договір')}
@@ -2800,36 +2828,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 </div>
                 </div>
 
-                {/* Запит на рахунок - показуємо тільки при редагуванні */}
-                {(initialData?._id || initialData?.id) && (
-                  <InvoiceRequestBlock
-                    task={{
-                      ...formData,
-                      id: initialData?._id || initialData?.id,
-                      _id: initialData?._id || initialData?.id
-                    }}
-                    user={user}
-                    readOnly={isReadOnly}
-                    onBeforeOpenModal={async () => {
-                      // Спочатку зберігаємо заявку з поточними даними форми (без валідації), потім відкривається модалка запиту на рахунок
-                      return await saveTaskToServer();
-                    }}
-                    onSyncWorksWithoutContract={async (worksWithoutContract) => {
-                      const value = !!worksWithoutContract;
-                      setFormData((prev) => {
-                        const next = { ...prev, worksWithoutContract: value };
-                        formDataRef.current = next;
-                        return next;
-                      });
-                      return await saveTaskToServer({ worksWithoutContract: value });
-                    }}
-                    onRequest={async () => {
-                      console.log('[DEBUG] Запит на рахунок створено');
-                      await reloadTaskData();
-                    }}
-                  />
-                )}
-
                 {/* Заборгованість по документам - приховуємо якщо hideDebtFields */}
                 {!hideDebtFields && (
                 <div className={`form-group debt-status-group ${allowDebtEditInArchive ? 'debt-editable-in-archive' : ''}`}>
@@ -3014,6 +3012,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 </div>
 
                 {/* Матеріали */}
+                <div className={modernLayout ? 'materials-workspace' : undefined}>
+                <div className={modernLayout ? 'materials-workspace-main' : undefined}>
                 <div className={modernLayout ? 'materials-sheet' : undefined}>
                 {modernLayout ? (
                   <>
@@ -3249,6 +3249,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     </div>
                   </div>
                 ) : null}
+                </div>
                 {isServicePanel ? (
                   <div className="service-task-stock-block">
                     <NomenclatureStockPanel
@@ -3269,6 +3270,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     />
                   </div>
                 ) : null}
+                </div>
                 {/* Рядок: Вартість робіт грн (авторозрахунок) */}
                 <div className="form-group calculated">
                   <label>Вартість робіт, грн (авторозрахунок)</label>
