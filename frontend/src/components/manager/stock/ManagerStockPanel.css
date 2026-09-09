@@ -526,24 +526,19 @@
 }
 
 .msp-board {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   min-height: 0;
-  align-items: start;
 }
-
-.msp-board.is-geo { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.msp-board.is-power { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-.msp-board.is-ops { grid-template-columns: repeat(4, minmax(200px, 1fr)); }
 
 .msp-col {
   background: var(--msp-surface);
   border: 1px solid var(--msp-border);
   border-radius: var(--msp-radius);
-  min-height: 180px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 280px);
 }
 
 .msp-col-h {
@@ -560,6 +555,7 @@
   background: var(--msp-surface);
   line-height: 1.3;
   word-break: break-word;
+  z-index: 1;
 }
 
 .msp-col-h span {
@@ -570,9 +566,10 @@
 
 .msp-col-b {
   padding: 8px;
-  overflow: auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
   gap: 8px;
 }
 
@@ -584,6 +581,9 @@
   cursor: pointer;
   text-align: left;
   color: inherit;
+  flex: 1 1 220px;
+  max-width: 360px;
+  min-width: 180px;
 }
 
 .msp-mini:hover {
@@ -899,7 +899,6 @@
 @media (max-width: 1100px) {
   .msp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .msp-basket { width: 280px; }
-  .msp-board.is-ops { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 800px) {
