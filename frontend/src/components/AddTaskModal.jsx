@@ -2231,6 +2231,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
               {formData.internalWork ? <span className="task-passport-chip">Внутрішні</span> : null}
               {formData.serviceRegion ? <span className="task-passport-chip">{formData.serviceRegion}</span> : null}
               {formData.requestAuthor ? <span className="task-passport-chip">{formData.requestAuthor}</span> : null}
+              {clientPaymentDebt && clientPaymentDebt.count > 0 ? (
+                <span className="task-passport-chip is-debt">
+                  💳 У цього замовника є заборгованість по оплаті: {clientPaymentDebt.count} заявок на суму {clientPaymentDebt.sum.toFixed(2)} грн
+                </span>
+              ) : null}
             </div>
             <div className="task-passport-grid">
               <span>
@@ -2261,8 +2266,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             </div>
           )}
 
-          {/* Банер: у замовника є заборгованість по оплаті */}
-          {clientPaymentDebt && clientPaymentDebt.count > 0 && (
+          {/* Банер: у замовника є заборгованість по оплаті (класичний вид; у покращеному — в паспорті) */}
+          {!modernLayout && clientPaymentDebt && clientPaymentDebt.count > 0 && (
             <div className="client-payment-debt-banner">
               💳 У цього замовника є заборгованість по оплаті: <strong>{clientPaymentDebt.count}</strong> заявок на суму <strong>{clientPaymentDebt.sum.toFixed(2)} грн</strong>
             </div>
@@ -2541,7 +2546,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className={boardClass('who')}>
                 {boardTitle('Замовник')}
                 {/* Банер заборгованості по оплаті — перший рядок секції Клієнт та адреса */}
-                {clientPaymentDebt && clientPaymentDebt.count > 0 && (
+                {!modernLayout && clientPaymentDebt && clientPaymentDebt.count > 0 && (
                   <div className="client-payment-debt-banner">
                     💳 У цього замовника є заборгованість по оплаті: <strong>{clientPaymentDebt.count}</strong> заявок на суму <strong>{clientPaymentDebt.sum.toFixed(2)} грн</strong>
                   </div>

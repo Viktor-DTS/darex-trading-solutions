@@ -662,6 +662,14 @@ body.task-modal-open .task-kanban-grid {
   color: #f87171;
 }
 
+.task-passport-chip.is-debt {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  white-space: normal;
+  line-height: 1.35;
+  max-width: 100%;
+}
+
 .task-passport-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
