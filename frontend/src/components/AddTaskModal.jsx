@@ -2175,6 +2175,37 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           </h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
+        {modernLayout ? (
+          <div className="task-passport">
+            <div className="task-passport-id">
+              <strong>{isNewTask ? 'Нова заявка' : (formData.requestNumber || 'Без номера')}</strong>
+              <span className={`task-passport-chip is-status-${String(formData.status || '').replace(/\s+/g, '-').toLowerCase()}`}>
+                {formData.status || 'Без статусу'}
+              </span>
+              {formData.urgentRequest ? <span className="task-passport-chip is-urgent">Термінова</span> : null}
+              {formData.internalWork ? <span className="task-passport-chip">Внутрішні</span> : null}
+              {formData.serviceRegion ? <span className="task-passport-chip">{formData.serviceRegion}</span> : null}
+            </div>
+            <div className="task-passport-grid">
+              <span>
+                <small>Замовник</small>
+                <b>{formData.client || '—'}</b>
+              </span>
+              <span>
+                <small>Адреса</small>
+                <b>{formData.address || '—'}</b>
+              </span>
+              <span>
+                <small>Обладнання</small>
+                <b>{[formData.equipment, formData.equipmentSerial].filter(Boolean).join(' · ') || '—'}</b>
+              </span>
+              <span>
+                <small>Сума</small>
+                <b>{formData.serviceTotal ? `${formData.serviceTotal} грн` : '—'}</b>
+              </span>
+            </div>
+          </div>
+        ) : null}
 
         <div className={showOnecPanel ? 'modal-body-split' : modernLayout ? 'modal-body-modern-split' : 'modal-body-single'}>
         <form onSubmit={handleSubmit} className={`task-form ${showOnecPanel ? 'task-form--split-left' : ''}`}>
@@ -2511,7 +2542,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       onChange={handleChange}
                       placeholder="Почніть вводити адресу..."
                       autoComplete="off"
-                      style={!isAccountantMode ? { width: '100%', padding: '0.5rem', minHeight: '60px', resize: 'vertical' } : {}}
+                      style={!isAccountantMode && !modernLayout ? { width: '100%', padding: '0.5rem', minHeight: '60px', resize: 'vertical' } : {}}
                     />
                   </div>
                 </div>
@@ -2957,6 +2988,15 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 </div>
 
                 {/* Матеріали */}
+                <div className={modernLayout ? 'materials-sheet' : undefined}>
+                {modernLayout ? (
+                  <div className="materials-sheet-head" aria-hidden="true">
+                    <span>Позиція</span>
+                    <span>К-сть</span>
+                    <span>Ціна</span>
+                    <span>Сума</span>
+                  </div>
+                ) : null}
                 {/* Рядок: Тип оливи, Використано л, Ціна за 1 л грн, Сума грн */}
                 <div className="form-row four-cols">
                   <div className="form-group">
@@ -3077,6 +3117,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
                   </div>
                 </div>
+                </div>
                 {/* Додаткові матеріали — динамічні позиції (назва, кількість, ціна за одиницю, сума) */}
                 <div className="form-group" style={{ marginTop: '6px' }}>
                   <label>Додаткові матеріали (позиції)</label>
@@ -3126,7 +3167,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                               onChange={(e) => updateOtherMaterialLine(idx, 'note', e.target.value)}
                               readOnly={isReadOnly}
                               rows={2}
-                              style={{ width: '100%', minHeight: '60px' }}
+                              style={{ width: '100%', minHeight: modernLayout ? '38px' : '60px' }}
                               placeholder="Примітка..."
                             />
                           </div>
@@ -3161,7 +3202,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         onChange={handleChange}
                         readOnly={isReadOnly}
                         rows={4}
-                        style={{ minHeight: '100px', resize: 'both', width: '100%', padding: '0.5rem' }}
+                        style={modernLayout
+                          ? { width: '100%', minHeight: '56px', resize: 'vertical' }
+                          : { minHeight: '100px', resize: 'both', width: '100%', padding: '0.5rem' }}
                       />
                     </div>
                     <div className="form-group">
