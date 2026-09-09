@@ -2162,9 +2162,31 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     (panelType === 'warehouse' || panelType === 'accountant');
   const boardClass = (name) => (modernLayout ? `task-board task-board--${name}` : undefined);
   const boardTitle = (text) => (modernLayout ? <strong className="task-board-title">{text}</strong> : null);
+  const stockPanel = isServicePanel ? (
+    <NomenclatureStockPanel
+      title="Залишки матеріалів на складах"
+      note="Показує залишки для введених у формі матеріалів. Можна надіслати запит на переміщення з іншого складу."
+      items={serviceStockItems}
+      loading={serviceStockLoading}
+      canRequestTransfer={!isReadOnly}
+      onRequestTransfer={(payload) => {
+        setServiceTransferInitial(payload);
+        setServiceTransferOpen(true);
+      }}
+      emptyHint={
+        serviceHasMaterialNames
+          ? 'Залишків не знайдено.'
+          : 'Введіть назви матеріалів у полях заявки (мінімум 2 символи).'
+      }
+    />
+  ) : null;
 
   return (
-    <div className="modal-overlay" style={overlayStyle} onClick={onClose}>
+    <div
+      className={`modal-overlay${modernLayout && stockPanel ? ' modal-overlay--with-stock-board' : ''}`}
+      style={overlayStyle}
+      onClick={onClose}
+    >
       <div
         className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--with-onec-panel' : ''} ${modernLayout ? 'modal-content--modern' : ''}`}
         onClick={(e) => e.stopPropagation()}
@@ -3250,24 +3272,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                   </div>
                 ) : null}
                 </div>
-                {isServicePanel ? (
+                {!modernLayout && isServicePanel ? (
                   <div className="service-task-stock-block">
-                    <NomenclatureStockPanel
-                      title="Залишки матеріалів на складах"
-                      note="Показує залишки для введених у формі матеріалів (як у відділі закупівель). Можна надіслати запит на переміщення з іншого складу."
-                      items={serviceStockItems}
-                      loading={serviceStockLoading}
-                      canRequestTransfer={!isReadOnly}
-                      onRequestTransfer={(payload) => {
-                        setServiceTransferInitial(payload);
-                        setServiceTransferOpen(true);
-                      }}
-                      emptyHint={
-                        serviceHasMaterialNames
-                          ? 'Залишків не знайдено.'
-                          : 'Введіть назви матеріалів у полях вище (мінімум 2 символи).'
-                      }
-                    />
+                    {stockPanel}
                   </div>
                 ) : null}
                 </div>
@@ -3670,6 +3677,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         ) : null}
         </div>
       </div>
+      {modernLayout && stockPanel ? (
+        <aside className="task-stock-sideboard" onClick={(e) => e.stopPropagation()}>
+          {stockPanel}
+        </aside>
+      ) : null}
       
       {/* Модальне вікно автозаповнення даних клієнта */}
       <ClientDataSelectionModal

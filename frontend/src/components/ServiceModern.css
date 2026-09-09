@@ -587,12 +587,95 @@
   max-width: none;
 }
 
+.modal-overlay--with-stock-board {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow: auto;
+}
+
+.modal-overlay--with-stock-board .modal-content.modal-content--modern {
+  flex: 1 1 auto;
+  width: min(1180px, calc(96vw - 456px)) !important;
+  max-width: 1180px !important;
+  max-height: 94vh;
+}
+
+.task-stock-sideboard {
+  flex: 0 0 428px;
+  width: 428px;
+  max-width: min(428px, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  background: #16202f;
+  border: 1px solid #2a3a52;
+  border-radius: 16px;
+  padding: 14px 16px 16px;
+  box-shadow: inset 3px 0 0 #34d399, 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.task-stock-sideboard .nomenclature-stock-panel {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.task-stock-sideboard .nomenclature-stock-panel-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #34d399;
+  margin-bottom: 6px;
+}
+
+.task-stock-sideboard .nomenclature-stock-panel-note {
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.task-stock-sideboard .nomenclature-stock-wrap {
+  overflow: visible;
+}
+
+.task-stock-sideboard .nomenclature-stock-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.task-stock-sideboard .nomenclature-stock-table th,
+.task-stock-sideboard .nomenclature-stock-table td {
+  padding: 8px 6px;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-stock-sideboard .nomenclature-stock-table th:nth-child(2),
+.task-stock-sideboard .nomenclature-stock-table td:nth-child(2) {
+  width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.task-stock-sideboard .nomenclature-stock-action {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.task-stock-sideboard .btn-transfer-request {
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
 .modal-content--modern .materials-workspace {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.7fr);
-  gap: 10px;
-  align-items: start;
+  display: block;
 }
 
 .modal-content--modern .materials-workspace-main {
@@ -600,19 +683,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.modal-content--modern .service-task-stock-block {
-  position: sticky;
-  top: 8px;
-  max-height: min(68vh, 620px);
-  overflow: auto;
-  margin: 0;
-  padding: 10px 12px;
-  background: #16202f;
-  border: 1px solid #2a3a52;
-  border-radius: 14px;
-  box-shadow: inset 3px 0 0 #34d399;
 }
 
 .modal-content--modern .task-board--pay .invoice-request-block {
@@ -722,6 +792,24 @@
   display: none;
 }
 
+@media (max-width: 1100px) {
+  .modal-overlay--with-stock-board {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modal-overlay--with-stock-board .modal-content.modal-content--modern,
+  .task-stock-sideboard {
+    width: min(1180px, 96vw) !important;
+    max-width: 1180px !important;
+    flex: none;
+  }
+
+  .task-stock-sideboard {
+    max-height: 48vh;
+  }
+}
+
 @media (max-width: 900px) {
   .modal-content--modern .task-form,
   .modal-content--modern .section-basic .section-content,
@@ -735,10 +823,5 @@
   .modal-content--modern .materials-workspace {
     grid-column: 1 / -1;
     grid-template-columns: 1fr;
-  }
-
-  .modal-content--modern .service-task-stock-block {
-    position: static;
-    max-height: none;
   }
 }
