@@ -2884,7 +2884,9 @@ function procurementReceiptInHistoryForUser(reqUser, names, pr) {
   }
   if (procurementReceiptAwaitingThisUserAction(reqUser, names, pr)) return false;
   for (const line of pr.materials || []) {
-    if (!procurementLineInReceiptScopeForUser(reqUser, names, whNeeded, pr, line)) continue;
+    if (!isProcurementReceiptMonitorAllRole(reqUser.role)) {
+      if (!procurementLineInReceiptScopeForUser(reqUser, names, whNeeded, pr, line)) continue;
+    }
     if (procurementLineHasWarehouseReceiptRecorded(line)) return true;
   }
   return false;
@@ -3695,6 +3697,47 @@ function isWarehouseInventoryMutatorRole(role) {
 function isProcurementReceiptMonitorAllRole(role) {
   const r = String(role || '').toLowerCase();
   return ['admin', 'administrator', 'mgradm'].includes(r) || isGolovzvskRole(r);
+}
+
+function userHasGolovzvskRole(reqUser, dbUser) {
+  return isGolovzvskRole(reqUser?.role) || isGolovzvskRole(dbUser?.role);
+}
+
+/** golovzvsk / admin: усі заявки на прийом; звичайний завсклад — лише склади зі списку назв. */
+function buildAwaitingWarehouseReceiptFilter({ restrictToWarehouseNames = null } = {}) {
+  const and = [{ status: 'awaiting_warehouse' }, procurementNotImportedMongoFilter()];
+  if (Array.isArray(restrictToWarehouseNames) && restrictToWarehouseNames.length) {
+    and.push({
+      $or: [
+        { actualWarehouse: { $in: restrictToWarehouseNames } },
+        { 'materials.actualWarehouse': { $in: restrictToWarehouseNames } },
+      ],
+    });
+  }
+  return { $and: and };
+}
+
+function buildWarehouseReceiptHistoryFilter({ restrictToWarehouseNames = null } = {}) {
+  const and = [
+    { status: { $in: ['awaiting_warehouse', 'awaiting_documents', 'completed', 'partially_fulfilled'] } },
+    procurementNotImportedMongoFilter(),
+    {
+      $or: [
+        { warehouseReceivedAt: { $ne: null } },
+        { 'materials.receivedQuantity': { $ne: null } },
+        { 'materials.warehouseReceiptEvents.0': { $exists: true } },
+      ],
+    },
+  ];
+  if (Array.isArray(restrictToWarehouseNames) && restrictToWarehouseNames.length) {
+    and.push({
+      $or: [
+        { actualWarehouse: { $in: restrictToWarehouseNames } },
+        { 'materials.actualWarehouse': { $in: restrictToWarehouseNames } },
+      ],
+    });
+  }
+  return { $and: and };
 }
 
 function bypassesRegionalWarehouseInventoryLock(role) {
@@ -6391,19 +6434,24 @@ app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req,
   const startTime = Date.now();
   try {
     const dbUser = await User.findOne({ login: req.user.login }).select('login role region').lean();
-    const viewNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'view' });
-    if (viewNames.length === 0) {
+    const effectiveUser = { ...req.user, role: dbUser?.role || req.user.role };
+    const monitorAll =
+      userHasGolovzvskRole(effectiveUser, dbUser) || isProcurementReceiptMonitorAllRole(effectiveUser.role);
+    const viewNames = await getWarehouseNamesForProcurementReceiptUser(effectiveUser, dbUser, { scope: 'view' });
+    if (!monitorAll && viewNames.length === 0) {
       logPerformance('GET pending-warehouse-receipt/count', startTime, 0);
       return res.json({ count: 0 });
     }
-    const candidates = await ProcurementRequest.find({
-      status: 'awaiting_warehouse',
-      ...procurementNotImportedMongoFilter(),
-      $or: [{ actualWarehouse: { $in: viewNames } }, { 'materials.actualWarehouse': { $in: viewNames } }]
-    })
+    const candidates = await ProcurementRequest.find(
+      buildAwaitingWarehouseReceiptFilter({
+        restrictToWarehouseNames: monitorAll ? null : viewNames,
+      })
+    )
       .select(PROCUREMENT_RECEIPT_COUNT_PROJECTION)
       .lean();
-    const count = candidates.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, viewNames, pr)).length;
+    const count = candidates.filter((pr) =>
+      procurementReceiptAwaitingThisUserAction(effectiveUser, viewNames, pr)
+    ).length;
     logPerformance('GET pending-warehouse-receipt/count', startTime, count);
     res.json({ count });
   } catch (error) {
@@ -6416,29 +6464,33 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
   const startTime = Date.now();
   try {
     const dbUser = await User.findOne({ login: req.user.login }).lean();
-    const viewNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'view' });
-    const confirmNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'confirm' });
-    if (viewNames.length === 0) {
+    const effectiveUser = { ...req.user, role: dbUser?.role || req.user.role };
+    const monitorAll =
+      userHasGolovzvskRole(effectiveUser, dbUser) || isProcurementReceiptMonitorAllRole(effectiveUser.role);
+    const viewNames = await getWarehouseNamesForProcurementReceiptUser(effectiveUser, dbUser, { scope: 'view' });
+    const confirmNames = await getWarehouseNamesForProcurementReceiptUser(effectiveUser, dbUser, {
+      scope: 'confirm',
+    });
+    if (!monitorAll && viewNames.length === 0) {
       logPerformance('GET pending-warehouse-receipt', startTime, 0);
       return res.json([]);
     }
-    const monitorAll = isGolovzvskRole(req.user.role);
-    const rowsAll = await ProcurementRequest.find({
-      status: 'awaiting_warehouse',
-      ...procurementNotImportedMongoFilter(),
-      $or: [{ actualWarehouse: { $in: viewNames } }, { 'materials.actualWarehouse': { $in: viewNames } }]
-    })
+    const rowsAll = await ProcurementRequest.find(
+      buildAwaitingWarehouseReceiptFilter({
+        restrictToWarehouseNames: monitorAll ? null : viewNames,
+      })
+    )
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .lean();
-    const rows = rowsAll.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, viewNames, pr));
+    const rows = rowsAll.filter((pr) => procurementReceiptAwaitingThisUserAction(effectiveUser, viewNames, pr));
     const warehouseDocs = await Warehouse.find({ isActive: true }).select('name region').lean();
     for (const pr of rows) {
       const whNeeded = procurementRequestWhNeededNameSet(pr);
       if (monitorAll) pr.receiptMonitorAll = true;
       for (const line of pr.materials || []) {
         line.receiptLineEditable = procurementLineInReceiptScopeForUser(
-          req.user,
+          effectiveUser,
           confirmNames,
           whNeeded,
           pr,
@@ -6461,41 +6513,34 @@ app.get('/api/procurement-requests/warehouse-receipt-history', async (req, res) 
   const startTime = Date.now();
   try {
     const dbUser = await User.findOne({ login: req.user.login }).lean();
-    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, { scope: 'view' });
-    const confirmNames = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser, {
+    const effectiveUser = { ...req.user, role: dbUser?.role || req.user.role };
+    const monitorAll =
+      userHasGolovzvskRole(effectiveUser, dbUser) || isProcurementReceiptMonitorAllRole(effectiveUser.role);
+    const names = await getWarehouseNamesForProcurementReceiptUser(effectiveUser, dbUser, { scope: 'view' });
+    const confirmNames = await getWarehouseNamesForProcurementReceiptUser(effectiveUser, dbUser, {
       scope: 'confirm',
     });
-    if (names.length === 0) {
+    if (!monitorAll && names.length === 0) {
       logPerformance('GET warehouse-receipt-history', startTime, 0);
       return res.json([]);
     }
-    const rowsAll = await ProcurementRequest.find({
-      status: { $in: ['awaiting_warehouse', 'awaiting_documents', 'completed', 'partially_fulfilled'] },
-      ...procurementNotImportedMongoFilter(),
-      $and: [
-        {
-          $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }],
-        },
-        {
-          $or: [
-            { warehouseReceivedAt: { $ne: null } },
-            { 'materials.receivedQuantity': { $ne: null } },
-            { 'materials.warehouseReceiptEvents.0': { $exists: true } },
-          ],
-        },
-      ],
-    })
+    const rowsAll = await ProcurementRequest.find(
+      buildWarehouseReceiptHistoryFilter({
+        restrictToWarehouseNames: monitorAll ? null : names,
+      })
+    )
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ updatedAt: -1 })
       .limit(400)
       .lean();
     const rows = rowsAll
-      .filter((pr) => procurementReceiptInHistoryForUser(req.user, names, pr))
+      .filter((pr) => procurementReceiptInHistoryForUser(effectiveUser, names, pr))
       .sort((a, b) => procurementHistorySortTimestamp(b) - procurementHistorySortTimestamp(a))
       .slice(0, 200);
     const warehouseDocs = await Warehouse.find({ isActive: true }).select('name region').lean();
     for (const pr of rows) {
-      enrichProcurementWarehouseReceiptHistoryRow(req.user, confirmNames, pr);
+      enrichProcurementWarehouseReceiptHistoryRow(effectiveUser, confirmNames, pr);
+      if (monitorAll) pr.receiptMonitorAll = true;
       pr.crossRegionNotices = computeProcurementCrossRegionNotices(pr, warehouseDocs);
     }
     logPerformance('GET warehouse-receipt-history', startTime, rows.length);

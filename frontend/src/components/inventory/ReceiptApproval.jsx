@@ -603,11 +603,12 @@ function ReceiptApproval({
   };
 
   const renderProcurementReceiptCard = (pr, { history = false } = {}) => {
+    const monitorAllCard = Boolean(pr.receiptMonitorAll) || chiefWarehouseMonitor;
     const historyLines = (pr.materials || [])
       .map((m, idx) => ({ m, idx }))
       .filter(({ m }) => {
-        if (history) return m.receiptLineHistory;
-        if (pr.receiptMonitorAll || m.receiptLineMonitor) return true;
+        if (history) return m.receiptLineHistory || monitorAllCard;
+        if (monitorAllCard || m.receiptLineMonitor) return true;
         return m.receiptLineEditable !== false;
       });
 
@@ -737,7 +738,7 @@ function ReceiptApproval({
               Підтвердити прийом на складі
             </button>
           </div>
-        ) : !history && (pr.receiptMonitorAll || chiefWarehouseMonitor) && !canSubmitThis ? (
+        ) : !history && monitorAllCard && !canSubmitThis ? (
           <p className="receipt-monitor-only-hint">
             Лише перегляд: склади цієї заявки не у вашому регіоні. Затвердити може завсклад відповідного регіону.
           </p>
@@ -787,7 +788,9 @@ function ReceiptApproval({
           </>
         ) : !procurementLoading ? (
           <div className="receipt-inline-status receipt-procurement-history-empty">
-            Затверджень закупівель у вашій зоні поки немає.
+            {chiefWarehouseMonitor
+              ? 'Затверджень закупівель поки немає.'
+              : 'Затверджень закупівель у вашій зоні поки немає.'}
           </div>
         ) : null
       ) : null}
