@@ -18,12 +18,23 @@ export function formatHintQty(value) {
   return String(Math.round(n * 100) / 100);
 }
 
-export function formatHintQtyRange(min, max) {
+export function slotHintUnit(slot) {
+  return slot?.liquid ? 'л' : 'шт';
+}
+
+export function formatHintQtyWithUnit(value, unit) {
+  const qty = formatHintQty(value);
+  if (!qty) return '';
+  return unit ? `${qty} ${unit}` : qty;
+}
+
+export function formatHintQtyRange(min, max, unit) {
+  const suffix = unit ? ` ${unit}` : '';
   if (min == null && max == null) return 'кількість не вказана';
   if (min != null && max != null && min !== max) {
-    return `від ${formatHintQty(min)} до ${formatHintQty(max)}`;
+    return `від ${formatHintQty(min)} до ${formatHintQty(max)}${suffix}`;
   }
-  return formatHintQty(max ?? min);
+  return `${formatHintQty(max ?? min)}${suffix}`;
 }
 
 function stockWarehouseInRegion(row, warehouses, region) {
@@ -153,21 +164,50 @@ export default function TaskMaterialsHintBoard({
     markApplied('all');
   };
 
-  const renderStock = (name) => {
+  const renderStock = (name, unit) => {
     const stock = stockByName.get(stockKey(name));
-    if (stockLoading && !stock) return <span className="task-materials-hint-stock is-muted">залишки…</span>;
-    if (!stock || stock.qty <= 0) {
-      return <span className="task-materials-hint-stock is-empty">немає в регіоні</span>;
+    if (stockLoading && !stock) {
+      return <div className="task-materials-hint-stock is-muted">залишки…</div>;
     }
-    const places = stock.warehouses
-      .slice(0, 2)
-      .map((row) => `${row.warehouseName}: ${formatHintQty(row.quantity)}`)
-      .join(', ');
+    if (!stock || stock.qty <= 0) {
+      return <div className="task-materials-hint-stock is-empty">немає в регіоні</div>;
+    }
     return (
-      <span className="task-materials-hint-stock is-ok">
-        регіон {formatHintQty(stock.qty)}
-        {places ? ` · ${places}` : ''}
-      </span>
+      <div className="task-materials-hint-stock is-ok">
+        <span>В вашому регіоні {formatHintQtyWithUnit(stock.qty, unit)}</span>
+        {stock.warehouses.map((row) => (
+          <span key={`${row.warehouseId || ''}-${row.warehouseName}`}>
+            {row.warehouseName}: {formatHintQtyWithUnit(row.quantity, unit)}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  const renderHintRow = (slot, analogue) => {
+    const unit = slotHintUnit(slot);
+    const applied = appliedKey === `${slot.id}:${analogue.name}`;
+    return (
+      <div key={`${slot.id}:${analogue.name}`} className="task-materials-hint-row">
+        <div>
+          <b>
+            {analogue.name}{' '}
+            {formatHintQtyRange(analogue.qtyMin, analogue.qtyMax, unit)}
+            {' · '}
+            {analogue.uses} заяв.
+          </b>
+          {renderStock(analogue.name, unit)}
+        </div>
+        {!disabled ? (
+          <button
+            type="button"
+            className="task-materials-hint-apply"
+            onClick={() => applySlot(slot, analogue)}
+          >
+            {applied ? 'Підставлено' : 'Підставити'}
+          </button>
+        ) : null}
+      </div>
     );
   };
 
@@ -231,53 +271,11 @@ export default function TaskMaterialsHintBoard({
               return (
                 <section key={slot.id} className="task-materials-hint-slot">
                   <strong>{slot.label}</strong>
-                  {primary ? (
-                    <div className="task-materials-hint-row">
-                      <div>
-                        <b>{primary.name}</b>
-                        <span>
-                          {formatHintQtyRange(primary.qtyMin, primary.qtyMax)}
-                          {' · '}
-                          {primary.uses} заяв.
-                        </span>
-                        {renderStock(primary.name)}
-                      </div>
-                      {!disabled ? (
-                        <button
-                          type="button"
-                          className="task-materials-hint-apply"
-                          onClick={() => applySlot(slot, primary)}
-                        >
-                          {appliedKey === `${slot.id}:${primary.name}` ? 'Підставлено' : 'Підставити'}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  {primary ? renderHintRow(slot, primary) : null}
                   {rest.length ? (
                     <div className="task-materials-hint-analogues">
                       <em>Аналоги</em>
-                      {rest.map((analogue) => (
-                        <div key={`${slot.id}:${analogue.name}`} className="task-materials-hint-row">
-                          <div>
-                            <b>{analogue.name}</b>
-                            <span>
-                              {formatHintQtyRange(analogue.qtyMin, analogue.qtyMax)}
-                              {' · '}
-                              {analogue.uses} заяв.
-                            </span>
-                            {renderStock(analogue.name)}
-                          </div>
-                          {!disabled ? (
-                            <button
-                              type="button"
-                              className="task-materials-hint-apply"
-                              onClick={() => applySlot(slot, analogue)}
-                            >
-                              {appliedKey === `${slot.id}:${analogue.name}` ? 'Підставлено' : 'Підставити'}
-                            </button>
-                          ) : null}
-                        </div>
-                      ))}
+                      {rest.map((analogue) => renderHintRow(slot, analogue))}
                     </div>
                   ) : null}
                 </section>
