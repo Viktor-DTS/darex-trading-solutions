@@ -695,21 +695,23 @@ function ReceiptApproval({
                       {history ? (
                         <strong>{meta?.acceptedQuantity ?? '—'}</strong>
                       ) : (
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={val}
-                          disabled={
-                            readOnly ||
-                            procurementSubmitting === pr._id ||
-                            m.receiptLineEditable === false
-                          }
-                          onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
-                          aria-label={`Прийнято факт, позиція ${idx + 1}`}
-                        />
-                        {m.receiptLineEditable === false ? (
-                          <span className="receipt-move-monitor-tag">інший регіон</span>
-                        ) : null}
+                        <>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={val}
+                            disabled={
+                              readOnly ||
+                              procurementSubmitting === pr._id ||
+                              m.receiptLineEditable === false
+                            }
+                            onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
+                            aria-label={`Прийнято факт, позиція ${idx + 1}`}
+                          />
+                          {m.receiptLineEditable === false ? (
+                            <span className="receipt-move-monitor-tag">інший регіон</span>
+                          ) : null}
+                        </>
                       )}
                     </td>
                     {history ? (
