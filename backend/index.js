@@ -66,6 +66,11 @@ const {
 } = require('./lib/bczvsklRole');
 const { isGolovzvskRole } = require('./lib/golovzvskRole');
 const {
+  buildEquipmentSearchRegex,
+  equipmentTypesMatch,
+  aggregateEquipmentMaterialHints,
+} = require('./lib/equipmentMaterialHints');
+const {
   canAccessMarketingPanel,
   canManageAllMarketingLeads,
   canViewManagerExternalLeads,
@@ -10631,6 +10636,66 @@ app.post('/api/tasks/:id/restore-from-deletion', authenticateToken, async (req, 
   } catch (error) {
     logPerformance('POST /api/tasks/:id/restore-from-deletion', startTime);
     console.error('[ERROR] POST /api/tasks/:id/restore-from-deletion:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// ПІДКАЗКА МАТЕРІАЛІВ ЗА ТИПОМ ОБЛАДНАННЯ
+// ============================================
+app.get('/api/tasks/equipment-material-hints', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const equipment = String(req.query.equipment || '').trim();
+    if (equipment.length < 2) {
+      return res.json({ equipment, matchedTasks: 0, slots: [] });
+    }
+
+    const regex = buildEquipmentSearchRegex(equipment);
+    if (!regex) {
+      return res.json({ equipment, matchedTasks: 0, slots: [] });
+    }
+
+    const query = {
+      equipment: { $regex: regex },
+      status: { $ne: 'Заблоковано' },
+    };
+    const excludeTaskId = String(req.query.excludeTaskId || '').trim();
+    if (excludeTaskId && mongoose.Types.ObjectId.isValid(excludeTaskId)) {
+      query._id = { $ne: excludeTaskId };
+    }
+
+    const tasks = await Task.find(query)
+      .select([
+        'equipment',
+        'status',
+        'oilType',
+        'oilUsed',
+        'oilL',
+        'filterName',
+        'oilFilterName',
+        'filterCount',
+        'oilFilterCount',
+        'fuelFilterName',
+        'fuelFilterCount',
+        'airFilterName',
+        'airFilterCount',
+        'antifreezeType',
+        'antifreezeL',
+        'otherMaterialLines',
+        'otherMaterials',
+      ].join(' '))
+      .sort({ date: -1, requestDate: -1 })
+      .limit(500)
+      .lean();
+
+    const matchedTasks = tasks.filter((task) => equipmentTypesMatch(equipment, task.equipment));
+    const payload = aggregateEquipmentMaterialHints(matchedTasks, equipment);
+    logPerformance('GET /api/tasks/equipment-material-hints', startTime, payload.matchedTasks);
+    res.json(payload);
+  } catch (error) {
+    console.error('[ERROR] GET /api/tasks/equipment-material-hints:', error);
+    logPerformance('GET /api/tasks/equipment-material-hints', startTime);
     res.status(500).json({ error: error.message });
   }
 });

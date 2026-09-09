@@ -11,6 +11,7 @@ import MaterialNameAutocomplete from './MaterialNameAutocomplete';
 import TaskOneCMovementsPanel from './onec/TaskOneCMovementsPanel';
 import NomenclatureStockPanel from './shared/NomenclatureStockPanel';
 import WarehouseTransferRequestModal from './WarehouseTransferRequestModal';
+import TaskMaterialsHintBoard, { formatHintQty } from './TaskMaterialsHintBoard';
 import { useNomenclatureStock } from '../hooks/useNomenclatureStock';
 import './AddTaskModal.css';
 
@@ -1630,6 +1631,61 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     });
   };
 
+  const upsertOtherMaterialHintLine = (lines, name, qty) => {
+    const next = Array.isArray(lines) ? [...lines] : [];
+    const key = String(name || '').trim().toLowerCase();
+    const idx = next.findIndex((row) => String(row?.name || '').trim().toLowerCase() === key);
+    if (idx >= 0) {
+      next[idx] = { ...next[idx], name, count: qty };
+      return next;
+    }
+    const emptyIdx = next.findIndex((row) => !String(row?.name || '').trim());
+    if (emptyIdx >= 0) {
+      next[emptyIdx] = { ...next[emptyIdx], name, count: qty };
+      return next;
+    }
+    next.push({ name, count: qty, price: '', note: '' });
+    return next;
+  };
+
+  const applyMaterialHintSlot = (slot, analogue) => {
+    if (isReadOnly || !slot) return;
+    const name = String(analogue?.name || slot.primaryName || '').trim();
+    if (!name) return;
+    const qty = formatHintQty(analogue?.qtyMax ?? slot.suggestedQty);
+    setShowSections((prev) => ({ ...prev, equipment: true, materials: true }));
+    setFormData((prev) => {
+      if (slot.kind === 'other') {
+        return { ...prev, otherMaterialLines: upsertOtherMaterialHintLine(prev.otherMaterialLines, name, qty) };
+      }
+      const next = { ...prev, [slot.nameField]: name };
+      if (slot.qtyField) next[slot.qtyField] = qty;
+      return next;
+    });
+  };
+
+  const applyAllMaterialHints = (slots) => {
+    if (isReadOnly || !Array.isArray(slots) || !slots.length) return;
+    setShowSections((prev) => ({ ...prev, equipment: true, materials: true }));
+    setFormData((prev) => {
+      let next = { ...prev };
+      let lines = [...(next.otherMaterialLines || [])];
+      for (const slot of slots) {
+        const name = String(slot.primaryName || '').trim();
+        if (!name) continue;
+        const qty = formatHintQty(slot.analogues?.[0]?.qtyMax ?? slot.suggestedQty);
+        if (slot.kind === 'other') {
+          lines = upsertOtherMaterialHintLine(lines, name, qty);
+        } else {
+          next[slot.nameField] = name;
+          if (slot.qtyField) next[slot.qtyField] = qty;
+        }
+      }
+      next.otherMaterialLines = lines;
+      return next;
+    });
+  };
+
   const toggleSection = (section) => {
     // В режимі бухгалтера не дозволяємо згортати секції
     if (isAccountantMode) {
@@ -2215,35 +2271,16 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       }}
     >
       {showMaterialsHintBoard ? (
-        <aside className="task-materials-hint-board" onClick={(e) => e.stopPropagation()}>
-          <strong className="task-materials-hint-title">Підказка по матеріалах</strong>
-          <p className="task-materials-hint-lead">
-            З’являється лише коли статус заявки — «Заявка» або «В роботі». Поки тут опис,
-            аналіз заявок підключимо наступним кроком.
-          </p>
-          <ol className="task-materials-hint-guide">
-            <li>
-              Вкажіть <b>тип обладнання</b>. Система знайде виконані заявки з таким самим типом
-              і збере всі матеріали, які там ставили.
-            </li>
-            <li>
-              Для кожної позиції побачите <b>назву</b> і <b>кількість</b>. Якщо в різних заявках
-              кількість різна — покажемо діапазон «від — до».
-            </li>
-            <li>
-              Якщо під один тип обладнання на одну роль (наприклад масляний фільтр) ставили
-              <b> різні назви</b> — вони відобразяться як <b>аналоги</b>.
-            </li>
-            <li>
-              Поруч будуть <b>залишки на складах вашого регіону</b>, щоб одразу бачити, чи є позиція.
-            </li>
-            <li>
-              Якщо варіант підходить — <b>автопідстановка</b> запише назву й кількість у відповідні
-              поля заявки. Для рідин із діапазоном підставиться <b>максимальне</b> значення.
-              Після цього все можна змінити вручну.
-            </li>
-          </ol>
-        </aside>
+        <TaskMaterialsHintBoard
+          equipment={formData.equipment}
+          currentTaskId={initialData._id || initialData.id}
+          region={formData.serviceRegion || user?.region}
+          warehouses={serviceWarehouses}
+          authHeaders={serviceAuthHeaders}
+          disabled={isReadOnly}
+          onApplySlot={applyMaterialHintSlot}
+          onApplyAll={applyAllMaterialHints}
+        />
       ) : null}
       <div
         className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--with-onec-panel' : ''} ${modernLayout ? 'modal-content--modern' : ''}`}

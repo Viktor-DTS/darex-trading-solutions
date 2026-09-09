@@ -1109,6 +1109,124 @@ body.task-modal-open .task-kanban-grid {
   color: #fff;
 }
 
+.task-materials-hint-status {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #c5d4e8;
+}
+
+.task-materials-hint-status.is-error {
+  color: #fca5a5;
+}
+
+.task-materials-hint-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.task-materials-hint-toolbar .task-materials-hint-status {
+  margin: 0;
+}
+
+.task-materials-hint-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-materials-hint-slot {
+  background: rgba(15, 23, 36, 0.7);
+  border: 1px solid #2a3a52;
+  border-radius: 12px;
+  padding: 10px 10px 8px;
+}
+
+.task-materials-hint-slot > strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fdba74;
+  margin-bottom: 8px;
+}
+
+.task-materials-hint-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.task-materials-hint-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.task-materials-hint-row b {
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.task-materials-hint-row span {
+  color: #9fb3cc;
+  font-size: 12px;
+}
+
+.task-materials-hint-stock {
+  font-size: 11.5px !important;
+}
+
+.task-materials-hint-stock.is-ok {
+  color: #6ee7b7 !important;
+}
+
+.task-materials-hint-stock.is-empty,
+.task-materials-hint-stock.is-muted {
+  color: #7f93ab !important;
+}
+
+.task-materials-hint-analogues {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed #314560;
+}
+
+.task-materials-hint-analogues em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: #93c5fd;
+  margin-bottom: 6px;
+}
+
+.task-materials-hint-apply {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: #fb923c;
+  color: #1a1208;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.task-materials-hint-apply.is-all {
+  background: #fdba74;
+}
+
+.task-materials-hint-apply:hover {
+  filter: brightness(1.08);
+}
+
 .task-stock-sideboard {
   flex: 0 0 428px;
   width: 428px;
