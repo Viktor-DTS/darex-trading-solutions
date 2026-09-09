@@ -229,8 +229,20 @@ const DATE_FILTER_KEYS = ['requestDate', 'plannedDate', 'date', 'paymentDate', '
   'autoWarehouseApprovedAt', 'autoAccountantApprovedAt', 'invoiceRequestDate',
   'invoiceUploadDate', 'warehouseApprovalDate', 'approvalDate', 'bonusApprovalDate', 'deletionMarkedAt'];
 
-const SELECT_FILTER_KEYS = ['status', 'company', 'paymentType', 'serviceRegion',
-  'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'];
+const SELECT_FILTER_KEYS = ['status', 'company', 'paymentType', 'serviceRegion', 'work', 'debtStatus',
+  'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager',
+  ...ENGINEER_FILTER_KEYS];
+
+const BOOLEAN_FILTER_KEYS = ['needInvoice', 'needAct', 'debtStatusCheckbox', 'urgentRequest', 'internalWork', 'worksWithoutContract'];
+
+const WORK_FILTER_OPTIONS = [
+  '',
+  'ТО', 'ТО-1', 'ТО-2', 'ТО-3', 'ТО-4', 'ПНР',
+  'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт',
+  'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті',
+  'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація',
+  'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)',
+];
 
 const NUMERIC_FILTER_KEYS = new Set([
   'serviceTotal', 'workPrice', 'oilUsed', 'oilPrice', 'oilTotal',
@@ -249,7 +261,7 @@ function normalizeNumericForFilter(value) {
 // Тип фільтра для колонки (чиста функція — поза компонентом, щоб не ламати меморизацію)
 function getFilterType(columnKey) {
   if (DATE_FILTER_KEYS.includes(columnKey)) return 'date';
-  if (SELECT_FILTER_KEYS.includes(columnKey)) return 'select';
+  if (SELECT_FILTER_KEYS.includes(columnKey) || BOOLEAN_FILTER_KEYS.includes(columnKey)) return 'select';
   return 'text';
 }
 
@@ -261,16 +273,28 @@ function getFilterOptions(columnKey) {
     case 'company':
       return ['', 'ДТС', 'Дарекс Енерго', 'інша'];
     case 'paymentType':
-      return ['', 'Безготівка', 'Готівка', 'На карту', 'Інше'];
+      return ['', 'не вибрано', 'Безготівка', 'Готівка', 'На карту', 'Інше'];
     case 'serviceRegion':
       return ['', 'Київський', 'Одеський', 'Львівський', 'Дніпровський', 'Хмельницький', 'Кропивницький', 'Україна'];
+    case 'work':
+      return WORK_FILTER_OPTIONS;
+    case 'debtStatus':
+      return ['', 'Заборгованість', 'Документи в наявності'];
     case 'approvedByWarehouse':
     case 'approvedByAccountant':
     case 'approvedByRegionalManager':
       return ['', 'На розгляді', 'Підтверджено', 'Відмова'];
     default:
+      if (BOOLEAN_FILTER_KEYS.includes(columnKey)) return ['', 'Так', 'Ні'];
       return [];
   }
+}
+
+function taskMatchesBooleanFilter(taskValue, filterValue) {
+  const truthy = taskValue === true || taskValue === 'true' || taskValue === 'Так' || taskValue === 1 || taskValue === '1';
+  if (filterValue === 'так') return truthy;
+  if (filterValue === 'ні') return !truthy;
+  return String(taskValue ?? '').toLowerCase() === filterValue;
 }
 
 /** Кожен заповнений фільтр по колонках інженера №1…№6: збіг шукається в будь-якому з полів engineer1…engineer6; кілька фільтрів поєднуються через AND. */
@@ -307,9 +331,10 @@ function statusSlug(status) {
   return String(status || 'none').toLowerCase().replace(/\s+/g, '-');
 }
 
-function loadFilterPresets(area) {
+function loadFilterPresets(area, login) {
   try {
-    const raw = localStorage.getItem(`taskTable_filterPresets_${area}`);
+    const scoped = login ? localStorage.getItem(`taskTable_filterPresets_${login}_${area}`) : null;
+    const raw = scoped || localStorage.getItem(`taskTable_filterPresets_${area}`);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -317,8 +342,25 @@ function loadFilterPresets(area) {
   }
 }
 
-function persistFilterPresets(area, presets) {
-  localStorage.setItem(`taskTable_filterPresets_${area}`, JSON.stringify(presets));
+function persistFilterPresets(area, presets, login) {
+  const payload = JSON.stringify(presets);
+  if (login) localStorage.setItem(`taskTable_filterPresets_${login}_${area}`, payload);
+  localStorage.setItem(`taskTable_filterPresets_${area}`, payload);
+}
+
+async function persistFilterPresetsRemote(area, presets, login) {
+  persistFilterPresets(area, presets, login);
+  const token = localStorage.getItem('token');
+  const res = await authFetch(`${API_BASE_URL}/users/me/filter-presets/${encodeURIComponent(area)}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ presets }),
+  });
+  if (!res.ok) throw new Error('Не вдалося зберегти вигляд на сервері');
+  return res.json();
 }
 
 function getColumnFilterChipLabel(key) {
@@ -409,7 +451,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   }, [filter, columnFilters, enablePagination]);
 
   const [showFilters, setShowFilters] = useState(!compactVariant);
-  const [filterPresets, setFilterPresets] = useState(() => loadFilterPresets(columnsArea));
+  const [filterPresets, setFilterPresets] = useState(() => loadFilterPresets(columnsArea, user?.login));
   const [presetName, setPresetName] = useState('');
   const [activePresetId, setActivePresetId] = useState('');
   const [listViewMode, setListViewMode] = useState(() => {
@@ -461,13 +503,46 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       } else {
         setFilter('');
       }
-      setFilterPresets(loadFilterPresets(columnsArea));
+      setFilterPresets(loadFilterPresets(columnsArea, user?.login));
       setActivePresetId('');
       setPresetName('');
     } catch (error) {
       console.error('Помилка завантаження фільтрів при зміні панелі:', error);
     }
-  }, [columnsArea]);
+  }, [columnsArea, user?.login]);
+
+  useEffect(() => {
+    if (!compactVariant || !user?.login) return undefined;
+    let cancelled = false;
+    const token = localStorage.getItem('token');
+    (async () => {
+      try {
+        const res = await authFetch(`${API_BASE_URL}/users/me/filter-presets/${encodeURIComponent(columnsArea)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const remote = await res.json();
+        if (cancelled) return;
+        if (Array.isArray(remote) && remote.length > 0) {
+          setFilterPresets(remote);
+          persistFilterPresets(columnsArea, remote, user.login);
+          return;
+        }
+        const local = loadFilterPresets(columnsArea, user.login);
+        if (local.length) {
+          setFilterPresets(local);
+          await persistFilterPresetsRemote(columnsArea, local, user.login);
+        } else if (!cancelled) {
+          setFilterPresets([]);
+        }
+      } catch {
+        if (!cancelled) setFilterPresets(loadFilterPresets(columnsArea, user.login));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [compactVariant, user?.login, columnsArea]);
 
   useEffect(() => {
     if (!compactVariant) {
@@ -538,11 +613,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     setFilterPresets(next);
     setActivePresetId(next[next.length - 1].id);
     setPresetName('');
-    try {
-      persistFilterPresets(columnsArea, next);
-    } catch (error) {
+    persistFilterPresetsRemote(columnsArea, next, user?.login).catch((error) => {
       console.error('Помилка збереження вигляду фільтра:', error);
-    }
+      alert('Не вдалося зберегти вигляд на сервері. Спробуйте ще раз.');
+    });
   };
 
   const applyFilterPreset = (id) => {
@@ -561,11 +635,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     const next = filterPresets.filter((preset) => preset.id !== activePresetId);
     setFilterPresets(next);
     setActivePresetId('');
-    try {
-      persistFilterPresets(columnsArea, next);
-    } catch (error) {
+    persistFilterPresetsRemote(columnsArea, next, user?.login).catch((error) => {
       console.error('Помилка видалення вигляду фільтра:', error);
-    }
+      alert('Не вдалося видалити вигляд на сервері. Спробуйте ще раз.');
+    });
   };
 
   const removeFilterChip = (key) => {
@@ -1013,66 +1086,16 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         return;
       }
       
-      // Спеціальна логіка для поля "work" (Найменування робіт) з підтримкою виключень
-      if (key === 'work') {
-        result = result.filter(task => {
-          let taskValue = task[key];
-          if (taskValue === null || taskValue === undefined) taskValue = '';
-          
-          const taskValueStr = String(taskValue).toLowerCase();
-          
-          // Перевірка чи є виключення через мінус (наприклад: "гаран -ремонт в цеху")
-          if (filterValue.includes(' -')) {
-            // Розділяємо на частини: включення та виключення
-            const parts = filterValue.split(' -');
-            const includeFilter = parts[0].trim(); // Частина перед першим мінусом
-            const excludeFilters = parts.slice(1).map(e => e.trim()); // Всі частини після мінусів
-            
-            // Якщо є частина включення - перевіряємо її
-            if (includeFilter) {
-              if (!taskValueStr.includes(includeFilter)) {
-                return false; // Не містить потрібний текст - виключаємо
-              }
-            }
-            
-            // Перевіряємо всі виключення
-            for (const excludeFilter of excludeFilters) {
-              if (excludeFilter && taskValueStr.includes(excludeFilter)) {
-                return false; // Містить виключений текст - виключаємо
-              }
-            }
-            
-            return true; // Пройшов всі перевірки
-          }
-          
-          // Спеціальна обробка для "гаран" (автоматичне виключення не гарантійних ремонтів)
-          if (filterValue.includes('гаран')) {
-            if (!taskValueStr.includes('гаран')) {
-              return false;
-            }
-            
-            // Автоматично виключаємо не гарантійні ремонти
-            const isNonWarrantyRepair = 
-              (taskValueStr.includes('ремонт в цеху') && !taskValueStr.includes('гарантійний')) ||
-              (taskValueStr.includes('ремонт на місті') && !taskValueStr.includes('гарантійний'));
-            
-            if (isNonWarrantyRepair) {
-              return false;
-            }
-          }
-          
-          // Стандартний пошук підрядка для всіх інших випадків
-          return taskValueStr.includes(filterValue);
-        });
-        return;
-      }
-      
       // Звичайна фільтрація для інших полів
       // Для select полів використовуємо точне порівняння, для текстових - includes
       const filterType = getFilterType(key);
       result = result.filter(task => {
         let taskValue = task[key];
         if (taskValue === null || taskValue === undefined) taskValue = '';
+
+        if (BOOLEAN_FILTER_KEYS.includes(key)) {
+          return taskMatchesBooleanFilter(taskValue, filterValue);
+        }
 
         if (filterType === 'select') {
           return String(taskValue).toLowerCase() === filterValue;
@@ -1551,7 +1574,23 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
     
     if (filterType === 'select') {
-      const options = getFilterOptions(col.key);
+      let options = getFilterOptions(col.key);
+      if (col.key === 'work' || ENGINEER_FILTER_KEYS.includes(col.key)) {
+        const sourceKeys = col.key === 'work' ? ['work'] : ENGINEER_FILTER_KEYS;
+        const seen = new Set(options);
+        const extras = [];
+        tasks.forEach((task) => {
+          sourceKeys.forEach((key) => {
+            const value = String(task[key] || '').trim();
+            if (value && !seen.has(value)) {
+              seen.add(value);
+              extras.push(value);
+            }
+          });
+        });
+        extras.sort((a, b) => a.localeCompare(b, 'uk'));
+        options = col.key === 'work' ? [...options, ...extras] : ['', ...extras];
+      }
       return (
         <select
           className="filter-input filter-select"

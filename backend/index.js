@@ -540,6 +540,7 @@ const userSchema = new mongoose.Schema({
   name: String,
   region: String,
   columnsSettings: Object,
+  filterPresets: Object,
   id: Number,
   telegramChatId: String,
   phone: String,
@@ -9371,8 +9372,12 @@ const NUMERIC_COLUMN_FILTER_KEYS = new Set([
 ]);
 
 const TASK_TABLE_SELECT_FILTER_KEYS = new Set([
-  'status', 'company', 'paymentType', 'serviceRegion',
+  'status', 'company', 'paymentType', 'serviceRegion', 'work', 'debtStatus',
   'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager',
+]);
+
+const TASK_TABLE_BOOLEAN_FILTER_KEYS = new Set([
+  'needInvoice', 'needAct', 'debtStatusCheckbox', 'urgentRequest', 'internalWork', 'worksWithoutContract',
 ]);
 
 const {
@@ -9501,7 +9506,7 @@ app.get('/api/tasks/filter', async (req, res) => {
     const pushEngineerColumnFilterConditions = (engineerPatterns, matchConditions) => {
       for (const val of engineerPatterns) {
         if (!val) continue;
-        const rx = { $regex: String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+        const rx = { $regex: `^${String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
         matchConditions.push({ $or: ENGINEER_COLUMN_KEYS.map((f) => ({ [f]: rx })) });
       }
     };
@@ -9529,6 +9534,15 @@ app.get('/api/tasks/filter', async (req, res) => {
           }
         } else if (ENGINEER_COLUMN_KEYS.includes(key)) {
           engineerPatterns.push(val);
+        } else if (TASK_TABLE_BOOLEAN_FILTER_KEYS.has(key)) {
+          const truthy = [{ [key]: true }, { [key]: 'true' }, { [key]: 'Так' }, { [key]: 1 }, { [key]: '1' }];
+          if (val === 'Так') {
+            matchConditions.push({ $or: truthy });
+          } else if (val === 'Ні') {
+            matchConditions.push({ $nor: truthy });
+          } else {
+            colMatch[key] = val;
+          }
         } else if (TASK_TABLE_SELECT_FILTER_KEYS.has(key)) {
           colMatch[key] = val;
         } else if (NUMERIC_COLUMN_FILTER_KEYS.has(key)) {
@@ -10760,6 +10774,62 @@ app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
     logPerformance('GET /api/users/:login/columns-settings/:area', startTime);
     console.error('[ERROR] GET columns-settings:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+function sanitizeFilterPresets(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .slice(0, 12)
+    .map((preset, index) => ({
+      id: String(preset?.id || `p_${Date.now()}_${index}`).slice(0, 64),
+      name: String(preset?.name || '').trim().slice(0, 80),
+      filter: String(preset?.filter || '').slice(0, 200),
+      columnFilters:
+        preset?.columnFilters && typeof preset.columnFilters === 'object' && !Array.isArray(preset.columnFilters)
+          ? Object.fromEntries(
+              Object.entries(preset.columnFilters)
+                .slice(0, 40)
+                .filter(([, value]) => typeof value === 'string')
+                .map(([key, value]) => [String(key).slice(0, 80), String(value).slice(0, 200)])
+            )
+          : {},
+    }))
+    .filter((preset) => preset.name);
+}
+
+app.get('/api/users/me/filter-presets/:area', async (req, res) => {
+  try {
+    const login = req.user?.login;
+    const area = String(req.params.area || '').trim();
+    if (!login) return res.status(401).json({ error: 'Не авторизовано' });
+    if (!area) return res.status(400).json({ error: 'area обовʼязкова' });
+    const user = await User.findOne({ login }).select('filterPresets').lean();
+    const presets = sanitizeFilterPresets(user?.filterPresets?.[area]);
+    return res.json(presets);
+  } catch (error) {
+    console.error('[ERROR] GET filter-presets:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/users/me/filter-presets/:area', async (req, res) => {
+  try {
+    const login = req.user?.login;
+    const area = String(req.params.area || '').trim();
+    if (!login) return res.status(401).json({ error: 'Не авторизовано' });
+    if (!area) return res.status(400).json({ error: 'area обовʼязкова' });
+    const presets = sanitizeFilterPresets(req.body?.presets);
+    const user = await User.findOne({ login });
+    if (!user) return res.status(404).json({ error: 'Користувача не знайдено' });
+    if (!user.filterPresets) user.filterPresets = {};
+    user.filterPresets[area] = presets;
+    user.markModified('filterPresets');
+    await user.save();
+    return res.json(presets);
+  } catch (error) {
+    console.error('[ERROR] PUT filter-presets:', error);
+    return res.status(500).json({ error: error.message });
   }
 });
 
