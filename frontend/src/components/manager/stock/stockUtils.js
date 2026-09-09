@@ -103,9 +103,39 @@ export function isDieselGenerator(item) {
 }
 
 /**
- * Модель DE-70BDS → 70 кВА (макс.).
- * Портативні DE7000EC / DG11000TE → число в ватах.
+ * кВА з «нестандартних» моделей: EM 0050, VR20, 5KJB715, EN 165, GJI88, EMSA 44.
  */
+export function extractDieselMaxKva(type) {
+  const s = String(type || '');
+  if (!s.trim()) return null;
+
+  const em = s.match(/\bEM\s+0*(\d{2,4})\b/i);
+  if (em) return Number(em[1]);
+
+  const kj = s.match(/\b5KJ[A-Z]*\s*(\d{3,4})(?!\d)/i);
+  if (kj) return Number(kj[1]);
+
+  const vr = s.match(/\bVR(\d{2,3})(?![0-9])/i);
+  if (vr) return Number(vr[1]);
+
+  const en = s.match(/\bEN\s+(\d{2,4})\b/i);
+  if (en) return Number(en[1]);
+
+  const scrs = s.match(/\bSCRS[-\s]*(\d{2,4})\b/i);
+  if (scrs) return Number(scrs[1]);
+
+  const emsa = s.match(/\bEMSA\s+(\d{2,4})\b/i);
+  if (emsa) return Number(emsa[1]);
+
+  const gj = s.match(/\bGJ[A-Z](\d{2,3})\b/i);
+  if (gj) return Number(gj[1]);
+
+  const de = s.match(/\bde[-\s]*(\d{1,3})(?!\d)/i);
+  if (de) return Number(de[1]);
+
+  return null;
+}
+
 export function parseDieselRatings(item) {
   const type = String(typeof item === 'string' ? item : item?.type || '');
   if (!isDieselGenerator(type)) return null;
@@ -119,12 +149,17 @@ export function parseDieselRatings(item) {
     }
   }
 
-  const kva = type.match(/\bde[-\s]*(\d{1,3})(?!\d)/i);
-  if (kva) {
-    return { ...ratingsFromMaxKva(Number(kva[1])), source: 'kva' };
-  }
+  const maxKva = extractDieselMaxKva(type);
+  if (maxKva) return { ...ratingsFromMaxKva(maxKva), source: 'kva' };
 
   return null;
+}
+
+function linkedGensetRatings(item) {
+  const type = typeof item === 'string' ? item : item?.type;
+  const maxKva = extractDieselMaxKva(type);
+  if (maxKva == null) return null;
+  return { ...ratingsFromMaxKva(maxKva), source: 'kva' };
 }
 
 export function itemAmperage(item) {
@@ -138,8 +173,13 @@ export function itemPowerKw(item) {
   if (fromSpec != null) return fromSpec;
   const diesel = parseDieselRatings(item);
   if (diesel?.nomKw != null) return diesel.nomKw;
-  if (!isAvrItem(item)) return null;
-  return avrMaxPowerKw(itemAmperage(item));
+  if (isAvrItem(item)) {
+    const amps = itemAmperage(item);
+    if (amps != null) return avrMaxPowerKw(amps);
+    const linked = linkedGensetRatings(item);
+    if (linked?.nomKw != null) return linked.nomKw;
+  }
+  return null;
 }
 
 function formatKwNumber(kw) {
@@ -159,7 +199,7 @@ export function formatPower(item) {
   const prime = displayText(item?.primePower, '');
   if (standby && prime && standby !== prime) return `${standby} / ${prime}`;
   if (standby || prime) return standby || prime;
-  const diesel = parseDieselRatings(item);
+  const diesel = parseDieselRatings(item) || (isAvrItem(item) && !itemAmperage(item) ? linkedGensetRatings(item) : null);
   if (diesel) {
     return `макс. ${formatKvaNumber(diesel.maxKva)} / ${formatKwNumber(diesel.maxKw)} · ном. ${formatKvaNumber(diesel.nomKva)} / ${formatKwNumber(diesel.nomKw)}`;
   }
@@ -171,7 +211,7 @@ export function formatPower(item) {
 
 export function formatPowerCompact(item) {
   const diesel = !displayText(item?.standbyPower, '') && !displayText(item?.primePower, '')
-    ? parseDieselRatings(item)
+    ? (parseDieselRatings(item) || (isAvrItem(item) && !itemAmperage(item) ? linkedGensetRatings(item) : null))
     : null;
   if (diesel) return `ном. ${formatKwNumber(diesel.nomKw)}`;
   return formatPower(item);
