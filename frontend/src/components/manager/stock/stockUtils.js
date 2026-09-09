@@ -497,6 +497,8 @@ export function unitMatchesFilters(item, filters, login) {
   if (filters.testedOnly && !isTested(item)) return false;
   if (filters.reservedOnly && !isReserved(item)) return false;
   if (filters.myOnly && !isMine(item, login)) return false;
+  if (filters.group === 'avr' && !isAvrItem(item)) return false;
+  if (filters.group === 'generator' && !isDieselGenerator(item)) return false;
   if (filters.powerMin != null || filters.powerMax != null) {
     const kw = itemPowerKw(item);
     if (kw == null) return false;

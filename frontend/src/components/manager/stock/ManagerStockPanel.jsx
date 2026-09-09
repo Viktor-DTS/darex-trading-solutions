@@ -38,7 +38,6 @@ import {
   isTestingActive,
   isTested,
   isTransit,
-  parseSmartQuery,
   powerBandId,
   POWER_BANDS,
   printOfferHtml,
@@ -81,8 +80,9 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [truncated, setTruncated] = useState(false);
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [powerKw, setPowerKw] = useState('');
+  const [powerTol, setPowerTol] = useState(50);
+  const [kindFilter, setKindFilter] = useState('all');
   const [freeOnly, setFreeOnly] = useState(false);
   const [testedOnly, setTestedOnly] = useState(false);
   const [readyOnly, setReadyOnly] = useState(false);
@@ -103,11 +103,6 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const login = user?.login || '';
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 280);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
     try {
       localStorage.setItem(VIEW_KEY, viewMode);
     } catch {
@@ -124,11 +119,6 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     }
   }, [client]);
 
-  const parsed = useMemo(
-    () => parseSmartQuery(debouncedQuery, warehouses),
-    [debouncedQuery, warehouses]
-  );
-
   const loadCatalog = useCallback(async () => {
     setLoading(true);
     try {
@@ -139,7 +129,6 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
         params.set('categoryId', categoryId);
         if (includeSubtree) params.set('includeSubtree', 'true');
       }
-      if (parsed.rest) params.set('search', parsed.rest);
       const res = await authFetch(`${API_BASE_URL}/equipment/manager-catalog?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -166,7 +155,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     } finally {
       setLoading(false);
     }
-  }, [categoryId, includeSubtree, parsed.rest]);
+  }, [categoryId, includeSubtree]);
 
   useEffect(() => {
     if (viewMode === 'registry') return undefined;
@@ -181,21 +170,32 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     },
   }));
 
+  const powerFilter = useMemo(() => {
+    const n = Number(String(powerKw).replace(',', '.'));
+    const rawTol = Number(powerTol);
+    const tol = powerTol === '' || !Number.isFinite(rawTol) || rawTol < 0 ? 50 : rawTol;
+    if (!Number.isFinite(n) || n <= 0) {
+      return { powerMin: null, powerMax: null, target: null, tol };
+    }
+    return {
+      target: n,
+      tol,
+      powerMin: Math.max(0, n - tol),
+      powerMax: n + tol,
+    };
+  }, [powerKw, powerTol]);
+
   const filters = useMemo(
     () => ({
-      powerMin: parsed.powerMin,
-      powerMax: parsed.powerMax,
-      ampMin: parsed.ampMin,
-      ampMax: parsed.ampMax,
-      warehouseIds: parsed.warehouseIds,
-      warehouseNames: parsed.warehouseNames,
-      freeOnly: freeOnly || parsed.freeOnly,
-      testedOnly: testedOnly || parsed.testedOnly,
-      readyOnly: readyOnly || parsed.readyOnly,
-      reservedOnly: parsed.reservedOnly,
+      powerMin: powerFilter.powerMin,
+      powerMax: powerFilter.powerMax,
+      freeOnly,
+      testedOnly,
+      readyOnly,
       myOnly,
+      group: kindFilter,
     }),
-    [parsed, freeOnly, testedOnly, readyOnly, myOnly]
+    [powerFilter, freeOnly, testedOnly, readyOnly, myOnly, kindFilter]
   );
 
   const visibleItems = useMemo(
@@ -447,7 +447,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     if (!families.length) {
       return (
         <div className="msp-empty">
-          Нічого не знайдено. Спробуйте «200 кВт Київ вільний» або скиньте фільтри.
+          Нічого не знайдено. Змініть потужність, відхилення, тип або скиньте фільтри.
         </div>
       );
     }
@@ -612,21 +612,24 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
             Підбір зі складу
             {truncated ? <span>показано перші 5000 позицій</span> : null}
           </h2>
-          <div className="msp-modes" role="tablist">
-            {[
-              ['pick', 'Підбір'],
-              ['board', 'Борд'],
-              ['registry', 'Реєстр'],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={viewMode === id ? 'is-on' : ''}
-                onClick={() => setViewMode(id)}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="msp-view-switch">
+            <span className="msp-view-hint">Режим перегляду залишків</span>
+            <div className="msp-modes" role="tablist">
+              {[
+                ['pick', 'Підбір'],
+                ['board', 'Борд'],
+                ['registry', 'Реєстр'],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={viewMode === id ? 'is-on' : ''}
+                  onClick={() => setViewMode(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <div className="msp-head-row">
@@ -658,32 +661,61 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
             ) : null}
           </div>
           {viewMode !== 'registry' ? (
-            <div className="msp-search">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="200 кВт Київ вільний з тестом · АВР 2000А"
-              />
+            <div className="msp-filters">
+              <label className="msp-field">
+                <span>Номінальна потужність</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="decimal"
+                  value={powerKw}
+                  onChange={(e) => setPowerKw(e.target.value)}
+                  placeholder="кВт"
+                />
+              </label>
+              <label className="msp-field msp-field--tol">
+                <span>Відхилення ±</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="decimal"
+                  value={powerTol}
+                  onChange={(e) => setPowerTol(e.target.value)}
+                />
+              </label>
+              <label className="msp-check msp-check--filter">
+                <input
+                  type="checkbox"
+                  checked={freeOnly}
+                  onChange={(e) => setFreeOnly(e.target.checked)}
+                />
+                Показати тільки вільне обладнання
+              </label>
+              <label className="msp-field msp-field--select">
+                <span>Список</span>
+                <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+                  <option value="all">Показати все</option>
+                  <option value="avr">АВР</option>
+                  <option value="generator">Дизель генератор</option>
+                </select>
+              </label>
+              {powerFilter.target != null ? (
+                <span className="msp-chip">
+                  {powerFilter.powerMin}–{powerFilter.powerMax} кВт
+                </span>
+              ) : null}
             </div>
           ) : null}
           <Button size="sm" variant="ghost" onClick={() => loadCatalog()}>Оновити</Button>
         </div>
         {viewMode !== 'registry' ? (
-          <>
-            {parsed.chips.length ? (
-              <div className="msp-chips">
-                {parsed.chips.map((c) => (
-                  <span key={c.id} className="msp-chip">{c.label}</span>
-                ))}
-              </div>
-            ) : null}
-            <div className="msp-toggles">
-              <button type="button" className={freeOnly ? 'is-on' : ''} onClick={() => setFreeOnly((v) => !v)}>Вільні</button>
-              <button type="button" className={readyOnly ? 'is-on' : ''} onClick={() => setReadyOnly((v) => !v)}>Можна пропонувати</button>
-              <button type="button" className={testedOnly ? 'is-on' : ''} onClick={() => setTestedOnly((v) => !v)}>Протестовані</button>
-              <button type="button" className={myOnly ? 'is-on' : ''} onClick={() => setMyOnly((v) => !v)}>Мій резерв</button>
-            </div>
-          </>
+          <div className="msp-toggles">
+            <button type="button" className={readyOnly ? 'is-on' : ''} onClick={() => setReadyOnly((v) => !v)}>Можна пропонувати</button>
+            <button type="button" className={testedOnly ? 'is-on' : ''} onClick={() => setTestedOnly((v) => !v)}>Протестовані</button>
+            <button type="button" className={myOnly ? 'is-on' : ''} onClick={() => setMyOnly((v) => !v)}>Мій резерв</button>
+          </div>
         ) : null}
       </div>
 
