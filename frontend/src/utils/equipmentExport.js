@@ -11,14 +11,39 @@ function getEquipmentStatusLabel(status) {
   return labels[status] || status || '';
 }
 
+function getEquipmentBatchUnit(item) {
+  if (item?.batchUnit && String(item.batchUnit).trim()) return String(item.batchUnit).trim();
+  if (item?.unitOfMeasure && String(item.unitOfMeasure).trim()) return String(item.unitOfMeasure).trim();
+  if (item?.batchItems?.length) {
+    const row = item.batchItems.find(
+      (b) => (b?.batchUnit && String(b.batchUnit).trim()) || (b?.unitOfMeasure && String(b.unitOfMeasure).trim())
+    );
+    if (row?.batchUnit && String(row.batchUnit).trim()) return String(row.batchUnit).trim();
+    if (row?.unitOfMeasure && String(row.unitOfMeasure).trim()) return String(row.unitOfMeasure).trim();
+  }
+  return 'шт.';
+}
+
+function getEquipmentQuantityNumber(item) {
+  if (item?.isGrouped && item.batchItems?.length) {
+    const sum = item.batchItems.reduce((s, b) => s + (Number(b.quantity) || 0), 0);
+    if (sum > 0) return sum;
+  }
+  const q = Number(item?.quantity);
+  if (Number.isFinite(q)) return Math.max(0, q);
+  const st = item?.warehouseDisplayStatus || item?.status;
+  if (st === 'written_off' || st === 'shipped' || st === 'sold') return 0;
+  return 1;
+}
+
 export function printEquipmentStock(equipmentList, title = 'Залишки на складах') {
   const rows = (equipmentList || []).map((item) => ({
     type: item.type || '',
     serialNumber: item.serialNumber || '',
     manufacturer: item.manufacturer || '',
     warehouse: item.currentWarehouseName || item.currentWarehouse || '',
-    quantity: item.quantity != null ? item.quantity : 1,
-    unit: item.batchUnit || 'шт.',
+    quantity: getEquipmentQuantityNumber(item),
+    unit: getEquipmentBatchUnit(item),
     status: getEquipmentStatusLabel(item.warehouseDisplayStatus || item.status),
   }));
   const escapeHtml = (v) =>
@@ -42,17 +67,18 @@ export function printEquipmentStock(equipmentList, title = 'Залишки на 
 <p class="meta">Дата друку: ${new Date().toLocaleString('uk-UA')} · Рядків: ${rows.length}</p>
 <table>
   <thead><tr>
-    <th>Тип</th><th>Серійний номер</th><th>Виробник</th><th>Склад</th><th>Кількість</th><th>Статус</th>
+    <th>Тип</th><th>Кількість</th><th>Одиниця виміру</th><th>Серійний номер</th><th>Виробник</th><th>Склад</th><th>Статус</th>
   </tr></thead>
   <tbody>
     ${rows
       .map(
         (r) => `<tr>
       <td>${escapeHtml(r.type)}</td>
+      <td>${escapeHtml(r.quantity)}</td>
+      <td>${escapeHtml(r.unit)}</td>
       <td>${escapeHtml(r.serialNumber)}</td>
       <td>${escapeHtml(r.manufacturer)}</td>
       <td>${escapeHtml(r.warehouse)}</td>
-      <td>${escapeHtml(`${r.quantity} ${r.unit}`)}</td>
       <td>${escapeHtml(r.status)}</td>
     </tr>`
       )
@@ -79,10 +105,12 @@ export const exportEquipmentToExcel = async (equipmentList, filename = 'equipmen
 
   // Заголовки
   worksheet.columns = [
-    { header: 'Тип', key: 'type', width: 15 },
+    { header: 'Тип', key: 'type', width: 40 },
+    { header: 'Кількість', key: 'quantity', width: 14 },
+    { header: 'Одиниця виміру', key: 'unit', width: 18 },
     { header: 'Серійний номер', key: 'serialNumber', width: 20 },
     { header: 'Виробник', key: 'manufacturer', width: 15 },
-    { header: 'Склад', key: 'warehouse', width: 20 },
+    { header: 'Склад', key: 'warehouse', width: 32 },
     { header: 'Регіон', key: 'region', width: 15 },
     { header: 'Статус', key: 'status', width: 15 },
     { header: 'Резервна потужність', key: 'standbyPower', width: 20 },
@@ -115,11 +143,13 @@ export const exportEquipmentToExcel = async (equipmentList, filename = 'equipmen
   equipmentList.forEach((item, index) => {
     const row = worksheet.addRow({
       type: item.type || '',
+      quantity: getEquipmentQuantityNumber(item),
+      unit: getEquipmentBatchUnit(item),
       serialNumber: item.serialNumber || '',
       manufacturer: item.manufacturer || '',
       warehouse: item.currentWarehouseName || item.currentWarehouse || '',
       region: item.region || '',
-      status: getStatusLabel(item.status),
+      status: getStatusLabel(item.warehouseDisplayStatus || item.status),
       standbyPower: item.standbyPower || '',
       primePower: item.primePower || '',
       phase: item.phase || '',
