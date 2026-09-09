@@ -1,0 +1,263 @@
+/* Тестова «покращена» оболонка сервісу. Класичний вид не змінює. */
+
+.sidebar .btn-layout-toggle {
+  width: 100%;
+  border: 1px solid var(--border, #3a4d6b);
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 8px;
+}
+
+.dashboard.is-modern .sidebar {
+  width: 248px;
+  min-width: 248px;
+  gap: 12px;
+  background: #121a28;
+  padding: 14px 12px 28px;
+}
+
+.dashboard.is-modern .sidebar-btn.btn-add {
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 10px 12px;
+}
+
+.dashboard.is-modern .sidebar-section-title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #7f93ad;
+  margin: 4px 0 8px;
+}
+
+.dashboard.is-modern .sidebar-tab {
+  border-radius: 10px;
+  padding: 8px 10px;
+  gap: 8px;
+  text-align: left;
+}
+
+.dashboard.is-modern .sidebar-tab.active {
+  background: rgba(91, 156, 248, 0.16);
+  border-color: rgba(91, 156, 248, 0.45);
+  color: #e7eef9;
+}
+
+.dashboard.is-modern .sidebar-checkbox {
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.dashboard.is-modern .btn-layout-toggle {
+  width: 100%;
+  border: 1px solid #3a4d6b;
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dashboard.is-modern .btn-layout-toggle.is-classic-target {
+  background: rgba(91, 156, 248, 0.12);
+  color: #8bb8ff;
+}
+
+.dashboard.is-modern .table-area {
+  background: #0e1622;
+  padding: 10px 12px;
+}
+
+.dashboard.is-modern .sidebar-btn.btn-settings {
+  border-radius: 10px;
+}
+
+.task-table-container--modern {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+
+.task-table-container--modern .task-table-toolbar {
+  background: #16202f;
+  border: 1px solid #2a3a52;
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.task-table-container--modern .search-input {
+  font-size: 13.5px;
+  min-height: 36px;
+}
+
+.task-table-container--modern .task-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #2a3a52;
+  border-radius: 12px;
+  background: #121a28;
+}
+
+.task-table-container--modern .task-table {
+  font-size: 13px;
+}
+
+.task-table-container--modern .task-table th {
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  background: #1b2739;
+  padding: 8px 8px;
+}
+
+.task-table-container--modern .task-table td {
+  padding: 7px 8px;
+  vertical-align: middle;
+}
+
+.task-table-container--modern .actions-cell {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 168px;
+  max-width: 240px;
+}
+
+.task-table-container--modern .btn-work-order,
+.task-table-container--modern .btn-view-task {
+  border-radius: 8px;
+  font-size: 11.5px;
+  padding: 5px 8px;
+}
+
+.task-table-container--modern tr[data-urgent='true'] td {
+  box-shadow: inset 3px 0 0 #f87171;
+}
+
+.modal-content.modal-content--modern {
+  width: min(1440px, 96vw) !important;
+  max-width: 1440px !important;
+  min-width: 0;
+  max-height: 94vh;
+  border-radius: 14px;
+  border: 1px solid #2a3a52;
+}
+
+.modal-content--modern .modal-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #2a3a52;
+}
+
+.modal-content--modern .modal-header h2 {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.modal-body-modern-split {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 8px 8px;
+}
+
+.modal-content--modern .task-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-flow: row dense;
+  gap: 12px;
+  padding: 12px;
+}
+
+.modal-content--modern .task-form > .form-error,
+.modal-content--modern .task-form > .client-payment-debt-banner,
+.modal-content--modern .task-form > .deletion-mark-banner,
+.modal-content--modern .task-form > .rejection-info-block,
+.modal-content--modern .task-form > .task-identity-row,
+.modal-content--modern .task-form > .modal-footer {
+  grid-column: 1 / -1;
+}
+
+.modal-content--modern .section-basic,
+.modal-content--modern .section-client {
+  grid-column: 1;
+}
+
+.modal-content--modern .section-equipment,
+.modal-content--modern .section-engineers,
+.modal-content--modern .section-expenses,
+.modal-content--modern .section-approval {
+  grid-column: 2;
+}
+
+.modal-content--modern .form-section {
+  background: #16202f;
+  border: 1px solid #2a3a52;
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+  margin: 0;
+}
+
+.modal-content--modern .section-header {
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 2px 8px;
+}
+
+.modal-content--modern .section-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.modal-content--modern .section-basic .section-header h3 { color: #a78bfa; }
+.modal-content--modern .section-client .section-header h3 { color: #f9a8d4; }
+.modal-content--modern .section-equipment .section-header h3 { color: #5b9cf8; }
+.modal-content--modern .section-engineers .section-header h3 { color: #34d399; }
+.modal-content--modern .section-expenses .section-header h3 { color: #fb923c; }
+.modal-content--modern .section-approval .section-header h3 { color: #fbbf24; }
+
+.modal-content--modern .task-identity-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 0;
+  align-items: flex-end;
+  background: #16202f;
+  border: 1px solid #2a3a52;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.modal-content--modern .modal-footer {
+  position: sticky;
+  bottom: 0;
+  background: #121a28;
+  border-top: 1px solid #2a3a52;
+  padding: 10px 4px 4px;
+  margin-top: 4px;
+}
+
+@media (max-width: 1100px) {
+  .modal-content--modern .task-form {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content--modern .section-basic,
+  .modal-content--modern .section-client,
+  .modal-content--modern .section-equipment,
+  .modal-content--modern .section-engineers,
+  .modal-content--modern .section-expenses,
+  .modal-content--modern .section-approval {
+    grid-column: 1;
+  }
+}

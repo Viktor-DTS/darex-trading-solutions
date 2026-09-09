@@ -254,7 +254,7 @@ const formatDateOnly = (dateValue) => {
   }
 };
 
-function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType = 'service', debtOnly = false, readOnly = false, hideDebtFields = false, allowDebtEditInArchive = false, overlayStyle }) {
+function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType = 'service', debtOnly = false, readOnly = false, hideDebtFields = false, allowDebtEditInArchive = false, overlayStyle, modernLayout = false }) {
   const initialFormData = {
     status: 'Заявка',
     requestDate: new Date().toISOString().split('T')[0],
@@ -400,14 +400,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const isMarkedForDeletion = !!(formData.markedForDeletion === true || formData.markedForDeletion === 'true' || formData.markedForDeletion === 1 || initialData?.markedForDeletion);
   
   const [showSections, setShowSections] = useState({
-    basic: isAccountantMode ? true : true,
-    client: isAccountantMode ? true : true,
-    equipment: isAccountantMode ? true : true,
-    work: isAccountantMode ? true : false,
+    basic: true,
+    client: true,
+    equipment: true,
+    work: isAccountantMode || modernLayout ? true : false,
     materials: isAccountantMode ? true : false,
-    expenses: isAccountantMode ? true : true, // Розгорнута для всіх панелей
-    other: isAccountantMode ? true : false,
-    files: isAccountantMode ? true : true
+    expenses: true,
+    other: isAccountantMode || modernLayout ? true : false,
+    files: true
   });
   
   // Стан для файлу договору
@@ -2164,7 +2164,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   return (
     <div className="modal-overlay" style={overlayStyle} onClick={onClose}>
       <div
-        className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--with-onec-panel' : ''}`}
+        className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--with-onec-panel' : ''} ${modernLayout ? 'modal-content--modern' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
@@ -2176,7 +2176,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
-        <div className={showOnecPanel ? 'modal-body-split' : 'modal-body-single'}>
+        <div className={showOnecPanel ? 'modal-body-split' : modernLayout ? 'modal-body-modern-split' : 'modal-body-single'}>
         <form onSubmit={handleSubmit} className={`task-form ${showOnecPanel ? 'task-form--split-left' : ''}`}>
           {error && (
             <div className="form-error">
@@ -2275,7 +2275,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           )}
 
           {/* Номер заявки/наряду та Автор заявки - в одному рядку */}
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-end' }}>
+          <div className="task-identity-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-end' }}>
             <div className="form-group" style={{ flex: 1, textAlign: 'center' }}>
               <label style={{ fontSize: '14px', fontWeight: '600' }}>Номер заявки/наряду {isNewTask && '(автогенерація)'}</label>
               <input 
@@ -3556,7 +3556,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
 
             {/* Секція файлів виконаних робіт */}
-            <div className="form-section">
+            <div className="form-section section-files">
               {!isAccountantMode && (
               <div className="section-header" onClick={() => toggleSection('files')}>
                 <h3>📁 Файли виконаних робіт</h3>

@@ -11,8 +11,18 @@ import ServiceStockPanel from './ServiceStockPanel';
 import { buildTaskDataFromExisting } from '../utils/taskCopyForCreate';
 import { computeTaskModalReadOnly } from '../utils/taskModalAccess';
 import './Dashboard.css';
+import './ServiceModern.css';
+
+const SERVICE_LAYOUT_KEY = 'servicePanel.layoutMode';
 
 function Dashboard({ user, panelType = 'service' }) {
+  const [layoutMode, setLayoutMode] = useState(() => {
+    try {
+      return localStorage.getItem(SERVICE_LAYOUT_KEY) || 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
   const [activeTab, setActiveTab] = useState('notDone');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showRejectedApprovals, setShowRejectedApprovals] = useState(false);
@@ -23,6 +33,17 @@ function Dashboard({ user, panelType = 'service' }) {
   const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
 
   const isServiceAdmin = user?.role === 'admin' || user?.role === 'administrator';
+  const isModern = panelType === 'service' && layoutMode === 'modern';
+
+  useEffect(() => {
+    if (panelType !== 'service') return undefined;
+    try {
+      localStorage.setItem(SERVICE_LAYOUT_KEY, layoutMode);
+    } catch {
+      /* ignore */
+    }
+    return undefined;
+  }, [layoutMode, panelType]);
 
   const fetchNotificationsUnread = useCallback(async () => {
     try {
@@ -107,22 +128,38 @@ function Dashboard({ user, panelType = 'service' }) {
   };
 
   const tabs = [
-    { id: 'notDone', label: 'Невиконані заявки', icon: '📋' },
-    { id: 'pending', label: 'Очікують підтвердження', icon: '⏳' },
-    { id: 'done', label: 'Архів заявок', icon: '✅' },
-    { id: 'blocked', label: 'Заблоковані', icon: '🚫' },
-    { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳' },
-    { id: 'contracts', label: 'Договори', icon: '📄' },
-    { id: 'stock', label: 'Залишки', icon: '📦' },
-    { id: 'logistics', label: 'Логістика', icon: '🗺️' },
-    { id: 'globalSearch', label: 'Глобальний пошук', icon: '🔍' },
-    { id: 'notifications', label: 'Системні сповіщення', icon: '🔔' }
+    { id: 'notDone', label: 'Невиконані заявки', icon: '📋', group: 'work' },
+    { id: 'pending', label: 'Очікують підтвердження', icon: '⏳', group: 'work' },
+    { id: 'done', label: 'Архів заявок', icon: '✅', group: 'work' },
+    { id: 'blocked', label: 'Заблоковані', icon: '🚫', group: 'work' },
+    { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳', group: 'work' },
+    { id: 'contracts', label: 'Договори', icon: '📄', group: 'resources' },
+    { id: 'stock', label: 'Залишки', icon: '📦', group: 'resources' },
+    { id: 'logistics', label: 'Логістика', icon: '🗺️', group: 'resources' },
+    { id: 'globalSearch', label: 'Глобальний пошук', icon: '🔍', group: 'other' },
+    { id: 'notifications', label: 'Системні сповіщення', icon: '🔔', group: 'other' }
   ];
 
+  const renderTabButton = (tab) => (
+    <button
+      key={tab.id}
+      className={`sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
+      onClick={() => setActiveTab(tab.id)}
+    >
+      <span className="tab-icon">{tab.icon}</span>
+      <span className="tab-label">{tab.label}</span>
+      {tab.id === 'notifications' && notificationsUnreadCount > 0 ? (
+        <span className="tab-count">
+          {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
+        </span>
+      ) : null}
+    </button>
+  );
+
   return (
-    <div className="dashboard no-header">
+    <div className={`dashboard no-header${isModern ? ' is-modern' : ''}`}>
       {/* Main Layout */}
-      <div className="dashboard-main">
+      <div className={`dashboard-main${isModern ? ' is-modern' : ''}`}>
         {/* Sidebar */}
         <aside className="sidebar">
           {/* Кнопка додати заявку */}
@@ -135,22 +172,21 @@ function Dashboard({ user, panelType = 'service' }) {
 
           {/* Навігація по табах */}
           <nav className="sidebar-nav">
-            <div className="sidebar-section-title">Навігація</div>
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                className={`sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span className="tab-icon">{tab.icon}</span>
-                <span className="tab-label">{tab.label}</span>
-                {tab.id === 'notifications' && notificationsUnreadCount > 0 ? (
-                  <span className="tab-count">
-                    {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
-                  </span>
-                ) : null}
-              </button>
-            ))}
+            {isModern ? (
+              <>
+                <div className="sidebar-section-title">Робота</div>
+                {tabs.filter((tab) => tab.group === 'work').map(renderTabButton)}
+                <div className="sidebar-section-title">Ресурси</div>
+                {tabs.filter((tab) => tab.group === 'resources').map(renderTabButton)}
+                <div className="sidebar-section-title">Інше</div>
+                {tabs.filter((tab) => tab.group === 'other').map(renderTabButton)}
+              </>
+            ) : (
+              <>
+                <div className="sidebar-section-title">Навігація</div>
+                {tabs.map(renderTabButton)}
+              </>
+            )}
           </nav>
 
           {/* Фільтри */}
@@ -177,6 +213,15 @@ function Dashboard({ user, panelType = 'service' }) {
           {/* Налаштування */}
           <div className="sidebar-settings">
             <div className="sidebar-section-title">Налаштування</div>
+            {panelType === 'service' ? (
+              <button
+                type="button"
+                className={`sidebar-btn btn-layout-toggle${isModern ? ' is-classic-target' : ''}`}
+                onClick={() => setLayoutMode((mode) => (mode === 'modern' ? 'classic' : 'modern'))}
+              >
+                {isModern ? '↩ Перейти до класичного виду' : '✨ Покращена версія (тест)'}
+              </button>
+            ) : null}
             <button
               className="sidebar-btn btn-settings"
               onClick={() => setShowColumnSettings(true)}
@@ -219,6 +264,7 @@ function Dashboard({ user, panelType = 'service' }) {
               onViewClick={handleViewClick}
               columnsArea={panelType}
               onCreateFromTask={handleCreateFromTask}
+              compactVariant={isModern}
             />
           )}
         </main>
@@ -240,6 +286,7 @@ function Dashboard({ user, panelType = 'service' }) {
           user={user}
           initialData={editingTask || {}}
           readOnly={isReadOnlyMode}
+          modernLayout={isModern}
           onSave={(savedTask, options) => {
             if (!options?.keepModalOpen) handleCloseModal();
             if (!options?.keepModalOpen) setTimeout(() => {

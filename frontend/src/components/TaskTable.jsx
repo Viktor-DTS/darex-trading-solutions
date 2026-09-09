@@ -301,7 +301,7 @@ function sumServiceTotals(tasks) {
   return (tasks || []).reduce((acc, task) => acc + parseNumber(task?.serviceTotal), 0);
 }
 
-function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined }) {
+function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined, compactVariant = false }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1427,7 +1427,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   };
 
   return (
-    <div className="task-table-container">
+    <div className={`task-table-container${compactVariant ? ' task-table-container--modern' : ''}`}>
       {/* Фільтри та пошук */}
       <div className="task-table-toolbar">
         <div className="search-box">
