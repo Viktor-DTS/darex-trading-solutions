@@ -262,6 +262,18 @@ function isNotificationSettingOn(user, field) {
   return value === true || value === 1 || value === 'true' || value === '1';
 }
 
+function normalizeLoginKey(login) {
+  return String(login || '').trim().toLowerCase();
+}
+
+/** Статусні VZ-події: не розсилати всім з чекбоксом, лише заявнику цієї заявки + адміну. */
+const REQUESTER_SCOPED_EVENTS = new Set([
+  'executor_completed',
+  'warehouse_confirmed',
+  'request_completed',
+  'rejected',
+]);
+
 const TELEGRAM_MAX_MESSAGE = 4000;
 
 function clipTelegramMessage(message) {
@@ -270,8 +282,30 @@ function clipTelegramMessage(message) {
   return `${text.slice(0, TELEGRAM_MAX_MESSAGE - 20)}\n\n… (скорочено)`;
 }
 
+function shouldReceiveProcurementEvent(user, event, settingField, pr) {
+  const enabled = isNotificationSettingOn(user, settingField);
+  const admin = isAdminRole(user.role);
+  const requesterLogin = normalizeLoginKey(pr?.requesterLogin);
+  const isRequester = Boolean(requesterLogin) && normalizeLoginKey(user?.login) === requesterLogin;
+
+  // Нова заявка — усі з чекбоксом (закупівлі бачать заявки від усіх).
+  if (event === 'created') return enabled;
+
+  // Відхилення: адміни завжди.
+  if (event === 'rejected' && admin) return true;
+
+  // Статус заявки: заявник завжди; адмін і інші — лише з чекбоксом і лише якщо це їхня заявка або адмін.
+  if (REQUESTER_SCOPED_EVENTS.has(event)) {
+    if (isRequester) return true;
+    if (admin && enabled) return true;
+    return false;
+  }
+
+  return enabled;
+}
+
 /** event: created | executor_completed | warehouse_confirmed | request_completed | rejected */
-async function collectProcurementEventChatIds(deps, event) {
+async function collectProcurementEventChatIds(deps, event, pr) {
   const { User } = deps;
   const settingField = EVENT_SETTING_FIELD[event];
   const chatIds = new Set();
@@ -287,12 +321,8 @@ async function collectProcurementEventChatIds(deps, event) {
   users.forEach((u) => {
     const cid = String(u.telegramChatId || '').trim();
     if (!isValidTelegramChatId(cid)) return;
-    const enabled = isNotificationSettingOn(u, settingField);
-    const admin = isAdminRole(u.role);
-    // Відхилення: адміни завжди (як раніше). Інші VZ-події — строго за чекбоксом, включно з адміном.
-    if (enabled || (event === 'rejected' && admin)) {
-      chatIds.add(cid);
-    }
+    if (!shouldReceiveProcurementEvent(u, event, settingField, pr)) return;
+    chatIds.add(cid);
   });
 
   getAdminTelegramChatIds().forEach((id) => chatIds.add(id));
@@ -300,7 +330,7 @@ async function collectProcurementEventChatIds(deps, event) {
 }
 
 async function collectProcurementRejectedChatIds(deps, pr) {
-  return collectProcurementEventChatIds(deps, 'rejected');
+  return collectProcurementEventChatIds(deps, 'rejected', pr);
 }
 
 async function sendProcurementTelegramNotifications(deps, event, pr) {
@@ -310,7 +340,7 @@ async function sendProcurementTelegramNotifications(deps, event, pr) {
   const settingField = EVENT_SETTING_FIELD[event];
   if (!settingField) return { sent: 0 };
 
-  const uniqueChatIds = await collectProcurementEventChatIds(deps, event);
+  const uniqueChatIds = await collectProcurementEventChatIds(deps, event, pr);
   if (!uniqueChatIds.length) {
     console.warn(`[procurement-telegram] ${event}: немає отримувачів (чекбокс ${settingField})`);
     return { sent: 0 };
