@@ -214,6 +214,12 @@
   position: relative;
 }
 
+.manager-table-viewport .msp {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
 .manager-table-viewport .equipment-table-container {
   flex: 1;
   min-height: 0;

@@ -15639,6 +15639,9 @@ async function buildEquipmentListQuery(req) {
         { type: { $regex: safe, $options: 'i' } },
         { manufacturer: { $regex: safe, $options: 'i' } },
         { currentWarehouseName: { $regex: safe, $options: 'i' } },
+        { standbyPower: { $regex: safe, $options: 'i' } },
+        { primePower: { $regex: safe, $options: 'i' } },
+        { amperage: { $regex: safe, $options: 'i' } },
       ],
     };
     pushEquipmentQueryAnd(query, searchClause);
@@ -15739,6 +15742,42 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] GET /api/equipment:', error);
     logPerformance('GET /api/equipment', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const EQUIPMENT_CATALOG_PROJECTION = {
+  ...EQUIPMENT_LIST_PROJECTION,
+  photoUrl: 1,
+  frequency: 1,
+  cosPhi: 1,
+};
+
+// Вітрина менеджера: усі видимі залишки без посторінкової нарізки (ліміт 5000)
+app.get('/api/equipment/manager-catalog', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (req.query.managerCategoryContext == null) {
+      req.query.managerCategoryContext = '1';
+    }
+    const query = await buildEquipmentListQuery(req);
+    const items = await Equipment.find(query)
+      .select(EQUIPMENT_CATALOG_PROJECTION)
+      .sort({ type: 1 })
+      .limit(5000)
+      .lean();
+    await enrichEquipmentListTransitStatus(items, {
+      OneCMovement,
+      Warehouse,
+      OneCWarehouseAlias,
+      Equipment,
+    });
+    const truncated = items.length >= 5000;
+    logPerformance('GET /api/equipment/manager-catalog', startTime, items.length);
+    res.json({ items, truncated });
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/manager-catalog:', error);
+    logPerformance('GET /api/equipment/manager-catalog', startTime);
     res.status(500).json({ error: error.message });
   }
 });

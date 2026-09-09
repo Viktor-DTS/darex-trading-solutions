@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import API_BASE_URL from '../config';
-import EquipmentList from './equipment/EquipmentList';
 import CategoryTree from './equipment/CategoryTree';
+import ManagerStockPanel from './manager/stock/ManagerStockPanel';
 import ClientsTab from './manager/ClientsTab';
 import SalesTab from './manager/SalesTab';
 import SalesReportTab from './manager/SalesReportTab';
@@ -79,6 +79,7 @@ function ManagerDashboard({ user }) {
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const equipmentListRef = useRef(null);
+  const [reserveBatchIds, setReserveBatchIds] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
 
@@ -161,17 +162,33 @@ function ManagerDashboard({ user }) {
     }
   };
 
-  const handleReserve = async (equipment) => {
-    if (equipment.status === 'reserved') {
+  const handleReserve = async (equipment, preset = {}) => {
+    const batch = Array.isArray(preset.batchItems) ? preset.batchItems.filter((x) => x && x._id) : [];
+    const target = equipment || batch[0];
+    if (!target) return;
+    if (!batch.length && target.status === 'reserved') {
       alert('Це обладнання вже зарезервовано');
       return;
     }
-    setSelectedEquipment(equipment);
-    setReservationForm({ clientName: '', edrpou: '', basis: '', notes: '', endDate: '' });
+    const freeBatch = batch.filter((x) => x.status !== 'reserved' && !x.reservedByName);
+    const ids = freeBatch.length ? freeBatch.map((x) => x._id) : [];
+    if (batch.length && !ids.length) {
+      alert('У виборі немає вільних позицій для резерву');
+      return;
+    }
+    setSelectedEquipment(target);
+    setReserveBatchIds(ids);
+    setReservationForm({
+      clientName: preset.clientName || '',
+      edrpou: preset.edrpou || '',
+      basis: '',
+      notes: '',
+      endDate: ''
+    });
     setReservationDaysByBasis({});
     setReservationServerTodayYmd(null);
-    setClientSearch('');
-    setEdrpouSearch('');
+    setClientSearch(preset.clientName || '');
+    setEdrpouSearch(preset.edrpou || '');
     setShowReservationModal(true);
     try {
       const token = localStorage.getItem('token');
@@ -295,31 +312,45 @@ function ManagerDashboard({ user }) {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}/reserve`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          clientName: reservationForm.clientName,
-          edrpou: reservationForm.edrpou || undefined,
-          notes: reservationForm.notes,
-          endDate: reservationForm.endDate || null,
-          reservationBasis: reservationForm.basis.trim()
-        })
-      });
-      
-      if (response.ok) {
-        alert('Обладнання успішно зарезервовано!');
+      const ids = (reserveBatchIds.length ? reserveBatchIds : [selectedEquipment._id]).filter(Boolean);
+      const payload = {
+        clientName: reservationForm.clientName,
+        edrpou: reservationForm.edrpou || undefined,
+        notes: reservationForm.notes,
+        endDate: reservationForm.endDate || null,
+        reservationBasis: reservationForm.basis.trim()
+      };
+      let ok = 0;
+      let fail = 0;
+      let lastError = '';
+      for (const id of ids) {
+        const response = await fetch(`${API_BASE_URL}/equipment/${id}/reserve`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+          ok += 1;
+        } else {
+          fail += 1;
+          const error = await response.json().catch(() => ({}));
+          lastError = error.error || lastError;
+        }
+      }
+
+      if (ok > 0) {
+        alert(ids.length > 1 ? `Зарезервовано: ${ok}${fail ? `. Помилок: ${fail}` : ''}` : 'Обладнання успішно зарезервовано!');
         if (equipmentListRef.current) {
           equipmentListRef.current.refresh();
         }
         setShowReservationModal(false);
         setSelectedEquipment(null);
+        setReserveBatchIds([]);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Помилка резервування');
+        alert(lastError || 'Помилка резервування');
       }
     } catch (error) {
       console.error('Помилка:', error);
@@ -329,13 +360,10 @@ function ManagerDashboard({ user }) {
     }
   };
 
-  const handleReservationSuccess = () => {
-    // Оновлюємо список обладнання після успішного створення резервування
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
+  const closeReservationModal = () => {
     setShowReservationModal(false);
     setSelectedEquipment(null);
+    setReserveBatchIds([]);
   };
 
   const handleRequestTesting = async (equipment) => {
@@ -493,20 +521,15 @@ function ManagerDashboard({ user }) {
             </div>
           ) : activeTab === 'stock' ? (
             <div className="manager-stock-scaled">
-              <div className="manager-header">
-                <h2>Залишки на складах</h2>
-              </div>
               <div className="manager-table-viewport">
-                <EquipmentList
+                <ManagerStockPanel
                   ref={equipmentListRef}
                   user={user}
                   warehouses={warehouses}
                   onReserve={handleReserve}
                   onRequestTesting={handleRequestTesting}
-                  showReserveAction={true}
                   categoryId={selectedCategoryId}
                   includeSubtree
-                  managerCategoryContext
                 />
               </div>
             </div>
@@ -616,11 +639,15 @@ function ManagerDashboard({ user }) {
 
       {/* Модальне вікно для резервування */}
       {showReservationModal && selectedEquipment && (
-        <div className="modal-overlay" onClick={() => setShowReservationModal(false)}>
+        <div className="modal-overlay" onClick={closeReservationModal}>
           <div className="modal-content reservation-form-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🔒 Резервування обладнання</h3>
-              <button className="btn-close" onClick={() => setShowReservationModal(false)}>×</button>
+              <h3>
+                {reserveBatchIds.length > 1
+                  ? `🔒 Резервування ${reserveBatchIds.length} позицій`
+                  : '🔒 Резервування обладнання'}
+              </h3>
+              <button className="btn-close" onClick={closeReservationModal}>×</button>
             </div>
             
             <form onSubmit={handleReservationSubmit}>
@@ -630,6 +657,9 @@ function ManagerDashboard({ user }) {
                   <div><strong>Серійний номер:</strong> {selectedEquipment.serialNumber || '—'}</div>
                   <div><strong>Виробник:</strong> {selectedEquipment.manufacturer || '—'}</div>
                   <div><strong>Склад:</strong> {selectedEquipment.currentWarehouseName || selectedEquipment.currentWarehouse || '—'}</div>
+                  {reserveBatchIds.length > 1 ? (
+                    <div><strong>Пакет:</strong> {reserveBatchIds.length} вільних позицій з кошика</div>
+                  ) : null}
                 </div>
                 
                 <div className="client-edrpou-autocomplete">
@@ -768,7 +798,7 @@ function ManagerDashboard({ user }) {
                 <button 
                   type="button" 
                   className="btn-cancel"
-                  onClick={() => setShowReservationModal(false)}
+                  onClick={closeReservationModal}
                   disabled={reservationLoading}
                 >
                   Скасувати

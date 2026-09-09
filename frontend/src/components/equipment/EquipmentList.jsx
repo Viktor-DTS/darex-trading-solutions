@@ -85,6 +85,7 @@ const ALL_COLUMNS = [
   { key: 'reservationStatus', label: 'Статус Резерву', width: 140 },
   { key: 'manufacturer', label: 'Виробник', width: 150 },
   { key: 'type', label: 'Тип обладнання', width: 180 },
+  { key: 'standbyPower', label: 'Потужність', width: 130 },
   { key: 'quantity', label: 'Кількість', width: 100 },
   { key: 'serialNumber', label: 'Серійний номер', width: 150 },
   { key: 'currentWarehouse', label: 'Склад', width: 150 },
@@ -226,6 +227,7 @@ const EquipmentList = forwardRef(({
       ALL_COLUMNS.filter((col) => {
         if (col.key === 'reservationClientName' && !showReservationClientColumn) return false;
         if (managerCategoryContext && col.key === 'itemKind') return false;
+        if (!managerCategoryContext && col.key === 'standbyPower') return false;
         return true;
       }),
     [showReservationClientColumn, managerCategoryContext]
@@ -1355,6 +1357,11 @@ const EquipmentList = forwardRef(({
                       </span>
                     ) : null}
                   </td>
+                  {managerCategoryContext ? (
+                    <td className="cell-truncate" title={[item.standbyPower, item.primePower, item.amperage].filter(Boolean).join(' / ')}>
+                      {item.standbyPower || item.primePower || item.amperage || '—'}
+                    </td>
+                  ) : null}
                   <td>
                     {getEquipmentQuantityNumber(item) > 1 ? (
                       <span style={{ fontWeight: 'bold' }}>{formatEquipmentQuantityCell(item)}</span>

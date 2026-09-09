@@ -68,7 +68,7 @@ const PAYMENT_METHOD_OPTIONS = [
 const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', in_negotiation: 'В процесі домовленості', in_realization: 'Реалізація угоди', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
 const statusLabel = (v) => SALE_STATUS_OPTIONS.find(o => o.value === v)?.label || STATUS_LABELS_LEGACY[v] || v || '—';
 
-function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = null, initialClient = null, initialNotes = '', user, viewOnly = false }) {
+function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = null, initialClient = null, initialNotes = '', initialEquipmentItems = null, user, viewOnly = false }) {
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -197,6 +197,9 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
         });
       } else {
         const client = initialClient || {};
+        const seedItems = Array.isArray(initialEquipmentItems)
+          ? initialEquipmentItems.filter((i) => i && (i.equipmentId || i._id || i.type))
+          : [];
         setForm({
           clientId: client._id || '',
           clientName: client.name || '',
@@ -204,7 +207,21 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
           managerLogin: user?.login || '',
           managerLogin2: '',
           tenderEmployeeLogin: '',
-          equipmentItems: [{ id: crypto.randomUUID?.() || '1', lineId: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0, shipmentLocked: false, shipmentRequestId: null }],
+          equipmentItems: seedItems.length
+            ? seedItems.map((i) => {
+                const lid = crypto.randomUUID?.() || `eq_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+                return {
+                  id: lid,
+                  lineId: lid,
+                  equipmentId: i.equipmentId || i._id || '',
+                  type: i.type || '',
+                  serialNumber: i.serialNumber || '',
+                  amount: i.amount || 0,
+                  shipmentLocked: false,
+                  shipmentRequestId: null
+                };
+              })
+            : [{ id: crypto.randomUUID?.() || '1', lineId: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0, shipmentLocked: false, shipmentRequestId: null }],
           additionalCosts: [{ id: crypto.randomUUID?.() || '1', description: '', amount: 0, quantity: 1, notes: '' }],
           payments: [{ id: crypto.randomUUID?.() || '1', date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }],
           saleDate: new Date().toISOString().slice(0, 10),
@@ -234,7 +251,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
       loadClients();
       loadEquipment();
     }
-  }, [open, editSale, initialClient, initialNotes, user?.login]);
+  }, [open, editSale, initialClient, initialNotes, initialEquipmentItems, user?.login]);
 
   useEffect(() => {
     if (!open || editSale) {
