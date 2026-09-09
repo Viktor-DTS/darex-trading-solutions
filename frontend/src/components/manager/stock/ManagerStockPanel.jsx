@@ -706,6 +706,22 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   {powerFilter.powerMin}–{powerFilter.powerMax} кВт
                 </span>
               ) : null}
+              <Button
+                size="sm"
+                variant="danger"
+                className="msp-reset"
+                onClick={() => {
+                  setPowerKw('');
+                  setPowerTol(50);
+                  setKindFilter('all');
+                  setFreeOnly(false);
+                  setTestedOnly(false);
+                  setReadyOnly(false);
+                  setMyOnly(false);
+                }}
+              >
+                Скинути фільтр
+              </Button>
             </div>
           ) : null}
           <Button size="sm" variant="ghost" onClick={() => loadCatalog()}>Оновити</Button>

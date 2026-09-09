@@ -223,6 +223,13 @@
   margin-bottom: 6px;
 }
 
+.msp-reset {
+  align-self: flex-end;
+  margin-bottom: 2px;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.55), 0 0 18px rgba(248, 113, 113, 0.32);
+  font-weight: 700;
+}
+
 .msp-chips {
   display: flex;
   flex-wrap: wrap;

@@ -80,6 +80,11 @@
   flex-direction: column;
 }
 
+.equipment-edit-modal.is-passport {
+  max-width: 980px;
+  border: 1px solid rgba(91, 156, 248, 0.2);
+}
+
 .equipment-edit-header {
   display: flex;
   justify-content: space-between;

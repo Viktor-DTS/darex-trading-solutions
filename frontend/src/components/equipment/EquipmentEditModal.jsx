@@ -8,6 +8,7 @@ import { buildPatchesFromProductCard, mergeAttachedFromProductCard, mergeCardSpe
 import { parsedEquipmentToTechnicalSpecs } from '../../utils/ocrParser';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import ProductCardQuickCreateModal from './ProductCardQuickCreateModal';
+import EquipmentPassportView from './EquipmentPassportView';
 import { useUnitsOfMeasure } from '../../hooks/useUnitsOfMeasure';
 import './EquipmentEditModal.css';
 
@@ -652,7 +653,7 @@ function EquipmentEditModal({
 
   return (
     <div className="equipment-edit-modal-overlay" onClick={onClose}>
-      <div className="equipment-edit-modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`equipment-edit-modal${effectiveReadOnly && !isNewEquipment ? ' is-passport' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="equipment-edit-header">
           <h2>
             {isNewEquipment
@@ -731,24 +732,18 @@ function EquipmentEditModal({
             )}
             
             {effectiveReadOnly && !isNewEquipment && (
-              <div className="form-section" style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowQR(true)}
-                  style={{ padding: '12px 24px', fontSize: '16px' }}
-                >
-                  📱 QR
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowHistory(true)}
-                  style={{ padding: '12px 24px', fontSize: '16px' }}
-                >
-                  📋 Історія
-                </button>
-              </div>
+              <EquipmentPassportView
+                equipment={equipment}
+                formData={formData}
+                warehouses={warehouses}
+                specs={productCardSpecsForView}
+                images={productCardImagesForView}
+                unitSpecs={formData.technicalSpecs || []}
+                loading={equipmentDetailLoading}
+                onQr={() => setShowQR(true)}
+                onHistory={() => setShowHistory(true)}
+                onTestingInfo={() => setShowTestingInfo(true)}
+              />
             )}
 
             {isNewEquipment && !effectiveReadOnly && (
@@ -776,7 +771,7 @@ function EquipmentEditModal({
               </div>
             )}
 
-            {(equipment?.productId || !effectiveReadOnly) && !(isNewEquipment && !effectiveReadOnly) && (
+            {!effectiveReadOnly && !isNewEquipment && (
               <div className="form-section">
                 <h3>Карточка з довідника</h3>
                 {effectiveReadOnly && equipment?.productId && typeof equipment.productId === 'object' ? (
@@ -1042,6 +1037,7 @@ function EquipmentEditModal({
               </div>
             )}
 
+            {!effectiveReadOnly && (
             <div className="form-section">
             <h3>Основна інформація</h3>
             <div className="form-grid">
@@ -1219,7 +1215,8 @@ function EquipmentEditModal({
                 </>
               )}
             </div>
-          </div>
+            </div>
+            )}
 
           {/* Кількісна характеристика — лише при надходженні (нова позиція) */}
           {isNewEquipment && (
@@ -1287,13 +1284,13 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {!isNewEquipment && equipmentDetailLoading && (
+          {!effectiveReadOnly && !isNewEquipment && equipmentDetailLoading && (
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
               Завантаження даних карточки продукту…
             </p>
           )}
 
-          {!isNewEquipment && linkedProductCard && productCardSpecsForView.length > 0 && (
+          {!effectiveReadOnly && !isNewEquipment && linkedProductCard && productCardSpecsForView.length > 0 && (
             <div className="form-section">
               <h3>Технічні характеристики</h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>
@@ -1313,7 +1310,7 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {!isNewEquipment && linkedProductCard && productCardImagesForView.length > 0 && (
+          {!effectiveReadOnly && !isNewEquipment && linkedProductCard && productCardImagesForView.length > 0 && (
             <div className="form-section">
               <h3>Фото</h3>
               <div className="equipment-edit-modal__product-card-images">
@@ -1419,7 +1416,7 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {equipment && (equipment.reservedByName || equipment.status === 'reserved') && (
+          {!effectiveReadOnly && equipment && (equipment.reservedByName || equipment.status === 'reserved') && (
             <div className="form-section" style={{ backgroundColor: 'var(--surface-dark)', padding: '15px', borderRadius: '6px', marginBottom: '15px' }}>
               <h3 style={{ color: 'var(--primary)', marginBottom: '10px' }}>🔒 Резервування</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'var(--text-secondary)' }}>
@@ -1443,6 +1440,7 @@ function EquipmentEditModal({
             </div>
           )}
 
+          {!effectiveReadOnly && (
           <div className="form-section">
             <h3>Примітки</h3>
             <div className="form-group">
@@ -1458,6 +1456,7 @@ function EquipmentEditModal({
               />
             </div>
           </div>
+          )}
 
             <div className="equipment-edit-footer">
               {readOnly && onReserve && onCancelReserve && (
