@@ -232,19 +232,23 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     [items, filters, login]
   );
 
+  const dguIncomingLots = useMemo(
+    () => incomingLots.filter((lot) => lot.sheetType !== 'zip'),
+    [incomingLots]
+  );
   const stockFamilies = useMemo(() => buildFamilies(visibleItems, login), [visibleItems, login]);
   const stats = useMemo(() => catalogStats(visibleItems, login), [visibleItems, login]);
   const allStockFamilies = useMemo(() => buildFamilies(items, login), [items, login]);
   const allFamilies = useMemo(
     () =>
-      attachIncomingLots(allStockFamilies, incomingLots, {
+      attachIncomingLots(allStockFamilies, dguIncomingLots, {
         includeOrphans: true,
         includeIncomingUnits: true,
       }).families,
-    [allStockFamilies, incomingLots]
+    [allStockFamilies, dguIncomingLots]
   );
   const families = useMemo(() => {
-    const attached = attachIncomingLots(stockFamilies, incomingLots, {
+    const attached = attachIncomingLots(stockFamilies, dguIncomingLots, {
       includeOrphans: includeExpected,
       includeIncomingUnits: includeExpected,
     }).families;
@@ -253,7 +257,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
       if (!f.incomingOnly) return true;
       return incomingLotMatchesFilters(f.incomingLots[0], filters);
     });
-  }, [stockFamilies, incomingLots, includeExpected, filters]);
+  }, [stockFamilies, dguIncomingLots, includeExpected, filters]);
   const soonFamilies = useMemo(() => {
     const kindPower = {
       group: filters.group,
@@ -263,7 +267,9 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     return allFamilies.filter(
       (f) =>
         f.incomingQty > 0 &&
-        (f.incomingLots || []).some((lot) => incomingLotMatchesFilters(lot, kindPower))
+        (f.incomingLots || []).some(
+          (lot) => lot.sheetType !== 'zip' && incomingLotMatchesFilters(lot, kindPower)
+        )
     );
   }, [allFamilies, filters.group, filters.powerMin, filters.powerMax]);
   const familyModal = useMemo(
@@ -897,8 +903,8 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
           <div className="msp-kpi is-res"><b>{stats.reserved}</b><span>у резерві</span></div>
           <div className="msp-kpi is-test"><b>{stats.testing}</b><span>на тесті</span></div>
           <div className="msp-kpi is-ready"><b>{stats.ready}</b><span>повністю готові</span></div>
-          {incomingLots.length ? (
-            <div className="msp-kpi is-soon"><b>{incomingLots.length}</b><span>очікуваних ВЕД</span></div>
+          {dguIncomingLots.length ? (
+            <div className="msp-kpi is-soon"><b>{dguIncomingLots.length}</b><span>очікуваних ВЕД</span></div>
           ) : null}
         </div>
       ) : null}

@@ -246,7 +246,12 @@ async function listIncomingForManagers(login) {
       'sheetType productName productCharacteristics quantity arrivalWarehouse destination expectedArrivalDate supplierReadyDate orderStatus productStatus customerName deliveryNumber deliveryCode'
     )
     .lean();
-  const visible = orders.filter((o) => HORIZON_VISIBLE.has(horizonStatus(o)) && normKey(o.productName));
+  const visible = orders.filter(
+    (o) =>
+      o.sheetType === 'dgu' &&
+      HORIZON_VISIBLE.has(horizonStatus(o)) &&
+      normKey(o.productName)
+  );
   const keys = [...new Set(visible.map(lotKeyFromOrder))];
   const intents = keys.length
     ? await VedIncomingIntent.find({ lotKey: { $in: keys } }).lean()
@@ -344,7 +349,10 @@ async function findVisibleOrderByLotKey(lotKey) {
     .lean();
   return (
     orders.find(
-      (order) => lotKeyFromOrder(order) === lotKey && HORIZON_VISIBLE.has(horizonStatus(order))
+      (order) =>
+        lotKeyFromOrder(order) === lotKey &&
+        order.sheetType === 'dgu' &&
+        HORIZON_VISIBLE.has(horizonStatus(order))
     ) || null
   );
 }
