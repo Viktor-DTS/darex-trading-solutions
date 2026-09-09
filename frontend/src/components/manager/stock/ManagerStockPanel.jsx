@@ -10,7 +10,7 @@ import React, {
 import API_BASE_URL from '../../../config';
 import { authFetch } from '../../../utils/authFetch';
 import { getClients } from '../../../utils/clientsAPI';
-import { Button, Badge } from '../../ui';
+import { Button, Badge, Modal } from '../../ui';
 import EquipmentList from '../../equipment/EquipmentList';
 import SaleFormModal from '../SaleFormModal';
 import {
@@ -91,7 +91,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const [showClientDrop, setShowClientDrop] = useState(false);
   const [basket, setBasket] = useState([]);
   const [compare, setCompare] = useState([]);
-  const [expanded, setExpanded] = useState({});
+  const [familyModalKey, setFamilyModalKey] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailFull, setDetailFull] = useState(null);
   const [showSale, setShowSale] = useState(false);
@@ -203,6 +203,22 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const families = useMemo(() => buildFamilies(visibleItems, login), [visibleItems, login]);
   const stats = useMemo(() => catalogStats(visibleItems, login), [visibleItems, login]);
   const allFamilies = useMemo(() => buildFamilies(items, login), [items, login]);
+  const familyModal = useMemo(
+    () =>
+      familyModalKey
+        ? families.find((f) => f.key === familyModalKey)
+          || allFamilies.find((f) => f.key === familyModalKey)
+          || null
+        : null,
+    [allFamilies, families, familyModalKey]
+  );
+  const openFamilyModal = useCallback((key) => {
+    if (key) setFamilyModalKey(key);
+  }, []);
+  const closeFamilyModal = useCallback(() => {
+    if (detail || detailFull) return;
+    setFamilyModalKey(null);
+  }, [detail, detailFull]);
 
   const inBasket = useCallback(
     (id) => basket.some((x) => String(x._id) === String(id)),
@@ -296,6 +312,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
 
   const openKp = () => {
     if (!basket.length) return;
+    setFamilyModalKey(null);
     setSaleItems(
       basket.map((item) => ({
         equipmentId: item._id,
@@ -364,23 +381,27 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
 
   const familyAnalogues = (family) => findAnalogues(family, allFamilies);
 
+  const familyBadge = (family) => {
+    if (family.readyQty > 0) return <Badge tone="success">Можна пропонувати</Badge>;
+    if (family.myReservedQty > 0) return <Badge tone="info">Ваш резерв</Badge>;
+    return <Badge>Немає вільних</Badge>;
+  };
+
   const renderFamilyCard = (family, { compact = false } = {}) => {
-    const open = !!expanded[family.key];
     const power = formatPower(family) || formatAmps(family);
+    const isActive = familyModalKey === family.key;
     return (
-      <article key={family.key} className={`msp-card ${open ? 'is-open' : ''}`}>
+      <article
+        key={family.key}
+        className={`msp-card ${isActive ? 'is-open' : ''}`}
+        onClick={() => openFamilyModal(family.key)}
+      >
         <div className="msp-card-top">
           <div>
             <h3>{family.type}</h3>
             {family.manufacturer ? <p className="msp-mfr">{family.manufacturer}</p> : null}
           </div>
-          {family.readyQty > 0 ? (
-            <Badge tone="success">Можна пропонувати</Badge>
-          ) : family.myReservedQty > 0 ? (
-            <Badge tone="info">Ваш резерв</Badge>
-          ) : (
-            <Badge>Немає вільних</Badge>
-          )}
+          {familyBadge(family)}
         </div>
         {power ? <div className="msp-spec">{power}{family.phase ? ` · ${family.phase}` : ''}</div> : null}
         <div className="msp-wh-line">
@@ -398,52 +419,19 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
           ) : null}
           <span>{family.totalQty} разом</span>
         </div>
-        {!compact ? (
-          <div className="msp-actions">
-            <Button size="sm" variant="secondary" onClick={() => setExpanded((s) => ({ ...s, [family.key]: !s[family.key] }))}>
-              {open ? 'Сховати одиниці' : `Одиниці (${family.units.length})`}
-            </Button>
-            <Button size="sm" variant="primary" onClick={() => addFamilyToBasket(family)} disabled={!family.units.length}>
-              У кошик КП
-            </Button>
-          </div>
-        ) : (
-          <div className="msp-actions">
-            <Button size="sm" variant="secondary" onClick={() => setExpanded((s) => ({ ...s, [family.key]: true }))}>
-              Одиниці
-            </Button>
-            <Button size="sm" onClick={() => addFamilyToBasket(family)}>У кошик</Button>
-          </div>
-        )}
-        {open ? (
-          <div className="msp-units">
-            {family.units.map((unit) => (
-              <UnitRow
-                key={unit._id}
-                unit={unit}
-                login={login}
-                inBasket={inBasket(unit._id)}
-                inCompare={inCompare(unit._id)}
-                onOpen={() => openDetail(unit)}
-                onBasket={() => addToBasket(unit)}
-                onCompare={() => toggleCompare(unit)}
-                onReserve={() => openReserve(unit)}
-                onTest={() => onRequestTesting?.(unit)}
-                onDragStart={(e) => onDragStart(e, unit)}
-              />
-            ))}
-            {familyAnalogues(family).length ? (
-              <div className="msp-analog">
-                <strong>Аналоги</strong>
-                {familyAnalogues(family).slice(0, 3).map((a) => (
-                  <button key={a.key} type="button" onClick={() => setExpanded((s) => ({ ...s, [a.key]: true }))}>
-                    {a.type} · {formatPower(a) || formatAmps(a) || '—'} · вільних {a.freeQty}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="msp-actions" onClick={(e) => e.stopPropagation()}>
+          <Button size="sm" variant="secondary" onClick={() => openFamilyModal(family.key)}>
+            {compact ? 'Одиниці' : `Одиниці (${family.units.length})`}
+          </Button>
+          <Button
+            size="sm"
+            variant={compact ? 'secondary' : 'primary'}
+            onClick={() => addFamilyToBasket(family)}
+            disabled={!family.units.length}
+          >
+            {compact ? 'У кошик' : 'У кошик КП'}
+          </Button>
+        </div>
       </article>
     );
   };
@@ -502,7 +490,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                     key={f.key}
                     type="button"
                     className="msp-mini"
-                    onClick={() => setExpanded((s) => ({ ...s, [f.key]: true }))}
+                    onClick={() => openFamilyModal(f.key)}
                     onDoubleClick={() => addFamilyToBasket(f)}
                   >
                     <strong>{f.type}</strong>
@@ -538,7 +526,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                     key={f.key}
                     type="button"
                     className="msp-mini"
-                    onClick={() => setExpanded((s) => ({ ...s, [f.key]: true }))}
+                    onClick={() => openFamilyModal(f.key)}
                     onDoubleClick={() => addFamilyToBasket(f)}
                   >
                     <strong>{f.type}</strong>
@@ -600,6 +588,10 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const shown = detailFull || detail;
   const shownFamily = shown ? allFamilies.find((f) => f.key === familyKey(shown)) : null;
   const analogues = shownFamily ? findAnalogues(shownFamily, allFamilies) : [];
+  const modalAnalogues = familyModal ? familyAnalogues(familyModal) : [];
+  const modalPower = familyModal
+    ? [formatPower(familyModal) || formatAmps(familyModal), familyModal.phase].filter(Boolean).join(' · ')
+    : '';
 
   return (
     <div className="msp">
@@ -731,11 +723,6 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   ))}
                 </div>
                 {boardKind === 'geo' ? renderGeoBoard() : boardKind === 'power' ? renderPowerBoard() : renderOpsBoard()}
-                {boardKind !== 'ops' ? (
-                  <div className="msp-grid" style={{ marginTop: 12 }}>
-                    {families.filter((f) => expanded[f.key]).map((f) => renderFamilyCard(f))}
-                  </div>
-                ) : null}
               </>
             ) : (
               renderPick()
@@ -811,6 +798,78 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
           </table>
         </div>
       ) : null}
+
+      <Modal
+        open={!!familyModal}
+        onClose={closeFamilyModal}
+        size="xl"
+        className="msp-family-modal"
+        title={familyModal?.type || 'Обладнання'}
+        subtitle={[familyModal?.manufacturer, modalPower].filter(Boolean).join(' · ')}
+        footer={familyModal ? (
+          <>
+            <Button variant="ghost" onClick={closeFamilyModal}>Закрити</Button>
+            <Button
+              variant="primary"
+              disabled={!familyModal.units.length}
+              onClick={() => addFamilyToBasket(familyModal)}
+            >
+              У кошик КП
+            </Button>
+          </>
+        ) : null}
+      >
+        {familyModal ? (
+          <div className="msp-family-modal-body">
+            <div className="msp-card-top">
+              {familyBadge(familyModal)}
+            </div>
+            {modalPower ? <div className="msp-spec">{modalPower}</div> : null}
+            <div className="msp-wh-line">
+              {familyModal.warehouses.map((w) => (
+                <span key={w.id} className="msp-wh-pill" title={w.name}>
+                  {warehouseDisplayName(w.name)} · {w.freeQty}/{w.qty}
+                </span>
+              ))}
+            </div>
+            <div className="msp-meta">
+              <span className="msp-dot"><i className="free" /> {familyModal.freeQty} вільн.</span>
+              <span className="msp-dot"><i className="res" /> {familyModal.reservedQty} резерв</span>
+              {familyModal.testingQty > 0 ? (
+                <span className="msp-dot"><i className="test" /> {familyModal.testingQty} тест</span>
+              ) : null}
+              <span>{familyModal.totalQty} разом</span>
+            </div>
+            <div className="msp-units">
+              {familyModal.units.map((unit) => (
+                <UnitRow
+                  key={unit._id}
+                  unit={unit}
+                  login={login}
+                  inBasket={inBasket(unit._id)}
+                  inCompare={inCompare(unit._id)}
+                  onOpen={() => openDetail(unit)}
+                  onBasket={() => addToBasket(unit)}
+                  onCompare={() => toggleCompare(unit)}
+                  onReserve={() => openReserve(unit)}
+                  onTest={() => onRequestTesting?.(unit)}
+                  onDragStart={(e) => onDragStart(e, unit)}
+                />
+              ))}
+            </div>
+            {modalAnalogues.length ? (
+              <div className="msp-analog">
+                <strong>Аналоги</strong>
+                {modalAnalogues.slice(0, 6).map((a) => (
+                  <button key={a.key} type="button" onClick={() => openFamilyModal(a.key)}>
+                    {a.type} · {formatPower(a) || formatAmps(a) || '—'} · вільних {a.freeQty}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
 
       {shown ? (
         <div className="msp-drawer-back" onClick={() => { setDetail(null); setDetailFull(null); }}>

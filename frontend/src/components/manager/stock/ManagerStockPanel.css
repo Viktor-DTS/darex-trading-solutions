@@ -265,8 +265,10 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  cursor: pointer;
 }
 
+.msp-card:hover,
 .msp-card.is-open {
   border-color: var(--msp-accent);
 }
@@ -351,6 +353,12 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.msp-family-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .msp-unit {
@@ -535,7 +543,7 @@
   position: fixed;
   inset: 0;
   background: rgba(8, 12, 20, 0.55);
-  z-index: 80;
+  z-index: 1100;
   display: flex;
   justify-content: flex-end;
 }
