@@ -301,6 +301,44 @@ function sumServiceTotals(tasks) {
   return (tasks || []).reduce((acc, task) => acc + parseNumber(task?.serviceTotal), 0);
 }
 
+const BOARD_STATUS_ORDER = ['Заявка', 'В роботі', 'Виконано', 'Заблоковано'];
+
+function statusSlug(status) {
+  return String(status || 'none').toLowerCase().replace(/\s+/g, '-');
+}
+
+function loadFilterPresets(area) {
+  try {
+    const raw = localStorage.getItem(`taskTable_filterPresets_${area}`);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistFilterPresets(area, presets) {
+  localStorage.setItem(`taskTable_filterPresets_${area}`, JSON.stringify(presets));
+}
+
+function getColumnFilterChipLabel(key) {
+  if (key.endsWith('From')) {
+    const base = ALL_COLUMNS.find((col) => col.key === key.slice(0, -4));
+    return base ? `${base.label} від` : key;
+  }
+  if (key.endsWith('To')) {
+    const base = ALL_COLUMNS.find((col) => col.key === key.slice(0, -2));
+    return base ? `${base.label} до` : key;
+  }
+  return ALL_COLUMNS.find((col) => col.key === key)?.label || key;
+}
+
+function collectTaskEngineers(task) {
+  return [task?.engineer1, task?.engineer2, task?.engineer3, task?.engineer4, task?.engineer5, task?.engineer6]
+    .map((name) => String(name || '').trim())
+    .filter(Boolean);
+}
+
 function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined, compactVariant = false }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -370,7 +408,18 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     return () => clearTimeout(tid);
   }, [filter, columnFilters, enablePagination]);
 
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(!compactVariant);
+  const [filterPresets, setFilterPresets] = useState(() => loadFilterPresets(columnsArea));
+  const [presetName, setPresetName] = useState('');
+  const [activePresetId, setActivePresetId] = useState('');
+  const [listViewMode, setListViewMode] = useState(() => {
+    if (!compactVariant) return 'table';
+    try {
+      return localStorage.getItem(`taskTable_viewMode_${columnsArea}`) === 'table' ? 'table' : 'board';
+    } catch {
+      return 'board';
+    }
+  });
   const canShowViewButton = typeof onViewClick === 'function';
 
   // Зберігаємо фільтри в localStorage при зміні
@@ -412,10 +461,36 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       } else {
         setFilter('');
       }
+      setFilterPresets(loadFilterPresets(columnsArea));
+      setActivePresetId('');
+      setPresetName('');
     } catch (error) {
       console.error('Помилка завантаження фільтрів при зміні панелі:', error);
     }
   }, [columnsArea]);
+
+  useEffect(() => {
+    if (!compactVariant) {
+      setShowFilters(true);
+      setListViewMode('table');
+      return;
+    }
+    setShowFilters(false);
+    try {
+      setListViewMode(localStorage.getItem(`taskTable_viewMode_${columnsArea}`) === 'table' ? 'table' : 'board');
+    } catch {
+      setListViewMode('board');
+    }
+  }, [compactVariant]);
+
+  useEffect(() => {
+    if (!compactVariant) return;
+    try {
+      localStorage.setItem(`taskTable_viewMode_${columnsArea}`, listViewMode);
+    } catch (error) {
+      console.error('Помилка збереження виду списку:', error);
+    }
+  }, [listViewMode, columnsArea, compactVariant]);
 
   // При зміні фільтрів або статусу (вкладки) — скидаємо сторінку на 1 (для пагінації)
   useEffect(() => {
@@ -437,6 +512,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const clearAllFilters = () => {
     setColumnFilters({});
     setFilter('');
+    setActivePresetId('');
     try {
       localStorage.removeItem(filtersStorageKey);
       localStorage.removeItem(filterStorageKey);
@@ -445,8 +521,69 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
   };
 
+  const saveCurrentFilterPreset = () => {
+    const name = presetName.trim();
+    if (!name) return;
+    const next = [
+      ...filterPresets.filter((preset) => preset.name !== name),
+      {
+        id: `p_${Date.now()}`,
+        name,
+        filter,
+        columnFilters: Object.fromEntries(
+          Object.entries(columnFilters).filter(([, value]) => value && String(value).trim() !== '')
+        ),
+      },
+    ].slice(-12);
+    setFilterPresets(next);
+    setActivePresetId(next[next.length - 1].id);
+    setPresetName('');
+    try {
+      persistFilterPresets(columnsArea, next);
+    } catch (error) {
+      console.error('Помилка збереження вигляду фільтра:', error);
+    }
+  };
+
+  const applyFilterPreset = (id) => {
+    const preset = filterPresets.find((item) => item.id === id);
+    if (!preset) {
+      setActivePresetId('');
+      return;
+    }
+    setFilter(preset.filter || '');
+    setColumnFilters(preset.columnFilters && typeof preset.columnFilters === 'object' ? preset.columnFilters : {});
+    setActivePresetId(id);
+  };
+
+  const deleteActiveFilterPreset = () => {
+    if (!activePresetId) return;
+    const next = filterPresets.filter((preset) => preset.id !== activePresetId);
+    setFilterPresets(next);
+    setActivePresetId('');
+    try {
+      persistFilterPresets(columnsArea, next);
+    } catch (error) {
+      console.error('Помилка видалення вигляду фільтра:', error);
+    }
+  };
+
+  const removeFilterChip = (key) => {
+    if (key === '__search') {
+      setFilter('');
+      return;
+    }
+    handleColumnFilterChange(key, '');
+  };
+
   // Перевірка чи є активні фільтри
   const hasActiveFilters = Object.values(columnFilters).some(v => v && v.trim() !== '') || filter.trim() !== '';
+  const activeFilterChips = [
+    ...(filter.trim() ? [{ key: '__search', label: `Пошук: ${filter.trim()}` }] : []),
+    ...Object.entries(columnFilters)
+      .filter(([, value]) => value && String(value).trim() !== '')
+      .map(([key, value]) => ({ key, label: `${getColumnFilterChipLabel(key)}: ${value}` })),
+  ];
 
   const isAdminUser = ['admin', 'administrator'].includes(user?.role || '');
 
@@ -1029,6 +1166,20 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     return result;
   }, [tasks, debouncedFilter, debouncedColumnFilters, sortField, sortDirection, showRejectedApprovals, showRejectedInvoices, approveRole, enablePagination]);
 
+  const taskBoards = useMemo(() => {
+    const groups = new Map();
+    for (const task of filteredAndSortedTasks) {
+      const key = task.status || 'Без статусу';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(task);
+    }
+    const keys = [
+      ...BOARD_STATUS_ORDER.filter((statusName) => groups.has(statusName)),
+      ...[...groups.keys()].filter((statusName) => !BOARD_STATUS_ORDER.includes(statusName)),
+    ];
+    return keys.map((statusName) => ({ status: statusName, tasks: groups.get(statusName) || [] }));
+  }, [filteredAndSortedTasks]);
+
   // Відображені колонки в правильному порядку
   const displayedColumns = useMemo(() => {
     if (!columnSettings.visible || columnSettings.visible.length === 0) {
@@ -1426,6 +1577,115 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     );
   };
 
+  const renderModernTaskCard = (task) => {
+    const invoiceStatus = getInvoiceStatus(task);
+    const engineers = collectTaskEngineers(task);
+    const cardClass = [
+      'task-board-card',
+      getRowClass(task),
+      task.urgentRequest ? 'is-urgent' : '',
+      isTaskMarkedForDeletion(task) ? 'is-deletion' : '',
+    ].filter(Boolean).join(' ');
+
+    return (
+      <article
+        key={task.id || task._id}
+        className={cardClass}
+        data-status={task.status}
+        onClick={() => onRowClick && onRowClick(task)}
+        role={onRowClick ? 'button' : undefined}
+        tabIndex={onRowClick ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (onRowClick && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            onRowClick(task);
+          }
+        }}
+      >
+        <header className="task-board-card-head">
+          <strong>{task.requestNumber || 'Без номера'}</strong>
+          <span className={`task-passport-chip is-status-${statusSlug(task.status)}`}>
+            {task.status || 'Без статусу'}
+          </span>
+          {task.urgentRequest && <span className="task-passport-chip is-urgent">Термінова</span>}
+          {task.internalWork && <span className="task-passport-chip">Внутрішня</span>}
+          {isTaskMarkedForDeletion(task) && <span className="task-passport-chip is-urgent">Під видалення</span>}
+        </header>
+        <div className="task-board-card-client">{task.client || 'Без замовника'}</div>
+        <div className="task-board-card-address">{task.address || 'Адреса не вказана'}</div>
+        <div className="task-board-card-meta">
+          <span><small>Обладнання</small><b>{task.equipment || '—'}</b></span>
+          <span><small>Зав. №</small><b>{task.equipmentSerial || '—'}</b></span>
+          <span><small>Регіон</small><b>{task.serviceRegion || '—'}</b></span>
+          <span><small>Дата заявки</small><b>{formatValue(task.requestDate, 'requestDate')}</b></span>
+          <span><small>План</small><b>{formatValue(task.plannedDate, 'plannedDate')}</b></span>
+          <span><small>Роботи</small><b>{formatValue(task.date, 'date')}</b></span>
+        </div>
+        {task.work && <p className="task-board-card-work">{task.work}</p>}
+        <div className="task-board-card-foot">
+          <span
+            className="status-badge-compact"
+            style={{ backgroundColor: invoiceStatus.color }}
+            title={`Статус рахунку: ${invoiceStatus.label}`}
+          >
+            Рахунок: {invoiceStatus.label}
+          </span>
+          <b className="task-board-card-sum">
+            {parseNumber(task.serviceTotal) ? `${formatServiceTotalSum(task.serviceTotal)} грн` : 'Без суми'}
+          </b>
+        </div>
+        {engineers.length > 0 && (
+          <div className="task-board-card-engineers">{engineers.join(' · ')}</div>
+        )}
+        <div className="task-board-card-actions" onClick={(e) => e.stopPropagation()}>
+          {approveRole !== 'warehouse' && approveRole !== 'accountant' && status !== 'accountantInvoiceRequests' && (
+            <button
+              className="btn-work-order"
+              onClick={() => {
+                generateWorkOrder(task).catch((err) => {
+                  console.error(err);
+                  alert('Не вдалося підготувати наряд (завантаження коефіцієнтів або документ). Спробуйте ще раз.');
+                });
+              }}
+              title="Створити наряд на виконання робіт"
+            >
+              📋 Наряд
+            </button>
+          )}
+          {(columnsArea === 'service' || columnsArea === 'operator') && onCreateFromTask && (
+            <button className="btn-work-order" onClick={() => onCreateFromTask(task)} title="Створити нову заявку на основі цієї">
+              ➕ На основі
+            </button>
+          )}
+          {canShowViewButton && (
+            <button className="btn-view-task" onClick={() => onViewClick(task)} title="Перегляд заявки">
+              👁️ Перегляд
+            </button>
+          )}
+          {canRestoreDeletedTask(task) && (
+            <button
+              className="btn-restore-task"
+              onClick={(e) => handleRestoreDeletedTask(task, e)}
+              disabled={restoringTaskId === (task._id || task.id)}
+            >
+              {restoringTaskId === (task._id || task.id) ? '⏳' : '↩ Відновити'}
+            </button>
+          )}
+          {canDeleteTask() && (
+            <button
+              className="btn-delete-task"
+              onClick={(e) => handleDeleteTask(task, e)}
+              disabled={deletingTaskId === (task._id || task.id)}
+              title={isAdminUser ? 'Видалити заявку з системи' : 'Перевести в заблоковані з поміткою видалення'}
+            >
+              {deletingTaskId === (task._id || task.id) ? '⏳' : '🗑️'}
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  };
+
   return (
     <div className={`task-table-container${compactVariant ? ' task-table-container--modern' : ''}`}>
       {/* Фільтри та пошук */}
@@ -1440,6 +1700,45 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           />
         </div>
         <div className="toolbar-actions">
+          {compactVariant && (
+            <div className="task-view-toggle" role="group" aria-label="Вигляд списку">
+              <button
+                type="button"
+                className={listViewMode === 'board' ? 'active' : ''}
+                onClick={() => setListViewMode('board')}
+              >
+                Борди
+              </button>
+              <button
+                type="button"
+                className={listViewMode === 'table' ? 'active' : ''}
+                onClick={() => setListViewMode('table')}
+              >
+                Таблиця
+              </button>
+            </div>
+          )}
+          {compactVariant && listViewMode === 'board' && (
+            <select
+              className="task-board-sort"
+              value={`${sortField}:${sortDirection}`}
+              onChange={(e) => {
+                const [field, dir] = e.target.value.split(':');
+                setSortField(field);
+                setSortDirection(dir);
+                if (enablePagination) setPage(1);
+              }}
+              title="Сортування карток"
+            >
+              <option value="requestDate:desc">Новіші заявки</option>
+              <option value="requestDate:asc">Старіші заявки</option>
+              <option value="plannedDate:asc">План: спочатку ближчі</option>
+              <option value="plannedDate:desc">План: спочатку дальші</option>
+              <option value="client:asc">Замовник А–Я</option>
+              <option value="serviceTotal:desc">Сума ↓</option>
+              <option value="requestNumber:desc">Номер заявки</option>
+            </select>
+          )}
           <button
             className="btn-export-excel"
             onClick={handleExportToExcel}
@@ -1474,6 +1773,71 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         </div>
       </div>
 
+      {compactVariant && (
+        <div className="task-modern-filterbar">
+          <div className="task-preset-bar">
+            <select
+              className="task-preset-select"
+              value={activePresetId}
+              onChange={(e) => applyFilterPreset(e.target.value)}
+              title="Збережені вигляди фільтрації"
+            >
+              <option value="">Збережені вигляди…</option>
+              {filterPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>{preset.name}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              className="task-preset-name"
+              placeholder="Назва вигляду, напр. Київ + Заявка"
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  saveCurrentFilterPreset();
+                }
+              }}
+            />
+            <button type="button" className="btn-save-preset" onClick={saveCurrentFilterPreset} disabled={!presetName.trim()}>
+              Зберегти фільтр
+            </button>
+            {activePresetId && (
+              <button type="button" className="btn-clear-filters" onClick={deleteActiveFilterPreset}>
+                Видалити вигляд
+              </button>
+            )}
+          </div>
+          {activeFilterChips.length > 0 && (
+            <div className="task-filter-chips">
+              {activeFilterChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  className="task-filter-chip"
+                  onClick={() => removeFilterChip(chip.key)}
+                  title="Прибрати цей фільтр"
+                >
+                  {chip.label} ×
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {compactVariant && showFilters && (
+        <div className="task-filter-board">
+          {displayedColumns.map((col) => (
+            <label key={col.key} className="task-filter-field">
+              <span>{col.label}</span>
+              {renderColumnFilter(col)}
+            </label>
+          ))}
+        </div>
+      )}
+
       {/* Пагінація для оператора */}
       {enablePagination && total > 0 && (
         <div className="task-table-pagination">
@@ -1500,7 +1864,38 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         </div>
       )}
 
-      {/* Таблиця */}
+      {compactVariant && listViewMode === 'board' ? (
+        <div className={`task-kanban${taskBoards.length <= 1 ? ' is-single' : ''}`}>
+          {filteredAndSortedTasks.length === 0 ? (
+            <div className="task-kanban-empty">Немає завдань для відображення</div>
+          ) : taskBoards.length <= 1 ? (
+            <div className="task-kanban-single">
+              <header className="task-kanban-lane-head">
+                <h3>{taskBoards[0]?.status || 'Заявки'}</h3>
+                <span>{taskBoards[0]?.tasks.length || 0}</span>
+              </header>
+              <div className="task-kanban-grid">
+                {(taskBoards[0]?.tasks || []).map((task) => renderModernTaskCard(task))}
+              </div>
+            </div>
+          ) : (
+            taskBoards.map((lane) => (
+              <section
+                key={lane.status}
+                className={`task-kanban-lane is-status-${statusSlug(lane.status)}`}
+              >
+                <header className="task-kanban-lane-head">
+                  <h3>{lane.status}</h3>
+                  <span>{lane.tasks.length}</span>
+                </header>
+                <div className="task-kanban-lane-body">
+                  {lane.tasks.map((task) => renderModernTaskCard(task))}
+                </div>
+              </section>
+            ))
+          )}
+        </div>
+      ) : (
       <div className="task-table-wrapper">
         <table className="task-table">
           <thead>
@@ -1522,7 +1917,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                           columnsArea === 'accountant-approval' || 
                           columnsArea === 'regional' ||
                           canShowViewButton) ? '170px' : '70px' 
-              }} rowSpan={showFilters ? 2 : 1}>
+              }} rowSpan={showFilters && !compactVariant ? 2 : 1}>
                 <div className="th-content">Дії</div>
               </th>
               {displayedColumns.map(col => {
@@ -1552,8 +1947,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                 );
               })}
             </tr>
-            {/* Рядок фільтрів */}
-            {showFilters && (
+            {/* Рядок фільтрів — у покращеному виді фільтри винесені в окрему панель */}
+            {showFilters && !compactVariant && (
               <tr className="filter-row">
                 {displayedColumns.map(col => (
                   <th key={`filter-${col.key}`} className="filter-cell">
@@ -1851,6 +2246,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
