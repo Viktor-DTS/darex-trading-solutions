@@ -59,6 +59,8 @@ const DEFAULT_ACCESS_RULES = {
   golovnkervserv: ['finance'],
   /** Відділ закупівель (виконавець заявок — роль VidZakupok у бекенді: vidzakupok). */
   vidzakupok: ['procurement'],
+  /** Біла Церква: залишки завсклада лише для читання + замовлення в закупівлі. */
+  bczvskl: ['warehouse', 'procurement'],
   /** Маркетинговий відділ — ліди та зовнішня реклама. */
   marketing: ['marketing'],
   /** Тендерний відділ — пошук та аналіз закупівель Prozorro (ДГ, сервіс, монтаж, ДБЖ). */
@@ -178,6 +180,7 @@ function App() {
           }
         });
         merged.golovnkervserv = ['finance'];
+        merged.bczvskl = [...new Set([...(merged.bczvskl || []), 'warehouse', 'procurement'])];
         setAccessRules(merged);
         return merged;
       }
@@ -186,6 +189,7 @@ function App() {
     }
     const fallback = { ...DEFAULT_ACCESS_RULES };
     fallback.golovnkervserv = ['finance'];
+    fallback.bczvskl = ['warehouse', 'procurement'];
     return fallback;
   };
 

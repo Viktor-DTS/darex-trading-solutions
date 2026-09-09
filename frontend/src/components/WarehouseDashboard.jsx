@@ -7,28 +7,45 @@ import CategoryTree from './equipment/CategoryTree';
 import API_BASE_URL from '../config';
 import { authFetch } from '../utils/authFetch';
 import {
+  buildBczvsklWarehouseTabs,
   buildZavskladTabs,
   isZavskladInventoryTab,
   ZAVSKLAD_INVENTORY_TAB_IDS,
 } from '../constants/inventoryTabs';
+import { isBczvsklRole } from '../constants/bczvsklRole';
 import './Dashboard.css';
 import './InventoryDashboard.css';
 
 const WAREHOUSE_ACTIVE_TAB_KEY = 'warehouse_active_tab';
 const TASK_TAB_IDS = new Set(['pending', 'approvedWarehouse', 'archive']);
 
-function readStoredWarehouseTab() {
+const BCZVSKL_TAB_IDS = new Set([
+  'stock',
+  'receipt',
+  'movement',
+  'shipment',
+  'movement-journal',
+  'write-off',
+  'notifications',
+]);
+
+function readStoredWarehouseTab(readOnlyWarehouse) {
   try {
     const raw = localStorage.getItem(WAREHOUSE_ACTIVE_TAB_KEY);
+    if (readOnlyWarehouse) {
+      if (raw && BCZVSKL_TAB_IDS.has(raw)) return raw;
+      return 'stock';
+    }
     if (raw && (TASK_TAB_IDS.has(raw) || ZAVSKLAD_INVENTORY_TAB_IDS.includes(raw))) return raw;
     const legacy = localStorage.getItem('inventory_active_tab');
     if (legacy && ZAVSKLAD_INVENTORY_TAB_IDS.includes(legacy)) return legacy;
   } catch (_) {}
-  return 'pending';
+  return readOnlyWarehouse ? 'stock' : 'pending';
 }
 
 function WarehouseDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState(readStoredWarehouseTab);
+  const warehouseReadOnly = isBczvsklRole(user?.role);
+  const [activeTab, setActiveTab] = useState(() => readStoredWarehouseTab(warehouseReadOnly));
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -42,16 +59,22 @@ function WarehouseDashboard({ user }) {
 
   const isInventoryView = isZavskladInventoryTab(activeTab);
 
-  const taskTabs = [
-    { id: 'pending', label: 'Заявки на підтвердженні', icon: '⏳' },
-    { id: 'approvedWarehouse', label: 'Архів підтверджених', icon: '✅' },
-    { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
-  ];
+  const taskTabs = warehouseReadOnly
+    ? []
+    : [
+        { id: 'pending', label: 'Заявки на підтвердженні', icon: '⏳' },
+        { id: 'approvedWarehouse', label: 'Архів підтверджених', icon: '✅' },
+        { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
+      ];
 
-  const inventoryTabs = buildZavskladTabs({
-    approvalBadge: inTransitCount + procurementPendingCount,
-    notificationsBadge: warehouseNotifUnreadCount,
-  });
+  const inventoryTabs = warehouseReadOnly
+    ? buildBczvsklWarehouseTabs({
+        notificationsBadge: warehouseNotifUnreadCount,
+      })
+    : buildZavskladTabs({
+        approvalBadge: inTransitCount + procurementPendingCount,
+        notificationsBadge: warehouseNotifUnreadCount,
+      });
 
   const fetchWarehouseNotifUnreadCount = useCallback(async () => {
     try {
@@ -80,6 +103,12 @@ function WarehouseDashboard({ user }) {
     window.addEventListener('dts-open-notifications-tab', openNotifications);
     return () => window.removeEventListener('dts-open-notifications-tab', openNotifications);
   }, []);
+
+  useEffect(() => {
+    if (warehouseReadOnly && !BCZVSKL_TAB_IDS.has(activeTab)) {
+      setActiveTab('stock');
+    }
+  }, [warehouseReadOnly, activeTab]);
 
   useEffect(() => {
     try {
@@ -118,6 +147,7 @@ function WarehouseDashboard({ user }) {
   }, []);
 
   useEffect(() => {
+    if (warehouseReadOnly) return undefined;
     loadInTransitCount();
     loadProcurementPendingCount();
     const interval = setInterval(() => {
@@ -125,7 +155,7 @@ function WarehouseDashboard({ user }) {
       loadProcurementPendingCount();
     }, 30000);
     return () => clearInterval(interval);
-  }, [loadInTransitCount, loadProcurementPendingCount]);
+  }, [warehouseReadOnly, loadInTransitCount, loadProcurementPendingCount]);
 
   useEffect(() => {
     if (isInventoryView) return;
@@ -251,7 +281,7 @@ function WarehouseDashboard({ user }) {
 
   const handleRowClick = (task) => {
     setEditingTask(task);
-    setIsReadOnlyMode(false);
+    setIsReadOnlyMode(warehouseReadOnly || false);
     setShowAddTaskModal(true);
   };
 
@@ -286,9 +316,13 @@ function WarehouseDashboard({ user }) {
       <div className="dashboard-main">
         <aside className="sidebar warehouse-sidebar">
           <nav className="sidebar-nav">
-            <div className="sidebar-section-title">Навігація</div>
-            {taskTabs.map(renderSidebarTab)}
-            <div className="sidebar-section-divider" aria-hidden="true" />
+            {!warehouseReadOnly ? (
+              <>
+                <div className="sidebar-section-title">Навігація</div>
+                {taskTabs.map(renderSidebarTab)}
+                <div className="sidebar-section-divider" aria-hidden="true" />
+              </>
+            ) : null}
             <div className="sidebar-section-title">Склад</div>
             {inventoryTabs.map(renderSidebarTab)}
           </nav>
@@ -319,6 +353,7 @@ function WarehouseDashboard({ user }) {
               user={user}
               variant="zavsklad"
               embedded
+              readOnly={warehouseReadOnly}
               activeTab={activeTab}
               onActiveTabChange={setActiveTab}
               selectedCategoryId={selectedCategoryId}
@@ -339,10 +374,10 @@ function WarehouseDashboard({ user }) {
               onColumnSettingsClick={() => setShowColumnSettings(true)}
               showRejectedApprovals={false}
               showRejectedInvoices={false}
-              onRowClick={handleRowClick}
+              onRowClick={warehouseReadOnly ? handleViewClick : handleRowClick}
               onViewClick={handleViewClick}
-              onApprove={handleApprove}
-              showApproveButtons={activeTab === 'pending'}
+              onApprove={warehouseReadOnly ? undefined : handleApprove}
+              showApproveButtons={!warehouseReadOnly && activeTab === 'pending'}
               approveRole="warehouse"
               columnsArea="warehouse"
             />
@@ -361,7 +396,7 @@ function WarehouseDashboard({ user }) {
           initialData={editingTask || {}}
           user={user}
           panelType="warehouse"
-          readOnly={isReadOnlyMode}
+          readOnly={warehouseReadOnly || isReadOnlyMode}
           onSave={(savedTask, options) => {
             if (!options?.keepModalOpen) handleCloseModal();
             clearTasksCache();

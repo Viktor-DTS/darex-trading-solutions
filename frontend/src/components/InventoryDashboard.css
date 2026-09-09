@@ -387,6 +387,14 @@
   letter-spacing: -0.5px;
 }
 
+.inventory-readonly-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 720px;
+  line-height: 1.4;
+}
+
 .inventory-description {
   color: var(--text-secondary);
   margin: 8px 0 0 0;

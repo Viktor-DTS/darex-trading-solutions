@@ -6,7 +6,7 @@ import {
   findFixedAssetsCategoryIdsFromTree,
   getItemKindFilterSelectOptions
 } from '../../utils/equipmentNomenclatureFilter';
-import { exportEquipmentToExcel } from '../../utils/equipmentExport';
+import { exportEquipmentToExcel, printEquipmentStock } from '../../utils/equipmentExport';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import EquipmentQRModal from './EquipmentQRModal';
 import EquipmentDeleteModal from './EquipmentDeleteModal';
@@ -211,13 +211,16 @@ const EquipmentList = forwardRef(({
   serviceStockMode = false,
   allowedWarehouseNames = null,
   onRequestTransfer,
+  /** Лише перегляд залишків: без змін, з експортом і друком */
+  readOnly = false,
 }, ref) => {
-  const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
-  const mayLinkProductCards = canLinkProductCardsByName(user?.role);
+  const isAdmin = !readOnly && (user?.role === 'admin' || user?.role === 'administrator');
+  const mayLinkProductCards = !readOnly && canLinkProductCardsByName(user?.role);
   /** Номенклатурне обслуговування — лише склад / адмін поза контекстом панелі «Менеджери». */
   const showNomenclatureMaintenanceTools = mayLinkProductCards && !managerCategoryContext;
   const showWithoutProductCardFilter = !managerCategoryContext && !serviceStockMode;
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
+  const showActionsColumn = !readOnly || serviceStockMode || showReserveAction;
   const visibleColumns = useMemo(
     () =>
       ALL_COLUMNS.filter((col) => {
@@ -885,6 +888,23 @@ const EquipmentList = forwardRef(({
     }
   };
 
+  const handlePrint = async () => {
+    try {
+      setRefreshing(true);
+      const rows = await fetchAllEquipmentForExport();
+      if (!rows.length) {
+        alert('Немає даних для друку');
+        return;
+      }
+      printEquipmentStock(rows, 'Залишки на складах');
+    } catch (e) {
+      console.error(e);
+      alert('Помилка друку');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const renderColumnFilter = (col) => {
     const filterType = getFilterType(col.key);
     
@@ -1079,6 +1099,14 @@ const EquipmentList = forwardRef(({
             📊 Експорт
           </button>
           <button
+            type="button"
+            className="btn-export-excel btn-print-stock"
+            onClick={handlePrint}
+            title="Роздрукувати залишки"
+          >
+            🖨️ Друк
+          </button>
+          <button
             className={`btn-toggle-filters ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
             title={showFilters ? 'Сховати фільтри колонок' : 'Показати фільтри колонок'}
@@ -1125,9 +1153,11 @@ const EquipmentList = forwardRef(({
                   />
                 </th>
               )}
+              {showActionsColumn ? (
               <th className="th-actions" style={{ width: '90px', minWidth: '90px' }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дія</div>
               </th>
+              ) : null}
               {visibleColumns.map(col => (
                 <th
                   key={col.key}
@@ -1164,7 +1194,7 @@ const EquipmentList = forwardRef(({
           <tbody>
             {filteredAndSortedEquipment.length === 0 ? (
               <tr>
-                <td colSpan={visibleColumns.length + (isAdmin ? 2 : 1)} className="empty-state">
+                <td colSpan={visibleColumns.length + (isAdmin ? 1 : 0) + (showActionsColumn ? 1 : 0)} className="empty-state">
                   Обладнання не знайдено
                 </td>
               </tr>
@@ -1189,6 +1219,7 @@ const EquipmentList = forwardRef(({
                       />
                     </td>
                   )}
+                  {showActionsColumn ? (
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="action-buttons" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', gap: '4px' }}>
                       {serviceStockMode && onRequestTransfer && (
@@ -1267,6 +1298,7 @@ const EquipmentList = forwardRef(({
                       )}
                     </div>
                   </td>
+                  ) : null}
                   {!managerCategoryContext && (
                     <td>{item.itemKind === 'parts' ? 'Деталі' : 'Товари'}</td>
                   )}
@@ -1525,7 +1557,7 @@ const EquipmentList = forwardRef(({
           equipment={selectedEquipment}
           warehouses={warehouses}
           user={user}
-          readOnly={showReserveAction}
+          readOnly={readOnly || showReserveAction}
           onClose={() => {
             setShowEditModal(false);
             setSelectedEquipment(null);

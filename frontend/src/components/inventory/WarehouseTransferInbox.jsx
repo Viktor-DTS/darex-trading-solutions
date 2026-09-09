@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import API_BASE_URL from '../../config';
 import './WarehouseTransferInbox.css';
 
-export default function WarehouseTransferInbox({ user }) {
+export default function WarehouseTransferInbox({ user, readOnly = false }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
@@ -113,7 +113,7 @@ export default function WarehouseTransferInbox({ user }) {
                 {row.taskNumber ? ` · Заявка ${row.taskNumber}` : ''}
               </p>
               {row.comment ? <p className="warehouse-transfer-comment">{row.comment}</p> : null}
-              {rejectId === row._id ? (
+              {readOnly ? null : rejectId === row._id ? (
                 <div className="warehouse-transfer-reject-box">
                   <textarea
                     rows={2}

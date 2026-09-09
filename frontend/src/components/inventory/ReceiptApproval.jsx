@@ -45,6 +45,7 @@ const MOVE_PAGE_SIZE = 50;
 function ReceiptApproval({
   user,
   warehouses,
+  readOnly = false,
   focusProcurementId,
   onConsumedFocusProcurement,
   onProcurementReceiptChanged,
@@ -233,6 +234,7 @@ function ReceiptApproval({
   };
 
   const handleConfirmMoves = async () => {
+    if (readOnly) return;
     if (selectedMoveKeys.size === 0) {
       alert('Виберіть хоча б одне переміщення для підтвердження');
       return;
@@ -316,6 +318,7 @@ function ReceiptApproval({
   };
 
   const openProcurementConfirmModal = (pr) => {
+    if (readOnly) return;
     const id = pr._id;
     const draft = receiptDrafts[id];
     if (!draft || draft.length !== (pr.materials || []).length) {
@@ -326,6 +329,7 @@ function ReceiptApproval({
   };
 
   const submitProcurementReceipt = async (pr) => {
+    if (readOnly) return;
     const id = pr._id;
     const draft = receiptDrafts[id];
     if (!draft || draft.length !== (pr.materials || []).length) {
@@ -669,7 +673,7 @@ function ReceiptApproval({
                           type="text"
                           inputMode="decimal"
                           value={val}
-                          disabled={procurementSubmitting === pr._id}
+                          disabled={readOnly || procurementSubmitting === pr._id}
                           onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
                           aria-label={`Прийнято факт, позиція ${idx + 1}`}
                         />
@@ -687,7 +691,7 @@ function ReceiptApproval({
             </tbody>
           </table>
         </div>
-        {!history ? (
+        {!history && !readOnly ? (
           <div className="procurement-receipt-actions">
             <button
               type="button"
@@ -779,7 +783,7 @@ function ReceiptApproval({
               {outgoingCount > 0 ? `${outgoingCount} відправлено` : ''}
               {moveRegionalScope ? ' · ваш регіон' : ''}
             </span>
-            {confirmableCount > 0 ? (
+            {confirmableCount > 0 && !readOnly ? (
               <div className="receipt-moves-actions">
                 <button type="button" className="btn-select-all btn-select-all--compact" onClick={handleSelectAll}>
                   {selectedMoveKeys.size === confirmableCount && confirmableCount > 0

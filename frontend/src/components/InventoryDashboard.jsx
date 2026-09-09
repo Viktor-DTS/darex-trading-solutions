@@ -40,6 +40,7 @@ function InventoryDashboard({
   user,
   variant = 'accounting',
   embedded = false,
+  readOnly = false,
   activeTab: controlledActiveTab,
   onActiveTabChange,
   selectedCategoryId: controlledCategoryId,
@@ -347,15 +348,22 @@ function InventoryDashboard({
           <div className="inventory-tab-content inventory-stock-list-only">
             <div className="inventory-header">
               <h2>Залишки на складах</h2>
+              {readOnly ? (
+                <p className="inventory-readonly-hint">
+                  Перегляд без змін. Склади: Біла Церква Дарекс Енерго, Біла Церква ДТС. Можна експортувати в Excel і
+                  роздрукувати.
+                </p>
+              ) : null}
             </div>
             <EquipmentList
               ref={equipmentListRef}
               user={user}
               warehouses={warehouses}
-              onMove={handleMove}
-              onShip={handleShip}
+              onMove={readOnly ? undefined : handleMove}
+              onShip={readOnly ? undefined : handleShip}
               categoryId={selectedCategoryId}
               includeSubtree
+              readOnly={readOnly}
             />
           </div>
         );
@@ -392,7 +400,7 @@ function InventoryDashboard({
       case 'transfer-requests':
         return (
           <div className="inventory-tab-content">
-            <WarehouseTransferInbox user={user} />
+            <WarehouseTransferInbox user={user} readOnly={readOnly} />
           </div>
         );
       case 'notifications':
@@ -426,6 +434,7 @@ function InventoryDashboard({
             <ReceiptApproval
               warehouses={warehouses}
               user={user}
+              readOnly={readOnly}
               focusProcurementId={procurementReceiptFocusId}
               onConsumedFocusProcurement={() => setProcurementReceiptFocusId(null)}
               onProcurementReceiptChanged={loadProcurementPendingCount}

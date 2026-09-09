@@ -9,6 +9,7 @@ import TaskExportPanel from './TaskExportPanel';
 import SystemHealthDashboard from './systemHealth/SystemHealthDashboard';
 import { Modal, Button, Badge, EmptyState } from './ui';
 import './AdminDashboard.css';
+import { applyBczvsklAccessDefaults } from '../constants/bczvsklRole';
 
 /** Ключі панелей у матриці (як у App.jsx) */
 const ACCESS_PANEL_KEYS_FOR_MATRIX = [
@@ -162,7 +163,7 @@ function AdminDashboard({ user }) {
       
       if (accessRes.ok) {
         const data = await accessRes.json();
-        setAccessRules(normalizeAccessRulesForSuperAdmins(data));
+        setAccessRules(applyBczvsklAccessDefaults(normalizeAccessRulesForSuperAdmins(data)));
       }
     } catch (error) {
       console.error('Помилка завантаження даних:', error);
@@ -1228,7 +1229,7 @@ function AdminDashboard({ user }) {
   const handleSaveAccess = async () => {
     try {
       const token = localStorage.getItem('token');
-      const payload = normalizeAccessRulesForSuperAdmins(accessRules);
+      const payload = applyBczvsklAccessDefaults(normalizeAccessRulesForSuperAdmins(accessRules));
       const res = await fetch(`${API_BASE_URL}/accessRules`, {
         method: 'POST',
         headers: {
@@ -1266,6 +1267,7 @@ function AdminDashboard({ user }) {
           console.error('Помилка логування:', logErr);
         }
         
+        setAccessRules(payload);
         alert('✅ Права доступу збережено!\n\nКористувачі побачать зміни після перезаходу в систему.');
       } else {
         alert('❌ Помилка збереження');

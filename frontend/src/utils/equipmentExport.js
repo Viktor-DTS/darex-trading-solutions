@@ -1,3 +1,76 @@
+function getEquipmentStatusLabel(status) {
+  const labels = {
+    in_stock: 'На складі',
+    reserved: 'Зарезервовано',
+    pending_shipment: 'На відвантаженні',
+    shipped: 'Відвантажено',
+    in_transit: 'В дорозі',
+    written_off: 'Списано',
+    sold: 'Продано',
+  };
+  return labels[status] || status || '';
+}
+
+export function printEquipmentStock(equipmentList, title = 'Залишки на складах') {
+  const rows = (equipmentList || []).map((item) => ({
+    type: item.type || '',
+    serialNumber: item.serialNumber || '',
+    manufacturer: item.manufacturer || '',
+    warehouse: item.currentWarehouseName || item.currentWarehouse || '',
+    quantity: item.quantity != null ? item.quantity : 1,
+    unit: item.batchUnit || 'шт.',
+    status: getEquipmentStatusLabel(item.warehouseDisplayStatus || item.status),
+  }));
+  const escapeHtml = (v) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  const html = `<!DOCTYPE html>
+<html lang="uk"><head><meta charset="utf-8"/>
+<title>${escapeHtml(title)}</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 16px; color: #111; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  .meta { font-size: 12px; margin-bottom: 12px; color: #444; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; }
+  th { background: #eee; }
+  @media print { body { margin: 8px; } }
+</style></head><body>
+<h1>${escapeHtml(title)}</h1>
+<p class="meta">Дата друку: ${new Date().toLocaleString('uk-UA')} · Рядків: ${rows.length}</p>
+<table>
+  <thead><tr>
+    <th>Тип</th><th>Серійний номер</th><th>Виробник</th><th>Склад</th><th>Кількість</th><th>Статус</th>
+  </tr></thead>
+  <tbody>
+    ${rows
+      .map(
+        (r) => `<tr>
+      <td>${escapeHtml(r.type)}</td>
+      <td>${escapeHtml(r.serialNumber)}</td>
+      <td>${escapeHtml(r.manufacturer)}</td>
+      <td>${escapeHtml(r.warehouse)}</td>
+      <td>${escapeHtml(`${r.quantity} ${r.unit}`)}</td>
+      <td>${escapeHtml(r.status)}</td>
+    </tr>`
+      )
+      .join('')}
+  </tbody>
+</table>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) {
+    alert('Дозвольте спливаючі вікна для друку');
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
 export const exportEquipmentToExcel = async (equipmentList, filename = 'equipment') => {
   // Лінива загрузка ExcelJS — важка бібліотека вантажиться лише при експорті
   const ExcelJS = (await import('exceljs')).default;
@@ -36,17 +109,7 @@ export const exportEquipmentToExcel = async (equipmentList, filename = 'equipmen
   worksheet.getRow(1).font = { ...worksheet.getRow(1).font, color: { argb: 'FFFFFFFF' } };
   worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-  // Функція для перетворення статусу
-  const getStatusLabel = (status) => {
-    const labels = {
-      'in_stock': 'На складі',
-      'reserved': 'Зарезервовано',
-      'pending_shipment': 'На відвантаженні',
-      'shipped': 'Відвантажено',
-      'in_transit': 'В дорозі'
-    };
-    return labels[status] || status;
-  };
+  const getStatusLabel = getEquipmentStatusLabel;
 
   // Додаємо дані
   equipmentList.forEach((item, index) => {

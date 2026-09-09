@@ -27,6 +27,24 @@ export function isZavskladInventoryTab(tabId) {
   return ZAVSKLAD_INVENTORY_TAB_IDS.includes(tabId);
 }
 
+/** Панель завсклада для bczvskl: лише перегляд залишків, журналів і сповіщень. */
+export function buildBczvsklWarehouseTabs({ notificationsBadge = 0 } = {}) {
+  return [
+    { id: 'stock', label: 'Залишки на складах', icon: '📦' },
+    { id: 'receipt', label: 'Надходження', icon: '📥' },
+    { id: 'movement', label: 'Переміщення', icon: '🔄' },
+    { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
+    { id: 'movement-journal', label: 'Журнал руху товару', icon: '📒' },
+    { id: 'write-off', label: 'Списання', icon: '📝' },
+    {
+      id: 'notifications',
+      label: 'Сповіщення',
+      icon: '🔔',
+      badge: notificationsBadge,
+    },
+  ];
+}
+
 export function buildZavskladTabs({ approvalBadge = 0, notificationsBadge = 0 } = {}) {
   return [
     { id: 'stock', label: 'Залишки на складах', icon: '📦' },
