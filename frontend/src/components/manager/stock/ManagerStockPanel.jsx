@@ -44,6 +44,7 @@ import {
   isTestingActive,
   isTested,
   isTransit,
+  itemPowerKw,
   powerBandId,
   POWER_BANDS,
   printOfferHtml,
@@ -59,6 +60,24 @@ import './ManagerStockPanel.css';
 
 const VIEW_KEY = 'managerStock.viewMode';
 const SESSION_KEY = 'managerStock.clientSession';
+
+const BAND_TONE = {
+  '<50': 'lt50',
+  '50-100': 'mid',
+  '100-200': 'high',
+  '200-500': 'heavy',
+  '500+': 'max',
+  other: 'none',
+  '<100': 'lt50',
+  '100-400': 'mid',
+  '400-1000': 'high',
+  '1000+': 'max',
+};
+
+function miniPowerClass(item) {
+  const kw = item?.powerKw != null ? item.powerKw : itemPowerKw(item);
+  return kw != null && kw < 50 ? ' is-lt50' : ' is-ge50';
+}
 
 function readSession() {
   try {
@@ -615,7 +634,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     const allCols = [...cols, transitCol, soonCol];
     return (
       <div className="msp-board is-geo">
-        {allCols.map((col) => {
+        {allCols.map((col, idx) => {
           const colFams = col.id === 'soon'
             ? soonFamilies
             : families
@@ -630,7 +649,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
               })
               .filter(Boolean);
           return (
-            <section key={col.id} className={`msp-col${col.id === 'soon' ? ' is-soon' : ''}`}>
+            <section key={col.id} className={`msp-col${col.id === 'soon' ? ' is-tone-soon' : col.id === 'transit' ? ' is-tone-transit' : ` is-tone-wh${idx % 6}`}`}>
               <div className="msp-col-h" title={col.name}>
                 {col.title}
                 <span>{colFams.length}</span>
@@ -640,7 +659,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   <button
                     key={f.key}
                     type="button"
-                    className="msp-mini"
+                    className={`msp-mini${miniPowerClass(f)}`}
                     onClick={() => openFamilyModal(f.key)}
                     onDoubleClick={() => addFamilyToBasket(f)}
                   >
@@ -670,7 +689,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
             scale === 'kw' ? powerBandId(f.powerKw) === band.id : ampBandId(f.amp) === band.id
           );
           return (
-            <section key={band.id} className="msp-col">
+            <section key={band.id} className={`msp-col is-tone-${BAND_TONE[band.id] || 'none'}`}>
               <div className="msp-col-h">
                 {band.label}
                 <span>{list.length}</span>
@@ -680,7 +699,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   <button
                     key={f.key}
                     type="button"
-                    className="msp-mini"
+                    className={`msp-mini${miniPowerClass(f)}`}
                     onClick={() => openFamilyModal(f.key)}
                     onDoubleClick={() => addFamilyToBasket(f)}
                   >
@@ -710,7 +729,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
         {cols.map((col) => {
           const units = visibleItems.filter(col.test);
           return (
-            <section key={col.id} className="msp-col">
+            <section key={col.id} className={`msp-col is-tone-${col.id}`}>
               <div className="msp-col-h">
                 {col.label}
                 <span>{units.length}</span>
@@ -720,7 +739,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   <button
                     key={u._id}
                     type="button"
-                    className="msp-mini"
+                    className={`msp-mini${miniPowerClass(u)}`}
                     draggable
                     onDragStart={(e) => onDragStart(e, u)}
                     onClick={() => openDetail(u)}
