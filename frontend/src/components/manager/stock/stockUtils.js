@@ -52,6 +52,8 @@ export function parseAmperage(raw) {
 /** √3 × 400 В / 1000 — макс. потужність АВР у кВт з номіналу в амперах. */
 export const AVR_SQRT3 = 1.73;
 export const AVR_LINE_VOLTAGE = 400;
+export const DG_KVA_TO_KW = 0.8;
+export const DG_NOMINAL_FACTOR = 0.9;
 
 export function isAvrItem(item) {
   const type = String(typeof item === 'string' ? item : item?.type || '');
@@ -76,6 +78,55 @@ export function avrMaxPowerKw(amps) {
   return Math.round((amps * AVR_SQRT3 * AVR_LINE_VOLTAGE) / 100) / 10;
 }
 
+function roundPower(n) {
+  if (n == null || !Number.isFinite(n)) return null;
+  return Math.round(n * 10) / 10;
+}
+
+function ratingsFromMaxKva(maxKva) {
+  const max = Number(maxKva);
+  if (!Number.isFinite(max) || max <= 0) return null;
+  const nomKva = max * DG_NOMINAL_FACTOR;
+  return {
+    maxKva: roundPower(max),
+    nomKva: roundPower(nomKva),
+    maxKw: roundPower(max * DG_KVA_TO_KW),
+    nomKw: roundPower(nomKva * DG_KVA_TO_KW),
+  };
+}
+
+export function isDieselGenerator(item) {
+  const type = String(typeof item === 'string' ? item : item?.type || '');
+  if (!type.trim()) return false;
+  if (isAvrItem(type)) return false;
+  return /дизель|diesel/i.test(type) || /\bгенератор\b/i.test(type);
+}
+
+/**
+ * Модель DE-70BDS → 70 кВА (макс.).
+ * Портативні DE7000EC / DG11000TE → число в ватах.
+ */
+export function parseDieselRatings(item) {
+  const type = String(typeof item === 'string' ? item : item?.type || '');
+  if (!isDieselGenerator(type)) return null;
+
+  const watts = type.match(/(?:gdg|gjd|\bdg|\bde)[-\s]*(\d{4,6})(?!\d)/i);
+  if (watts) {
+    const wattsVal = Number(watts[1]);
+    if (wattsVal >= 1000) {
+      const maxKw = wattsVal / 1000;
+      return { ...ratingsFromMaxKva(maxKw / DG_KVA_TO_KW), source: 'watts' };
+    }
+  }
+
+  const kva = type.match(/\bde[-\s]*(\d{1,3})(?!\d)/i);
+  if (kva) {
+    return { ...ratingsFromMaxKva(Number(kva[1])), source: 'kva' };
+  }
+
+  return null;
+}
+
 export function itemAmperage(item) {
   const fromField = parseAmperage(item?.amperage);
   if (fromField != null) return fromField;
@@ -85,6 +136,8 @@ export function itemAmperage(item) {
 export function itemPowerKw(item) {
   const fromSpec = parsePowerKw(item?.standbyPower || item?.primePower);
   if (fromSpec != null) return fromSpec;
+  const diesel = parseDieselRatings(item);
+  if (diesel?.nomKw != null) return diesel.nomKw;
   if (!isAvrItem(item)) return null;
   return avrMaxPowerKw(itemAmperage(item));
 }
@@ -95,15 +148,33 @@ function formatKwNumber(kw) {
   return `${n} кВт`;
 }
 
+function formatKvaNumber(kva) {
+  if (kva == null || !Number.isFinite(kva)) return '';
+  const n = Math.round(kva * 10) / 10;
+  return `${n} кВА`;
+}
+
 export function formatPower(item) {
   const standby = displayText(item?.standbyPower, '');
   const prime = displayText(item?.primePower, '');
   if (standby && prime && standby !== prime) return `${standby} / ${prime}`;
   if (standby || prime) return standby || prime;
+  const diesel = parseDieselRatings(item);
+  if (diesel) {
+    return `макс. ${formatKvaNumber(diesel.maxKva)} / ${formatKwNumber(diesel.maxKw)} · ном. ${formatKvaNumber(diesel.nomKva)} / ${formatKwNumber(diesel.nomKw)}`;
+  }
   const amps = isAvrItem(item) ? itemAmperage(item) : null;
   const kw = avrMaxPowerKw(amps);
   if (kw == null) return '';
   return `макс. ${formatKwNumber(kw)} (${amps} А)`;
+}
+
+export function formatPowerCompact(item) {
+  const diesel = !displayText(item?.standbyPower, '') && !displayText(item?.primePower, '')
+    ? parseDieselRatings(item)
+    : null;
+  if (diesel) return `ном. ${formatKwNumber(diesel.nomKw)}`;
+  return formatPower(item);
 }
 
 export function formatAmps(item) {

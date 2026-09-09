@@ -26,6 +26,7 @@ import {
   findAnalogues,
   formatAmps,
   formatPower,
+  formatPowerCompact,
   formatQty,
   freesAtLabel,
   isFullyReady,
@@ -505,7 +506,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                     onDoubleClick={() => addFamilyToBasket(f)}
                   >
                     <strong>{f.type}</strong>
-                    <em>{formatPower(f) || formatAmps(f) || '—'} · вільних {f.freeQty} / {f.totalQty}</em>
+                    <em>{formatPowerCompact(f) || formatAmps(f) || '—'} · вільних {f.freeQty} / {f.totalQty}</em>
                   </button>
                 ))}
               </div>
@@ -542,7 +543,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   >
                     <strong>{f.type}</strong>
                     <em>
-                      {formatPower(f) || formatAmps(f) || '—'} · {f.warehouses.map((w) => warehouseDisplayName(w.name)).join(', ')}
+                      {formatPowerCompact(f) || formatAmps(f) || '—'} · {f.warehouses.map((w) => warehouseDisplayName(w.name)).join(', ')}
                     </em>
                   </button>
                 ))}
@@ -716,7 +717,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                 <div className="msp-board-switch">
                   {[
                     ['geo', 'По складах'],
-                    ['power', 'Потужність / струм'],
+                    ['power', 'Номінальна потужність'],
                     ['ops', 'Що я контролюю'],
                   ].map(([id, label]) => (
                     <Button
