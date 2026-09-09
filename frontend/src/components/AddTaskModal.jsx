@@ -2160,6 +2160,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     !isNewTask &&
     requestNumberForOnec &&
     (panelType === 'warehouse' || panelType === 'accountant');
+  const boardClass = (name) => (modernLayout ? `task-board task-board--${name}` : undefined);
+  const boardTitle = (text) => (modernLayout ? <strong className="task-board-title">{text}</strong> : null);
 
   return (
     <div className="modal-overlay" style={overlayStyle} onClick={onClose}>
@@ -2185,6 +2187,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
               {formData.urgentRequest ? <span className="task-passport-chip is-urgent">Термінова</span> : null}
               {formData.internalWork ? <span className="task-passport-chip">Внутрішні</span> : null}
               {formData.serviceRegion ? <span className="task-passport-chip">{formData.serviceRegion}</span> : null}
+              {formData.requestAuthor ? <span className="task-passport-chip">{formData.requestAuthor}</span> : null}
             </div>
             <div className="task-passport-grid">
               <span>
@@ -2353,6 +2356,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.basic && (
               <div className="section-content">
+                <div className={boardClass('status')}>
+                {boardTitle('Статус і графік')}
                 {/* Перший рядок: Статус заявки, Дата заявки, Компанія виконавець, Регіон сервісного відділу, Запланована дата робіт */}
                 <div className="form-row five-cols">
                   <div className="form-group">
@@ -2415,6 +2420,32 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     />
                   </div>
                 </div>
+                {/* Третій рядок: Термінова заявка, Внутрішні роботи */}
+                <div className="form-row two-cols">
+                  <div className="form-group checkbox-group">
+                    <label>
+                      <input 
+                        type="checkbox" 
+                        name="urgentRequest" 
+                        checked={formData.urgentRequest} 
+                        onChange={handleChange}
+                        disabled={!['admin', 'administrator', 'operator'].includes(user?.role)}
+                      />
+                      <span className={`urgent-label ${!['admin', 'administrator', 'operator'].includes(user?.role) ? 'disabled' : ''}`}>
+                        🔥 Термінова заявка
+                      </span>
+                    </label>
+                  </div>
+                  <div className="form-group checkbox-group">
+                    <label>
+                      <input type="checkbox" name="internalWork" checked={formData.internalWork} onChange={handleChange} />
+                      Внутрішні роботи
+                    </label>
+                  </div>
+                </div>
+                </div>
+                <div className={boardClass('contact')}>
+                {boardTitle('Контакт')}
                 {/* Другий рядок: Контактна особа, Тел. контактної особи */}
                 <div className="form-row two-cols">
                   <div className="form-group">
@@ -2439,6 +2470,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     />
                   </div>
                 </div>
+                </div>
+                <div className={boardClass('brief')}>
+                {boardTitle('Опис робіт')}
                 {/* Рядок: Опис заявки (збільшено в 3 рази) */}
                 <div className="form-row">
                   <div className="form-group request-desc-full-width">
@@ -2446,28 +2480,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="3" required />
                   </div>
                 </div>
-                {/* Третій рядок: Термінова заявка, Внутрішні роботи */}
-                <div className="form-row two-cols">
-                  <div className="form-group checkbox-group">
-                    <label>
-                      <input 
-                        type="checkbox" 
-                        name="urgentRequest" 
-                        checked={formData.urgentRequest} 
-                        onChange={handleChange}
-                        disabled={!['admin', 'administrator', 'operator'].includes(user?.role)}
-                      />
-                      <span className={`urgent-label ${!['admin', 'administrator', 'operator'].includes(user?.role) ? 'disabled' : ''}`}>
-                        🔥 Термінова заявка
-                      </span>
-                    </label>
-                  </div>
-                  <div className="form-group checkbox-group">
-                    <label>
-                      <input type="checkbox" name="internalWork" checked={formData.internalWork} onChange={handleChange} />
-                      Внутрішні роботи
-                    </label>
-                  </div>
                 </div>
               </div>
             )}
@@ -2483,6 +2495,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.client && (
               <div className="section-content">
+                <div className={boardClass('who')}>
+                {boardTitle('Замовник')}
                 {/* Банер заборгованості по оплаті — перший рядок секції Клієнт та адреса */}
                 {clientPaymentDebt && clientPaymentDebt.count > 0 && (
                   <div className="client-payment-debt-banner">
@@ -2546,6 +2560,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     />
                   </div>
                 </div>
+                </div>
+                <div className={boardClass('pay')}>
+                {boardTitle('Рахунок і оплата')}
                 {/* Рядок: Номер рахунку, Дата оплати, Вид оплати, Реквізити отримувача рахунку */}
                 <div className="form-row four-cols">
                   <div className="form-group">
@@ -2571,7 +2588,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <textarea name="invoiceRecipientDetails" value={formData.invoiceRecipientDetails} onChange={handleChange} rows="2" />
                   </div>
                 </div>
-                
+                </div>
+                <div className={boardClass('contract')}>
+                {boardTitle('Договір')}
                 {/* Номер і дата договору — підставляються з першої сторінки PDF після завантаження або при відкритті заявки */}
                 <div className="form-row four-cols">
                   <div className="form-group">
@@ -2779,6 +2798,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     </div>
                   </div>
                 </div>
+                </div>
 
                 {/* Запит на рахунок - показуємо тільки при редагуванні */}
                 {(initialData?._id || initialData?.id) && (
@@ -2874,6 +2894,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.equipment && (
               <div className="section-content">
+                <div className={boardClass('job')}>
+                {boardTitle('Роботи')}
                 {/* Рядок: Загальна сума послуги, Дата проведення робіт, Найменування робіт */}
                 <div className="form-row three-cols">
                   <div className="form-group">
@@ -2913,6 +2935,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     </select>
                   </div>
                 </div>
+                </div>
+                <div className={boardClass('machine')}>
+                {boardTitle('Обладнання')}
                 {/* Рядок: Тип обладнання, Заводський номер обладнання, Модель двигуна, Зав. № двигуна, Інвент. № обладнання від замовника */}
                 <div className="form-row five-cols">
                   <div className="form-group autocomplete-wrapper">
@@ -2986,16 +3011,20 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     />
                   </div>
                 </div>
+                </div>
 
                 {/* Матеріали */}
                 <div className={modernLayout ? 'materials-sheet' : undefined}>
                 {modernLayout ? (
-                  <div className="materials-sheet-head" aria-hidden="true">
-                    <span>Позиція</span>
-                    <span>К-сть</span>
-                    <span>Ціна</span>
-                    <span>Сума</span>
-                  </div>
+                  <>
+                    <strong className="task-board-title">Матеріали</strong>
+                    <div className="materials-sheet-head" aria-hidden="true">
+                      <span>Позиція</span>
+                      <span>К-сть</span>
+                      <span>Ціна</span>
+                      <span>Сума</span>
+                    </div>
+                  </>
                 ) : null}
                 {/* Рядок: Тип оливи, Використано л, Ціна за 1 л грн, Сума грн */}
                 <div className="form-row four-cols">

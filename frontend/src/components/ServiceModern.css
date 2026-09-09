@@ -147,8 +147,8 @@
 }
 
 .modal-content.modal-content--modern {
-  width: min(1180px, 96vw) !important;
-  max-width: 1180px !important;
+  width: min(1280px, 96vw) !important;
+  max-width: 1280px !important;
   min-width: 0;
   max-height: 94vh;
   border-radius: 16px;
@@ -262,17 +262,30 @@
 }
 
 .modal-content--modern .task-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
   padding: 4px 8px 12px;
 }
 
+.modal-content--modern .task-form > .form-error,
+.modal-content--modern .task-form > .client-payment-debt-banner,
+.modal-content--modern .task-form > .deletion-mark-banner,
+.modal-content--modern .task-form > .rejection-info-block,
+.modal-content--modern .task-form > .task-identity-row,
+.modal-content--modern .task-form > .section-basic,
+.modal-content--modern .task-form > .section-client,
+.modal-content--modern .task-form > .section-equipment,
+.modal-content--modern .task-form > .section-approval,
+.modal-content--modern .task-form > .modal-footer {
+  grid-column: 1 / -1;
+}
+
 .modal-content--modern .form-section {
-  background: #16202f;
-  border: 1px solid #2a3a52;
-  border-radius: 12px;
-  padding: 8px 12px 10px;
+  background: transparent;
+  border: 0;
+  padding: 0;
   margin: 0;
 }
 
@@ -281,23 +294,81 @@
   background: transparent;
 }
 
+.modal-content--modern .section-basic .section-content,
+.modal-content--modern .section-client .section-content,
+.modal-content--modern .section-equipment .section-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
 .modal-content--modern .section-header {
   background: transparent;
   border-radius: 8px;
-  padding: 2px 0 8px;
+  padding: 2px 4px 8px;
 }
 
 .modal-content--modern .section-header h3 {
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.modal-content--modern .section-toggle {
+  opacity: 0.55;
 }
 
 .modal-content--modern .section-basic .section-header h3 { color: #a78bfa; }
 .modal-content--modern .section-client .section-header h3 { color: #f9a8d4; }
 .modal-content--modern .section-equipment .section-header h3 { color: #5b9cf8; }
 .modal-content--modern .section-engineers .section-header h3 { color: #34d399; }
-.modal-content--modern .section-expenses .section-header h3 { color: #fb923c; }
 .modal-content--modern .section-approval .section-header h3 { color: #fbbf24; }
+.modal-content--modern .section-expenses .section-header h3 { color: #fb923c; }
+
+.task-board,
+.modal-content--modern .section-engineers,
+.modal-content--modern .section-expenses,
+.modal-content--modern .section-approval,
+.modal-content--modern .materials-sheet {
+  background: #16202f;
+  border: 1px solid #2a3a52;
+  border-radius: 14px;
+  padding: 10px 12px 12px;
+  box-shadow: inset 3px 0 0 var(--board-accent, #5b9cf8);
+}
+
+.task-board-title {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--board-accent, #93c5fd);
+}
+
+.task-board--status { --board-accent: #a78bfa; }
+.task-board--contact { --board-accent: #38bdf8; }
+.task-board--brief { --board-accent: #818cf8; }
+.task-board--who { --board-accent: #f9a8d4; }
+.task-board--pay { --board-accent: #34d399; }
+.task-board--contract { --board-accent: #fb923c; }
+.task-board--job { --board-accent: #60a5fa; }
+.task-board--machine { --board-accent: #22d3ee; }
+.modal-content--modern .section-engineers { --board-accent: #34d399; }
+.modal-content--modern .section-expenses { --board-accent: #fb923c; }
+.modal-content--modern .section-approval { --board-accent: #fbbf24; }
+.modal-content--modern .materials-sheet { --board-accent: #5b9cf8; }
+
+.modal-content--modern .task-board--brief,
+.modal-content--modern .task-board--contract,
+.modal-content--modern .materials-sheet,
+.modal-content--modern .invoice-request-block,
+.modal-content--modern .debt-status-group {
+  grid-column: 1 / -1;
+}
 
 .modal-content--modern .task-identity-row {
   display: grid !important;
@@ -307,8 +378,9 @@
   align-items: end !important;
   background: #16202f;
   border: 1px solid #2a3a52;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 10px 12px;
+  box-shadow: inset 3px 0 0 #93c5fd;
 }
 
 .modal-content--modern .task-form .form-row,
@@ -434,12 +506,8 @@
   max-width: 132px;
 }
 
-.materials-sheet {
-  margin-top: 8px;
-  padding: 8px;
-  border-radius: 12px;
-  background: #121a28;
-  border: 1px solid #2a3a52;
+.modal-content--modern .materials-sheet {
+  margin-top: 0;
   overflow-x: auto;
 }
 
@@ -579,4 +647,22 @@
 .modal-content--modern .modal-footer .btn-primary {
   width: auto;
   min-width: 140px;
+}
+
+.modal-content--modern .task-board--who .client-payment-debt-banner {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .modal-content--modern .task-form,
+  .modal-content--modern .section-basic .section-content,
+  .modal-content--modern .section-client .section-content,
+  .modal-content--modern .section-equipment .section-content {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content--modern .section-engineers,
+  .modal-content--modern .section-expenses {
+    grid-column: 1 / -1;
+  }
 }
