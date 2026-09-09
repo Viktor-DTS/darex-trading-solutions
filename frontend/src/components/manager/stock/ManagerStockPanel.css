@@ -300,6 +300,52 @@
 .msp-kpi.is-ready b { color: var(--msp-accent); }
 .msp-kpi.is-res b { color: var(--msp-violet); }
 .msp-kpi.is-test b { color: var(--msp-warning); }
+.msp-kpi.is-soon b { color: #f0b429; }
+
+.msp-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.msp-horizon {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--msp-radius-sm);
+  background: var(--msp-surface-2);
+  border: 1px solid var(--msp-border);
+}
+
+.msp-horizon > strong {
+  font-size: 12px;
+  color: var(--msp-text-dim);
+}
+
+.msp-horizon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.msp-horizon-grid span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--msp-text-faint);
+}
+
+.msp-horizon-grid b {
+  font-size: 16px;
+  color: var(--msp-text);
+}
+
+.msp-col.is-soon .msp-col-h {
+  color: #f0b429;
+}
 
 .msp-body {
   flex: 1;
@@ -687,25 +733,50 @@
   --rel-border: rgba(217, 183, 135, 0.28);
 }
 
+.msp-analog.is-incoming {
+  --rel-title: #f0b429;
+  --rel-text: #f6e7c1;
+  --rel-muted: #c4a45a;
+  --rel-card: rgba(240, 180, 41, 0.08);
+  --rel-border: rgba(240, 180, 41, 0.28);
+}
+
+.msp-incoming-row {
+  align-items: flex-start;
+}
+
+.msp-incoming-row .msp-related-main {
+  cursor: default;
+}
+
+.msp-incoming-row .msp-unit-btns {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .msp-analog.is-analogues > strong,
-.msp-analog.is-complements .msp-related-head strong {
+.msp-analog.is-complements .msp-related-head strong,
+.msp-analog.is-incoming > strong {
   color: var(--rel-title);
 }
 
 .msp-analog.is-analogues .msp-related-main,
-.msp-analog.is-complements .msp-related-main {
+.msp-analog.is-complements .msp-related-main,
+.msp-analog.is-incoming .msp-related-main {
   background: var(--rel-card);
   border-color: var(--rel-border);
   color: var(--rel-text);
 }
 
 .msp-analog.is-analogues .msp-related-main b,
-.msp-analog.is-complements .msp-related-main b {
+.msp-analog.is-complements .msp-related-main b,
+.msp-analog.is-incoming .msp-related-main b {
   color: var(--rel-text);
 }
 
 .msp-analog.is-analogues .msp-related-main small,
 .msp-analog.is-complements .msp-related-main small,
+.msp-analog.is-incoming .msp-related-main small,
 .msp-analog.is-complements .msp-check,
 .msp-analog.is-complements .msp-related-empty {
   color: var(--rel-muted);

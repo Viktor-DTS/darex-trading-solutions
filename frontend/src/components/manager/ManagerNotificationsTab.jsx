@@ -28,6 +28,8 @@ const KIND_LABELS = {
   telegram_connect_invite: 'Підключення Telegram',
   ved_request_new: 'Нова заявка ВЕД',
   ved_request_status: 'Статус заявки ВЕД',
+  ved_incoming_date_shift: 'Зсув дати надходження ВЕД',
+  ved_incoming_week: 'Надходження ВЕД цього тижня',
   warehouse_transfer_requested: 'Запит на переміщення (сервіс)',
   warehouse_transfer_approved: 'Переміщення підтверджено',
   warehouse_transfer_rejected: 'Переміщення відхилено'

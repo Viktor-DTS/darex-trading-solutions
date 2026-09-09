@@ -229,6 +229,8 @@ function VedDashboard({ user }) {
   });
   const [productOrderSort, setProductOrderSort] = useState({ key: 'rowIndex', dir: 'asc' });
   const [selectedProductOrder, setSelectedProductOrder] = useState(null);
+  const [productOrderIntent, setProductOrderIntent] = useState(null);
+  const [productOrderIntentSaving, setProductOrderIntentSaving] = useState(false);
 
   const [newForm, setNewForm] = useState({
     equipmentType: 'generator_diesel',
@@ -1982,6 +1984,61 @@ function matchesProductOrderColumnFilter(row, key, filters) {
   }, [selectedProductOrder, sortedProductOrders]);
 
   useEffect(() => {
+    if (!selectedProductOrder?._id || !canManage) {
+      setProductOrderIntent(null);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/ved/incoming-for-managers/by-order/${selectedProductOrder._id}`,
+          { headers: authHeaders }
+        );
+        if (tryHandleUnauthorizedResponse(res)) return;
+        if (!res.ok) {
+          if (!cancelled) setProductOrderIntent(null);
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) setProductOrderIntent(data);
+      } catch {
+        if (!cancelled) setProductOrderIntent(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProductOrder, canManage, authHeaders]);
+
+  const toggleProductOrderCanPromise = async (next) => {
+    if (!selectedProductOrder?._id) return;
+    setProductOrderIntentSaving(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/ved/incoming-for-managers/by-order/${selectedProductOrder._id}/can-promise`,
+        {
+          method: 'PATCH',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ canPromise: !!next }),
+        }
+      );
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося зберегти «можна обіцяти»');
+        return;
+      }
+      const data = await res.json();
+      setProductOrderIntent((prev) => ({ ...(prev || {}), ...data }));
+    } catch {
+      alert('Помилка з\'єднання з сервером');
+    } finally {
+      setProductOrderIntentSaving(false);
+    }
+  };
+
+  useEffect(() => {
     if (!selectedProductOrder) return undefined;
     const onKeyDown = (e) => {
       const tag = e.target?.tagName?.toLowerCase();
@@ -2312,6 +2369,18 @@ function matchesProductOrderColumnFilter(row, key, filters) {
               {navTotal > 1 && (
                 <span className="ved-po-detail-kbd-hint">← → між заявками · Esc закрити</span>
               )}
+              <label className="ved-po-can-promise">
+                <input
+                  type="checkbox"
+                  checked={!!productOrderIntent?.canPromise}
+                  disabled={productOrderIntentSaving || !selectedProductOrder?._id}
+                  onChange={(e) => toggleProductOrderCanPromise(e.target.checked)}
+                />
+                Можна обіцяти менеджерам
+                {productOrderIntent && !productOrderIntent.visibleToManagers ? (
+                  <em> (рядок не в горизонті очікування)</em>
+                ) : null}
+              </label>
             </div>
             <div className="ved-po-detail-footer-actions">
               <button type="button" className="ved-btn ved-btn-secondary" onClick={() => window.print()}>

@@ -604,7 +604,9 @@ const MANAGER_NOTIFICATION_KINDS = [
   'client_sleeping_digest',
   'shipment_request_fulfilled',
   'shipment_request_cancelled',
-  'sale_tender_assigned'
+  'sale_tender_assigned',
+  'ved_incoming_date_shift',
+  'ved_incoming_week'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */

@@ -16,6 +16,7 @@ import SaleFormModal from '../SaleFormModal';
 import {
   ampBandId,
   AMP_BANDS,
+  attachIncomingLots,
   buildFamilies,
   canRequestTesting,
   canReserve,
@@ -26,12 +27,17 @@ import {
   findAnalogues,
   findComplements,
   formatAmps,
+  formatArrivalDate,
   formatPower,
   formatPowerCompact,
   formatQty,
   freesAtLabel,
+  horizonStatusLabel,
+  incomingLotMatchesFilters,
+  incomingLotToItem,
   isDieselGenerator,
   isFullyReady,
+  isIncomingItem,
   isMine,
   isOfferable,
   isReserved,
@@ -84,6 +90,8 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const [powerTol, setPowerTol] = useState(50);
   const [kindFilter, setKindFilter] = useState('all');
   const [freeOnly, setFreeOnly] = useState(false);
+  const [includeExpected, setIncludeExpected] = useState(false);
+  const [incomingLots, setIncomingLots] = useState([]);
   const [testedOnly, setTestedOnly] = useState(false);
   const [readyOnly, setReadyOnly] = useState(false);
   const [myOnly, setMyOnly] = useState(false);
@@ -92,6 +100,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const [clientHits, setClientHits] = useState([]);
   const [showClientDrop, setShowClientDrop] = useState(false);
   const [basket, setBasket] = useState([]);
+  const [incomingKpNote, setIncomingKpNote] = useState('');
   const [compare, setCompare] = useState([]);
   const [familyModalKey, setFamilyModalKey] = useState(null);
   const [showAllAvr, setShowAllAvr] = useState(false);
@@ -118,6 +127,24 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
       /* ignore */
     }
   }, [client]);
+
+  const loadIncoming = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await authFetch(`${API_BASE_URL}/ved/incoming-for-managers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setIncomingLots([]);
+        return;
+      }
+      const data = await res.json();
+      setIncomingLots(Array.isArray(data.lots) ? data.lots : []);
+    } catch (err) {
+      console.error(err);
+      setIncomingLots([]);
+    }
+  }, []);
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -160,12 +187,14 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   useEffect(() => {
     if (viewMode === 'registry') return undefined;
     loadCatalog();
+    loadIncoming();
     return undefined;
-  }, [loadCatalog, viewMode]);
+  }, [loadCatalog, loadIncoming, viewMode]);
 
   useImperativeHandle(ref, () => ({
     refresh: () => {
       loadCatalog();
+      loadIncoming();
       listRef.current?.refresh?.();
     },
   }));
@@ -203,9 +232,40 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
     [items, filters, login]
   );
 
-  const families = useMemo(() => buildFamilies(visibleItems, login), [visibleItems, login]);
+  const stockFamilies = useMemo(() => buildFamilies(visibleItems, login), [visibleItems, login]);
   const stats = useMemo(() => catalogStats(visibleItems, login), [visibleItems, login]);
-  const allFamilies = useMemo(() => buildFamilies(items, login), [items, login]);
+  const allStockFamilies = useMemo(() => buildFamilies(items, login), [items, login]);
+  const allFamilies = useMemo(
+    () =>
+      attachIncomingLots(allStockFamilies, incomingLots, {
+        includeOrphans: true,
+        includeIncomingUnits: true,
+      }).families,
+    [allStockFamilies, incomingLots]
+  );
+  const families = useMemo(() => {
+    const attached = attachIncomingLots(stockFamilies, incomingLots, {
+      includeOrphans: includeExpected,
+      includeIncomingUnits: includeExpected,
+    }).families;
+    if (!includeExpected) return attached.filter((f) => !f.incomingOnly);
+    return attached.filter((f) => {
+      if (!f.incomingOnly) return true;
+      return incomingLotMatchesFilters(f.incomingLots[0], filters);
+    });
+  }, [stockFamilies, incomingLots, includeExpected, filters]);
+  const soonFamilies = useMemo(() => {
+    const kindPower = {
+      group: filters.group,
+      powerMin: filters.powerMin,
+      powerMax: filters.powerMax,
+    };
+    return allFamilies.filter(
+      (f) =>
+        f.incomingQty > 0 &&
+        (f.incomingLots || []).some((lot) => incomingLotMatchesFilters(lot, kindPower))
+    );
+  }, [allFamilies, filters.group, filters.powerMin, filters.powerMax]);
   const familyModal = useMemo(
     () =>
       familyModalKey
@@ -237,12 +297,28 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
 
   const addToBasket = (unit) => {
     if (!unit?._id || inBasket(unit._id)) return;
+    if (isIncomingItem(unit) && !unit.canPromise) {
+      alert('Цю партію ще не можна ставити в КП — ВЕД не підтвердив «можна обіцяти»');
+      return;
+    }
     setBasket((prev) => [...prev, unit]);
   };
 
   const addFamilyToBasket = (family) => {
-    const ready = family.units.filter(isOfferable);
-    const pick = ready.length ? ready : family.units;
+    const fromUnits = (family.units || []).filter(
+      (u) => isOfferable(u) || (isIncomingItem(u) && u.canPromise)
+    );
+    const fromLots = (family.incomingLots || [])
+      .filter((lot) => lot.canPromise)
+      .map(incomingLotToItem);
+    const pick = [...fromUnits];
+    const seen = new Set(pick.map((x) => String(x._id)));
+    for (const u of fromLots) {
+      if (!seen.has(String(u._id))) pick.push(u);
+    }
+    if (!pick.length) {
+      pick.push(...(family.units || []).filter((u) => !isIncomingItem(u)));
+    }
     setBasket((prev) => {
       const have = new Set(prev.map((x) => String(x._id)));
       const next = [...prev];
@@ -251,6 +327,35 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
       }
       return next;
     });
+  };
+
+  const incomingAction = async (lot, action, method = 'POST') => {
+    if (!lot?.lotKey) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await authFetch(`${API_BASE_URL}/ved/incoming-for-managers/${lot.lotKey}/${action}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: method === 'DELETE' ? undefined : JSON.stringify({
+          clientId: client?._id || null,
+          clientName: client?.name || '',
+          productName: lot.productName,
+          qty: lot.quantity,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося оновити очікувану партію');
+        return;
+      }
+      await loadIncoming();
+    } catch (err) {
+      console.error(err);
+      alert('Помилка з\'єднання з сервером');
+    }
   };
 
   const removeFromBasket = (id) => {
@@ -319,8 +424,18 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const openKp = () => {
     if (!basket.length) return;
     setFamilyModalKey(null);
+    const stock = basket.filter((item) => !isIncomingItem(item));
+    const incoming = basket.filter(isIncomingItem);
+    setIncomingKpNote(
+      incoming
+        .map((item) => {
+          const when = formatArrivalDate(item.expectedArrivalDate) || horizonStatusLabel(item.horizonStatus);
+          return `${displayText(item.type)} × ${qtyOf(item)} (очікується ${when})`;
+        })
+        .join('; ')
+    );
     setSaleItems(
-      basket.map((item) => ({
+      stock.map((item) => ({
         equipmentId: item._id,
         type: item.type || '',
         serialNumber: item.serialNumber || '',
@@ -342,6 +457,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   };
 
   const openDetail = async (unit) => {
+    if (!unit || isIncomingItem(unit)) return;
     setDetail(unit);
     setDetailFull(null);
     try {
@@ -388,9 +504,24 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const familyAnalogues = (family) => findAnalogues(family, allFamilies);
 
   const familyBadge = (family) => {
-    if (family.readyQty > 0) return <Badge tone="success">Можна пропонувати</Badge>;
-    if (family.myReservedQty > 0) return <Badge tone="info">Ваш резерв</Badge>;
-    return <Badge>Немає вільних</Badge>;
+    const week = family.incomingWeekQty > 0
+      ? <Badge tone="warning">+{family.incomingWeekQty} за тиждень</Badge>
+      : family.incomingQty > 0
+        ? <Badge tone="info">+{family.incomingQty} від ВЕД</Badge>
+        : null;
+    const main = family.readyQty > 0
+      ? <Badge tone="success">Можна пропонувати</Badge>
+      : family.myReservedQty > 0
+        ? <Badge tone="info">Ваш резерв</Badge>
+        : family.incomingOnly
+          ? <Badge tone="warning">Очікується</Badge>
+          : <Badge>Немає вільних</Badge>;
+    return (
+      <span className="msp-badges">
+        {main}
+        {week}
+      </span>
+    );
   };
 
   const renderFamilyCard = (family, { compact = false } = {}) => {
@@ -433,7 +564,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
             size="sm"
             variant={compact ? 'secondary' : 'primary'}
             onClick={() => addFamilyToBasket(family)}
-            disabled={!family.units.length}
+            disabled={!family.units.length && !(family.incomingLots || []).some((l) => l.canPromise)}
           >
             {compact ? 'У кошик' : 'У кошик КП'}
           </Button>
@@ -470,22 +601,30 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
       name: 'В дорозі',
       title: 'В дорозі',
     };
-    const allCols = [...cols, transitCol];
+    const soonCol = {
+      id: 'soon',
+      name: 'Скоро',
+      title: 'Скоро',
+    };
+    const allCols = [...cols, transitCol, soonCol];
     return (
       <div className="msp-board is-geo">
         {allCols.map((col) => {
-          const colFams = families
-            .map((f) => {
-              const units = f.units.filter((u) => {
-                if (col.id === 'transit') return isTransit(u);
-                return String(u.currentWarehouse || '') === String(col.id) || warehouseLabel(u) === col.name;
-              });
-              if (!units.length) return null;
-              return { ...f, units, freeQty: units.filter(isOfferable).reduce((s, u) => s + qtyOf(u), 0), totalQty: units.reduce((s, u) => s + qtyOf(u), 0) };
-            })
-            .filter(Boolean);
+          const colFams = col.id === 'soon'
+            ? soonFamilies
+            : families
+              .map((f) => {
+                const units = f.units.filter((u) => {
+                  if (isIncomingItem(u)) return false;
+                  if (col.id === 'transit') return isTransit(u);
+                  return String(u.currentWarehouse || '') === String(col.id) || warehouseLabel(u) === col.name;
+                });
+                if (!units.length) return null;
+                return { ...f, units, freeQty: units.filter(isOfferable).reduce((s, u) => s + qtyOf(u), 0), totalQty: units.reduce((s, u) => s + qtyOf(u), 0) };
+              })
+              .filter(Boolean);
           return (
-            <section key={col.id} className="msp-col">
+            <section key={col.id} className={`msp-col${col.id === 'soon' ? ' is-soon' : ''}`}>
               <div className="msp-col-h" title={col.name}>
                 {col.title}
                 <span>{colFams.length}</span>
@@ -500,7 +639,11 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                     onDoubleClick={() => addFamilyToBasket(f)}
                   >
                     <strong>{f.type}</strong>
-                    <em>{formatPowerCompact(f) || formatAmps(f) || '—'} · вільних {f.freeQty} / {f.totalQty}</em>
+                    <em>
+                      {col.id === 'soon'
+                        ? `${formatPowerCompact(f) || formatAmps(f) || '—'} · +${f.incomingQty} від ВЕД${f.incomingWeekQty ? ` · ${f.incomingWeekQty} за тиждень` : ''}`
+                        : `${formatPowerCompact(f) || formatAmps(f) || '—'} · вільних ${f.freeQty} / ${f.totalQty}`}
+                    </em>
                   </button>
                 ))}
               </div>
@@ -602,7 +745,9 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
   const modalPower = familyModal
     ? [formatPower(familyModal) || formatAmps(familyModal), familyModal.phase].filter(Boolean).join(' · ')
     : '';
-  const familyInBasket = (family) => family.units.some((u) => inBasket(u._id));
+  const familyInBasket = (family) =>
+    (family.units || []).some((u) => inBasket(u._id)) ||
+    (family.incomingLots || []).some((lot) => inBasket(`incoming:${lot.lotKey}`));
 
   return (
     <div className="msp">
@@ -693,6 +838,14 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                 />
                 Показати тільки вільне обладнання
               </label>
+              <label className="msp-check msp-check--filter">
+                <input
+                  type="checkbox"
+                  checked={includeExpected}
+                  onChange={(e) => setIncludeExpected(e.target.checked)}
+                />
+                Включити очікувані
+              </label>
               <label className="msp-field msp-field--select">
                 <span>Список</span>
                 <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
@@ -715,6 +868,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   setPowerTol(50);
                   setKindFilter('all');
                   setFreeOnly(false);
+                  setIncludeExpected(false);
                   setTestedOnly(false);
                   setReadyOnly(false);
                   setMyOnly(false);
@@ -724,7 +878,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
               </Button>
             </div>
           ) : null}
-          <Button size="sm" variant="ghost" onClick={() => loadCatalog()}>Оновити</Button>
+          <Button size="sm" variant="ghost" onClick={() => { loadCatalog(); loadIncoming(); }}>Оновити</Button>
         </div>
         {viewMode !== 'registry' ? (
           <div className="msp-toggles">
@@ -743,6 +897,9 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
           <div className="msp-kpi is-res"><b>{stats.reserved}</b><span>у резерві</span></div>
           <div className="msp-kpi is-test"><b>{stats.testing}</b><span>на тесті</span></div>
           <div className="msp-kpi is-ready"><b>{stats.ready}</b><span>повністю готові</span></div>
+          {incomingLots.length ? (
+            <div className="msp-kpi is-soon"><b>{incomingLots.length}</b><span>очікуваних ВЕД</span></div>
+          ) : null}
         </div>
       ) : null}
 
@@ -801,7 +958,11 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                   <div key={item._id} className="msp-basket-item">
                     <button type="button" onClick={() => removeFromBasket(item._id)} title="Прибрати">×</button>
                     <b>{displayText(item.type)}</b>
-                    <div>{displayText(item.serialNumber)} · {shortWarehouseName(warehouseLabel(item))}</div>
+                    <div>
+                      {isIncomingItem(item)
+                        ? `Очікується ${formatArrivalDate(item.expectedArrivalDate) || horizonStatusLabel(item.horizonStatus)} · ${shortWarehouseName(warehouseLabel(item))}`
+                        : `${displayText(item.serialNumber)} · ${shortWarehouseName(warehouseLabel(item))}`}
+                    </div>
                   </div>
                 ))
               )}
@@ -870,7 +1031,7 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
             <Button variant="ghost" onClick={closeFamilyModal}>Закрити</Button>
             <Button
               variant="primary"
-              disabled={!familyModal.units.length}
+              disabled={!familyModal.units.length && !(familyModal.incomingLots || []).some((l) => l.canPromise)}
               onClick={() => addFamilyToBasket(familyModal)}
             >
               У кошик КП
@@ -899,8 +1060,29 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
               ) : null}
               <span>{familyModal.totalQty} разом</span>
             </div>
+            <div className="msp-horizon">
+              <strong>Горизонт</strong>
+              <div className="msp-horizon-grid">
+                <span>
+                  На складі
+                  <b>
+                    {familyModal.units.filter((u) => !isIncomingItem(u) && !isTransit(u)).reduce((s, u) => s + qtyOf(u), 0)}
+                  </b>
+                </span>
+                <span>
+                  Між складами
+                  <b>
+                    {familyModal.units.filter((u) => !isIncomingItem(u) && isTransit(u)).reduce((s, u) => s + qtyOf(u), 0)}
+                  </b>
+                </span>
+                <span>
+                  Від ВЕД
+                  <b>{familyModal.incomingQty || 0}</b>
+                </span>
+              </div>
+            </div>
             <div className="msp-units">
-              {familyModal.units.map((unit) => (
+              {familyModal.units.filter((unit) => !isIncomingItem(unit)).map((unit) => (
                 <UnitRow
                   key={unit._id}
                   unit={unit}
@@ -916,6 +1098,21 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
                 />
               ))}
             </div>
+            {(familyModal.incomingLots || []).length ? (
+              <div className="msp-analog is-incoming">
+                <strong>Очікувані партії ВЕД</strong>
+                {familyModal.incomingLots.map((lot) => (
+                  <IncomingLotRow
+                    key={lot.lotKey}
+                    lot={lot}
+                    inBasket={inBasket(`incoming:${lot.lotKey}`)}
+                    onBasket={() => addToBasket(incomingLotToItem(lot))}
+                    onInterest={() => incomingAction(lot, 'interest', lot.myInterest ? 'DELETE' : 'POST')}
+                    onSoftReserve={() => incomingAction(lot, 'soft-reserve', lot.mySoftReserve ? 'DELETE' : 'POST')}
+                  />
+                ))}
+              </div>
+            ) : null}
             {modalAnalogues.length ? (
               <div className="msp-analog is-analogues">
                 <strong>Аналоги</strong>
@@ -1033,17 +1230,57 @@ const ManagerStockPanel = forwardRef(function ManagerStockPanel(
       {showSale ? (
         <SaleFormModal
           open={showSale}
-          onClose={() => { setShowSale(false); setSaleItems(null); }}
-          onSuccess={() => { setShowSale(false); setSaleItems(null); setBasket([]); }}
+          onClose={() => { setShowSale(false); setSaleItems(null); setIncomingKpNote(''); }}
+          onSuccess={() => { setShowSale(false); setSaleItems(null); setBasket([]); setIncomingKpNote(''); }}
           user={user}
           initialClient={client}
-          initialNotes={client ? `Підбір зі складу для ${client.name}` : 'Підбір зі складу'}
+          initialNotes={[
+            client ? `Підбір зі складу для ${client.name}` : 'Підбір зі складу',
+            incomingKpNote ? `Очікувані партії ВЕД: ${incomingKpNote}` : '',
+          ].filter(Boolean).join('. ')}
           initialEquipmentItems={saleItems}
         />
       ) : null}
     </div>
   );
 });
+
+function IncomingLotRow({ lot, inBasket, onBasket, onInterest, onSoftReserve }) {
+  const when = formatArrivalDate(lot.expectedArrivalDate) || horizonStatusLabel(lot.horizonStatus);
+  const warehouse = lot.arrivalWarehouse || 'ВЕД';
+  return (
+    <div className={`msp-related msp-incoming-row ${inBasket ? 'is-in' : ''}`}>
+      <div className="msp-related-main">
+        <b>{lot.productName}</b>
+        <small>
+          {formatQty(incomingLotToItem(lot))} · {when} · {warehouseDisplayName(warehouse)}
+          {' · '}
+          {horizonStatusLabel(lot.horizonStatus)}
+          {lot.canPromise ? ' · можна обіцяти' : ' · поки не обіцяти'}
+          {lot.interestCount ? ` · інтерес ${lot.interestCount}` : ''}
+          {lot.softReservedByOther ? ` · м’який резерв (${lot.otherSoftReserveName})` : ''}
+          {lot.mySoftReserve ? ' · ваш м’який резерв' : ''}
+        </small>
+      </div>
+      <div className="msp-unit-btns">
+        <Button size="sm" variant="ghost" onClick={onInterest}>
+          {lot.myInterest ? 'Не слідкувати' : 'Слідкувати'}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!lot.canPromise || (lot.softReservedByOther && !lot.mySoftReserve)}
+          onClick={onSoftReserve}
+        >
+          {lot.mySoftReserve ? 'Зняти м’який резерв' : 'М’який резерв'}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={!lot.canPromise} onClick={onBasket}>
+          {inBasket ? 'У кошику' : 'КП'}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function RelatedFamilyRow({ family, inBasket, onOpen, onBasket }) {
   const warehouses = family.warehouses || [];
@@ -1054,6 +1291,8 @@ function RelatedFamilyRow({ family, inBasket, onOpen, onBasket }) {
         <small>
           {formatPower(family) || formatAmps(family) || '—'} · вільних {family.freeQty}
           {family.totalQty != null ? ` з ${family.totalQty}` : ''}
+          {family.incomingQty ? ` · +${family.incomingQty} від ВЕД` : ''}
+          {family.incomingWeekQty ? ` (${family.incomingWeekQty} за тиждень)` : ''}
         </small>
         {warehouses.length ? (
           <span className="msp-wh-line">
@@ -1065,7 +1304,7 @@ function RelatedFamilyRow({ family, inBasket, onOpen, onBasket }) {
           </span>
         ) : null}
       </button>
-      <Button size="sm" variant="ghost" disabled={!family.units.length} onClick={onBasket}>
+      <Button size="sm" variant="ghost" disabled={!family.units.length && !(family.incomingLots || []).some((l) => l.canPromise)} onClick={onBasket}>
         {inBasket ? 'У кошику' : 'КП'}
       </Button>
     </div>

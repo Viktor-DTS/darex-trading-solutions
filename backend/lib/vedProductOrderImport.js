@@ -483,10 +483,23 @@ async function runProductOrderImport(opts) {
     return summary;
   }
 
+  const prevOrders = await VedProductOrder.find({})
+    .select(
+      'sheetType productName arrivalWarehouse destination deliveryNumber deliveryCode quantity expectedArrivalDate supplierReadyDate orderStatus productStatus customerName'
+    )
+    .lean();
+
   await VedProductOrder.deleteMany({ sheetType: { $in: ['dgu', 'zip'] } });
   const BATCH = 500;
   for (let i = 0; i < allDocs.length; i += BATCH) {
     await VedProductOrder.insertMany(allDocs.slice(i, i + BATCH), { ordered: false });
+  }
+
+  try {
+    const { reconcileIncomingAfterImport } = require('./vedIncomingForManagers');
+    await reconcileIncomingAfterImport(prevOrders, allDocs);
+  } catch (e) {
+    console.error('[ved incoming] reconcile after import:', e.message);
   }
 
   await VedProductOrderImportLog.create({

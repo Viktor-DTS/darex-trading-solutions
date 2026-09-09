@@ -306,6 +306,199 @@ export function isTransit(item) {
   return st === 'in_transit' || !!item?.transitFromWarehouseName;
 }
 
+export function isIncomingItem(item) {
+  return !!(item && (item.incoming || String(item._id || '').startsWith('incoming:')));
+}
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function formatArrivalDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+export function isArrivalThisWeek(date) {
+  if (!date) return false;
+  const t = new Date(date).getTime();
+  if (Number.isNaN(t)) return false;
+  const now = Date.now();
+  return t >= now - 24 * 60 * 60 * 1000 && t <= now + WEEK_MS;
+}
+
+export function horizonStatusLabel(status) {
+  const map = {
+    confirmed: 'Підтверджено',
+    ready: 'Готове до відвантаження',
+    en_route: 'В дорозі від постачальника',
+  };
+  return map[status] || 'Очікується';
+}
+
+export function incomingLotToItem(lot) {
+  const warehouse = lot?.arrivalWarehouse || 'Очікується від ВЕД';
+  const enRoute = lot?.horizonStatus === 'en_route';
+  return {
+    _id: `incoming:${lot.lotKey}`,
+    incoming: true,
+    lotKey: lot.lotKey,
+    sheetType: lot.sheetType,
+    type: lot.productName,
+    manufacturer: '',
+    quantity: lot.quantity || 1,
+    currentWarehouseName: warehouse,
+    expectedArrivalDate: lot.expectedArrivalDate,
+    supplierReadyDate: lot.supplierReadyDate,
+    horizonStatus: lot.horizonStatus,
+    canPromise: !!lot.canPromise,
+    myInterest: !!lot.myInterest,
+    mySoftReserve: !!lot.mySoftReserve,
+    interestCount: lot.interestCount || 0,
+    softReserveCount: lot.softReserveCount || 0,
+    softReservedByOther: !!lot.softReservedByOther,
+    otherSoftReserveName: lot.otherSoftReserveName || '',
+    serialNumber: enRoute ? 'В дорозі (ВЕД)' : 'Очікується від ВЕД',
+    status: 'incoming',
+  };
+}
+
+function normMatch(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^a-zа-яіїєґ0-9]+/gi, ' ')
+    .trim();
+}
+
+export function modelTokens(name) {
+  const s = String(name || '');
+  const tokens = new Set();
+  const tagged = s.match(/\b(?:DE|EM|VR|EN|GJI|SCRS|EMSA|ATS|AVR)[- ]?\d+[A-Z0-9]*/gi) || [];
+  for (const t of tagged) tokens.add(t.replace(/\s+/g, '').toUpperCase());
+  const generic = s.match(/[A-Z]{1,4}[-]?\d{2,}[A-Z0-9]*/gi) || [];
+  for (const t of generic) {
+    if (t.length >= 4) tokens.add(t.replace(/-/g, '').toUpperCase());
+  }
+  return [...tokens];
+}
+
+export function incomingMatchScore(lot, family) {
+  const name = lot?.productName || lot?.type || '';
+  const famType = family?.type || '';
+  const a = normMatch(name);
+  const b = normMatch(famType);
+  if (!a || !b) return 0;
+  const lotAvr = isAvrItem(name);
+  const famAvr = isAvrItem(family);
+  const lotGen = isDieselGenerator(name) || lot?.sheetType === 'dgu';
+  if (lotAvr && !famAvr) return 0;
+  if (famAvr && !lotAvr && lot?.sheetType === 'dgu') return 0;
+  if (lotGen && famAvr) return 0;
+  if (a === b) return 100;
+  if (a.includes(b) || b.includes(a)) return 80;
+  const ta = modelTokens(name);
+  const tb = modelTokens(famType);
+  const overlap = ta.filter(
+    (t) => tb.includes(t) || b.includes(t.toLowerCase()) || a.includes(t.toLowerCase())
+  );
+  if (overlap.length) return 50 + overlap.length * 10;
+  return 0;
+}
+
+export function incomingLotMatchesFilters(lot, filters) {
+  const item = lot?.incoming ? lot : incomingLotToItem(lot);
+  if (filters?.testedOnly) return false;
+  if (filters?.readyOnly && !item.canPromise) return false;
+  if (filters?.freeOnly && !item.canPromise) return false;
+  if (filters?.myOnly && !item.myInterest && !item.mySoftReserve) return false;
+  if (filters?.group === 'avr' && !isAvrItem(item)) return false;
+  if (filters?.group === 'generator' && !isDieselGenerator(item) && item.sheetType !== 'dgu') return false;
+  if (filters?.group === 'generator' && isAvrItem(item)) return false;
+  if (filters?.powerMin != null || filters?.powerMax != null) {
+    const kw = itemPowerKw(item);
+    if (kw == null) return false;
+    if (filters.powerMin != null && kw < filters.powerMin) return false;
+    if (filters.powerMax != null && kw > filters.powerMax) return false;
+  }
+  return true;
+}
+
+function emptyIncomingStats() {
+  return { incomingLots: [], incomingQty: 0, incomingWeekQty: 0 };
+}
+
+export function attachIncomingLots(families, lots, { includeOrphans = false, includeIncomingUnits = false } = {}) {
+  const fams = (families || []).map((f) => ({
+    ...f,
+    ...emptyIncomingStats(),
+    units: includeIncomingUnits ? [...(f.units || [])] : f.units || [],
+  }));
+  const used = new Set();
+  for (const lot of lots || []) {
+    let best = null;
+    let bestScore = 0;
+    for (const f of fams) {
+      if (f.incomingOnly) continue;
+      const s = incomingMatchScore(lot, f);
+      if (s > bestScore) {
+        bestScore = s;
+        best = f;
+      }
+    }
+    if (best && bestScore >= 50) {
+      best.incomingLots.push(lot);
+      const q = Number(lot.quantity) > 0 ? Number(lot.quantity) : 1;
+      best.incomingQty += q;
+      if (isArrivalThisWeek(lot.expectedArrivalDate)) best.incomingWeekQty += q;
+      used.add(lot.lotKey);
+      if (includeIncomingUnits) {
+        const item = incomingLotToItem(lot);
+        if (!best.units.some((u) => String(u._id) === String(item._id))) best.units.push(item);
+      }
+    }
+  }
+  const orphans = (lots || []).filter((l) => !used.has(l.lotKey));
+  if (!includeOrphans) return { families: fams, orphanLots: orphans };
+  const extra = orphans.map((lot) => {
+    const item = incomingLotToItem(lot);
+    const q = qtyOf(item);
+    return {
+      key: `incoming:${lot.lotKey}`,
+      productId: '',
+      type: lot.productName || 'Очікується',
+      manufacturer: '',
+      incomingOnly: true,
+      incomingLots: [lot],
+      incomingQty: q,
+      incomingWeekQty: isArrivalThisWeek(lot.expectedArrivalDate) ? q : 0,
+      units: includeIncomingUnits ? [item] : [],
+      totalQty: 0,
+      freeQty: 0,
+      reservedQty: 0,
+      myReservedQty: 0,
+      testingQty: 0,
+      readyQty: 0,
+      warehouses: [
+        {
+          id: `ved:${lot.lotKey}`,
+          name: item.currentWarehouseName,
+          short: shortWarehouseName(item.currentWarehouseName),
+          qty: q,
+          freeQty: 0,
+        },
+      ],
+      powerKw: itemPowerKw(item),
+      amp: itemAmperage(item),
+      phase: '',
+      voltage: '',
+      photoUrl: '',
+      itemKind: 'equipment',
+    };
+  });
+  return { families: [...fams, ...extra], orphanLots: orphans };
+}
+
 export function isInStock(item) {
   if (isTransit(item)) return false;
   const st = item?.warehouseDisplayStatus || item?.status || 'in_stock';
@@ -326,10 +519,12 @@ export function isTested(item) {
 }
 
 export function canRequestTesting(item) {
+  if (isIncomingItem(item)) return false;
   return !isTestingActive(item);
 }
 
 export function canReserve(item) {
+  if (isIncomingItem(item)) return false;
   return !isReserved(item) && isInStock(item);
 }
 
@@ -684,10 +879,11 @@ export function detectBoardScale(families) {
 export function printOfferHtml(client, items) {
   const name = client?.name || 'Клієнт не вказаний';
   const edrpou = client?.edrpou ? `ЄДРПОУ ${client.edrpou}` : '';
-  const rows = items
-    .map((item, i) => {
-      const power = [formatPower(item), formatAmps(item)].filter(Boolean).join(' · ');
-      return `<tr>
+  const stock = (items || []).filter((item) => !isIncomingItem(item));
+  const incoming = (items || []).filter(isIncomingItem);
+  const row = (item, i) => {
+    const power = [formatPower(item), formatAmps(item)].filter(Boolean).join(' · ');
+    return `<tr>
         <td>${i + 1}</td>
         <td>${displayText(item.type)}</td>
         <td>${displayText(item.manufacturer)}</td>
@@ -695,29 +891,37 @@ export function printOfferHtml(client, items) {
         <td>${displayText(item.serialNumber)}</td>
         <td>${warehouseLabel(item)}</td>
         <td>${formatQty(item)}</td>
-        <td>${testingLabel(testingKey(item))}</td>
+        <td>${isIncomingItem(item) ? (formatArrivalDate(item.expectedArrivalDate) || horizonStatusLabel(item.horizonStatus)) : testingLabel(testingKey(item))}</td>
       </tr>`;
-    })
-    .join('');
+  };
+  const stockRows = stock.map((item, i) => row(item, i)).join('');
+  const incomingRows = incoming.map((item, i) => row(item, i)).join('');
+  const table = (title, rows, lastHead) =>
+    rows
+      ? `<h2>${title}</h2>
+  <table>
+    <thead><tr>
+      <th>№</th><th>Тип</th><th>Виробник</th><th>Потужність / струм</th>
+      <th>Серійний №</th><th>Склад</th><th>К-сть</th><th>${lastHead}</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`
+      : '';
   return `<!doctype html>
 <html lang="uk"><head><meta charset="utf-8"><title>Пропозиція</title>
 <style>
   body { font-family: Segoe UI, Arial, sans-serif; color: #111; padding: 24px; }
   h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 20px 0 8px; }
   p { margin: 0 0 16px; color: #444; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
   th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
   th { background: #f3f4f6; }
 </style></head>
 <body>
-  <h1>Пропозиція зі складу</h1>
+  <h1>Пропозиція</h1>
   <p>${name}${edrpou ? ` · ${edrpou}` : ''} · ${new Date().toLocaleDateString('uk-UA')}</p>
-  <table>
-    <thead><tr>
-      <th>№</th><th>Тип</th><th>Виробник</th><th>Потужність / струм</th>
-      <th>Серійний №</th><th>Склад</th><th>К-сть</th><th>Тест</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
+  ${table('На складі', stockRows, 'Тест')}
+  ${table('Очікується від ВЕД', incomingRows, 'Дата надходження')}
 </body></html>`;
 }

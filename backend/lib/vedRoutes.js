@@ -31,6 +31,10 @@ const {
   getProductOrderMeta,
   queryProductOrders,
 } = require('./vedProductOrderImport');
+const {
+  bindVedIncomingNotifications,
+  registerVedIncomingRoutes,
+} = require('./vedIncomingForManagers');
 
 const VED_STATUSES = [
   'pending_review',
@@ -388,6 +392,8 @@ function buildVirtualRequestForSupplierSearch(body) {
 
 function registerVedRoutes(app, deps = {}) {
   const { User, createManagerNotificationDeduped, authenticateToken } = deps;
+  bindVedIncomingNotifications(createManagerNotificationDeduped);
+  registerVedIncomingRoutes(app, { authenticateToken });
 
   async function notifyVedStaffNewRequest(doc) {
     if (!User || !createManagerNotificationDeduped) return;

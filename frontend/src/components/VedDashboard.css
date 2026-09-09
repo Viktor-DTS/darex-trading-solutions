@@ -1506,6 +1506,22 @@
   color: var(--text-secondary);
 }
 
+.ved-po-can-promise {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ved-po-can-promise em {
+  font-style: normal;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 @media print {
   @page {
     margin: 12mm;
