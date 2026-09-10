@@ -606,6 +606,7 @@ const MANAGER_NOTIFICATION_KINDS = [
   'ved_request_status',
   'warehouse_transfer_requested',
   'warehouse_transfer_approved',
+  'warehouse_transfer_received',
   'warehouse_transfer_rejected',
   'client_next_action_due',
   'client_sleeping_digest',
@@ -644,6 +645,7 @@ const WAREHOUSE_FEED_NOTIFICATION_KINDS = [
   'procurement_incoming_to_warehouse',
   'warehouse_transfer_requested',
   'warehouse_transfer_approved',
+  'warehouse_transfer_received',
   'telegram_connect_invite',
   'system_broadcast'
 ];

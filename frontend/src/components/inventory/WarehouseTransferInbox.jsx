@@ -53,6 +53,24 @@ export default function WarehouseTransferInbox({ user, readOnly = false }) {
     }
   };
 
+  const receive = async (id) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/warehouse-transfer-requests/${id}/receive`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Помилка підтвердження прийому');
+      await loadInbox();
+    } catch (e) {
+      alert(e.message || 'Помилка');
+    } finally {
+      setBusyId('');
+    }
+  };
+
   const reject = async (id) => {
     const reason = String(rejectReason || '').trim();
     if (!reason) {
@@ -87,8 +105,8 @@ export default function WarehouseTransferInbox({ user, readOnly = false }) {
         </button>
       </div>
       <p className="warehouse-transfer-inbox-note">
-        Підтвердіть або відхиліть запит. Після підтвердження переміщення оформлюється в 1С і з’явиться в
-        журналі автоматично.
+        Нові запити зі складів вашого регіону підтвердіть або відхиліть. Після відправки завсклад
+        отримувача підтверджує прийом — тоді запит стає виконаним, а ініціатор отримує сповіщення.
       </p>
       {loading ? (
         <p>Завантаження…</p>
@@ -112,8 +130,22 @@ export default function WarehouseTransferInbox({ user, readOnly = false }) {
                 Ініціатор: {row.requesterName || row.requesterLogin || '—'}
                 {row.taskNumber ? ` · Заявка ${row.taskNumber}` : ''}
               </p>
+              {row.status === 'approved' ? (
+                <p>
+                  Відправив: {row.sourceApproverName || row.sourceApproverLogin || 'завсклад'}
+                  {row.sourceApprovedAt
+                    ? ` · ${new Date(row.sourceApprovedAt).toLocaleString('uk-UA')}`
+                    : ''}
+                </p>
+              ) : null}
               {row.comment ? <p className="warehouse-transfer-comment">{row.comment}</p> : null}
-              {readOnly ? null : rejectId === row._id ? (
+              {readOnly ? null : row.status === 'approved' ? (
+                <div className="warehouse-transfer-actions">
+                  <button type="button" onClick={() => receive(row._id)} disabled={busyId === row._id}>
+                    Підтвердити прийом
+                  </button>
+                </div>
+              ) : rejectId === row._id ? (
                 <div className="warehouse-transfer-reject-box">
                   <textarea
                     rows={2}
@@ -140,7 +172,7 @@ export default function WarehouseTransferInbox({ user, readOnly = false }) {
               ) : (
                 <div className="warehouse-transfer-actions">
                   <button type="button" onClick={() => approve(row._id)} disabled={busyId === row._id}>
-                    Підтвердити
+                    Підтвердити відправку
                   </button>
                   <button
                     type="button"

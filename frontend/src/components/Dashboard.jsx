@@ -8,6 +8,7 @@ import AddTaskModal from './AddTaskModal';
 import LogisticsMap from './LogisticsMap';
 import GlobalSearch from './GlobalSearch';
 import ServiceStockPanel from './ServiceStockPanel';
+import ServiceTransferRequestsPanel from './ServiceTransferRequestsPanel';
 import { buildTaskDataFromExisting } from '../utils/taskCopyForCreate';
 import { computeTaskModalReadOnly } from '../utils/taskModalAccess';
 import './Dashboard.css';
@@ -188,6 +189,7 @@ function Dashboard({ user, panelType = 'service' }) {
     { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳', group: 'work' },
     { id: 'contracts', label: 'Договори', icon: '📄', group: 'resources' },
     { id: 'stock', label: 'Залишки', icon: '📦', group: 'resources' },
+    { id: 'transferRequests', label: 'Запити на переміщення', icon: '🔁', group: 'resources' },
     { id: 'logistics', label: 'Логістика', icon: '🗺️', group: 'resources' },
     { id: 'globalSearch', label: 'Глобальний пошук', icon: '🔍', group: 'other' },
     { id: 'notifications', label: 'Системні сповіщення', icon: '🔔', group: 'other' }
@@ -294,6 +296,8 @@ function Dashboard({ user, panelType = 'service' }) {
             <ContractsTable user={user} />
           ) : activeTab === 'stock' ? (
             <ServiceStockPanel user={user} />
+          ) : activeTab === 'transferRequests' ? (
+            <ServiceTransferRequestsPanel user={user} />
           ) : activeTab === 'logistics' ? (
             <LogisticsMap user={user} onTaskClick={handleLogisticsTaskClick} />
           ) : activeTab === 'globalSearch' ? (

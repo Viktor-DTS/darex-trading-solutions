@@ -33,6 +33,7 @@ const KIND_LABELS = {
   ved_incoming_week: 'Надходження ВЕД цього тижня',
   warehouse_transfer_requested: 'Запит на переміщення (сервіс)',
   warehouse_transfer_approved: 'Переміщення підтверджено',
+  warehouse_transfer_received: 'Переміщення прийнято на складі',
   warehouse_transfer_rejected: 'Переміщення відхилено',
   system_broadcast: 'Системне повідомлення'
 };

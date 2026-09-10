@@ -4,7 +4,8 @@
 const mongoose = require('mongoose');
 const { sendWarehouseTransferTelegram } = require('./warehouseTransferTelegram');
 
-const TRANSFER_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'];
+const TRANSFER_STATUSES = ['pending', 'approved', 'completed', 'rejected', 'cancelled'];
+const ACTIVE_TRANSFER_STATUSES = ['pending', 'approved'];
 
 const warehouseTransferRequestSchema = new mongoose.Schema(
   {
@@ -29,6 +30,9 @@ const warehouseTransferRequestSchema = new mongoose.Schema(
     sourceApprovedAt: { type: Date, default: null },
     sourceRejectReason: { type: String, trim: true, default: '' },
     rejectedAt: { type: Date, default: null },
+    destApproverLogin: { type: String, trim: true, default: '' },
+    destApproverName: { type: String, trim: true, default: '' },
+    destReceivedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
@@ -59,6 +63,32 @@ function canCreateTransferRequest(user) {
 function canProcessTransferInbox(user) {
   const role = String(user?.role || '').toLowerCase();
   return ['warehouse', 'zavsklad', 'golovzvsk', 'admin', 'administrator'].includes(role);
+}
+
+function isTransferAdmin(user) {
+  return ['admin', 'administrator'].includes(String(user?.role || '').toLowerCase());
+}
+
+function isActiveTransferStatus(status) {
+  return ACTIVE_TRANSFER_STATUSES.includes(String(status || ''));
+}
+
+function sortTransferRequests(list) {
+  return [...(list || [])].sort((a, b) => {
+    const aActive = isActiveTransferStatus(a.status) ? 0 : 1;
+    const bActive = isActiveTransferStatus(b.status) ? 0 : 1;
+    if (aActive !== bActive) return aActive - bActive;
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+}
+
+async function warehouseNamesForUserRegion(Warehouse, userRegion) {
+  const whFilter = { isActive: { $ne: false } };
+  if (!isNationalRegion(userRegion)) {
+    whFilter.region = { $regex: new RegExp(`^${escapeRegExp(userRegion)}$`, 'i') };
+  }
+  const regionalWarehouses = await Warehouse.find(whFilter).select('name').lean();
+  return regionalWarehouses.map((w) => w.name).filter(Boolean);
 }
 
 async function getNextTransferRequestNumber(Counter) {
@@ -102,6 +132,7 @@ async function notifyTransferEvent(deps, tr, kind, recipientLogins) {
   const titles = {
     warehouse_transfer_requested: 'Новий запит на переміщення між складами',
     warehouse_transfer_approved: 'Запит на переміщення підтверджено',
+    warehouse_transfer_received: 'Переміщення прийнято на складі-отримувачі',
     warehouse_transfer_rejected: 'Запит на переміщення відхилено',
   };
   const bodyLines = [
@@ -111,6 +142,9 @@ async function notifyTransferEvent(deps, tr, kind, recipientLogins) {
     tr.taskNumber ? `Заявка: ${tr.taskNumber}` : '',
     tr.comment ? `Коментар: ${tr.comment}` : '',
     tr.sourceRejectReason ? `Причина відмови: ${tr.sourceRejectReason}` : '',
+    tr.destApproverName || tr.destApproverLogin
+      ? `Прийняв: ${tr.destApproverName || tr.destApproverLogin}`
+      : '',
   ].filter(Boolean);
 
   for (const login of recipientLogins) {
@@ -133,9 +167,11 @@ async function notifyTransferEvent(deps, tr, kind, recipientLogins) {
       ? 'requested'
       : kind === 'warehouse_transfer_approved'
         ? 'approved'
-        : kind === 'warehouse_transfer_rejected'
-          ? 'rejected'
-          : null;
+        : kind === 'warehouse_transfer_received'
+          ? 'received'
+          : kind === 'warehouse_transfer_rejected'
+            ? 'rejected'
+            : null;
   if (tgEvent) {
     await sendWarehouseTransferTelegram(deps, tr, tgEvent, recipientLogins);
   }
@@ -235,14 +271,16 @@ function registerWarehouseTransferRoutes(app, deps) {
     try {
       const mine = ['1', 'true', 'yes'].includes(String(req.query.mine || '').toLowerCase());
       const inbox = ['1', 'true', 'yes'].includes(String(req.query.inbox || '').toLowerCase());
+      const service = ['1', 'true', 'yes'].includes(String(req.query.service || '').toLowerCase());
 
-      if (mine) {
+      if (mine || service) {
         const login = String(req.user.login || '').trim();
-        const list = await WarehouseTransferRequest.find({ requesterLogin: login })
+        const filter = service && isTransferAdmin(req.user) ? {} : { requesterLogin: login };
+        const list = await WarehouseTransferRequest.find(filter)
           .sort({ createdAt: -1 })
-          .limit(100)
+          .limit(service && isTransferAdmin(req.user) ? 400 : 200)
           .lean();
-        return res.json(list);
+        return res.json(sortTransferRequests(list));
       }
 
       if (inbox) {
@@ -251,30 +289,27 @@ function registerWarehouseTransferRoutes(app, deps) {
         }
         const dbUser = await User.findOne({ login: req.user.login }).select('region').lean();
         const userRegion = String(dbUser?.region || req.user.region || '').trim();
-        const whFilter = { isActive: { $ne: false } };
-        if (!isNationalRegion(userRegion)) {
-          whFilter.region = { $regex: new RegExp(`^${escapeRegExp(userRegion)}$`, 'i') };
-        }
-        const regionalWarehouses = await Warehouse.find(whFilter).select('name').lean();
-        const names = regionalWarehouses.map((w) => w.name).filter(Boolean);
+        const names = await warehouseNamesForUserRegion(Warehouse, userRegion);
         const list = await WarehouseTransferRequest.find({
-          status: 'pending',
-          fromWarehouseName: { $in: names },
+          $or: [
+            { status: 'pending', fromWarehouseName: { $in: names } },
+            { status: 'approved', toWarehouseName: { $in: names } },
+          ],
         })
           .sort({ createdAt: -1 })
-          .limit(100)
+          .limit(200)
           .lean();
-        return res.json(list);
+        return res.json(sortTransferRequests(list));
       }
 
-      if (!['admin', 'administrator'].includes(String(req.user.role || '').toLowerCase())) {
+      if (!isTransferAdmin(req.user)) {
         return res.status(403).json({ error: 'Немає доступу' });
       }
       const list = await WarehouseTransferRequest.find({})
         .sort({ createdAt: -1 })
-        .limit(200)
+        .limit(400)
         .lean();
-      return res.json(list);
+      return res.json(sortTransferRequests(list));
     } catch (error) {
       console.error('[warehouse-transfer] GET:', error);
       res.status(500).json({ error: error.message });
@@ -345,6 +380,44 @@ function registerWarehouseTransferRoutes(app, deps) {
       res.json(tr);
     } catch (error) {
       console.error('[warehouse-transfer] reject:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/warehouse-transfer-requests/:id/receive', authenticateToken, async (req, res) => {
+    try {
+      if (!canProcessTransferInbox(req.user)) {
+        return res.status(403).json({ error: 'Немає прав на підтвердження прийому' });
+      }
+      const doc = await WarehouseTransferRequest.findById(req.params.id);
+      if (!doc) return res.status(404).json({ error: 'Запит не знайдено' });
+      if (doc.status !== 'approved') {
+        return res.status(400).json({ error: 'Підтвердити прийом можна лише після відправки' });
+      }
+
+      const dbUser = await User.findOne({ login: req.user.login }).select('region name login').lean();
+      const userRegion = String(dbUser?.region || req.user.region || '').trim();
+      const destNames = await warehouseNamesForUserRegion(Warehouse, userRegion);
+      if (!destNames.includes(doc.toWarehouseName) && !isTransferAdmin(req.user)) {
+        return res.status(403).json({ error: 'Прийом доступний лише складу-отримувачу' });
+      }
+
+      doc.status = 'completed';
+      doc.destApproverLogin = String(dbUser?.login || req.user.login || '').trim();
+      doc.destApproverName = String(dbUser?.name || req.user.name || '').trim();
+      doc.destReceivedAt = new Date();
+      await doc.save();
+
+      const tr = doc.toObject();
+      await notifyTransferEvent(
+        notifyDeps,
+        tr,
+        'warehouse_transfer_received',
+        [tr.requesterLogin].filter(Boolean),
+      );
+      res.json(tr);
+    } catch (error) {
+      console.error('[warehouse-transfer] receive:', error);
       res.status(500).json({ error: error.message });
     }
   });

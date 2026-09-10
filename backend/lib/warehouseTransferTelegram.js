@@ -26,6 +26,7 @@ function formatTransferMessage(tr, event) {
   const headers = {
     requested: '📦 Новий запит на переміщення',
     approved: '✅ Запит на переміщення підтверджено',
+    received: '📥 Переміщення прийнято на складі',
     rejected: '❌ Запит на переміщення відхилено',
   };
 
@@ -39,6 +40,10 @@ function formatTransferMessage(tr, event) {
   if (tr?.taskNumber) body += `📝 <b>Заявка:</b> ${task}\n`;
   if (event === 'rejected' && tr?.sourceRejectReason) {
     body += `\n📝 <b>Причина:</b> ${escapeHtml(tr.sourceRejectReason)}`;
+  }
+  if (event === 'received') {
+    const destWho = escapeHtml(tr?.destApproverName || tr?.destApproverLogin || '—');
+    body += `\n📥 <b>Прийняв:</b> ${destWho}`;
   }
   if (tr?.comment) {
     body += `\n💬 <b>Коментар:</b> ${escapeHtml(tr.comment)}`;

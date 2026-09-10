@@ -106,8 +106,13 @@
 }
 
 .service-stock-status--approved {
-  background: rgba(34, 197, 94, 0.18);
-  color: #86efac;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+.service-stock-status--completed {
+  background: rgba(52, 211, 153, 0.18);
+  color: #6ee7b7;
 }
 
 .service-stock-status--rejected {

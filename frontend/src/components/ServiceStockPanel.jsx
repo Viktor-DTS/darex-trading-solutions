@@ -8,7 +8,8 @@ import './ServiceStockPanel.css';
 
 const STATUS_LABELS = {
   pending: 'Очікує підтвердження',
-  approved: 'Підтверджено',
+  approved: 'Відправлено',
+  completed: 'Виконано',
   rejected: 'Відхилено',
   cancelled: 'Скасовано',
 };
