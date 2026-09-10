@@ -2,34 +2,57 @@
 /// Формат API: { role: { panelId: 'full'|'read'|'none' } }
 library;
 
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_client.dart';
+import 'connectivity_service.dart';
 
 class AccessRulesService {
   AccessRulesService._internal();
 
   static final AccessRulesService instance = AccessRulesService._internal();
 
+  static const _cacheKey = 'access_rules_cache_v1';
+
   /// Конвертовані правила: role -> [panelId з full або read]
   Map<String, List<String>> _rules = {};
   bool _loaded = false;
 
-  /// Завантажує правила з API та кешує їх.
-  /// Якщо accessRules в MongoDB порожній або API недоступний — ніхто не отримує доступ (правила порожні).
+  /// Кеш з диска без мережевого запиту (старт додатка офлайн).
+  Future<void> preloadFromDisk() async {
+    if (_rules.isEmpty) {
+      await _loadFromDisk();
+    }
+  }
+
+  /// Завантажує правила з API та кешує їх на пристрій.
+  /// Якщо мережа недоступна — лишає останній успішний кеш.
   Future<Map<String, List<String>>> loadAccessRules() async {
+    if (_rules.isEmpty) {
+      await _loadFromDisk();
+    }
+    if (ConnectivityService.instance.isOffline) {
+      _loaded = true;
+      return _rules;
+    }
     try {
       final response = await ApiClient.instance.dio.get('/api/accessRules');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         _rules = _convertAccessRules(data);
-      } else {
-        _rules = {};
+        await _saveToDisk(_rules);
       }
     } on DioException catch (_) {
-      _rules = {};
+      if (_rules.isEmpty) {
+        await _loadFromDisk();
+      }
     } catch (_) {
-      _rules = {};
+      if (_rules.isEmpty) {
+        await _loadFromDisk();
+      }
     }
     _loaded = true;
     return _rules;
@@ -37,16 +60,17 @@ class AccessRulesService {
 
   /// Повертає кешовані правила або завантажує їх.
   Future<Map<String, List<String>>> getRules() async {
+    if (_loaded && _rules.isNotEmpty) return _rules;
+    if (_rules.isEmpty) {
+      await _loadFromDisk();
+    }
     if (_loaded) return _rules;
     return loadAccessRules();
   }
 
   /// Список panel IDs з доступом (full або read) для ролі.
-  /// Якщо accessRules порожній (MongoDB або API) — ніхто не отримує доступ.
-  /// admin/administrator завжди отримують повний доступ (усі панелі), якщо є в правилах.
   List<String> getPanelsForRole(String role) {
     if (role.isEmpty) return [];
-    if (_rules.isEmpty) return [];
     final roleLower = role.toLowerCase();
     List<String>? panels;
     final exact = _rules[role];
@@ -60,17 +84,69 @@ class AccessRulesService {
         }
       }
     }
-    if (panels == null) return [];
     if (roleLower == 'admin' || roleLower == 'administrator') {
-      return _allPanelIds;
+      if (panels != null && panels.isNotEmpty) return _allPanelIds;
+      if (ConnectivityService.instance.isOffline) return _allPanelIds;
+      return panels ?? [];
     }
-    return panels;
+    if (panels != null && panels.isNotEmpty) return panels;
+    return _offlineFallbackPanels(roleLower);
   }
 
-  /// Очистити кеш (наприклад при logout).
-  void clear() {
+  /// Очистити кеш (logout).
+  Future<void> clear() async {
     _rules = {};
     _loaded = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_cacheKey);
+  }
+
+  Future<void> _saveToDisk(Map<String, List<String>> rules) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = <String, dynamic>{
+      for (final e in rules.entries) e.key: e.value,
+    };
+    await prefs.setString(_cacheKey, jsonEncode(encoded));
+  }
+
+  Future<void> _loadFromDisk() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cacheKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final restored = <String, List<String>>{};
+      for (final entry in decoded.entries) {
+        final value = entry.value;
+        if (value is List) {
+          restored[entry.key.toString()] =
+              value.map((e) => e.toString()).toList();
+        }
+      }
+      if (restored.isNotEmpty) {
+        _rules = restored;
+        _loaded = true;
+      }
+    } catch (_) {}
+  }
+
+  static List<String> _offlineFallbackPanels(String roleLower) {
+    switch (roleLower) {
+      case 'service':
+        return ['service'];
+      case 'warehouse':
+      case 'bczvskl':
+        return ['warehouse', 'inventory'];
+      case 'operator':
+        return ['operator'];
+      case 'testing':
+        return ['testing'];
+      case 'manager':
+        return ['manager'];
+      default:
+        return [];
+    }
   }
 
   /// Конвертує { role: { panelId: 'full'|'read'|'none' } } у { role: [panelId...] }
@@ -86,7 +162,6 @@ class AccessRulesService {
           list.add(panelEntry.key);
         }
       }
-      // Авто-додавання inventory якщо є warehouse або accountant
       if ((list.contains('warehouse') || list.contains('accountant')) &&
           !list.contains('inventory')) {
         final invValue = panels['inventory'];
@@ -97,7 +172,6 @@ class AccessRulesService {
     return converted;
   }
 
-  /// Панелі, що мають відповідні модулі в APP. admin/administrator отримують їх усі.
   static const _allPanelIds = [
     'service',
     'operator',

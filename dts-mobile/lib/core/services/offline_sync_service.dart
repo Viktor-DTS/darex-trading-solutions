@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_client.dart';
+import 'assigned_inbox_service.dart';
 import 'connectivity_service.dart';
 import 'file_service.dart';
 import 'task_service.dart';
@@ -41,57 +43,110 @@ class OfflineSyncService {
     return (prefs.getStringList(_hiddenKey) ?? []).toSet();
   }
 
-  Future<void> _hideTask(String taskId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final ids = prefs.getStringList(_hiddenKey) ?? [];
-    if (!ids.contains(taskId)) {
-      ids.add(taskId);
-      await prefs.setStringList(_hiddenKey, ids);
+  Future<Directory> _backupDir(String taskId) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final folder = Directory('${dir.path}/photo_backup/$taskId');
+    if (!folder.existsSync()) {
+      await folder.create(recursive: true);
+    }
+    return folder;
+  }
+
+  Future<Directory> _queueDir(String taskId) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final folder = Directory('${dir.path}/offline_uploads/$taskId');
+    if (!folder.existsSync()) {
+      await folder.create(recursive: true);
+    }
+    return folder;
+  }
+
+  Future<File> _copyLocal(XFile file, Directory folder) async {
+    final name = file.name.isNotEmpty
+        ? file.name
+        : 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final dest = File('${folder.path}/${DateTime.now().millisecondsSinceEpoch}_$name');
+    try {
+      await File(file.path).copy(dest.path);
+    } catch (_) {
+      try {
+        await file.saveTo(dest.path);
+      } catch (_) {
+        await dest.writeAsBytes(await file.readAsBytes(), flush: true);
+      }
+    }
+    return dest;
+  }
+
+  Future<void> saveToGallery(String path) async {
+    try {
+      final allowed = await Gal.hasAccess(toAlbum: true) || await Gal.requestAccess(toAlbum: true);
+      if (!allowed) return;
+      await Gal.putImage(path, album: 'DTS Mobile');
+    } catch (_) {}
+  }
+
+  /// Копія в сховищі додатка + галерея телефону. Не видаляється після синку.
+  Future<File> keepDeviceCopy({
+    required String taskId,
+    required XFile file,
+  }) async {
+    final backup = await _copyLocal(file, await _backupDir(taskId));
+    await saveToGallery(backup.path);
+    return backup;
+  }
+
+  Future<List<File>> backupsForTask(String taskId) async {
+    try {
+      final folder = await _backupDir(taskId);
+      if (!folder.existsSync()) return [];
+      final files = folder
+          .listSync()
+          .whereType<File>()
+          .toList()
+        ..sort((a, b) => b.path.compareTo(a.path));
+      return files;
+    } catch (_) {
+      return [];
     }
   }
 
-  Future<void> _unhideTask(String taskId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final ids = prefs.getStringList(_hiddenKey) ?? [];
-    ids.remove(taskId);
-    await prefs.setStringList(_hiddenKey, ids);
+  Future<int> pendingPhotoCount(String taskId) async {
+    final queue = await _readQueue();
+    return queue.where((item) {
+      return item['type'] == 'photo' && item['taskId']?.toString() == taskId;
+    }).length;
   }
 
   Future<void> enqueuePhoto({
     required String taskId,
     required XFile file,
   }) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final folder = Directory('${dir.path}/offline_uploads/$taskId');
-    if (!folder.existsSync()) {
-      await folder.create(recursive: true);
-    }
-    final name = file.name.isNotEmpty
-        ? file.name
-        : 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final dest = File('${folder.path}/${DateTime.now().millisecondsSinceEpoch}_$name');
-    await File(file.path).copy(dest.path);
-
+    final dest = await _copyLocal(file, await _queueDir(taskId));
     final queue = await _readQueue();
     queue.add({
       'type': 'photo',
       'taskId': taskId,
       'path': dest.path,
-      'name': name,
+      'name': file.name.isNotEmpty ? file.name : dest.uri.pathSegments.last,
       'createdAt': DateTime.now().toIso8601String(),
     });
     await _writeQueue(queue);
   }
 
   Future<void> enqueueComplete(String taskId) async {
-    await _hideTask(taskId);
+    await AssignedInboxService.instance.markPendingComplete(taskId);
     final queue = await _readQueue();
-    queue.add({
-      'type': 'complete',
-      'taskId': taskId,
-      'createdAt': DateTime.now().toIso8601String(),
-    });
-    await _writeQueue(queue);
+    final already = queue.any((item) =>
+        item['type'] == 'complete' && item['taskId']?.toString() == taskId);
+    if (!already) {
+      queue.add({
+        'type': 'complete',
+        'taskId': taskId,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+      await _writeQueue(queue);
+    }
   }
 
   Future<void> flush() async {
@@ -119,7 +174,7 @@ class OfflineSyncService {
             } catch (_) {}
           } else if (type == 'complete') {
             await ApiClient.instance.dio.post('/api/tasks/$taskId/executor-complete');
-            await _unhideTask(taskId);
+            await AssignedInboxService.instance.removeTask(taskId);
             TaskService.instance.invalidateTasksCache();
           }
         } catch (_) {

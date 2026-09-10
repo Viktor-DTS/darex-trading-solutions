@@ -42,7 +42,11 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Камера потрібна для сканування QR-кодів обладнання та шильдика при роботі зі складом.</string>
+	<string>Камера потрібна для фото заявок, сканування QR-кодів обладнання та шильдика.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Фото заявок зберігаються в галереї телефону на випадок, якщо не вдасться відправити їх на сервер.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Додаток читає фото з галереї, щоб прикріпити їх до заявки.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

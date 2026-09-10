@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../../core/models/task.dart';
 import '../../core/widgets/error_with_retry.dart';
 import '../../core/widgets/loading_skeleton.dart';
+import '../../core/services/assigned_inbox_service.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/connectivity_service.dart';
 import '../../core/services/task_service.dart';
 import 'task_details_screen.dart';
 
@@ -18,7 +20,8 @@ class ServiceTasksScreen extends StatefulWidget {
   State<ServiceTasksScreen> createState() => _ServiceTasksScreenState();
 }
 
-class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
+class _ServiceTasksScreenState extends State<ServiceTasksScreen>
+    with WidgetsBindingObserver {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   final _statuses = const ['Всі', 'Заявка', 'В роботі', 'Виконано'];
@@ -27,6 +30,7 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
   bool _loadingMore = false;
   String? _error;
   List<Task> _tasks = [];
+  Set<String> _pendingComplete = {};
   int _total = 0;
   int _page = 1;
   Timer? _searchDebounce;
@@ -44,6 +48,9 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    AssignedInboxService.instance.addListener(_onInboxChanged);
+    ConnectivityService.instance.addListener(_onConnectivityChanged);
     _loadTasks(resetPage: true);
     _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(_onScroll);
@@ -51,12 +58,51 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    AssignedInboxService.instance.removeListener(_onInboxChanged);
+    ConnectivityService.instance.removeListener(_onConnectivityChanged);
     _searchDebounce?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadTasks(forceRefresh: true);
+    }
+  }
+
+  void _onInboxChanged() {
+    if (_assignedToMe) {
+      unawaited(_showInbox());
+    }
+  }
+
+  void _onConnectivityChanged() {
+    if (ConnectivityService.instance.isOnline) {
+      unawaited(_loadTasks(forceRefresh: true));
+    } else {
+      unawaited(_showInbox());
+    }
+  }
+
+  Future<void> _showInbox() async {
+    if (!_assignedToMe) return;
+    final cached = await AssignedInboxService.instance.listTasks(
+      query: _searchController.text.trim(),
+    );
+    final pending = await AssignedInboxService.instance.pendingCompleteIds();
+    if (!mounted) return;
+    setState(() {
+      _tasks = cached;
+      _total = cached.length;
+      _pendingComplete = pending;
+      if (cached.isNotEmpty) _error = null;
+    });
   }
 
   void _onSearchChanged() {
@@ -82,10 +128,13 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
     bool resetPage = false,
   }) async {
     if (resetPage) _page = 1;
+    if (_assignedToMe) {
+      await _showInbox();
+    }
     setState(() {
       _loading = true;
       _error = null;
-      if (resetPage) _tasks = [];
+      if (resetPage && !_assignedToMe) _tasks = [];
     });
 
     try {
@@ -104,14 +153,21 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
         forceRefresh: forceRefresh,
         assignedToMe: assignedToMe,
       );
+      final pending = assignedToMe
+          ? await AssignedInboxService.instance.pendingCompleteIds()
+          : <String>{};
       if (mounted) {
         setState(() {
           _tasks = result.tasks;
           _total = result.total;
+          _pendingComplete = pending;
         });
       }
     } catch (error) {
-      if (mounted) {
+      if (_assignedToMe) {
+        await _showInbox();
+      }
+      if (mounted && _tasks.isEmpty) {
         setState(() => _error = AuthService.parseError(error));
       }
     } finally {
@@ -242,32 +298,44 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                                         : const SizedBox.shrink();
                                   }
                                   final task = _tasks[index];
-                                return ListTile(
+                                  final pending = _pendingComplete.contains(task.id);
+                                  final yellow = const Color(0xFFFFF59D);
+                                return ColoredBox(
+                                  color: pending ? yellow : Colors.transparent,
+                                  child: ListTile(
                                   title: Text(
                                     task.requestNumber ?? 'Без номера',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.w600,
+                                      color: pending ? Colors.black : null,
                                     ),
                                   ),
                                   subtitle: Text(
-                                    [
-                                      task.client ?? 'Клієнт не вказано',
-                                      task.requestDesc ?? 'Опис відсутній',
-                                    ].join(' · '),
+                                    pending
+                                        ? 'Чекаємо інтернет та синхронізації з базою'
+                                        : [
+                                            task.client ?? 'Клієнт не вказано',
+                                            task.requestDesc ?? 'Опис відсутній',
+                                          ].join(' · '),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: pending ? Colors.black87 : null,
+                                      fontWeight: pending ? FontWeight.w600 : null,
+                                    ),
                                   ),
                                   trailing: Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        task.status,
-                                        style: const TextStyle(
+                                        pending ? 'Очікує синхронізації' : task.status,
+                                        style: TextStyle(
                                           fontWeight: FontWeight.w600,
+                                          color: pending ? Colors.black : null,
                                         ),
                                       ),
-                                      if (task.requestDate != null)
+                                      if (!pending && task.requestDate != null)
                                         Text(
                                           task.requestDate!,
                                           style: Theme.of(context)
@@ -284,11 +352,11 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                                         ),
                                       ),
                                     );
-                                    if (closed == true && mounted) {
-                                      await _loadTasks(forceRefresh: true, resetPage: true);
-                                    }
+                                    if (!mounted) return;
+                                    await _loadTasks(forceRefresh: closed == true, resetPage: true);
                                   },
-                                  );
+                                  ),
+                                );
                                 },
                               ),
                             ),

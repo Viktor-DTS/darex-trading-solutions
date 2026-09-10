@@ -8,6 +8,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'api_client.dart';
+import 'assigned_inbox_service.dart';
 import 'secure_storage.dart';
 import '../session.dart';
 
@@ -16,7 +17,9 @@ import '../session.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  // Фонові повідомлення — можна логувати або обробити окремо
+  try {
+    await AssignedInboxService.instance.ingestPush(message.data);
+  } catch (_) {}
 }
 
 const _androidChannelId = 'dts_push';
@@ -86,6 +89,7 @@ class PushNotificationService {
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null && initial.data.isNotEmpty) {
       _pendingInitialData = _asStringMap(initial.data);
+      unawaited(AssignedInboxService.instance.ingestPush(initial.data));
       unawaited(rememberPending(_pendingInitialData!));
     }
 
@@ -147,6 +151,7 @@ class PushNotificationService {
   }
 
   void _onForegroundMessage(RemoteMessage message) {
+    unawaited(AssignedInboxService.instance.ingestPush(message.data));
     unawaited(_showFcmAsExpandedLocal(message));
   }
 
@@ -307,6 +312,7 @@ class PushNotificationService {
   }
 
   void _onMessageOpenedApp(RemoteMessage message) {
+    unawaited(AssignedInboxService.instance.ingestPush(message.data));
     _handleMessageData(message.data);
   }
 

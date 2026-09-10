@@ -690,40 +690,46 @@ class _FullScreenImageCarouselState extends State<_FullScreenImageCarousel> {
         onPageChanged: (index) => _currentIndexNotifier.value = index,
         itemBuilder: (context, index) {
           final item = items[index];
-          return InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 4.0,
-            child: Center(
-              child: Image.network(
-                item.url,
-                fit: BoxFit.contain,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              (loadingProgress.expectedTotalBytes ?? 1)
-                          : null,
-                      color: Colors.white,
-                    ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, size: 64, color: Colors.white54),
-                      SizedBox(height: 16),
-                      Text(
-                        'Не вдалося завантажити зображення',
-                        style: TextStyle(color: Colors.white54),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: Image.network(
+                    item.url,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  (loadingProgress.expectedTotalBytes ?? 1)
+                              : null,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
+                    errorBuilder: (_, __, ___) => const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.broken_image, size: 64, color: Colors.white54),
+                          SizedBox(height: 16),
+                          Text(
+                            'Не вдалося завантажити зображення',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
       ),

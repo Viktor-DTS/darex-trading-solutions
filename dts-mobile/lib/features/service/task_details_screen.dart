@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/task.dart';
+import '../../core/services/assigned_inbox_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/connectivity_service.dart';
 import '../../core/services/file_service.dart';
@@ -27,6 +31,9 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   bool _completing = false;
   String? _error;
   List<Map<String, dynamic>> _files = [];
+  List<File> _localPhotos = [];
+  int _pendingUploads = 0;
+  bool _pendingComplete = false;
 
   /// Порядок і підписи полів (як у веб-версії). Порожні не показуємо.
   static const Map<String, String> _fieldLabels = {
@@ -146,29 +153,47 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(AssignedInboxService.instance.upsertTask(widget.task));
+    _loadPendingComplete();
     _loadFullTask();
     _loadFiles();
+    _loadLocalPhotos();
+  }
+
+  Future<void> _loadPendingComplete() async {
+    final pending =
+        await AssignedInboxService.instance.isPendingComplete(widget.task.id);
+    if (!mounted) return;
+    setState(() => _pendingComplete = pending);
   }
 
   Future<void> _loadFullTask() async {
-    setState(() {
-      _loadingDetails = true;
-      _error = null;
-    });
+    final cached = await TaskService.instance.loadCachedTask(widget.task.id);
+    if (cached != null && mounted) {
+      setState(() {
+        _fullTask = cached;
+        _loadingDetails = false;
+      });
+    }
+    if (ConnectivityService.instance.isOffline) {
+      if (mounted) setState(() => _loadingDetails = false);
+      return;
+    }
+    if (cached == null && mounted) {
+      setState(() {
+        _loadingDetails = true;
+      });
+    }
     try {
       final data = await TaskService.instance.fetchTask(widget.task.id);
+      await AssignedInboxService.instance.upsertMap(data);
       if (mounted) {
         setState(() {
           _fullTask = data;
         });
       }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = AuthService.parseError(error);
-          _fullTask = null;
-        });
-      }
+    } catch (_) {
+      // Офлайн або збій мережі: показуємо вже завантажену заявку.
     } finally {
       if (mounted) {
         setState(() {
@@ -176,6 +201,16 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
         });
       }
     }
+  }
+
+  Future<void> _loadLocalPhotos() async {
+    final files = await OfflineSyncService.instance.backupsForTask(widget.task.id);
+    final pending = await OfflineSyncService.instance.pendingPhotoCount(widget.task.id);
+    if (!mounted) return;
+    setState(() {
+      _localPhotos = files;
+      _pendingUploads = pending;
+    });
   }
 
   Future<void> _loadFiles() async {
@@ -186,12 +221,8 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
           _files = files;
         });
       }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = AuthService.parseError(error);
-        });
-      }
+    } catch (_) {
+      // Файли з сервера недоступні офлайн — лишаємо локальні копії.
     }
   }
 
@@ -201,12 +232,13 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   }
 
   bool get _canCompleteAsExecutor {
-    if (_isAlreadyCompleted) return false;
+    if (_pendingComplete || _isAlreadyCompleted) return false;
     final login = AuthService.instance.userLogin;
     if (login == null || login.isEmpty) return false;
     final assigned = _fullTask?['assignedExecutorLogin']?.toString() ??
         widget.task.assignedExecutorLogin;
-    return assigned == login;
+    return assigned != null &&
+        assigned.toLowerCase() == login.toLowerCase();
   }
 
   Future<void> _confirmAndComplete() async {
@@ -215,7 +247,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Заявка виконана'),
         content: const Text(
-          'Коли ви закриєте заявку, вона зникне з вашого списку видимості. Ви впевнені, що все виконали?',
+          'Якщо зараз немає інтернету, заявка лишиться в списку жовтим кольором, поки не синхронізується з базою. Ви впевнені, що все виконали?',
         ),
         actions: [
           TextButton(
@@ -240,7 +272,11 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
         await OfflineSyncService.instance.enqueueComplete(widget.task.id);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Заявку буде закрито після появи інтернету')),
+          const SnackBar(
+            content: Text(
+              'Заявку виконано локально. Чекаємо інтернет та синхронізації з базою',
+            ),
+          ),
         );
         Navigator.of(context).pop(true);
         return;
@@ -252,10 +288,16 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
       );
       Navigator.of(context).pop(true);
     } catch (error) {
+      await OfflineSyncService.instance.enqueueComplete(widget.task.id);
       if (!mounted) return;
-      setState(() {
-        _error = AuthService.parseError(error);
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Немає зв’язку з сервером. Заявку виконано локально, чекаємо синхронізації',
+          ),
+        ),
+      );
+      Navigator.of(context).pop(true);
     } finally {
       if (mounted) {
         setState(() {
@@ -282,35 +324,64 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
         });
         return;
       }
-      if (ConnectivityService.instance.isOffline) {
+      final backup = await OfflineSyncService.instance.keepDeviceCopy(
+        taskId: widget.task.id,
+        file: file,
+      );
+      final toUpload = XFile(backup.path, name: file.name);
+      final offline = ConnectivityService.instance.isOffline;
+      if (offline) {
         await OfflineSyncService.instance.enqueuePhoto(
           taskId: widget.task.id,
-          file: file,
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Фото збережено. Завантажиться, коли з’явиться інтернет')),
+          file: toUpload,
         );
       } else {
-        await FileService.instance.uploadTaskFiles(
-          taskId: widget.task.id,
-          files: [file],
-        );
-        await _loadFiles();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Фото завантажено')),
-        );
+        try {
+          await FileService.instance.uploadTaskFiles(
+            taskId: widget.task.id,
+            files: [toUpload],
+          );
+          await _loadFiles();
+        } catch (_) {
+          await OfflineSyncService.instance.enqueuePhoto(
+            taskId: widget.task.id,
+            file: toUpload,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Немає зв’язку з сервером. Фото збережено на телефоні і відправиться пізніше',
+                ),
+              ),
+            );
+          }
+          await _loadLocalPhotos();
+          return;
+        }
       }
+      await _loadLocalPhotos();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            offline
+                ? 'Фото збережено на телефоні. Відправиться, коли з’явиться інтернет'
+                : 'Фото завантажено. Копію збережено в галереї DTS Mobile',
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _error = AuthService.parseError(error);
       });
     } finally {
-      setState(() {
-        _uploading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _uploading = false;
+        });
+      }
     }
   }
 
@@ -575,6 +646,20 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                       ),
                     ],
                     const SizedBox(height: 20),
+                    if (_pendingComplete)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        color: const Color(0xFFFFF59D),
+                        child: const Text(
+                          'Заявку виконано. Чекаємо інтернет та синхронізації з базою',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
@@ -628,6 +713,36 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                         padding: EdgeInsets.only(top: 16),
                         child: LinearProgressIndicator(),
                       ),
+                    if (_pendingUploads > 0 || _localPhotos.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _pendingUploads > 0
+                            ? 'На телефоні збережено ${_localPhotos.length} фото. Очікують відправки: $_pendingUploads'
+                            : 'Копії фото збережено на телефоні (${_localPhotos.length})',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 72,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _localPhotos.length.clamp(0, 20),
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final file = _localPhotos[index];
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                file,
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                     if (_files.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       _buildFilesSection(),
@@ -775,13 +890,17 @@ class _FullScreenImageCarouselState extends State<_FullScreenImageCarousel> {
         onPageChanged: (index) => _currentIndexNotifier.value = index,
         itemBuilder: (context, index) {
           final item = items[index];
-          return InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 4.0,
-            child: Center(
-              child: Image.network(
-                item.url,
-                fit: BoxFit.contain,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: Image.network(
+                    item.url,
+                    fit: BoxFit.contain,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Center(
@@ -794,21 +913,23 @@ class _FullScreenImageCarouselState extends State<_FullScreenImageCarousel> {
                     ),
                   );
                 },
-                errorBuilder: (_, __, ___) => const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, size: 64, color: Colors.white54),
-                      SizedBox(height: 16),
-                      Text(
-                        'Не вдалося завантажити зображення',
-                        style: TextStyle(color: Colors.white54),
+                    errorBuilder: (_, __, ___) => const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.broken_image, size: 64, color: Colors.white54),
+                          SizedBox(height: 16),
+                          Text(
+                            'Не вдалося завантажити зображення',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
       ),

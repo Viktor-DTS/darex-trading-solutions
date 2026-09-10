@@ -1,9 +1,6 @@
-import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../models/task.dart';
 import 'api_client.dart';
+import 'assigned_inbox_service.dart';
 import 'connectivity_service.dart';
 import 'offline_sync_service.dart';
 
@@ -43,6 +40,11 @@ class TaskService {
   /// Очистити кеш заявок (наприклад при виході або після створення/редагування).
   void invalidateTasksCache() {
     _filteredTasksCache.clear();
+  }
+
+  Future<void> clearPersistedCaches() async {
+    _filteredTasksCache.clear();
+    await AssignedInboxService.instance.clearAll();
   }
 
   Future<List<Task>> fetchTasks({
@@ -91,7 +93,16 @@ class TaskService {
       assignedToMe: assignedToMe,
     );
 
-    if (!forceRefresh && page == 1) {
+    if (assignedToMe) {
+      if (ConnectivityService.instance.isOffline) {
+        final cached = await AssignedInboxService.instance.listTasks(
+          query: filter ?? '',
+        );
+        return (tasks: cached, total: cached.length);
+      }
+    }
+
+    if (!forceRefresh && page == 1 && !assignedToMe) {
       final cached = _filteredTasksCache[cacheKey];
       if (cached != null && !cached.isExpired(_cacheTtlSeconds)) {
         final visible = await _withoutHidden(cached.tasks);
@@ -134,17 +145,35 @@ class TaskService {
       if (page == 1) {
         _filteredTasksCache[cacheKey] =
             _TasksCacheEntry(tasks, DateTime.now(), total);
-        await _persistAssignedCache(tasks, assignedToMe);
+        if (assignedToMe) {
+          final maps = (tasksList is List)
+              ? tasksList
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+              : <Map<String, dynamic>>[];
+          await AssignedInboxService.instance.applyServerSnapshot(maps);
+          final inbox = await AssignedInboxService.instance.listTasks(
+            query: filter ?? '',
+          );
+          return (tasks: inbox, total: inbox.length);
+        }
       }
       return (tasks: await _withoutHidden(tasks), total: total);
+    }
+    if (assignedToMe) {
+      final cached = await AssignedInboxService.instance.listTasks(
+        query: filter ?? '',
+      );
+      return (tasks: cached, total: cached.length);
     }
     return (tasks: <Task>[], total: 0);
     } catch (_) {
       if (assignedToMe) {
-        final cached = await _loadAssignedCache();
-        final hidden = await OfflineSyncService.instance.hiddenTaskIds();
-        final visible = cached.where((t) => !hidden.contains(t.id)).toList();
-        return (tasks: visible, total: visible.length);
+        final cached = await AssignedInboxService.instance.listTasks(
+          query: filter ?? '',
+        );
+        return (tasks: cached, total: cached.length);
       }
       if (ConnectivityService.instance.isOffline) {
         final mem = _filteredTasksCache[cacheKey];
@@ -163,31 +192,13 @@ class TaskService {
     return tasks.where((t) => !hidden.contains(t.id)).toList();
   }
 
-  Future<void> _persistAssignedCache(List<Task> tasks, bool assignedToMe) async {
-    if (!assignedToMe) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'assigned_tasks_cache_v1',
-      jsonEncode(tasks.map((t) => t.toJson()).toList()),
-    );
-  }
-
-  Future<List<Task>> _loadAssignedCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('assigned_tasks_cache_v1');
-    if (raw == null || raw.isEmpty) return [];
-    final decoded = jsonDecode(raw);
-    if (decoded is List) {
-      return decoded
-          .whereType<Map>()
-          .map((e) => Task.fromJson(Map<String, dynamic>.from(e)))
-          .toList();
-    }
-    return [];
+  Future<Map<String, dynamic>?> loadCachedTask(String taskId) async {
+    return AssignedInboxService.instance.taskMap(taskId);
   }
 
   Future<void> completeAssignedTask(String taskId) async {
     await ApiClient.instance.dio.post('/api/tasks/$taskId/executor-complete');
+    await AssignedInboxService.instance.removeTask(taskId);
     invalidateTasksCache();
   }
 
@@ -217,12 +228,11 @@ class TaskService {
   Future<Map<String, dynamic>> fetchTask(String taskId) async {
     try {
       final response = await ApiClient.instance.dio.get('/api/tasks/$taskId');
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      return data;
     } catch (_) {
-      final cached = await _loadAssignedCache();
-      for (final task in cached) {
-        if (task.id == taskId) return task.toJson();
-      }
+      final cached = await loadCachedTask(taskId);
+      if (cached != null) return cached;
       rethrow;
     }
   }

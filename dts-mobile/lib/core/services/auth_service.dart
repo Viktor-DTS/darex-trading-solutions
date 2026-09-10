@@ -6,6 +6,7 @@ import '../models/user.dart';
 import '../session.dart';
 import 'access_rules_service.dart';
 import 'api_client.dart';
+import 'connectivity_service.dart';
 import 'offline_sync_service.dart';
 import 'push_notification_service.dart';
 import 'secure_storage.dart';
@@ -22,11 +23,14 @@ class AuthService {
     Session.loadFromJson(token, userJson);
     if (token == null || token.isEmpty) return;
 
+    await AccessRulesService.instance.preloadFromDisk();
+
     if (!await validateSession()) {
       await expireSession();
       return;
     }
     await AccessRulesService.instance.loadAccessRules();
+    await OfflineSyncService.instance.flush();
   }
 
   Future<User> login({
@@ -67,6 +71,7 @@ class AuthService {
   Future<bool> validateSession() async {
     final token = Session.token;
     if (token == null || token.isEmpty) return false;
+    if (ConnectivityService.instance.isOffline) return true;
     if (_isJwtExpired(token)) return false;
     try {
       await ApiClient.instance.dio.get('/api/accessRules');
@@ -81,7 +86,6 @@ class AuthService {
 
   /// Прострочена сесія: вихід без стирання збереженого логіна/пароля.
   Future<void> expireSession() async {
-    AccessRulesService.instance.clear();
     Session.clear();
     await SecureStorage.clearSession();
     TaskService.instance.invalidateTasksCache();
@@ -89,10 +93,10 @@ class AuthService {
 
   Future<void> logout() async {
     await PushNotificationService.instance.clearToken();
-    AccessRulesService.instance.clear();
+    await AccessRulesService.instance.clear();
     Session.clear();
     await SecureStorage.clearSession();
-    TaskService.instance.invalidateTasksCache();
+    await TaskService.instance.clearPersistedCaches();
   }
 
   String? get role => Session.user?.role;

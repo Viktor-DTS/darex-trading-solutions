@@ -4,6 +4,7 @@ import '../app_navigator.dart';
 import '../models/task.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/service/task_details_screen.dart';
+import 'assigned_inbox_service.dart';
 import 'auth_service.dart';
 import 'push_notification_service.dart';
 import 'task_service.dart';
@@ -36,8 +37,15 @@ Future<void> openTaskFromPushData(Map<String, dynamic> data) async {
   }
 
   try {
+    await AssignedInboxService.instance.ingestPush(data);
+    if (data['type']?.toString() == 'task_unassigned') {
+      await PushNotificationService.instance.clearPending();
+      _goNamedAndClear(HomeScreen.routeName);
+      return;
+    }
     final taskData = await TaskService.instance.fetchTask(taskId);
     final task = Task.fromJson(taskData);
+    await AssignedInboxService.instance.upsertMap(taskData);
     await PushNotificationService.instance.clearPending();
     final nav = navigatorKey.currentState;
     if (nav == null) return;
