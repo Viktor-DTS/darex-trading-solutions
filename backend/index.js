@@ -22086,6 +22086,8 @@ ${fieldLines}`;
       const users = await User.find(query).select('login role region fcmToken').lean();
       const filtered = users.filter(u => {
         const role = String(u.role || '').toLowerCase();
+        // Роль service у APP отримує лише призначення/скасування виконавця (notifyExecutorAboutTask).
+        if (role === 'service') return false;
         if (role === 'admin' || role === 'administrator') return true;
         if (u.region === 'Україна') return true;
         return task.serviceRegion === u.region;
