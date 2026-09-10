@@ -1877,9 +1877,9 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           <button
             className={`btn-toggle-filters ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
-            title={showFilters ? 'Сховати фільтри колонок' : 'Показати фільтри колонок'}
+            title={showFilters ? 'Сховати фільтри колонок' : 'Натисни щоб активувати фільтрацію'}
           >
-            🔽 Фільтри
+            {compactVariant ? 'Натисни щоб активувати фільтрацію' : '🔽 Фільтри'}
           </button>
           {hasActiveFilters && (
             <button
