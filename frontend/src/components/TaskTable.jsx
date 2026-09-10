@@ -763,9 +763,17 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       });
     }
     setAssignTask(null);
-    if (!taskId) return;
+    fetchIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    if (!taskId && !taskNumber) return;
+    const sameRow = (t) => {
+      const rowId = taskRecordId(t);
+      if (taskId && rowId && rowId === taskId) return true;
+      const rowNumber = String(t?.requestNumber || '');
+      return Boolean(taskNumber) && rowNumber === String(taskNumber);
+    };
     const mergeAssigned = (t) => {
-      if (taskRecordId(t) !== taskId) return t;
+      if (!sameRow(t)) return t;
       if (updated?.unassigned) {
         return {
           ...t,
@@ -775,10 +783,20 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           executorWorkStatus: '',
         };
       }
-      return { ...t, ...updated, id: t.id || taskId };
+      return {
+        ...t,
+        ...updated,
+        assignedExecutorLogin: updated.assignedExecutorLogin,
+        assignedExecutorName: updated.assignedExecutorName,
+        executorWorkStatus: updated.executorWorkStatus || 'Передано в роботу',
+        engineer1: updated.engineer1 || t.engineer1,
+        status: updated.status || t.status,
+        id: t.id || taskId,
+        _id: t._id || updated._id || taskId,
+      };
     };
     if (status === 'newRequests' && updated?.status === 'В роботі' && !updated?.unassigned) {
-      setTasks((prev) => prev.filter((t) => taskRecordId(t) !== taskId));
+      setTasks((prev) => prev.filter((t) => !sameRow(t)));
     } else {
       setTasks((prev) => prev.map(mergeAssigned));
     }

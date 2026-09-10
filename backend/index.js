@@ -10077,7 +10077,8 @@ app.get('/api/tasks/filter', async (req, res) => {
         return res.status(401).json({ error: 'Не авторизовано' });
       }
       if (isServiceAssignedToMe) {
-        matchStage.assignedExecutorLogin = login;
+        const escaped = login.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        matchStage.assignedExecutorLogin = { $regex: `^${escaped}$`, $options: 'i' };
         matchStage.executorWorkStatus = 'Передано в роботу';
       }
     }
@@ -10703,7 +10704,8 @@ app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) =
       return res.status(400).json({ error: 'Оберіть виконавця' });
     }
 
-    const task = await Task.findById(req.params.id);
+    const taskId = String(req.params.id || '').trim();
+    const task = await Task.findById(taskId).lean();
     if (!task) {
       return res.status(404).json({ error: 'Заявку не знайдено' });
     }
@@ -10729,17 +10731,25 @@ app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) =
     const previousLogin = String(task.assignedExecutorLogin || '').trim();
     const engineerName = (executor.name && String(executor.name).trim()) || executor.login;
     const previousEngineer = task.engineer1 || '';
-    task.engineer1 = engineerName;
-    task.assignedExecutorLogin = executor.login;
-    task.assignedExecutorName = engineerName;
-    task.executorWorkStatus = 'Передано в роботу';
-    task.executorAssignedAt = new Date();
-    task.executorCompletedAt = null;
-    if (task.status === 'Заявка') {
-      task.status = 'В роботі';
+    const nextStatus = task.status === 'Заявка' ? 'В роботі' : task.status;
+    const saved = await Task.findByIdAndUpdate(
+      taskId,
+      {
+        $set: {
+          engineer1: engineerName,
+          assignedExecutorLogin: executor.login,
+          assignedExecutorName: engineerName,
+          executorWorkStatus: 'Передано в роботу',
+          executorAssignedAt: new Date(),
+          ...(nextStatus !== task.status ? { status: nextStatus } : {}),
+        },
+        $unset: { executorCompletedAt: 1 },
+      },
+      { new: true, lean: true }
+    );
+    if (!saved) {
+      return res.status(404).json({ error: 'Заявку не знайдено' });
     }
-    await task.save();
-    const saved = task.toObject();
 
     const actorUser = req.user || actor || { login: 'system', name: 'Система' };
     if (previousLogin && previousLogin !== executor.login) {
@@ -10772,7 +10782,8 @@ app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) =
 
 app.post('/api/tasks/:id/unassign-executor', authenticateToken, async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const taskId = String(req.params.id || '').trim();
+    const task = await Task.findById(taskId).lean();
     if (!task) {
       return res.status(404).json({ error: 'Заявку не знайдено' });
     }
@@ -10789,16 +10800,28 @@ app.post('/api/tasks/:id/unassign-executor', authenticateToken, async (req, res)
       .select('login name fcmToken telegramChatId')
       .lean();
 
+    const unsetFields = {
+      assignedExecutorLogin: 1,
+      assignedExecutorName: 1,
+      executorWorkStatus: 1,
+      executorAssignedAt: 1,
+      executorCompletedAt: 1,
+    };
+    const setFields = {};
     if (String(task.engineer1 || '').trim() === String(previousName).trim()) {
-      task.engineer1 = '';
+      setFields.engineer1 = '';
     }
-    task.assignedExecutorLogin = '';
-    task.assignedExecutorName = '';
-    task.executorWorkStatus = '';
-    task.executorAssignedAt = null;
-    task.executorCompletedAt = null;
-    await task.save();
-    const saved = task.toObject();
+    const saved = await Task.findByIdAndUpdate(
+      taskId,
+      {
+        ...(Object.keys(setFields).length ? { $set: setFields } : {}),
+        $unset: unsetFields,
+      },
+      { new: true, lean: true }
+    );
+    if (!saved) {
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
 
     const actorUser = req.user || { login: 'system', name: 'Система' };
     await notifyExecutorAboutTask(previous, saved, actorUser, {
@@ -10811,6 +10834,9 @@ app.post('/api/tasks/:id/unassign-executor', authenticateToken, async (req, res)
       ...saved,
       _id: String(saved._id),
       id: String(saved._id),
+      assignedExecutorLogin: '',
+      assignedExecutorName: '',
+      executorWorkStatus: '',
       unassigned: true,
       previousExecutor: previousName,
     });
@@ -10836,10 +10862,17 @@ app.post('/api/tasks/:id/executor-complete', authenticateToken, async (req, res)
     if (task.executorWorkStatus === 'Виконавець виконав роботу') {
       return res.json({ ...task.toObject(), id: String(task._id), alreadyCompleted: true });
     }
-    task.executorWorkStatus = 'Виконавець виконав роботу';
-    task.executorCompletedAt = new Date();
-    await task.save();
-    const saved = task.toObject();
+    const savedDoc = await Task.findByIdAndUpdate(
+      task._id,
+      {
+        $set: {
+          executorWorkStatus: 'Виконавець виконав роботу',
+          executorCompletedAt: new Date(),
+        },
+      },
+      { new: true, lean: true }
+    );
+    const saved = savedDoc || task.toObject();
     res.json({ ...saved, id: String(saved._id) });
   } catch (error) {
     console.error('[ERROR] POST /api/tasks/:id/executor-complete:', error);

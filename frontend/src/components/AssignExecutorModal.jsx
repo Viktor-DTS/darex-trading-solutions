@@ -5,6 +5,7 @@ import './AssignExecutorModal.css';
 
 export default function AssignExecutorModal({ task, onClose, onAssigned }) {
   const currentLogin = String(task?.assignedExecutorLogin || '').trim();
+  const taskMongoId = String(task?._id || task?.id || '').trim();
   const alreadyAssigned = Boolean(currentLogin);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +51,10 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
   }, [users, query]);
 
   const submit = async () => {
+    if (!taskMongoId) {
+      setError('Немає ідентифікатора заявки');
+      return;
+    }
     if (!selectedLogin) {
       setError('Оберіть виконавця зі списку');
       return;
@@ -62,7 +67,7 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
     setError('');
     try {
       const token = localStorage.getItem('token');
-      const res = await authFetch(`${API_BASE_URL}/tasks/${task.id || task._id}/assign-executor`, {
+      const res = await authFetch(`${API_BASE_URL}/tasks/${taskMongoId}/assign-executor`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -90,7 +95,7 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
     setError('');
     try {
       const token = localStorage.getItem('token');
-      const res = await authFetch(`${API_BASE_URL}/tasks/${task.id || task._id}/unassign-executor`, {
+      const res = await authFetch(`${API_BASE_URL}/tasks/${taskMongoId}/unassign-executor`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -111,8 +116,10 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
         <p className="assign-exec-meta">
           Заявка <b>{task?.requestNumber || 'без номера'}</b>
           {task?.serviceRegion ? ` · ${task.serviceRegion}` : ''}
-          {alreadyAssigned ? ` · зараз: ${task.assignedExecutorName || currentLogin}` : (task?.engineer1 ? ` · зараз: ${task.engineer1}` : '')}
         </p>
+        {alreadyAssigned ? (
+          <p className="assign-exec-current">Поточний виконавець: <b>{task.assignedExecutorName || currentLogin}</b></p>
+        ) : null}
         <input
           className="assign-exec-search"
           type="search"

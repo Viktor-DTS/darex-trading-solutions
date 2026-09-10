@@ -33,6 +33,12 @@
   line-height: 1.4;
 }
 
+.assign-exec-current {
+  margin: -4px 0 12px;
+  color: #c4b5fd;
+  font-size: 13px;
+}
+
 .assign-exec-search {
   width: 100%;
   box-sizing: border-box;
