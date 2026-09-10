@@ -12,6 +12,7 @@ import '../../core/services/file_service.dart';
 import '../../core/services/offline_sync_service.dart';
 import '../../core/services/task_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'photo_capture_session_screen.dart';
 
 /// Поля заявки для відображення (як у веб-версії). Тільки перегляд; редагування заборонено.
 /// Єдине дозволене — додавання фото/файлів через камеру та галерею.
@@ -304,6 +305,29 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
           _completing = false;
         });
       }
+    }
+  }
+
+  Future<void> _openCameraSession() async {
+    final uploaded = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PhotoCaptureSessionScreen(taskId: widget.task.id),
+      ),
+    );
+    if (!mounted) return;
+    await _loadLocalPhotos();
+    await _loadFiles();
+    if (!mounted) return;
+    if (uploaded == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ConnectivityService.instance.isOffline
+                ? 'Фото збережено на телефоні. Відправляться, коли з’явиться інтернет'
+                : 'Фото додано до заявки. Копії збережено в галереї DTS Mobile',
+          ),
+        ),
+      );
     }
   }
 
@@ -689,9 +713,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: _uploading
-                                ? null
-                                : () => _pickAndUpload(ImageSource.camera),
+                            onPressed: _uploading ? null : _openCameraSession,
                             icon: const Icon(Icons.photo_camera),
                             label: const Text('Камера'),
                           ),
