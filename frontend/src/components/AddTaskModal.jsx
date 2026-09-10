@@ -432,6 +432,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     files: true
   });
   const [activeFormCategory, setActiveFormCategory] = useState('basic');
+  const [editingRequestNumber, setEditingRequestNumber] = useState(false);
   const isFormSectionVisible = (id) => {
     if (isAccountantMode || !modernLayout) return !!showSections[id];
     return activeFormCategory === id;
@@ -493,6 +494,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   useEffect(() => {
     if (!open) return;
     loadEstimateSpecs().catch(() => {});
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) setEditingRequestNumber(false);
   }, [open]);
   
   // ========== АВТОЗАПОВНЕННЯ ==========
@@ -2316,14 +2321,56 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         {modernLayout ? (
           <div className="task-passport">
             <div className="task-passport-id">
-              <strong>{isNewTask ? 'Нова заявка' : (formData.requestNumber || 'Без номера')}</strong>
+              <span className="task-passport-number">
+                <small>Номер заявки/наряду</small>
+                <span className="task-passport-number-row">
+                  {editingRequestNumber ? (
+                    <input
+                      type="text"
+                      name="requestNumber"
+                      className="task-passport-number-input"
+                      value={formData.requestNumber}
+                      onChange={(e) => {
+                        if (!isTaskAdminUser) return;
+                        setFormData((prev) => ({ ...prev, requestNumber: e.target.value }));
+                      }}
+                      onBlur={() => setEditingRequestNumber(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          setEditingRequestNumber(false);
+                        }
+                        if (e.key === 'Escape') setEditingRequestNumber(false);
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <strong>
+                      {isNewTask && !formData.requestNumber ? 'Нова заявка' : (formData.requestNumber || 'Без номера')}
+                    </strong>
+                  )}
+                  {isTaskAdminUser ? (
+                    <button
+                      type="button"
+                      className="task-passport-edit-number"
+                      title="Редагувати номер заявки"
+                      onClick={() => setEditingRequestNumber(true)}
+                    >
+                      ✎
+                    </button>
+                  ) : null}
+                </span>
+              </span>
+              <span className="task-passport-author">
+                <small>Автор заявки</small>
+                <b>{formData.requestAuthor || '—'}</b>
+              </span>
               <span className={`task-passport-chip is-status-${String(formData.status || '').replace(/\s+/g, '-').toLowerCase()}`}>
                 {formData.status || 'Без статусу'}
               </span>
               {formData.urgentRequest ? <span className="task-passport-chip is-urgent">Термінова</span> : null}
               {formData.internalWork ? <span className="task-passport-chip">Внутрішні</span> : null}
               {formData.serviceRegion ? <span className="task-passport-chip">{formData.serviceRegion}</span> : null}
-              {formData.requestAuthor ? <span className="task-passport-chip">{formData.requestAuthor}</span> : null}
               {clientPaymentDebt && clientPaymentDebt.count > 0 ? (
                 <span className="task-passport-chip is-debt">
                   💳 У цього замовника є заборгованість по оплаті: {clientPaymentDebt.count} заявок на суму {clientPaymentDebt.sum.toFixed(2)} грн
@@ -2449,7 +2496,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             </div>
           )}
 
-          {/* Номер заявки/наряду та Автор заявки - в одному рядку */}
+          {/* Номер заявки/наряду та Автор заявки — у покращеному виді в паспорті */}
+          {!modernLayout ? (
           <div className="task-identity-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-end' }}>
             <div className="form-group" style={{ flex: 1, textAlign: 'center' }}>
               <label style={{ fontSize: '14px', fontWeight: '600' }}>Номер заявки/наряду {isNewTask && '(автогенерація)'}</label>
@@ -2486,6 +2534,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
               />
             </div>
           </div>
+          ) : null}
 
           {modernLayout && !isAccountantMode ? (
             <div className="task-form-cats" role="tablist" aria-label="Розділи заявки">
