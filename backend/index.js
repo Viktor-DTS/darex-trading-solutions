@@ -1477,6 +1477,7 @@ taskSchema.index({ taskId: 1 }); // Для InvoiceRequest
 // Складний індекс для швидкої фільтрації
 taskSchema.index({ status: 1, serviceRegion: 1, requestDate: -1 });
 taskSchema.index({ serviceRegion: 1, requestDate: -1 }); // Для GET /api/tasks з фільтром по регіону
+taskSchema.index({ assignedExecutorLogin: 1, executorWorkStatus: 1 });
 
 const Task = mongoose.model('Task', taskSchema);
 
@@ -9645,7 +9646,7 @@ function buildTaskTableDataFacetStages(sortField, sortDirection, skip, limit) {
 app.get('/api/tasks/filter', async (req, res) => {
   const startTime = Date.now();
   try {
-    const { status, statuses, region, sort = '-requestDate', page, limit, filter, sortField, sortDirection, columnFilters } = req.query;
+    const { status, statuses, region, sort = '-requestDate', page, limit, filter, sortField, sortDirection, columnFilters, assignedToMe } = req.query;
     const isPaginated = page !== undefined && limit !== undefined && !isNaN(parseInt(limit));
     const PARSE_SERVICE_TOTAL_EXPR = buildParseNumericFieldExpr('$serviceTotal');
     const SERVICE_TOTAL_SUM_FACET = [{
@@ -10064,6 +10065,15 @@ app.get('/api/tasks/filter', async (req, res) => {
       } else {
         matchStage.serviceRegion = region;
       }
+    }
+
+    if (assignedToMe === '1' || assignedToMe === 'true') {
+      const login = String(req.user?.login || '').trim();
+      if (!login) {
+        return res.status(401).json({ error: 'Не авторизовано' });
+      }
+      matchStage.assignedExecutorLogin = login;
+      matchStage.executorWorkStatus = 'Передано в роботу';
     }
     
     // $lookup InvoiceRequest — для панелей, де в таблиці показується статус рахунку
@@ -10680,6 +10690,119 @@ app.put('/api/tasks/:id', async (req, res) => {
   }
 });
 
+app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) => {
+  try {
+    const login = String(req.body?.login || '').trim();
+    if (!login) {
+      return res.status(400).json({ error: 'Оберіть виконавця' });
+    }
+
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    if (task.status === 'Виконано' || task.status === 'Заблоковано') {
+      return res.status(400).json({ error: 'Цю заявку не можна передати виконавцю' });
+    }
+
+    const actor = await User.findOne({ login: req.user?.login }).select('role region name login').lean();
+    const executor = await User.findOne({
+      login,
+      role: 'service',
+      dismissed: { $ne: true },
+    }).select('login name role region fcmToken telegramChatId').lean();
+    if (!executor) {
+      return res.status(400).json({ error: 'Виконавець має бути сервісним інженером свого регіону' });
+    }
+
+    const allowed = assignExecutorAllowedRegions(actor, task.serviceRegion);
+    if (!userMatchesAllowedRegions(executor.region, allowed)) {
+      return res.status(403).json({ error: 'Можна передати лише інженеру свого регіону' });
+    }
+
+    const engineerName = (executor.name && String(executor.name).trim()) || executor.login;
+    const previousEngineer = task.engineer1 || '';
+    task.engineer1 = engineerName;
+    task.assignedExecutorLogin = executor.login;
+    task.assignedExecutorName = engineerName;
+    task.executorWorkStatus = 'Передано в роботу';
+    task.executorAssignedAt = new Date();
+    task.executorCompletedAt = null;
+    if (task.status === 'Заявка') {
+      task.status = 'В роботі';
+    }
+    await task.save();
+    const saved = task.toObject();
+
+    const actorUser = req.user || actor || { login: 'system', name: 'Система' };
+    try {
+      if (executor.telegramChatId) {
+        await telegramService.sendMessage(
+          executor.telegramChatId,
+          telegramService.formatTaskMessage('task_assigned', saved, actorUser)
+        );
+      }
+      if (executor.fcmToken) {
+        const reqNum = saved.requestNumber != null ? String(saved.requestNumber) : '';
+        const desc = saved.requestDesc != null ? String(saved.requestDesc).trim() : '';
+        const body = desc || (saved.client ? String(saved.client) : 'Відкрийте заявку в DTS Mobile');
+        await sendPushToUsers([executor], {
+          title: 'Вам додана нова заявка',
+          body: reqNum ? `${reqNum}. ${body}` : body,
+          data: {
+            type: 'task_assigned',
+            taskId: String(saved._id),
+            taskNumber: reqNum,
+            expandedBody: desc || body,
+            region: saved.serviceRegion != null ? String(saved.serviceRegion) : '',
+            customer: saved.client != null ? String(saved.client) : '',
+            address: saved.address != null ? String(saved.address) : '',
+            status: saved.status != null ? String(saved.status) : '',
+          },
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[assign-executor] notify failed:', notifyErr.message);
+    }
+
+    res.json({
+      ...saved,
+      id: String(saved._id),
+      previousEngineer,
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/tasks/:id/assign-executor:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/tasks/:id/executor-complete', authenticateToken, async (req, res) => {
+  try {
+    const login = String(req.user?.login || '').trim();
+    if (!login) {
+      return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    if (String(task.assignedExecutorLogin || '').trim() !== login) {
+      return res.status(403).json({ error: 'Закрити заявку може лише призначений виконавець' });
+    }
+    if (task.executorWorkStatus === 'Виконавець виконав роботу') {
+      return res.json({ ...task.toObject(), id: String(task._id), alreadyCompleted: true });
+    }
+    task.executorWorkStatus = 'Виконавець виконав роботу';
+    task.executorCompletedAt = new Date();
+    await task.save();
+    const saved = task.toObject();
+    res.json({ ...saved, id: String(saved._id) });
+  } catch (error) {
+    console.error('[ERROR] POST /api/tasks/:id/executor-complete:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============================================
 // ОНОВЛЕННЯ КООРДИНАТ ЗАЯВКИ
 // ============================================
@@ -11126,6 +11249,59 @@ app.get('/api/users/online', async (req, res) => {
   } catch (error) {
     console.error('[ACTIVITY] Помилка /api/users/online:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+function parseUserRegions(region) {
+  return String(region || '')
+    .split(',')
+    .map((r) => r.trim())
+    .filter(Boolean);
+}
+
+function userMatchesAllowedRegions(userRegion, allowedRegions) {
+  if (!allowedRegions?.length) return true;
+  const regions = parseUserRegions(userRegion);
+  if (regions.includes('Україна')) return true;
+  return regions.some((r) => allowedRegions.includes(r));
+}
+
+function assignExecutorAllowedRegions(actor, taskRegion) {
+  const role = String(actor?.role || '').toLowerCase();
+  const actorRegions = parseUserRegions(actor?.region);
+  const isAdmin = role === 'admin' || role === 'administrator';
+  if (!isAdmin && actorRegions.length && !actorRegions.includes('Україна')) {
+    return actorRegions;
+  }
+  const region = String(taskRegion || '').trim();
+  return region ? [region] : [];
+}
+
+/** Сервісні інженери свого регіону для кнопки «Передати виконавцю». Перед /api/users/:login. */
+app.get('/api/users/service-for-assign', authenticateToken, async (req, res) => {
+  try {
+    const actor = await User.findOne({ login: req.user?.login })
+      .select('login role region')
+      .lean();
+    const allowed = assignExecutorAllowedRegions(actor, req.query.region);
+    const rows = await User.find({
+      role: 'service',
+      dismissed: { $ne: true },
+    })
+      .select('login name region')
+      .sort({ name: 1, login: 1 })
+      .lean();
+    const users = rows
+      .filter((u) => u.login && userMatchesAllowedRegions(u.region, allowed))
+      .map((u) => ({
+        login: u.login,
+        name: (u.name && String(u.name).trim()) || u.login,
+        region: u.region || '',
+      }));
+    res.json(users);
+  } catch (err) {
+    console.error('[ERROR] GET /api/users/service-for-assign:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -21179,6 +21355,7 @@ function resolveTaskNotificationDateTime(type, task) {
 
 const TASK_NOTIFICATION_TITLES = {
   task_created: '🆕 Нова заявка',
+  task_assigned: '🆕 Вам додана нова заявка',
   task_edited: '⚠️ Увага заявка була змінена',
   task_completed: '✅ Заявка виконана',
   task_approval: '⏳ Потребує підтвердження Завсклада',
@@ -21681,6 +21858,7 @@ ${fieldLines}`;
 
     const actions = {
       'task_created': '\n\n💡 <b>Дія:</b> Розглянути та призначити виконавця',
+      'task_assigned': '\n\n💡 <b>Дія:</b> Відкрити заявку та виконати роботи',
       'task_edited': '\n\n💡 <b>Дія:</b> Перевірити актуальні дані заявки',
       'task_completed': '\n\n⏳ <b>Очікує підтвердження від:</b>\n• Зав. склад\n• Бухгалтер',
       'task_approval': '\n\n📋 <b>Необхідно перевірити</b>',
@@ -21707,6 +21885,7 @@ ${fieldLines}`;
 
     const actions = {
       task_created: '\n\n💡 Дія: Розглянути та призначити виконавця',
+      task_assigned: '\n\n💡 Дія: Відкрити заявку та виконати роботи',
       task_edited: '\n\n💡 Дія: Перевірити актуальні дані заявки',
       task_completed: '\n\n⏳ Очікує підтвердження від:\n• Зав. склад\n• Бухгалтер',
       task_approval: '\n\n📋 Необхідно перевірити',

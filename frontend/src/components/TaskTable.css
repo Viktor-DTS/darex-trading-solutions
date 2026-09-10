@@ -566,6 +566,52 @@
 }
 
 /* Кнопка перегляду */
+.btn-assign-executor {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-assign-executor:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+}
+
+.btn-assign-executor:active {
+  transform: translateY(0);
+}
+
+.executor-work-badge {
+  margin-top: 4px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+  max-width: 160px;
+}
+
+.executor-work-badge.is-assigned {
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+}
+
+.executor-work-badge.is-done {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
 .btn-view-task {
   padding: 4px 8px;
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);

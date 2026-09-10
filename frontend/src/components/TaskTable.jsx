@@ -5,6 +5,7 @@ import { generateWorkOrder } from '../utils/workOrderGenerator';
 import { getWarehouseApprovedAt } from '../utils/taskStuckRules';
 import { taskRequiresOnecWriteoff } from './onec/taskOnecMaterials';
 import { parseNumber } from '../utils/estimate/estimatePrefill';
+import AssignExecutorModal from './AssignExecutorModal';
 import './TaskTable.css';
 
 // Кеш списку заявок на клієнті (TTL 90 с) — менше запитів при перемиканні вкладок
@@ -419,6 +420,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [deletingTaskId, setDeletingTaskId] = useState(null);
   const [restoringTaskId, setRestoringTaskId] = useState(null);
   const [takingTaskId, setTakingTaskId] = useState(null);
+  const [assignTask, setAssignTask] = useState(null);
   const abortControllerRef = useRef(null);
   const fetchIdRef = useRef(0);
   
@@ -682,6 +684,61 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   };
 
   const canRestoreDeletedTask = (task) => isAdminUser && isTaskMarkedForDeletion(task);
+
+  const canAssignExecutor = (task) => (
+    columnsArea === 'service'
+    && task
+    && task.status !== 'Виконано'
+    && task.status !== 'Заблоковано'
+    && !isTaskMarkedForDeletion(task)
+  );
+
+  const executorWorkBadge = (task) => {
+    const statusText = String(task?.executorWorkStatus || '').trim();
+    if (!statusText) return null;
+    const done = statusText === 'Виконавець виконав роботу';
+    return (
+      <div
+        className={`executor-work-badge ${done ? 'is-done' : 'is-assigned'}`}
+        title={task.assignedExecutorName ? `${statusText}: ${task.assignedExecutorName}` : statusText}
+      >
+        {statusText}
+        {task.assignedExecutorName ? ` · ${task.assignedExecutorName}` : ''}
+      </div>
+    );
+  };
+
+  const handleAssignedExecutor = (updated) => {
+    const taskId = updated?._id || updated?.id || assignTask?._id || assignTask?.id;
+    const taskNumber = updated?.requestNumber || assignTask?.requestNumber || taskId;
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const token = localStorage.getItem('token');
+    if (token && taskId) {
+      postTaskEventLog(token, {
+        userId: currentUser._id || currentUser.id,
+        userName: currentUser.name || currentUser.login,
+        userRole: currentUser.role,
+        action: 'assign_executor',
+        entityType: 'task',
+        entityId: taskId,
+        description: `Заявку ${taskNumber} передано виконавцю ${updated?.engineer1 || ''}`,
+        details: {
+          requestNumber: taskNumber,
+          engineer: updated?.engineer1 || '',
+          previousEngineer: updated?.previousEngineer || '',
+          status: updated?.status,
+        },
+      });
+    }
+    setAssignTask(null);
+    if (!taskId) return;
+    if (status === 'newRequests' && updated?.status === 'В роботі') {
+      setTasks((prev) => prev.filter((t) => (t._id || t.id) !== taskId));
+    } else {
+      setTasks((prev) => prev.map((t) => ((t._id || t.id) === taskId ? { ...t, ...updated } : t)));
+    }
+    clearTasksCache();
+  };
 
   const postTaskEventLog = async (token, payload) => {
     try {
@@ -1770,6 +1827,16 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
               ➕ На основі
             </button>
           )}
+          {canAssignExecutor(task) && (
+            <button
+              className="btn-assign-executor"
+              onClick={() => setAssignTask(task)}
+              title="Передати заявку сервісному інженеру свого регіону"
+            >
+              👤 Передати виконавцю
+            </button>
+          )}
+          {columnsArea === 'service' ? executorWorkBadge(task) : null}
           {canShowViewButton && (
             <button className="btn-view-task" onClick={() => onViewClick(task)} title="Перегляд заявки">
               👁️ Перегляд
@@ -2219,6 +2286,19 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                           ➕ На основі
                         </button>
                       )}
+                      {canAssignExecutor(task) && (
+                        <button
+                          className="btn-assign-executor"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssignTask(task);
+                          }}
+                          title="Передати заявку сервісному інженеру свого регіону"
+                        >
+                          👤 Передати виконавцю
+                        </button>
+                      )}
+                      {columnsArea === 'service' ? executorWorkBadge(task) : null}
                       {/* Кнопки дій для бух.рахунки - компактні */}
                       {status === 'accountantInvoiceRequests' && (
                         <div className="invoice-action-buttons">
@@ -2374,6 +2454,13 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           </tbody>
         </table>
       </div>
+      )}
+      {assignTask && (
+        <AssignExecutorModal
+          task={assignTask}
+          onClose={() => setAssignTask(null)}
+          onAssigned={handleAssignedExecutor}
+        />
       )}
     </div>
   );
