@@ -172,11 +172,39 @@ export function openImageGalleryWindow(images, startIndex = 0) {
           showImage((currentIndex + 1) % images.length);
         }
 
-        function downloadImage() {
-          const link = document.createElement('a');
-          link.href = images[currentIndex].originalUrl || images[currentIndex].url;
-          link.download = images[currentIndex].name;
-          link.click();
+        function attachmentUrl(url) {
+          if (!url) return url;
+          const marker = '/image/upload/';
+          if (url.indexOf(marker) === -1) return url;
+          if (url.indexOf('fl_attachment') !== -1) return url;
+          return url.replace(marker, marker + 'fl_attachment/');
+        }
+
+        async function downloadImage() {
+          const img = images[currentIndex];
+          const name = img.name || 'photo.jpg';
+          const source = img.originalUrl || img.url;
+          try {
+            const res = await fetch(source, { mode: 'cors' });
+            if (!res.ok) throw new Error('fetch failed');
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = name;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+          } catch (e) {
+            const link = document.createElement('a');
+            link.href = attachmentUrl(source);
+            link.download = name;
+            link.rel = 'noopener';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          }
         }
 
         document.addEventListener('keydown', (e) => {
