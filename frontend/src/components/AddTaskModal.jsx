@@ -225,6 +225,16 @@ const normalizeOtherMaterialLines = (raw) => {
 
 const newEmptyOtherMaterialLine = () => ({ name: '', count: '', price: '', note: '' });
 
+const TASK_FORM_CATEGORIES = [
+  { id: 'basic', label: 'Основна інформація' },
+  { id: 'client', label: 'Клієнт та адреса' },
+  { id: 'equipment', label: 'Роботи, обладнання та матеріали' },
+  { id: 'work', label: 'Інженери' },
+  { id: 'expenses', label: 'Витрати та транспорт' },
+  { id: 'other', label: 'Підтвердження' },
+  { id: 'files', label: 'Файли виконаних робіт' },
+];
+
 // Форматування дати для datetime-local input (YYYY-MM-DDTHH:mm)
 const formatDateForInput = (dateValue) => {
   if (!dateValue) return '';
@@ -421,6 +431,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     other: isAccountantMode || modernLayout ? true : false,
     files: true
   });
+  const [activeFormCategory, setActiveFormCategory] = useState('basic');
+  const isFormSectionVisible = (id) => {
+    if (isAccountantMode || !modernLayout) return !!showSections[id];
+    return activeFormCategory === id;
+  };
   
   // Стан для файлу договору
   const [contractFileUploading, setContractFileUploading] = useState(false);
@@ -1654,6 +1669,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     if (!name) return;
     const qty = formatHintQty(analogue?.qtyMax ?? slot.suggestedQty);
     setShowSections((prev) => ({ ...prev, equipment: true, materials: true }));
+    if (modernLayout) setActiveFormCategory('equipment');
     setFormData((prev) => {
       if (slot.kind === 'other') {
         return { ...prev, otherMaterialLines: upsertOtherMaterialHintLine(prev.otherMaterialLines, name, qty) };
@@ -1667,6 +1683,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const applyAllMaterialHints = (slots) => {
     if (isReadOnly || !Array.isArray(slots) || !slots.length) return;
     setShowSections((prev) => ({ ...prev, equipment: true, materials: true }));
+    if (modernLayout) setActiveFormCategory('equipment');
     setFormData((prev) => {
       let next = { ...prev };
       let lines = [...(next.otherMaterialLines || [])];
@@ -2470,15 +2487,32 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             </div>
           </div>
 
+          {modernLayout && !isAccountantMode ? (
+            <div className="task-form-cats" role="tablist" aria-label="Розділи заявки">
+              {TASK_FORM_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeFormCategory === cat.id}
+                  className={`task-form-cat${activeFormCategory === cat.id ? ' is-active' : ''}`}
+                  onClick={() => setActiveFormCategory(cat.id)}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           {/* Основна інформація */}
           <div className="form-section section-basic">
-            {!isAccountantMode && (
+            {!isAccountantMode && !modernLayout && (
             <div className="section-header" onClick={() => toggleSection('basic')}>
               <h3>Основна інформація</h3>
               <span className="section-toggle">{showSections.basic ? '▼' : '▶'}</span>
             </div>
             )}
-            {showSections.basic && (
+            {isFormSectionVisible('basic') && (
               <div className="section-content">
                 <div className={boardClass('status')}>
                 {boardTitle('Статус і графік')}
@@ -2611,13 +2645,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Клієнт та адреса */}
           <div className="form-section section-client">
-            {!isAccountantMode && (
+            {!isAccountantMode && !modernLayout && (
             <div className="section-header" onClick={() => toggleSection('client')}>
               <h3>Клієнт та адреса</h3>
               <span className="section-toggle">{showSections.client ? '▼' : '▶'}</span>
             </div>
             )}
-            {showSections.client && (
+            {isFormSectionVisible('client') && (
               <div className="section-content">
                 <div className={boardClass('who')}>
                 {boardTitle('Замовник')}
@@ -3008,13 +3042,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Роботи, обладнання та матеріали */}
           <div className="form-section section-equipment">
-            {!isAccountantMode && (
+            {!isAccountantMode && !modernLayout && (
             <div className="section-header" onClick={() => toggleSection('equipment')}>
                 <h3>Роботи, обладнання та матеріали</h3>
               <span className="section-toggle">{showSections.equipment ? '▼' : '▶'}</span>
             </div>
             )}
-            {showSections.equipment && (
+            {isFormSectionVisible('equipment') && (
               <div className="section-content">
                 <div className={boardClass('job')}>
                 {boardTitle('Роботи')}
@@ -3391,13 +3425,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Інженери */}
           <div className="form-section section-engineers">
-            {!isAccountantMode && (
+            {!isAccountantMode && !modernLayout && (
             <div className="section-header" onClick={() => toggleSection('work')}>
                 <h3>Інженери</h3>
               <span className="section-toggle">{showSections.work ? '▼' : '▶'}</span>
             </div>
             )}
-            {showSections.work && (
+            {isFormSectionVisible('work') && (
               <div className="section-content">
                 {isAccountantMode ? (
                   <div className="form-row six-cols">
@@ -3526,13 +3560,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Витрати та транспорт */}
           <div className="form-section section-expenses">
-            {!isAccountantMode && (
+            {!isAccountantMode && !modernLayout && (
             <div className="section-header" onClick={() => toggleSection('expenses')}>
               <h3>Витрати та транспорт</h3>
               <span className="section-toggle">{showSections.expenses ? '▼' : '▶'}</span>
             </div>
             )}
-            {showSections.expenses && (
+            {isFormSectionVisible('expenses') && (
               <div className="section-content">
                 {/* Рядок: Добові грн, Проживання грн, Інші витрати грн */}
                 <div className="form-row three-cols">
@@ -3570,13 +3604,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Підтвердження завскладом та бухгалтером */}
           <div className="form-section section-approval">
-            {!isAccountantMode && (
+            {!isAccountantMode && !modernLayout && (
             <div className="section-header" onClick={() => toggleSection('other')}>
               <h3>Підтвердження завскладом та бухгалтером</h3>
               <span className="section-toggle">{showSections.other ? '▼' : '▶'}</span>
             </div>
             )}
-            {showSections.other && (
+            {isFormSectionVisible('other') && (
               <div className="section-content">
                 {/* Рядок: Коментарі, Дата затвердження премії */}
                 <div className="form-row two-cols">
@@ -3740,13 +3774,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
             {/* Секція файлів виконаних робіт */}
             <div className="form-section section-files">
-              {!isAccountantMode && (
+              {!isAccountantMode && !modernLayout && (
               <div className="section-header" onClick={() => toggleSection('files')}>
                 <h3>📁 Файли виконаних робіт</h3>
                 <span className="section-toggle">{showSections.files ? '▼' : '▶'}</span>
               </div>
               )}
-              {showSections.files && (
+              {isFormSectionVisible('files') && (
                 <div className="section-content">
                   <FileUpload 
                     taskId={initialData?._id || initialData?.id}

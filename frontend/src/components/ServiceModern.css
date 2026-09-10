@@ -717,12 +717,48 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .task-form > .deletion-mark-banner,
 .modal-content--modern .task-form > .rejection-info-block,
 .modal-content--modern .task-form > .task-identity-row,
+.modal-content--modern .task-form > .task-form-cats,
 .modal-content--modern .task-form > .section-basic,
 .modal-content--modern .task-form > .section-client,
 .modal-content--modern .task-form > .section-equipment,
 .modal-content--modern .task-form > .section-approval,
 .modal-content--modern .task-form > .modal-footer {
   grid-column: 1 / -1;
+}
+
+.modal-content--modern .task-form-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 6px 0 8px;
+  background: #121a26;
+}
+
+.modal-content--modern .task-form-cat {
+  border: 1px solid #3d5270;
+  background: #1c2a3d;
+  color: #d7e3f4;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.modal-content--modern .task-form-cat:hover {
+  border-color: #93c5fd;
+  color: #fff;
+}
+
+.modal-content--modern .task-form-cat.is-active {
+  background: #5b9cf8;
+  border-color: #5b9cf8;
+  color: #0b1220;
 }
 
 .modal-content--modern .form-section {
