@@ -149,7 +149,8 @@ const { computeProcurementCrossRegionNotices, normalizeWarehouseName } = require
 const {
   isMobileAppAdmin,
   getAppVersionPayload,
-  uploadApkBuffer,
+  uploadApkToGridFs,
+  streamApkFromGridFs,
   pruneOldMobileReleases,
   firstInstallHtml,
   publicPayloadFromRelease,
@@ -4221,6 +4222,8 @@ const mobileAppReleaseSchema = new mongoose.Schema({
   changelog: { type: String, default: '' },
   downloadUrl: { type: String, required: true },
   cloudinaryId: { type: String, default: '' },
+  gridFsId: { type: String, default: '' },
+  storage: { type: String, default: 'gridfs' },
   fileName: { type: String, default: '' },
   fileSize: { type: Number, default: 0 },
   active: { type: Boolean, default: true },
@@ -4576,7 +4579,7 @@ app.get('/api/ping', (req, res) => {
   });
 });
 
-// Версія мобільного додатку: активний реліз у Mongo (Cloudinary), запасний — app-version.json / env
+// Версія мобільного додатку: активний реліз у Mongo (GridFS), запасний — app-version.json / env
 app.get('/api/app-version', async (req, res) => {
   try {
     res.json(await getAppVersionPayload(MobileAppRelease, req));
@@ -4588,6 +4591,23 @@ app.get('/api/app-version', async (req, res) => {
 
 app.get('/api/app-version/download', async (req, res) => {
   try {
+    const latest = await MobileAppRelease.findOne({ active: true })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .lean();
+    if (latest?.gridFsId) {
+      req.setTimeout(5 * 60 * 1000);
+      res.setTimeout(5 * 60 * 1000);
+      const filename = latest.fileName || `dts-mobile-${latest.version || 'app'}.apk`;
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+      if (latest.fileSize) res.setHeader('Content-Length', String(latest.fileSize));
+      return streamApkFromGridFs(mongoose, latest.gridFsId)
+        .on('error', (err) => {
+          console.error('[app-version] GridFS stream:', err.message);
+          if (!res.headersSent) res.status(404).json({ error: 'APK не знайдено' });
+        })
+        .pipe(res);
+    }
     const payload = await getAppVersionPayload(MobileAppRelease, req);
     const url = payload.download_url || payload.android_store_url;
     if (!url) {
@@ -4707,6 +4727,8 @@ app.post('/api/app-version', authenticateToken, (req, res) => {
   if (!isMobileAppAdmin(req.user)) {
     return res.status(403).json({ error: 'Лише адміністратор може викладати APK' });
   }
+  req.setTimeout(5 * 60 * 1000);
+  res.setTimeout(5 * 60 * 1000);
   uploadMobileApk.single('file')(req, res, async (uploadErr) => {
     if (uploadErr) {
       return res.status(400).json({ error: uploadErr.message || 'Не вдалося прийняти APK' });
@@ -4724,11 +4746,11 @@ app.post('/api/app-version', authenticateToken, (req, res) => {
       const notifyUsers = req.body?.notifyUsers === 'true' || req.body?.notifyUsers === true;
       const minVersion = String(req.body?.minVersion || '').trim();
 
-      const uploaded = await uploadApkBuffer(cloudinary, req.file.buffer, version);
-      const downloadUrl = uploaded.secure_url || uploaded.url;
-      if (!downloadUrl) {
-        return res.status(500).json({ error: 'Cloudinary не повернув посилання на APK' });
-      }
+      const stored = await uploadApkToGridFs(mongoose, req.file.buffer, {
+        version,
+        fileName: req.file.originalname || `dts-mobile-${version}.apk`,
+      });
+      const urls = stableInstallUrls(req);
 
       await MobileAppRelease.updateMany({ active: true }, { $set: { active: false } });
       const release = await MobileAppRelease.create({
@@ -4736,10 +4758,12 @@ app.post('/api/app-version', authenticateToken, (req, res) => {
         minVersion: minVersion || version,
         forceUpdate,
         changelog,
-        downloadUrl,
-        cloudinaryId: uploaded.public_id || '',
-        fileName: req.file.originalname || `dts-mobile-${version}.apk`,
-        fileSize: req.file.size || uploaded.bytes || 0,
+        downloadUrl: urls.downloadUrl,
+        cloudinaryId: '',
+        gridFsId: stored.id,
+        storage: 'gridfs',
+        fileName: stored.filename,
+        fileSize: req.file.size || stored.length || 0,
         active: true,
         notifyUsers,
         publishedBy: req.user.login || '',
@@ -4748,7 +4772,7 @@ app.post('/api/app-version', authenticateToken, (req, res) => {
 
       let pruned = { kept: 1, removed: 0 };
       try {
-        pruned = await pruneOldMobileReleases(cloudinary, MobileAppRelease);
+        pruned = await pruneOldMobileReleases(cloudinary, MobileAppRelease, mongoose);
       } catch (pruneErr) {
         console.warn('[app-version] prune failed:', pruneErr.message);
       }
@@ -4772,12 +4796,12 @@ app.post('/api/app-version', authenticateToken, (req, res) => {
       res.json({
         ok: true,
         release: publicPayloadFromRelease(release, req),
-        urls: stableInstallUrls(req),
+        urls,
         pruned,
       });
     } catch (error) {
       console.error('[app-version] POST /api/app-version:', error);
-      res.status(500).json({ error: error.message || 'Не вдалося завантажити APK у Cloudinary' });
+      res.status(500).json({ error: error.message || 'Не вдалося зберегти APK' });
     }
   });
 });

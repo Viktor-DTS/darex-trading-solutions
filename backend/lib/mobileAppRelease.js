@@ -25,7 +25,7 @@ function stableInstallUrls(req) {
 
 function publicPayloadFromRelease(release, req) {
   const stable = stableInstallUrls(req);
-  const apkUrl = release?.downloadUrl || '';
+  const apkUrl = release?.gridFsId ? stable.downloadUrl : (release?.downloadUrl || stable.downloadUrl);
   return {
     latest_version: release?.version || '0.1.0',
     min_version: release?.minVersion || release?.version || '0.1.0',
@@ -82,7 +82,7 @@ async function getAppVersionPayload(MobileAppRelease, req) {
   const latest = await MobileAppRelease.findOne({ active: true })
     .sort({ publishedAt: -1, createdAt: -1 })
     .lean();
-  if (latest?.downloadUrl) {
+  if (latest?.downloadUrl || latest?.gridFsId) {
     return publicPayloadFromRelease(latest, req);
   }
   const fallback = fileFallbackConfig();
@@ -93,6 +93,54 @@ async function getAppVersionPayload(MobileAppRelease, req) {
 }
 
 const KEEP_UPDATE_APKS = 3;
+const APK_BUCKET = 'dtsMobileApks';
+
+function getApkBucket(mongoose) {
+  if (!mongoose?.connection?.db) {
+    throw new Error('MongoDB ще не готова для збереження APK');
+  }
+  return new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: APK_BUCKET });
+}
+
+function toObjectId(mongoose, id) {
+  if (!id) return null;
+  if (id instanceof mongoose.Types.ObjectId) return id;
+  return new mongoose.Types.ObjectId(String(id));
+}
+
+function uploadApkToGridFs(mongoose, buffer, { version, fileName }) {
+  const bucket = getApkBucket(mongoose);
+  const filename = fileName || `dts-mobile-${version}.apk`;
+  return new Promise((resolve, reject) => {
+    const stream = bucket.openUploadStream(filename, {
+      contentType: 'application/vnd.android.package-archive',
+      metadata: { version, kind: 'dts-mobile-apk' },
+    });
+    stream.on('error', reject);
+    stream.on('finish', () => {
+      resolve({
+        id: String(stream.id),
+        filename,
+        length: buffer.length,
+      });
+    });
+    stream.end(buffer);
+  });
+}
+
+async function deleteApkFromGridFs(mongoose, id) {
+  const objectId = toObjectId(mongoose, id);
+  if (!objectId) return;
+  try {
+    await getApkBucket(mongoose).delete(objectId);
+  } catch (e) {
+    console.warn('[app-version] GridFS delete failed:', e.message);
+  }
+}
+
+function streamApkFromGridFs(mongoose, id) {
+  return getApkBucket(mongoose).openDownloadStream(toObjectId(mongoose, id));
+}
 
 async function destroyApk(cloudinary, publicId) {
   const id = String(publicId || '').trim();
@@ -104,37 +152,18 @@ async function destroyApk(cloudinary, publicId) {
   }
 }
 
-/** Залишає поточний установчий APK + 3 попередні оновлення. Найстаріші файли з dts-mobile/releases видаляються. */
-async function pruneOldMobileReleases(cloudinary, MobileAppRelease) {
+/** Залишає поточний установчий APK + 3 попередні оновлення. Найстаріші файли видаляються. */
+async function pruneOldMobileReleases(cloudinary, MobileAppRelease, mongoose) {
   const rows = await MobileAppRelease.find({}).sort({ publishedAt: -1, createdAt: -1 });
   const stale = rows.slice(1 + KEEP_UPDATE_APKS);
   let removed = 0;
   for (const row of stale) {
+    await deleteApkFromGridFs(mongoose, row.gridFsId);
     await destroyApk(cloudinary, row.cloudinaryId);
     await MobileAppRelease.deleteOne({ _id: row._id });
     removed += 1;
   }
   return { kept: rows.length - removed, removed };
-}
-
-function uploadApkBuffer(cloudinary, buffer, version) {
-  const safeVersion = String(version || 'build').replace(/[^0-9A-Za-z._-]/g, '-');
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: 'raw',
-        folder: 'dts-mobile/releases',
-        public_id: `dts-mobile-${safeVersion}-${Date.now()}.apk`,
-        overwrite: false,
-        use_filename: true,
-        unique_filename: true,
-        type: 'upload',
-        access_mode: 'public',
-      },
-      (err, result) => (err ? reject(err) : resolve(result))
-    );
-    stream.end(buffer);
-  });
 }
 
 function firstInstallHtml({ version, changelog, downloadUrl, fileSize }) {
@@ -183,7 +212,9 @@ module.exports = {
   stableInstallUrls,
   publicPayloadFromRelease,
   getAppVersionPayload,
-  uploadApkBuffer,
+  uploadApkToGridFs,
+  deleteApkFromGridFs,
+  streamApkFromGridFs,
   pruneOldMobileReleases,
   KEEP_UPDATE_APKS,
   firstInstallHtml,

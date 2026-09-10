@@ -91,7 +91,7 @@ export default function MobileAppReleaseTab() {
         body,
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Помилка завантаження в Cloudinary');
+      if (!res.ok) throw new Error(data.error || 'Не вдалося зберегти APK');
       setFile(null);
       setChangelog('');
       await load();
@@ -134,9 +134,10 @@ export default function MobileAppReleaseTab() {
     <div className="admin-section mar-wrap">
       <h3>📱 DTS Mobile — оновлення</h3>
       <p className="info-text">
-        APK лежить лише в папці Cloudinary <code>dts-mobile/releases</code> і не чіпає файли заявок.
+        APK зберігається в MongoDB (GridFS), не в Cloudinary — фото й договори заявок не чіпаються.
+        Тариф Cloudinary має ліміт 20 МБ на файл, а збірка ~67 МБ, тому сховище саме в базі.
         Завжди лишається поточний установчий файл + максимум 3 попередні оновлення.
-        Четверте старе оновлення видаляється автоматично (найстаріше).
+        Найстаріше оновлення видаляється автоматично.
       </p>
 
       <div className="mar-links">
@@ -167,7 +168,7 @@ export default function MobileAppReleaseTab() {
             {current.changelog ? <li>{current.changelog}</li> : null}
           </ul>
         ) : (
-          <p className="info-text">Ще немає збірки в Cloudinary. Завантажте перший APK нижче.</p>
+          <p className="info-text">Ще немає збірки в базі. Завантажте перший APK нижче.</p>
         )}
         {current?.download_url ? (
           <button type="button" className="btn-test" onClick={toggleForce}>
@@ -213,13 +214,13 @@ export default function MobileAppReleaseTab() {
           Надіслати push користувачам
         </label>
         <button type="button" className="btn-test" onClick={publish} disabled={saving}>
-          {saving ? 'Завантаження в Cloudinary…' : 'Опублікувати'}
+          {saving ? 'Збереження APK…' : 'Опублікувати'}
         </button>
       </div>
 
       {history.length ? (
         <div className="mar-history">
-          <h4>Файли в Cloudinary (установчий + до 3 оновлень)</h4>
+          <h4>Файли в базі (установчий + до 3 оновлень)</h4>
           <ul>
             {history.map((row, idx) => (
               <li key={row._id}>
