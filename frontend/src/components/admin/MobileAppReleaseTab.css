@@ -1,0 +1,88 @@
+.mar-wrap .info-text {
+  margin: 0 0 14px;
+}
+
+.mar-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.mar-link-card {
+  background: #152030;
+  border: 1px solid #2a3f54;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mar-link-card b {
+  color: #fff;
+  font-size: 13px;
+}
+
+.mar-link-card code {
+  font-size: 11px;
+  color: #97a8c0;
+  word-break: break-all;
+}
+
+.mar-link-card button,
+.mar-wrap .btn-test {
+  align-self: flex-start;
+  border: 0;
+  background: #1976d2;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mar-link-card button:disabled {
+  background: #2a3f54;
+  color: #6b7f9a;
+  cursor: default;
+}
+
+.mar-current,
+.mar-history {
+  background: #152030;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.mar-current h4,
+.mar-history h4,
+.mar-wrap .telegram-form h4 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 13px;
+}
+
+.mar-current ul,
+.mar-history ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #c5d0de;
+  font-size: 13px;
+}
+
+.mar-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c5d0de;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+@media (max-width: 800px) {
+  .mar-links {
+    grid-template-columns: 1fr;
+  }
+}

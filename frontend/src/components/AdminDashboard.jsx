@@ -7,6 +7,7 @@ import SystemCoefficientsSettings from './SystemCoefficientsSettings';
 import OneCWorkerPanel from './onec/OneCWorkerPanel';
 import TaskExportPanel from './TaskExportPanel';
 import SystemHealthDashboard from './systemHealth/SystemHealthDashboard';
+import MobileAppReleaseTab from './admin/MobileAppReleaseTab';
 import { Modal, Button, Badge, EmptyState } from './ui';
 import './AdminDashboard.css';
 import { applyBczvsklAccessDefaults } from '../constants/bczvsklRole';
@@ -122,6 +123,7 @@ const ADMIN_TABS = [
   { id: 'roles', label: '🎭 Ролі', icon: '🎭' },
   { id: 'telegram', label: '📱 Telegram', icon: '📱' },
   { id: 'notifications', label: '🔔 Сповіщення', icon: '🔔' },
+  { id: 'mobileApp', label: '📱 DTS Mobile', icon: '📱' },
   { id: 'advertising', label: '📢 Реклама', icon: '📢' },
   { id: 'taskExport', label: '📤 Експорт заявок', icon: '📤' },
   { id: 'backup', label: '💾 Бекап', icon: '💾' },
@@ -2848,6 +2850,7 @@ function AdminDashboard({ user }) {
       case 'access': return renderAccessTab();
       case 'telegram': return renderTelegramTab();
       case 'notifications': return renderNotificationsTab();
+      case 'mobileApp': return <MobileAppReleaseTab />;
       case 'advertising': return renderAdvertisingTab();
       case 'taskExport': return <TaskExportPanel user={user} />;
       case 'backup': return renderBackupTab();

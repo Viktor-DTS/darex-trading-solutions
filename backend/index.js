@@ -146,6 +146,14 @@ const {
   formatProcurementPositionRejectedPlain
 } = require('./lib/procurementTelegram');
 const { computeProcurementCrossRegionNotices, normalizeWarehouseName } = require('./lib/procurementCrossRegionNotice');
+const {
+  isMobileAppAdmin,
+  getAppVersionPayload,
+  uploadApkBuffer,
+  firstInstallHtml,
+  publicPayloadFromRelease,
+  stableInstallUrls,
+} = require('./lib/mobileAppRelease');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -349,6 +357,23 @@ function estimateTemplateFileFilter(req, file, cb) {
   }
   cb(new Error('Дозволені лише файли Excel (.xlsx, .xls)'));
 }
+
+const uploadMobileApk = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 120 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    const mt = String(file.mimetype || '').toLowerCase();
+    if (
+      name.endsWith('.apk') ||
+      mt === 'application/vnd.android.package-archive' ||
+      mt === 'application/octet-stream'
+    ) {
+      return cb(null, true);
+    }
+    cb(new Error('Потрібен файл APK'));
+  },
+});
 
 const uploadEstimateTemplate = multer({
   storage: estimateTemplateStorage,
@@ -4188,6 +4213,23 @@ reservationSchema.index({ status: 1 });
 reservationSchema.index({ reservedUntil: 1 });
 const Reservation = mongoose.model('Reservation', reservationSchema);
 
+const mobileAppReleaseSchema = new mongoose.Schema({
+  version: { type: String, required: true, trim: true },
+  minVersion: { type: String, default: '' },
+  forceUpdate: { type: Boolean, default: false },
+  changelog: { type: String, default: '' },
+  downloadUrl: { type: String, required: true },
+  cloudinaryId: { type: String, default: '' },
+  fileName: { type: String, default: '' },
+  fileSize: { type: Number, default: 0 },
+  active: { type: Boolean, default: true },
+  notifyUsers: { type: Boolean, default: false },
+  publishedBy: { type: String, default: '' },
+  publishedAt: { type: Date, default: Date.now },
+}, { timestamps: true });
+mobileAppReleaseSchema.index({ active: 1, publishedAt: -1 });
+const MobileAppRelease = mongoose.model('MobileAppRelease', mobileAppReleaseSchema);
+
 // Лічильник номерів заявок на відвантаження (SV-#####)
 const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
@@ -4533,35 +4575,46 @@ app.get('/api/ping', (req, res) => {
   });
 });
 
-// Версія мобільного додатку — для перевірки оновлень при вході (дистаційний апдейт)
-// Джерело правди: backend/app-version.json (при релізі оновіть його разом із pubspec.yaml у dts-mobile)
-// Env-змінні на Render лишаються запасним варіантом, якщо файлу немає
-function getAppVersionConfig() {
-  const p = path.join(__dirname, 'app-version.json');
+// Версія мобільного додатку: активний реліз у Mongo (Cloudinary), запасний — app-version.json / env
+app.get('/api/app-version', async (req, res) => {
   try {
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return {
-        latest_version: data.latest_version ?? process.env.APP_VERSION ?? '0.1.0',
-        min_version: data.min_version ?? process.env.APP_MIN_VERSION ?? '0.1.0',
-        force_update: data.force_update === true || process.env.APP_FORCE_UPDATE === 'true',
-        android_store_url: data.android_store_url ?? process.env.APP_ANDROID_STORE_URL ?? 'https://play.google.com/store/apps/details?id=com.example.dts_mobile',
-        ios_store_url: data.ios_store_url ?? process.env.APP_IOS_STORE_URL ?? 'https://apps.apple.com/app/dts-mobile/id000000000',
-      };
-    }
-  } catch (e) {
-    console.warn('[app-version] Could not read app-version.json, using env:', e.message);
+    res.json(await getAppVersionPayload(MobileAppRelease, req));
+  } catch (error) {
+    console.error('[app-version] GET /api/app-version:', error);
+    res.status(500).json({ error: error.message });
   }
-  return {
-    latest_version: process.env.APP_VERSION || '0.1.0',
-    min_version: process.env.APP_MIN_VERSION || '0.1.0',
-    force_update: process.env.APP_FORCE_UPDATE === 'true',
-    android_store_url: process.env.APP_ANDROID_STORE_URL || 'https://play.google.com/store/apps/details?id=com.example.dts_mobile',
-    ios_store_url: process.env.APP_IOS_STORE_URL || 'https://apps.apple.com/app/dts-mobile/id000000000',
-  };
-}
-app.get('/api/app-version', (req, res) => {
-  res.json(getAppVersionConfig());
+});
+
+app.get('/api/app-version/download', async (req, res) => {
+  try {
+    const payload = await getAppVersionPayload(MobileAppRelease, req);
+    const url = payload.download_url || payload.android_store_url;
+    if (!url) {
+      return res.status(404).json({ error: 'APK ще не завантажено в адмінці' });
+    }
+    res.redirect(302, url);
+  } catch (error) {
+    console.error('[app-version] GET /api/app-version/download:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/mobile', async (req, res) => {
+  try {
+    const payload = await getAppVersionPayload(MobileAppRelease, req);
+    const hasApk = !!(payload.download_url || payload.android_store_url);
+    res
+      .type('html')
+      .send(firstInstallHtml({
+        version: payload.latest_version,
+        changelog: payload.changelog,
+        downloadUrl: hasApk ? stableInstallUrls(req).downloadUrl : '',
+        fileSize: payload.file_size,
+      }));
+  } catch (error) {
+    console.error('[app-version] GET /mobile:', error);
+    res.status(500).type('html').send('<p>Не вдалося відкрити сторінку завантаження</p>');
+  }
 });
 
 // ============================================
@@ -4628,6 +4681,114 @@ app.post('/api/auth', async (req, res) => {
     logPerformance('POST /api/auth', startTime);
     console.error('[ERROR] POST /api/auth:', error);
     console.error('[ERROR] Stack:', error.stack);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/app-version/admin', authenticateToken, async (req, res) => {
+  if (!isMobileAppAdmin(req.user)) {
+    return res.status(403).json({ error: 'Лише адміністратор може керувати мобільними релізами' });
+  }
+  try {
+    const current = await getAppVersionPayload(MobileAppRelease, req);
+    const history = await MobileAppRelease.find({})
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(20)
+      .lean();
+    res.json({ current, history, urls: stableInstallUrls(req) });
+  } catch (error) {
+    console.error('[app-version] GET /api/app-version/admin:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/app-version', authenticateToken, (req, res) => {
+  if (!isMobileAppAdmin(req.user)) {
+    return res.status(403).json({ error: 'Лише адміністратор може викладати APK' });
+  }
+  uploadMobileApk.single('file')(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      return res.status(400).json({ error: uploadErr.message || 'Не вдалося прийняти APK' });
+    }
+    try {
+      if (!req.file?.buffer) {
+        return res.status(400).json({ error: 'Додайте файл APK' });
+      }
+      const version = String(req.body?.version || '').trim();
+      if (!/^\d+\.\d+\.\d+$/.test(version)) {
+        return res.status(400).json({ error: 'Версія має бути у форматі 1.2.3' });
+      }
+      const changelog = String(req.body?.changelog || '').trim();
+      const forceUpdate = req.body?.forceUpdate === 'true' || req.body?.forceUpdate === true;
+      const notifyUsers = req.body?.notifyUsers === 'true' || req.body?.notifyUsers === true;
+      const minVersion = String(req.body?.minVersion || '').trim();
+
+      const uploaded = await uploadApkBuffer(cloudinary, req.file.buffer, version);
+      const downloadUrl = uploaded.secure_url || uploaded.url;
+      if (!downloadUrl) {
+        return res.status(500).json({ error: 'Cloudinary не повернув посилання на APK' });
+      }
+
+      await MobileAppRelease.updateMany({ active: true }, { $set: { active: false } });
+      const release = await MobileAppRelease.create({
+        version,
+        minVersion: minVersion || version,
+        forceUpdate,
+        changelog,
+        downloadUrl,
+        cloudinaryId: uploaded.public_id || '',
+        fileName: req.file.originalname || `dts-mobile-${version}.apk`,
+        fileSize: req.file.size || uploaded.bytes || 0,
+        active: true,
+        notifyUsers,
+        publishedBy: req.user.login || '',
+        publishedAt: new Date(),
+      });
+
+      if (notifyUsers) {
+        try {
+          const users = await User.find({
+            dismissed: { $ne: true },
+            fcmToken: { $exists: true, $ne: null, $ne: '' },
+          }).select('fcmToken').lean();
+          await sendPushToUsers(users, {
+            title: `DTS Mobile ${version}`,
+            body: changelog || 'Доступне оновлення. Відкрийте додаток і натисніть «Оновити».',
+            data: { type: 'app_update', version },
+          });
+        } catch (pushErr) {
+          console.warn('[app-version] push failed:', pushErr.message);
+        }
+      }
+
+      res.json({
+        ok: true,
+        release: publicPayloadFromRelease(release, req),
+        urls: stableInstallUrls(req),
+      });
+    } catch (error) {
+      console.error('[app-version] POST /api/app-version:', error);
+      res.status(500).json({ error: error.message || 'Не вдалося завантажити APK у Cloudinary' });
+    }
+  });
+});
+
+app.patch('/api/app-version', authenticateToken, async (req, res) => {
+  if (!isMobileAppAdmin(req.user)) {
+    return res.status(403).json({ error: 'Лише адміністратор може змінювати реліз' });
+  }
+  try {
+    const latest = await MobileAppRelease.findOne({ active: true }).sort({ publishedAt: -1, createdAt: -1 });
+    if (!latest) {
+      return res.status(404).json({ error: 'Немає активного релізу' });
+    }
+    if (req.body?.forceUpdate != null) latest.forceUpdate = !!req.body.forceUpdate;
+    if (req.body?.changelog != null) latest.changelog = String(req.body.changelog);
+    if (req.body?.minVersion) latest.minVersion = String(req.body.minVersion).trim();
+    await latest.save();
+    res.json({ ok: true, release: publicPayloadFromRelease(latest, req) });
+  } catch (error) {
+    console.error('[app-version] PATCH /api/app-version:', error);
     res.status(500).json({ error: error.message });
   }
 });
