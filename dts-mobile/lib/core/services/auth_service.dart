@@ -97,7 +97,7 @@ class AuthService {
 
   String? get role => Session.user?.role;
   String? get region => Session.user?.region;
-  String? get login => Session.user?.login;
+  String? get userLogin => Session.user?.login;
   String? get userName => Session.user?.name ?? Session.user?.login;
   bool get isAuthenticated => Session.token?.isNotEmpty ?? false;
   bool get isAdmin {

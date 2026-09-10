@@ -202,7 +202,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
   bool get _canCompleteAsExecutor {
     if (_isAlreadyCompleted) return false;
-    final login = AuthService.instance.login;
+    final login = AuthService.instance.userLogin;
     if (login == null || login.isEmpty) return false;
     final assigned = _fullTask?['assignedExecutorLogin']?.toString() ??
         widget.task.assignedExecutorLogin;
