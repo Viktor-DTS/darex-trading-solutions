@@ -227,7 +227,7 @@ const newEmptyOtherMaterialLine = () => ({ name: '', count: '', price: '', note:
 
 const TASK_FORM_CATEGORIES = [
   { id: 'basic', label: 'Основна інформація' },
-  { id: 'client', label: 'Клієнт та адреса' },
+  { id: 'client', label: 'Оплата, рахунок та договори' },
   { id: 'equipment', label: 'Роботи, обладнання та матеріали' },
   { id: 'work', label: 'Інженери' },
   { id: 'expenses', label: 'Витрати та транспорт' },
@@ -2378,9 +2378,17 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
               ) : null}
             </div>
             <div className="task-passport-grid">
-              <span>
-                <small>Замовник</small>
-                <b>{formData.client || '—'}</b>
+              <span className="task-passport-client">
+                <span>
+                  <small>Замовник</small>
+                  <b>{formData.client || '—'}</b>
+                </span>
+                {String(formData.edrpou || '').trim() ? (
+                  <span>
+                    <small>ЄДРПОУ</small>
+                    <b>{String(formData.edrpou).trim()}</b>
+                  </span>
+                ) : null}
               </span>
               <span>
                 <small>Адреса</small>
@@ -2653,7 +2661,65 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 </div>
                 <div className={boardClass('contact')}>
                 {boardTitle('Контакт')}
-                {/* Другий рядок: Контактна особа, Тел. контактної особи */}
+                {!modernLayout && clientPaymentDebt && clientPaymentDebt.count > 0 && (
+                  <div className="client-payment-debt-banner">
+                    💳 У цього замовника є заборгованість по оплаті: <strong>{clientPaymentDebt.count}</strong> заявок на суму <strong>{clientPaymentDebt.sum.toFixed(2)} грн</strong>
+                  </div>
+                )}
+                <div className="form-row two-cols">
+                  <div className="form-group">
+                    <label>Замовник <span className="required">*</span></label>
+                    <input type="text" name="client" value={formData.client} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group autocomplete-wrapper">
+                    <label>ЄДРПОУ</label>
+                    <input 
+                      type="text" 
+                      name="edrpou" 
+                      value={formData.edrpou} 
+                      onChange={handleChange}
+                      onBlur={handleEdrpouBlur}
+                      placeholder="Введіть ЄДРПОУ..."
+                      autoComplete="off"
+                    />
+                    {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
+                      <div className="autocomplete-dropdown">
+                        <div className="autocomplete-hint">
+                          💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
+                        </div>
+                        {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
+                          <div
+                            key={index}
+                            className="autocomplete-item"
+                            onClick={() => handleEdrpouSelect(edrpou)}
+                          >
+                            {edrpou}
+                          </div>
+                        ))}
+                        {filteredEdrpouList.length > 10 && (
+                          <div className="autocomplete-more">
+                            ... та ще {filteredEdrpouList.length - 10}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group autocomplete-wrapper address-full-width">
+                    <label>Адреса</label>
+                    <input 
+                      ref={isAccountantMode ? addressInputRef : addressTextareaRef}
+                      type="text" 
+                      name="address" 
+                      value={formData.address} 
+                      onChange={handleChange}
+                      placeholder="Почніть вводити адресу..."
+                      autoComplete="off"
+                      style={!isAccountantMode && !modernLayout ? { width: '100%', padding: '0.5rem', minHeight: '60px', resize: 'vertical' } : {}}
+                    />
+                  </div>
+                </div>
                 <div className="form-row two-cols">
                   <div className="form-group">
                     <label>Контактна особа</label>
@@ -2692,82 +2758,16 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
           </div>
 
-          {/* Клієнт та адреса */}
+          {/* Оплата, рахунок та договори */}
           <div className="form-section section-client">
             {!isAccountantMode && !modernLayout && (
             <div className="section-header" onClick={() => toggleSection('client')}>
-              <h3>Клієнт та адреса</h3>
+              <h3>Оплата, рахунок та договори</h3>
               <span className="section-toggle">{showSections.client ? '▼' : '▶'}</span>
             </div>
             )}
             {isFormSectionVisible('client') && (
               <div className="section-content">
-                <div className={boardClass('who')}>
-                {boardTitle('Замовник')}
-                {/* Банер заборгованості по оплаті — перший рядок секції Клієнт та адреса */}
-                {!modernLayout && clientPaymentDebt && clientPaymentDebt.count > 0 && (
-                  <div className="client-payment-debt-banner">
-                    💳 У цього замовника є заборгованість по оплаті: <strong>{clientPaymentDebt.count}</strong> заявок на суму <strong>{clientPaymentDebt.sum.toFixed(2)} грн</strong>
-                  </div>
-                )}
-                {/* Рядок: Замовник, ЄДРПОУ */}
-                <div className="form-row two-cols">
-                  <div className="form-group">
-                    <label>Замовник <span className="required">*</span></label>
-                    <input type="text" name="client" value={formData.client} onChange={handleChange} required />
-                  </div>
-                  <div className="form-group autocomplete-wrapper">
-                    <label>ЄДРПОУ</label>
-                    <input 
-                      type="text" 
-                      name="edrpou" 
-                      value={formData.edrpou} 
-                      onChange={handleChange}
-                      onBlur={handleEdrpouBlur}
-                      placeholder="Введіть ЄДРПОУ..."
-                      autoComplete="off"
-                    />
-                    {/* Dropdown з автодоповненням для ЄДРПОУ */}
-                    {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
-                      <div className="autocomplete-dropdown">
-                        <div className="autocomplete-hint">
-                          💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
-                        </div>
-                        {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
-                          <div
-                            key={index}
-                            className="autocomplete-item"
-                            onClick={() => handleEdrpouSelect(edrpou)}
-                          >
-                            {edrpou}
-                          </div>
-                        ))}
-                        {filteredEdrpouList.length > 10 && (
-                          <div className="autocomplete-more">
-                            ... та ще {filteredEdrpouList.length - 10}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {/* Рядок: Адреса (збільшено в 3 рази) */}
-                <div className="form-row">
-                  <div className="form-group autocomplete-wrapper address-full-width">
-                    <label>Адреса</label>
-                    <input 
-                      ref={isAccountantMode ? addressInputRef : addressTextareaRef}
-                      type="text" 
-                      name="address" 
-                      value={formData.address} 
-                      onChange={handleChange}
-                      placeholder="Почніть вводити адресу..."
-                      autoComplete="off"
-                      style={!isAccountantMode && !modernLayout ? { width: '100%', padding: '0.5rem', minHeight: '60px', resize: 'vertical' } : {}}
-                    />
-                  </div>
-                </div>
-                </div>
                 <div className={boardClass('pay')}>
                 {boardTitle('Рахунок і оплата')}
                 {/* Рядок: Номер рахунку, Дата оплати, Вид оплати, Реквізити отримувача рахунку */}

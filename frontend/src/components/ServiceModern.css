@@ -783,6 +783,19 @@ body.task-modal-open .task-kanban-grid {
   overflow-wrap: anywhere;
 }
 
+.task-passport-grid .task-passport-client {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.task-passport-grid .task-passport-client > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .modal-body-modern-split {
   flex: 1;
   min-height: 0;
@@ -940,7 +953,9 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .section-approval { --board-accent: #fbbf24; }
 .modal-content--modern .materials-sheet { --board-accent: #5b9cf8; }
 
+.modal-content--modern .task-board--contact,
 .modal-content--modern .task-board--brief,
+.modal-content--modern .task-board--pay,
 .modal-content--modern .task-board--contract,
 .modal-content--modern .materials-sheet,
 .modal-content--modern .debt-status-group {
@@ -1630,7 +1645,7 @@ body.task-modal-open .task-kanban-grid {
   min-width: 140px;
 }
 
-.modal-content--modern .task-board--who .client-payment-debt-banner {
+.modal-content--modern .task-board--contact .client-payment-debt-banner {
   display: none;
 }
 
