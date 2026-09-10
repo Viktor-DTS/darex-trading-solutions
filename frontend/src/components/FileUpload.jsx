@@ -3,7 +3,7 @@ import API_BASE_URL from '../config';
 import EstimateBuilderModal from './EstimateBuilderModal';
 import { getEstimateSpecForTask, getEstimateDisabledReason, isEstimateGenerationAvailable, loadEstimateSpecs } from '../utils/estimate/estimateSpecRegistry';
 import { openFilePreview } from '../utils/pdfUtils';
-import { openImageGalleryWindow } from '../utils/imageGalleryWindow';
+import { downloadRemoteFile, fetchRemoteBlob, openImageGalleryWindow } from '../utils/imageGalleryWindow';
 import './FileUpload.css';
 
 const WINDOWS_RESERVED_NAMES = new Set([
@@ -314,8 +314,10 @@ const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated
             const base = ext ? fileName.slice(0, -ext.length - 1) : fileName;
             fileName = ext ? `${base}_${count}.${ext}` : `${base}_${count}`;
           }
-          const response = await fetch(file.cloudinaryUrl);
-          const blob = await response.blob();
+          const blob = await fetchRemoteBlob(
+            file.cloudinaryUrl,
+            sanitizeFileNameForLocalSave(originalName)
+          );
 
           const writeWithName = async (name) => {
             const fileHandle = await dirHandle.getFileHandle(name, { create: true });
@@ -347,13 +349,11 @@ const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated
       } else {
         // Fallback: послідовне завантаження кожного файлу
         for (const file of uploadedFiles) {
-          const link = document.createElement('a');
-          link.href = file.cloudinaryUrl;
-          link.download = file.originalName || 'file';
-          link.target = '_blank';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          await downloadRemoteFile(
+            file.cloudinaryUrl,
+            file.originalName || 'file',
+            file.mimetype
+          );
           await new Promise(r => setTimeout(r, 300));
         }
         alert(`Завантаження ${uploadedFiles.length} файлів розпочато. Перевірте папку «Завантаження».`);
@@ -598,15 +598,18 @@ const FileUpload = ({ taskId, task, calculations, onFilesUploaded, onTaskUpdated
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      const link = document.createElement('a');
-                      link.href = file.cloudinaryUrl;
-                      link.download = file.originalName;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
+                      try {
+                        await downloadRemoteFile(
+                          file.cloudinaryUrl,
+                          file.originalName || 'file',
+                          file.mimetype
+                        );
+                      } catch (_) {
+                        alert('Не вдалося зберегти файл');
+                      }
                     }}
                     className="download-button"
                     title="Завантажити файл"
