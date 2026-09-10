@@ -1308,6 +1308,10 @@ body.task-modal-open .task-kanban-grid {
   word-break: break-word;
 }
 
+.task-materials-hint-meta-model {
+  grid-column: 1 / -1;
+}
+
 .task-materials-hint-lead {
   margin: 0 0 12px;
   font-size: 12.5px;

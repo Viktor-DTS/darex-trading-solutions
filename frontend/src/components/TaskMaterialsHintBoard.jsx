@@ -248,6 +248,10 @@ export default function TaskMaterialsHintBoard({
           <small>Автор заявки</small>
           <b>{requestAuthor || '—'}</b>
         </span>
+        <span className="task-materials-hint-meta-model">
+          <small>Модель обладнання по якій здійснюється пошук</small>
+          <b>{equipmentValue || '—'}</b>
+        </span>
       </div>
       <p className="task-materials-hint-lead">
         Аналіз за полем «Тип обладнання». Підстановка записує назву і кількість у заявку —
