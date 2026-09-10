@@ -2671,7 +2671,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <label>Замовник <span className="required">*</span></label>
                     <input type="text" name="client" value={formData.client} onChange={handleChange} required />
                   </div>
-                  <div className="form-group autocomplete-wrapper">
+                  <div className="form-group autocomplete-wrapper edrpou-field">
                     <label>ЄДРПОУ</label>
                     <input 
                       type="text" 

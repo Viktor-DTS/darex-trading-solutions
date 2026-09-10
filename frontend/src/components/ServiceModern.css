@@ -887,6 +887,10 @@ body.task-modal-open .task-kanban-grid {
   align-items: start;
 }
 
+.modal-content--modern .section-basic .section-content {
+  align-items: stretch;
+}
+
 .modal-content--modern .section-header {
   background: transparent;
   border-radius: 8px;
@@ -953,13 +957,32 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .section-approval { --board-accent: #fbbf24; }
 .modal-content--modern .materials-sheet { --board-accent: #5b9cf8; }
 
-.modal-content--modern .task-board--contact,
 .modal-content--modern .task-board--brief,
 .modal-content--modern .task-board--pay,
 .modal-content--modern .task-board--contract,
 .modal-content--modern .materials-sheet,
 .modal-content--modern .debt-status-group {
   grid-column: 1 / -1;
+}
+
+.modal-content--modern .task-board--status,
+.modal-content--modern .task-board--contact {
+  min-width: 0;
+}
+
+.modal-content--modern .task-board--status .form-row > .form-group,
+.modal-content--modern .task-board--contact .form-row > .form-group {
+  flex: 1 1 calc(50% - 8px);
+  max-width: none;
+}
+
+.modal-content--modern .task-board--contact .form-row > .form-group.address-full-width {
+  flex: 1 1 100%;
+}
+
+.modal-content--modern .task-board--contact .form-row > .form-group.edrpou-field {
+  flex: 0 1 132px;
+  max-width: 150px;
 }
 
 .modal-content--modern .task-identity-row {
@@ -1061,6 +1084,11 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .section-basic .form-row.two-cols:not(:has(.checkbox-group)) > .form-group:first-child,
 .modal-content--modern .section-client .form-row.two-cols:not(:has(textarea)):not(:has(.checkbox-group)) > .form-group:first-child {
   flex: 1 1 280px;
+  max-width: none;
+}
+
+.modal-content--modern .section-basic .task-board--contact .form-row.two-cols > .form-group:first-child {
+  flex: 1 1 calc(50% - 8px);
   max-width: none;
 }
 
