@@ -613,7 +613,8 @@ const MANAGER_NOTIFICATION_KINDS = [
   'shipment_request_cancelled',
   'sale_tender_assigned',
   'ved_incoming_date_shift',
-  'ved_incoming_week'
+  'ved_incoming_week',
+  'system_broadcast'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -623,11 +624,12 @@ const PROCUREMENT_ONLY_NOTIFICATION_KINDS = [
   'procurement_awaiting_documents',
   'procurement_request_new',
   'procurement_request_completed',
-  'procurement_position_rejected'
+  'procurement_position_rejected',
+  'system_broadcast'
 ];
 
 /** Лише для GET/POST manager-notifications з ?ved=1 (вкладка «Відділ ВЕД») */
-const VED_ONLY_NOTIFICATION_KINDS = ['ved_request_new', 'ved_request_status'];
+const VED_ONLY_NOTIFICATION_KINDS = ['ved_request_new', 'ved_request_status', 'system_broadcast'];
 
 /** Для панелі сервісу: без «закупівельних» для складу/виконавця; «Заявку виконано» та відмова по позиції лишаються (заявнику). */
 const PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS = [
@@ -642,14 +644,16 @@ const WAREHOUSE_FEED_NOTIFICATION_KINDS = [
   'procurement_incoming_to_warehouse',
   'warehouse_transfer_requested',
   'warehouse_transfer_approved',
-  'telegram_connect_invite'
+  'telegram_connect_invite',
+  'system_broadcast'
 ];
 
 /** Маркетинг: ліди з реклами + підключення Telegram. */
 const MARKETING_FEED_NOTIFICATION_KINDS = [
   'external_ad_lead_new',
   'external_ad_lead_assigned',
-  'telegram_connect_invite'
+  'telegram_connect_invite',
+  'system_broadcast'
 ];
 
 function parseManagerNotificationFeedQuery(req) {
@@ -703,6 +707,13 @@ const managerUserNotificationSchema = new mongoose.Schema({
     ref: 'WarehouseTransferRequest',
     default: null,
   },
+  attachments: [{
+    originalName: { type: String, default: '' },
+    url: { type: String, default: '' },
+    mimetype: { type: String, default: '' },
+    size: { type: Number, default: 0 },
+    cloudinaryId: { type: String, default: '' }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 managerUserNotificationSchema.index({ recipientLogin: 1, createdAt: -1 });
@@ -21069,6 +21080,132 @@ class TelegramService {
     }
   }
 
+  async sendPhoto(chatId, photoUrl, extra = {}) {
+    if (!this.botToken || !this.baseUrl) {
+      console.log('[TELEGRAM] Bot token не налаштовано');
+      return false;
+    }
+    try {
+      const response = await fetch(`${this.baseUrl}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          photo: photoUrl,
+          ...extra,
+        })
+      });
+      const result = await response.json();
+      if (!result.ok) {
+        console.error('[TELEGRAM] sendPhoto failed:', result.description || result, 'chat', chatId);
+      }
+      return result.ok;
+    } catch (error) {
+      console.error('[TELEGRAM] Помилка sendPhoto:', error);
+      return false;
+    }
+  }
+
+  async sendDocument(chatId, documentUrl, extra = {}) {
+    if (!this.botToken || !this.baseUrl) {
+      console.log('[TELEGRAM] Bot token не налаштовано');
+      return false;
+    }
+    try {
+      const response = await fetch(`${this.baseUrl}/sendDocument`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          document: documentUrl,
+          ...extra,
+        })
+      });
+      const result = await response.json();
+      if (!result.ok) {
+        console.error('[TELEGRAM] sendDocument failed:', result.description || result, 'chat', chatId);
+      }
+      return result.ok;
+    } catch (error) {
+      console.error('[TELEGRAM] Помилка sendDocument:', error);
+      return false;
+    }
+  }
+
+  async sendMediaGroup(chatId, media) {
+    if (!this.botToken || !this.baseUrl) {
+      console.log('[TELEGRAM] Bot token не налаштовано');
+      return false;
+    }
+    try {
+      const response = await fetch(`${this.baseUrl}/sendMediaGroup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          media,
+        })
+      });
+      const result = await response.json();
+      if (!result.ok) {
+        console.error('[TELEGRAM] sendMediaGroup failed:', result.description || result, 'chat', chatId);
+      }
+      return result.ok;
+    } catch (error) {
+      console.error('[TELEGRAM] Помилка sendMediaGroup:', error);
+      return false;
+    }
+  }
+
+  isTelegramPhotoAttachment(att) {
+    const mt = String(att?.mimetype || '').toLowerCase();
+    const name = String(att?.originalName || att?.url || '').toLowerCase().split('?')[0];
+    return mt === 'image/jpeg' || mt === 'image/jpg' || mt === 'image/png'
+      || /\.(jpe?g|png)$/.test(name);
+  }
+
+  async sendSystemBroadcast(chatId, text, attachments = []) {
+    const files = Array.isArray(attachments) ? attachments.filter((a) => a && a.url) : [];
+    if (files.length === 0) {
+      return this.sendMessage(chatId, text);
+    }
+
+    const photos = files.filter((a) => this.isTelegramPhotoAttachment(a));
+    const docs = files.filter((a) => !this.isTelegramPhotoAttachment(a));
+    const captionOk = String(text || '').length <= 1024;
+
+    if (photos.length === 1 && docs.length === 0 && captionOk) {
+      const ok = await this.sendPhoto(chatId, photos[0].url, { caption: text, parse_mode: 'HTML' });
+      if (ok) return true;
+    } else if (photos.length === 0 && docs.length === 1 && captionOk) {
+      const ok = await this.sendDocument(chatId, docs[0].url, { caption: text, parse_mode: 'HTML' });
+      if (ok) return true;
+    }
+
+    let ok = await this.sendMessage(chatId, text);
+    if (photos.length === 1) {
+      ok = (await this.sendPhoto(chatId, photos[0].url)) || ok;
+    } else if (photos.length > 1) {
+      let mediaOk = false;
+      for (let i = 0; i < photos.length; i += 10) {
+        const chunk = photos.slice(i, i + 10).map((p) => ({ type: 'photo', media: p.url }));
+        mediaOk = (await this.sendMediaGroup(chatId, chunk)) || mediaOk;
+      }
+      if (!mediaOk) {
+        for (const photo of photos) {
+          ok = (await this.sendPhoto(chatId, photo.url)) || ok;
+        }
+      } else {
+        ok = true;
+      }
+    }
+    for (const doc of docs) {
+      const name = doc.originalName ? String(doc.originalName) : '';
+      ok = (await this.sendDocument(chatId, doc.url, name ? { caption: name } : {})) || ok;
+    }
+    return ok;
+  }
+
   async apiCall(method, body = {}) {
     if (!this.botToken || !this.baseUrl) {
       throw new Error('TELEGRAM_BOT_TOKEN не налаштовано');
@@ -21893,38 +22030,176 @@ app.get('/api/notification-logs', authenticateToken, async (req, res) => {
   }
 });
 
-// Відправка системного повідомлення всім з systemNotifications
-app.post('/api/notifications/send-system-message', authenticateToken, async (req, res) => {
-  try {
-    const { message } = req.body;
-    
-    if (!message) {
-      return res.status(400).json({ error: 'message обов\'язковий' });
+const systemNotificationStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const mimetype = file?.mimetype || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
+    const isImage =
+      mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
+    const resourceType = isImage || isPdf ? 'image' : 'raw';
+    const uid = `sysmsg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const params = {
+      folder: 'newservicegidra/system-notifications',
+      resource_type: resourceType,
+      overwrite: false,
+      invalidate: true,
+      public_id: uid
+    };
+    if (resourceType === 'image') {
+      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
     }
-    
+    return params;
+  }
+});
+
+const SYSTEM_NOTIFICATION_FILE_RE = /\.(jpe?g|png|gif|webp|pdf)$/i;
+function systemNotificationFilesFilter(req, file, cb) {
+  const name = String(file.originalname || '');
+  if (SYSTEM_NOTIFICATION_FILE_RE.test(name)) return cb(null, true);
+  const mt = String(file.mimetype || '').toLowerCase();
+  if (
+    mt === 'image/jpeg' ||
+    mt === 'image/jpg' ||
+    mt === 'image/png' ||
+    mt === 'image/gif' ||
+    mt === 'image/webp' ||
+    mt === 'application/pdf'
+  ) {
+    return cb(null, true);
+  }
+  cb(new Error('Дозволені лише зображення (JPEG, PNG, GIF, WebP) та PDF'));
+}
+
+const uploadSystemNotificationFiles = multer({
+  storage: systemNotificationStorage,
+  limits: {
+    fileSize: 20 * 1024 * 1024,
+    files: 10
+  },
+  fileFilter: systemNotificationFilesFilter
+});
+
+function handleSystemMessageUpload(req, res, next) {
+  const ct = String(req.headers['content-type'] || '');
+  if (!ct.includes('multipart/form-data')) {
+    return next();
+  }
+  uploadSystemNotificationFiles.array('files', 10)(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Максимальний розмір файлу — 20 МБ' });
+      }
+      if (err.code === 'LIMIT_FILE_COUNT') {
+        return res.status(400).json({ error: 'Можна прикріпити не більше 10 файлів' });
+      }
+      return res.status(400).json({ error: err.message || 'Помилка завантаження файлів' });
+    }
+    next();
+  });
+}
+
+function decodeUploadOriginalName(originalname) {
+  let correctedName = originalname || 'file';
+  try {
+    const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
+    if (decoded && decoded !== correctedName && !decoded.includes('\uFFFD')) {
+      correctedName = decoded;
+    }
+  } catch (_) {
+    /* keep original */
+  }
+  return correctedName;
+}
+
+// Відправка системного повідомлення всім з systemNotifications
+app.post('/api/notifications/send-system-message', authenticateToken, handleSystemMessageUpload, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+
+    const message = String(req.body?.message || '').trim();
+    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+
+    if (!message && uploadedFiles.length === 0) {
+      return res.status(400).json({ error: 'Вкажіть текст або прикріпіть файл' });
+    }
+
     if (!process.env.TELEGRAM_BOT_TOKEN) {
       return res.status(400).json({ error: 'TELEGRAM_BOT_TOKEN не налаштовано' });
     }
-    
-    // Знаходимо користувачів з увімкненими системними сповіщеннями
+
+    const attachments = [];
+    for (const file of uploadedFiles) {
+      const fileUrl = file.path || file.secure_url || '';
+      const cloudinaryId = file.public_id || '';
+      if (!fileUrl) continue;
+      const originalName = decodeUploadOriginalName(file.originalname);
+      attachments.push({
+        originalName,
+        url: fileUrl,
+        mimetype: file.mimetype || '',
+        size: file.size || 0,
+        cloudinaryId
+      });
+      try {
+        await File.create({
+          entityType: 'system_notification',
+          originalName,
+          filename: cloudinaryId,
+          cloudinaryId,
+          cloudinaryUrl: fileUrl,
+          mimetype: file.mimetype || '',
+          size: file.size || 0,
+          description: 'Системне повідомлення'
+        });
+      } catch (fileErr) {
+        console.error('[TELEGRAM] Не вдалося зберегти файл системного повідомлення:', fileErr);
+      }
+    }
+
     const users = await User.find({
       telegramChatId: { $exists: true, $ne: '' },
       'notificationSettings.systemNotifications': true
     }).lean();
-    
+
+    const text = message
+      ? `📢 <b>Системне повідомлення</b>\n\n${message}`
+      : '📢 <b>Системне повідомлення</b>';
+    const inAppBody = message || (attachments.length
+      ? `Прикріплено файлів: ${attachments.length}`
+      : '');
+
     let sentCount = 0;
+    let inAppCount = 0;
     for (const user of users) {
       if (user.telegramChatId) {
-        const success = await telegramService.sendMessage(
+        const success = await telegramService.sendSystemBroadcast(
           user.telegramChatId,
-          `📢 <b>Системне повідомлення</b>\n\n${message}`
+          text,
+          attachments
         );
         if (success) sentCount++;
       }
+      if (user.login) {
+        await createManagerNotificationDeduped({
+          recipientLogin: user.login,
+          kind: 'system_broadcast',
+          title: 'Системне повідомлення',
+          body: inAppBody,
+          attachments: attachments.map((a) => ({ ...a })),
+          read: false
+        });
+        inAppCount++;
+      }
     }
-    
-    console.log(`[TELEGRAM] Системне повідомлення відправлено ${sentCount} користувачам`);
-    res.json({ success: true, sentCount });
+
+    console.log(`[TELEGRAM] Системне повідомлення відправлено ${sentCount} користувачам, in-app: ${inAppCount}, файлів: ${attachments.length}`);
+    res.json({ success: true, sentCount, inAppCount, attachmentCount: attachments.length });
   } catch (error) {
     console.error('[TELEGRAM] Помилка відправки системного повідомлення:', error);
     res.status(500).json({ error: error.message });

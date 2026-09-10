@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import API_BASE_URL from '../../config';
+import { openFilePreview } from '../../utils/pdfUtils';
 import './ManagerNotificationsTab.css';
 
 const KIND_LABELS = {
@@ -32,7 +33,8 @@ const KIND_LABELS = {
   ved_incoming_week: 'Надходження ВЕД цього тижня',
   warehouse_transfer_requested: 'Запит на переміщення (сервіс)',
   warehouse_transfer_approved: 'Переміщення підтверджено',
-  warehouse_transfer_rejected: 'Переміщення відхилено'
+  warehouse_transfer_rejected: 'Переміщення відхилено',
+  system_broadcast: 'Системне повідомлення'
 };
 
 function notificationTaskId(n) {
@@ -72,6 +74,49 @@ function extractInviteLink(text) {
 function bodyWithoutInviteLink(body, link) {
   if (!link) return body;
   return String(body || '').replace(link, '').trim();
+}
+
+function isImageNotificationAttachment(att) {
+  const mt = String(att?.mimetype || '').toLowerCase();
+  const name = String(att?.originalName || att?.url || '').toLowerCase().split('?')[0];
+  return mt.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp)$/.test(name);
+}
+
+function NotificationAttachments({ attachments }) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return null;
+  return (
+    <div className="manager-notification-attachments">
+      {attachments.map((att, idx) => {
+        const url = att.url || att.cloudinaryUrl;
+        if (!url) return null;
+        const name = att.originalName || 'Файл';
+        if (isImageNotificationAttachment(att)) {
+          return (
+            <a
+              key={`${url}-${idx}`}
+              className="manager-notification-attachment-image"
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={name}
+            >
+              <img src={url} alt={name} />
+            </a>
+          );
+        }
+        return (
+          <button
+            key={`${url}-${idx}`}
+            type="button"
+            className="manager-notification-attachment-file"
+            onClick={() => openFilePreview(url, att.mimetype, name)}
+          >
+            📄 {name}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function ManagerNotificationsTab({
@@ -287,6 +332,7 @@ function ManagerNotificationsTab({
               ) : (
                 <p className="manager-notification-body">{n.body}</p>
               )}
+              <NotificationAttachments attachments={n.attachments} />
               {n.kind === 'shipment_request_new' && onOpenShipmentRequest && n.shipmentRequestId ? (
                 <button
                   type="button"

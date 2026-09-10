@@ -2247,7 +2247,93 @@ function AdminDashboard({ user }) {
   const [usersWithTelegram, setUsersWithTelegram] = useState([]);
   const [notificationSettings, setNotificationSettings] = useState({});
   const [systemMessage, setSystemMessage] = useState('');
+  const [systemMessageFiles, setSystemMessageFiles] = useState([]);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const systemMessageFileInputRef = useRef(null);
+  const systemMessageFilesRef = useRef([]);
+  systemMessageFilesRef.current = systemMessageFiles;
+  const SYSTEM_MESSAGE_MAX_FILES = 10;
+  const SYSTEM_MESSAGE_MAX_SIZE = 20 * 1024 * 1024;
+  const SYSTEM_MESSAGE_ACCEPT =
+    'image/jpeg,image/png,image/gif,image/webp,image/jpg,application/pdf,.jpg,.jpeg,.png,.gif,.webp,.pdf';
+
+  const isAllowedSystemMessageFile = (file) => {
+    const mt = String(file?.type || '').toLowerCase();
+    if (
+      mt === 'image/jpeg' ||
+      mt === 'image/jpg' ||
+      mt === 'image/png' ||
+      mt === 'image/gif' ||
+      mt === 'image/webp' ||
+      mt === 'application/pdf'
+    ) {
+      return true;
+    }
+    return /\.(jpe?g|png|gif|webp|pdf)$/i.test(String(file?.name || ''));
+  };
+
+  const addSystemMessageFiles = (fileList) => {
+    const incoming = Array.from(fileList || []).filter(Boolean);
+    if (incoming.length === 0) return;
+    const invalidType = incoming.filter((file) => !isAllowedSystemMessageFile(file));
+    const tooBig = incoming.filter((file) => isAllowedSystemMessageFile(file) && file.size > SYSTEM_MESSAGE_MAX_SIZE);
+    if (invalidType.length > 0) {
+      alert('Дозволені лише зображення (JPEG, PNG, GIF, WebP) та PDF');
+    }
+    if (tooBig.length > 0) {
+      alert('Максимальний розмір файлу — 20 МБ');
+    }
+    setSystemMessageFiles((prev) => {
+      const next = [...prev];
+      for (const file of incoming) {
+        if (next.length >= SYSTEM_MESSAGE_MAX_FILES) break;
+        if (!isAllowedSystemMessageFile(file)) continue;
+        if (file.size > SYSTEM_MESSAGE_MAX_SIZE) continue;
+        const isImage = String(file.type || '').startsWith('image/')
+          || /\.(jpe?g|png|gif|webp)$/i.test(String(file.name || ''));
+        next.push({
+          id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          previewUrl: isImage ? URL.createObjectURL(file) : null
+        });
+      }
+      return next;
+    });
+  };
+
+  const removeSystemMessageFile = (id) => {
+    setSystemMessageFiles((prev) => {
+      const item = prev.find((x) => x.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((x) => x.id !== id);
+    });
+  };
+
+  const clearSystemMessageFiles = () => {
+    setSystemMessageFiles((prev) => {
+      prev.forEach((item) => {
+        if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
+  };
+
+  const onSystemMessagePaste = (e) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItems = items.filter((item) => item.type && item.type.startsWith('image/'));
+    if (imageItems.length === 0) return;
+    e.preventDefault();
+    const files = imageItems
+      .map((item, idx) => {
+        const file = item.getAsFile();
+        if (!file) return null;
+        if (file.name && file.name !== 'image.png') return file;
+        const ext = String(file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        return new File([file], `screenshot-${Date.now()}-${idx}.${ext}`, { type: file.type || 'image/png' });
+      })
+      .filter(Boolean);
+    addSystemMessageFiles(files);
+  };
 
   const NOTIFICATION_TYPES = [
     { key: 'newRequests', label: 'Нові заявки та зміни заявок у статусі «Заявка»' },
@@ -2271,6 +2357,14 @@ function AdminDashboard({ user }) {
       loadUsersWithTelegram();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      systemMessageFilesRef.current.forEach((item) => {
+        if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, []);
 
   const loadUsersWithTelegram = async () => {
     try {
@@ -2342,28 +2436,40 @@ function AdminDashboard({ user }) {
   };
 
   const sendSystemNotification = async () => {
-    if (!systemMessage.trim()) {
-      alert('Введіть текст повідомлення');
+    if (!systemMessage.trim() && systemMessageFiles.length === 0) {
+      alert('Введіть текст повідомлення або прикріпіть файл');
       return;
     }
-    
+
     setSendingMessage(true);
     try {
       const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('message', systemMessage);
+      systemMessageFiles.forEach((item) => {
+        if (item?.file) formData.append('files', item.file);
+      });
       const res = await fetch(`${API_BASE_URL}/notifications/send-system-message`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ message: systemMessage })
+        body: formData
       });
-      
+      const result = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        alert('✅ Повідомлення відправлено!');
+        const sent = Number(result.sentCount) || 0;
+        const filesCount = Number(result.attachmentCount) || systemMessageFiles.length;
+        alert(
+          filesCount
+            ? `✅ Повідомлення з файлами відправлено (${sent} користувачів)`
+            : `✅ Повідомлення відправлено (${sent} користувачів)`
+        );
         setSystemMessage('');
+        clearSystemMessageFiles();
       } else {
-        alert('Помилка відправки');
+        alert(result.error || 'Помилка відправки');
       }
     } catch (error) {
       alert('Помилка: ' + error.message);
@@ -2585,13 +2691,72 @@ function AdminDashboard({ user }) {
         </>
       )}
       
-      <div className="system-message-section">
+      <div
+        className="system-message-section"
+        onDragOver={(e) => {
+          e.preventDefault();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          addSystemMessageFiles(e.dataTransfer.files);
+        }}
+      >
         <h4>📢 Системне повідомлення</h4>
         <textarea
           placeholder="Введіть текст системного повідомлення..."
           value={systemMessage}
           onChange={(e) => setSystemMessage(e.target.value)}
+          onPaste={onSystemMessagePaste}
         />
+        <input
+          ref={systemMessageFileInputRef}
+          type="file"
+          accept={SYSTEM_MESSAGE_ACCEPT}
+          multiple
+          hidden
+          onChange={(e) => {
+            addSystemMessageFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
+        <div className="system-message-attach-row">
+          <button
+            type="button"
+            className="btn-attach-files"
+            onClick={() => systemMessageFileInputRef.current?.click()}
+            disabled={sendingMessage || systemMessageFiles.length >= SYSTEM_MESSAGE_MAX_FILES}
+          >
+            📎 Прикріпити файли
+          </button>
+          <span className="system-message-attach-hint">
+            JPEG, PNG, PDF або скріншот (вставка Ctrl+V). До {SYSTEM_MESSAGE_MAX_FILES} файлів, до 20 МБ кожен.
+          </span>
+        </div>
+        {systemMessageFiles.length > 0 && (
+          <ul className="system-message-files">
+            {systemMessageFiles.map((item) => (
+              <li key={item.id} className="system-message-file">
+                {item.previewUrl ? (
+                  <img src={item.previewUrl} alt={item.file?.name || 'файл'} />
+                ) : (
+                  <span className="system-message-file-icon">PDF</span>
+                )}
+                <span className="system-message-file-name" title={item.file?.name}>
+                  {item.file?.name}
+                </span>
+                <button
+                  type="button"
+                  className="system-message-file-remove"
+                  onClick={() => removeSystemMessageFile(item.id)}
+                  disabled={sendingMessage}
+                  aria-label="Видалити файл"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <button 
           className="btn-send-message" 
           onClick={sendSystemNotification}
@@ -2599,7 +2764,7 @@ function AdminDashboard({ user }) {
         >
           {sendingMessage ? '⏳ Відправка...' : '📤 Відправити всім'}
         </button>
-        <p className="hint">Повідомлення буде надіслано користувачам з увімкненим "Системні сповіщення"</p>
+        <p className="hint">Повідомлення та файли будуть надіслані користувачам з увімкненим &quot;Системні сповіщення&quot;</p>
       </div>
     </div>
   );
