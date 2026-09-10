@@ -52,6 +52,67 @@ function normalizeAccessRulesForSuperAdmins(rules) {
   return out;
 }
 
+function collectClipboardFiles(clipboardData) {
+  if (!clipboardData) return [];
+  const out = [];
+  const seen = new Set();
+  const pushFile = (file, idx) => {
+    if (!file) return;
+    const type = String(file.type || '').toLowerCase();
+    const name = String(file.name || '');
+    const isImage = type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(name);
+    const isPdf = type === 'application/pdf' || /\.pdf$/i.test(name);
+    const looksLikeScreenshot = !type && !name && file.size > 0;
+    if (!isImage && !isPdf && !looksLikeScreenshot) return;
+    const key = `${name}-${file.size}-${type}-${file.lastModified}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const genericName = !name || looksLikeScreenshot || /^image\.(png|jpe?g|gif|webp)$/i.test(name);
+    if (!genericName) {
+      out.push(file);
+      return;
+    }
+    const ext = (type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    out.push(new File([file], `screenshot-${Date.now()}-${idx}.${ext}`, { type: type || 'image/png' }));
+  };
+  Array.from(clipboardData.items || []).forEach((item, idx) => {
+    if (item.kind !== 'file') return;
+    pushFile(item.getAsFile(), idx);
+  });
+  if (out.length === 0) {
+    Array.from(clipboardData.files || []).forEach((file, idx) => pushFile(file, idx));
+  }
+  return out;
+}
+
+async function readClipboardImages() {
+  if (!navigator.clipboard?.read) return [];
+  try {
+    const items = await navigator.clipboard.read();
+    const files = [];
+    for (const item of items) {
+      const type = (item.types || []).find((t) => String(t).startsWith('image/'));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      const ext = String(type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+      files.push(new File([blob], `screenshot-${Date.now()}-${files.length}.${ext}`, { type }));
+    }
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+function isPlainTypingTarget(target) {
+  const el = target;
+  if (!el || typeof el.tagName !== 'string') return false;
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'textarea') return false;
+  if (tag !== 'input') return false;
+  const type = String(el.type || 'text').toLowerCase();
+  return !['checkbox', 'radio', 'file', 'button', 'submit', 'hidden'].includes(type);
+}
+
 // Вкладки адміністратора
 const ADMIN_TABS = [
   { id: 'users', label: '👥 Користувачі', icon: '👥' },
@@ -2318,22 +2379,26 @@ function AdminDashboard({ user }) {
     });
   };
 
-  const onSystemMessagePaste = (e) => {
-    const items = Array.from(e.clipboardData?.items || []);
-    const imageItems = items.filter((item) => item.type && item.type.startsWith('image/'));
-    if (imageItems.length === 0) return;
-    e.preventDefault();
-    const files = imageItems
-      .map((item, idx) => {
-        const file = item.getAsFile();
-        if (!file) return null;
-        if (file.name && file.name !== 'image.png') return file;
-        const ext = String(file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
-        return new File([file], `screenshot-${Date.now()}-${idx}.${ext}`, { type: file.type || 'image/png' });
-      })
-      .filter(Boolean);
-    addSystemMessageFiles(files);
-  };
+  const addSystemMessageFilesRef = useRef(addSystemMessageFiles);
+  addSystemMessageFilesRef.current = addSystemMessageFiles;
+
+  useEffect(() => {
+    if (activeTab !== 'notifications') return undefined;
+    const onPaste = (e) => {
+      if (isPlainTypingTarget(e.target)) return;
+      const files = collectClipboardFiles(e.clipboardData);
+      if (files.length > 0) {
+        e.preventDefault();
+        addSystemMessageFilesRef.current(files);
+        return;
+      }
+      readClipboardImages().then((images) => {
+        if (images.length > 0) addSystemMessageFilesRef.current(images);
+      });
+    };
+    document.addEventListener('paste', onPaste, true);
+    return () => document.removeEventListener('paste', onPaste, true);
+  }, [activeTab]);
 
   const NOTIFICATION_TYPES = [
     { key: 'newRequests', label: 'Нові заявки та зміни заявок у статусі «Заявка»' },
@@ -2709,10 +2774,9 @@ function AdminDashboard({ user }) {
       >
         <h4>📢 Системне повідомлення</h4>
         <textarea
-          placeholder="Введіть текст системного повідомлення..."
+          placeholder="Введіть текст системного повідомлення або натисніть Ctrl+V, щоб вставити скріншот..."
           value={systemMessage}
           onChange={(e) => setSystemMessage(e.target.value)}
-          onPaste={onSystemMessagePaste}
         />
         <input
           ref={systemMessageFileInputRef}
@@ -2735,7 +2799,7 @@ function AdminDashboard({ user }) {
             📎 Прикріпити файли
           </button>
           <span className="system-message-attach-hint">
-            JPEG, PNG, PDF або скріншот (вставка Ctrl+V). До {SYSTEM_MESSAGE_MAX_FILES} файлів, до 20 МБ кожен.
+            JPEG, PNG, PDF. Скріншот: Win+Shift+S, потім Ctrl+V на цій вкладці (без вікна файлів). До {SYSTEM_MESSAGE_MAX_FILES} файлів, до 20 МБ кожен.
           </span>
         </div>
         {systemMessageFiles.length > 0 && (
