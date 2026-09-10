@@ -418,6 +418,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [columnSettings, setColumnSettings] = useState({ visible: [], order: [], widths: {} });
   const [deletingTaskId, setDeletingTaskId] = useState(null);
   const [restoringTaskId, setRestoringTaskId] = useState(null);
+  const [takingTaskId, setTakingTaskId] = useState(null);
   const abortControllerRef = useRef(null);
   const fetchIdRef = useRef(0);
   
@@ -756,6 +757,56 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       alert('Помилка видалення заявки');
     } finally {
       setDeletingTaskId(null);
+    }
+  };
+
+  const handleTakeIntoWork = async (task, e) => {
+    e.stopPropagation();
+    if (task.status !== 'Заявка') return;
+
+    const taskId = task._id || task.id;
+    const taskNumber = task.requestNumber || taskId;
+    setTakingTaskId(taskId);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'В роботі' })
+      });
+
+      if (response.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        await postTaskEventLog(token, {
+          userId: currentUser._id || currentUser.id,
+          userName: currentUser.name || currentUser.login,
+          userRole: currentUser.role,
+          action: 'status_change',
+          entityType: 'task',
+          entityId: taskId,
+          description: `Заявку ${taskNumber} взято в роботу`,
+          details: {
+            requestNumber: taskNumber,
+            fromStatus: task.status,
+            toStatus: 'В роботі',
+            client: task.client
+          }
+        });
+        setTasks((prev) => prev.filter((t) => (t._id || t.id) !== taskId));
+        clearTasksCache();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(`Не вдалося взяти заявку в роботу: ${errorData.error || 'Невідома помилка'}`);
+      }
+    } catch (error) {
+      console.error('Помилка взяття заявки в роботу:', error);
+      alert('Не вдалося взяти заявку в роботу');
+    } finally {
+      setTakingTaskId(null);
     }
   };
 
@@ -1744,6 +1795,21 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
             </button>
           )}
         </div>
+        {status === 'newRequests' &&
+          task.status === 'Заявка' &&
+          !isTaskMarkedForDeletion(task) &&
+          approveRole !== 'warehouse' &&
+          approveRole !== 'accountant' && (
+          <button
+            type="button"
+            className="btn-take-into-work"
+            onClick={(e) => handleTakeIntoWork(task, e)}
+            disabled={takingTaskId === (task._id || task.id)}
+            title="Перевести заявку в статус «В роботі»"
+          >
+            {takingTaskId === (task._id || task.id) ? '⏳ Переносимо…' : 'Взяти в роботу'}
+          </button>
+        )}
       </article>
     );
   };
