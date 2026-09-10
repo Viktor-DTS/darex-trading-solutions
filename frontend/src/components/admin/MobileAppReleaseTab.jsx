@@ -95,7 +95,8 @@ export default function MobileAppReleaseTab() {
       setFile(null);
       setChangelog('');
       await load();
-      alert(`Опубліковано ${version.trim()}. Користувачі побачать оновлення при вході в додаток.`);
+      const pruned = data.pruned?.removed ? ` Видалено старих APK: ${data.pruned.removed}.` : '';
+      alert(`Опубліковано ${version.trim()}.${pruned} Користувачі побачать оновлення при вході в додаток.`);
     } catch (e) {
       alert(e.message);
     } finally {
@@ -133,8 +134,9 @@ export default function MobileAppReleaseTab() {
     <div className="admin-section mar-wrap">
       <h3>📱 DTS Mobile — оновлення</h3>
       <p className="info-text">
-        Єдине джерело: APK на Cloudinary. Це посилання для першої установки не змінюється —
-        після встановлення додаток сам підхоплює нові збірки.
+        APK лежить лише в папці Cloudinary <code>dts-mobile/releases</code> і не чіпає файли заявок.
+        Завжди лишається поточний установчий файл + максимум 3 попередні оновлення.
+        Четверте старе оновлення видаляється автоматично (найстаріше).
       </p>
 
       <div className="mar-links">
@@ -217,12 +219,13 @@ export default function MobileAppReleaseTab() {
 
       {history.length ? (
         <div className="mar-history">
-          <h4>Останні релізи</h4>
+          <h4>Файли в Cloudinary (установчий + до 3 оновлень)</h4>
           <ul>
-            {history.map((row) => (
+            {history.map((row, idx) => (
               <li key={row._id}>
-                {row.version} · {formatDate(row.publishedAt)} · {row.active ? 'активна' : 'архів'}
+                {idx === 0 ? 'Установчий' : `Оновлення ${idx}`} · {row.version} · {formatDate(row.publishedAt)}
                 {row.publishedBy ? ` · ${row.publishedBy}` : ''}
+                {formatSize(row.fileSize) ? ` · ${formatSize(row.fileSize)}` : ''}
               </li>
             ))}
           </ul>

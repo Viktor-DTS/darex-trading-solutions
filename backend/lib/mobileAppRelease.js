@@ -92,6 +92,31 @@ async function getAppVersionPayload(MobileAppRelease, req) {
   return fallback;
 }
 
+const KEEP_UPDATE_APKS = 3;
+
+async function destroyApk(cloudinary, publicId) {
+  const id = String(publicId || '').trim();
+  if (!id) return;
+  try {
+    await cloudinary.uploader.destroy(id, { resource_type: 'raw', invalidate: true, type: 'upload' });
+  } catch (e) {
+    console.warn('[app-version] Cloudinary destroy failed:', id, e.message);
+  }
+}
+
+/** Залишає поточний установчий APK + 3 попередні оновлення. Найстаріші файли з dts-mobile/releases видаляються. */
+async function pruneOldMobileReleases(cloudinary, MobileAppRelease) {
+  const rows = await MobileAppRelease.find({}).sort({ publishedAt: -1, createdAt: -1 });
+  const stale = rows.slice(1 + KEEP_UPDATE_APKS);
+  let removed = 0;
+  for (const row of stale) {
+    await destroyApk(cloudinary, row.cloudinaryId);
+    await MobileAppRelease.deleteOne({ _id: row._id });
+    removed += 1;
+  }
+  return { kept: rows.length - removed, removed };
+}
+
 function uploadApkBuffer(cloudinary, buffer, version) {
   const safeVersion = String(version || 'build').replace(/[^0-9A-Za-z._-]/g, '-');
   return new Promise((resolve, reject) => {
@@ -159,5 +184,7 @@ module.exports = {
   publicPayloadFromRelease,
   getAppVersionPayload,
   uploadApkBuffer,
+  pruneOldMobileReleases,
+  KEEP_UPDATE_APKS,
   firstInstallHtml,
 };

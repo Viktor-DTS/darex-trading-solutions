@@ -150,6 +150,7 @@ const {
   isMobileAppAdmin,
   getAppVersionPayload,
   uploadApkBuffer,
+  pruneOldMobileReleases,
   firstInstallHtml,
   publicPayloadFromRelease,
   stableInstallUrls,
@@ -4745,6 +4746,13 @@ app.post('/api/app-version', authenticateToken, (req, res) => {
         publishedAt: new Date(),
       });
 
+      let pruned = { kept: 1, removed: 0 };
+      try {
+        pruned = await pruneOldMobileReleases(cloudinary, MobileAppRelease);
+      } catch (pruneErr) {
+        console.warn('[app-version] prune failed:', pruneErr.message);
+      }
+
       if (notifyUsers) {
         try {
           const users = await User.find({
@@ -4765,6 +4773,7 @@ app.post('/api/app-version', authenticateToken, (req, res) => {
         ok: true,
         release: publicPayloadFromRelease(release, req),
         urls: stableInstallUrls(req),
+        pruned,
       });
     } catch (error) {
       console.error('[app-version] POST /api/app-version:', error);
