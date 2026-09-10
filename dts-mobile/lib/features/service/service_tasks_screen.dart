@@ -21,6 +21,8 @@ class ServiceTasksScreen extends StatefulWidget {
 class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  final _statuses = const ['Всі', 'Заявка', 'В роботі', 'Виконано'];
+  String _selectedStatus = 'Всі';
   bool _loading = false;
   bool _loadingMore = false;
   String? _error;
@@ -28,6 +30,16 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
   int _total = 0;
   int _page = 1;
   Timer? _searchDebounce;
+
+  bool get _assignedToMe => AuthService.instance.isServiceRole;
+
+  /// Як у продакшені: адмін бачить усі заявки; регіональні — свій регіон.
+  /// Роль service у APP — лише заявки, передані через продакшн.
+  String? get _filterRegion {
+    final auth = AuthService.instance;
+    if (auth.isAdmin || _assignedToMe) return null;
+    return auth.region;
+  }
 
   @override
   void initState() {
@@ -77,17 +89,20 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
     });
 
     try {
-      final region = AuthService.instance.region;
+      final assignedToMe = _assignedToMe;
       final filter = _searchController.text.trim();
       final result = await TaskService.instance.fetchTasksFiltered(
-        region: region,
+        region: _filterRegion,
         sort: '-requestDate',
-        statuses: 'Заявка,В роботі',
+        status: assignedToMe || _selectedStatus == 'Всі' ? null : _selectedStatus,
+        statuses: assignedToMe
+            ? 'Заявка,В роботі'
+            : (_selectedStatus == 'Всі' ? 'Заявка,В роботі,Виконано' : null),
         filter: filter.isEmpty ? null : filter,
         page: 1,
         limit: TaskService.defaultPageLimit,
         forceRefresh: forceRefresh,
-        assignedToMe: true,
+        assignedToMe: assignedToMe,
       );
       if (mounted) {
         setState(() {
@@ -109,13 +124,16 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
     setState(() => _loadingMore = true);
     final nextPage = _page + 1;
     try {
-      final region = AuthService.instance.region;
+      final assignedToMe = _assignedToMe;
       final filter = _searchController.text.trim();
       final result = await TaskService.instance.fetchTasksFiltered(
-        region: region,
+        region: _filterRegion,
         sort: '-requestDate',
-        statuses: 'Заявка,В роботі',
-        assignedToMe: true,
+        status: assignedToMe || _selectedStatus == 'Всі' ? null : _selectedStatus,
+        statuses: assignedToMe
+            ? 'Заявка,В роботі'
+            : (_selectedStatus == 'Всі' ? 'Заявка,В роботі,Виконано' : null),
+        assignedToMe: assignedToMe,
         filter: filter.isEmpty ? null : filter,
         page: nextPage,
         limit: TaskService.defaultPageLimit,
@@ -160,10 +178,35 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Тільки заявки, передані вам як виконавцю'),
-                  ),
+                  if (AuthService.instance.isServiceRole)
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Тільки заявки, передані вам як виконавцю'),
+                    )
+                  else ...[
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _statuses.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final status = _statuses[index];
+                          final isSelected = status == _selectedStatus;
+                          return ChoiceChip(
+                            label: Text(status),
+                            selected: isSelected,
+                            onSelected: (_) {
+                              if (isSelected) return;
+                              setState(() => _selectedStatus = status);
+                              _loadTasks(resetPage: true);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

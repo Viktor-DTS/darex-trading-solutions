@@ -97,8 +97,14 @@ class AuthService {
 
   String? get role => Session.user?.role;
   String? get region => Session.user?.region;
+  String? get login => Session.user?.login;
   String? get userName => Session.user?.name ?? Session.user?.login;
   bool get isAuthenticated => Session.token?.isNotEmpty ?? false;
+  bool get isAdmin {
+    final r = (role ?? '').toLowerCase();
+    return r == 'admin' || r == 'administrator';
+  }
+  bool get isServiceRole => (role ?? '').toLowerCase() == 'service';
 
   static bool _isJwtExpired(String token) {
     try {

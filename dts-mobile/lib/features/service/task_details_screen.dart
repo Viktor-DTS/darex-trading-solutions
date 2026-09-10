@@ -200,6 +200,15 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     return fromFull == 'Виконавець виконав роботу' || widget.task.isExecutorCompleted;
   }
 
+  bool get _canCompleteAsExecutor {
+    if (_isAlreadyCompleted) return false;
+    final login = AuthService.instance.login;
+    if (login == null || login.isEmpty) return false;
+    final assigned = _fullTask?['assignedExecutorLogin']?.toString() ??
+        widget.task.assignedExecutorLogin;
+    return assigned == login;
+  }
+
   Future<void> _confirmAndComplete() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -623,7 +632,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                       const SizedBox(height: 20),
                       _buildFilesSection(),
                     ],
-                    if (!_isAlreadyCompleted) ...[
+                    if (_canCompleteAsExecutor) ...[
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,

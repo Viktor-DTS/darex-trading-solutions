@@ -35,8 +35,9 @@ class TaskService {
     String? statuses,
     String? sort,
     String? filter,
+    bool assignedToMe = false,
   }) {
-    return 'filter_${region ?? ''}_${status ?? ''}_${statuses ?? ''}_${sort ?? ''}_${filter ?? ''}';
+    return 'filter_${region ?? ''}_${status ?? ''}_${statuses ?? ''}_${sort ?? ''}_${filter ?? ''}_$assignedToMe';
   }
 
   /// Очистити кеш заявок (наприклад при виході або після створення/редагування).
@@ -87,6 +88,7 @@ class TaskService {
       statuses: statuses,
       sort: sort,
       filter: filter,
+      assignedToMe: assignedToMe,
     );
 
     if (!forceRefresh && page == 1) {
@@ -138,11 +140,18 @@ class TaskService {
     }
     return (tasks: <Task>[], total: 0);
     } catch (_) {
-      if (ConnectivityService.instance.isOffline || assignedToMe) {
+      if (assignedToMe) {
         final cached = await _loadAssignedCache();
         final hidden = await OfflineSyncService.instance.hiddenTaskIds();
         final visible = cached.where((t) => !hidden.contains(t.id)).toList();
         return (tasks: visible, total: visible.length);
+      }
+      if (ConnectivityService.instance.isOffline) {
+        final mem = _filteredTasksCache[cacheKey];
+        if (mem != null) {
+          final visible = await _withoutHidden(mem.tasks);
+          return (tasks: visible, total: mem.total);
+        }
       }
       rethrow;
     }
