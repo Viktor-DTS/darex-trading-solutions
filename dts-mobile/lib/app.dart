@@ -6,6 +6,7 @@ import 'core/services/auth_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/task_service.dart';
 import 'core/services/theme_service.dart';
+import 'core/widgets/update_dialog.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/managers/managers_overview_screen.dart';
@@ -124,36 +125,7 @@ class _AuthGateState extends State<AuthGate> {
     _updateCheckDone = true;
     final result = await AppUpdateService.instance.checkForUpdate();
     if (!context.mounted || result == null) return;
-    _showUpdateDialog(context, result);
-  }
-
-  void _showUpdateDialog(BuildContext context, AppUpdateResult result) {
-    showDialog(
-      context: context,
-      barrierDismissible: !result.forceUpdate,
-      builder: (context) => AlertDialog(
-        title: const Text('Є оновлення'),
-        content: Text(
-          result.forceUpdate
-              ? 'Для роботи потрібна нова версія застосунку (${result.latestVersion}). Зараз у вас ${result.currentVersion}. Відкрийте магазин і оновіть застосунок.'
-              : 'Доступна нова версія ${result.latestVersion} (у вас ${result.currentVersion}). Рекомендуємо оновити.',
-        ),
-        actions: [
-          if (!result.forceUpdate)
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Пізніше'),
-            ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await AppUpdateService.instance.openStore(result.storeUrl);
-            },
-            child: const Text('Оновити'),
-          ),
-        ],
-      ),
-    );
+    await showAppUpdateDialog(context, result);
   }
 
   @override

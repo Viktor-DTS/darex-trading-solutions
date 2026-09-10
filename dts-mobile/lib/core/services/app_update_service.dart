@@ -1,35 +1,47 @@
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config.dart';
 
-/// Результат перевірки оновлення: чи потрібне оновлення, чи обов'язкове, посилання на магазин.
 class AppUpdateResult {
   final bool needsUpdate;
   final bool forceUpdate;
   final String? storeUrl;
+  final String? downloadUrl;
   final String latestVersion;
   final String currentVersion;
+  final String changelog;
+  final int fileSize;
 
   AppUpdateResult({
     required this.needsUpdate,
     required this.forceUpdate,
     this.storeUrl,
+    this.downloadUrl,
     required this.latestVersion,
     required this.currentVersion,
+    this.changelog = '',
+    this.fileSize = 0,
   });
+
+  String get apkUrl {
+    final direct = (downloadUrl ?? '').trim();
+    if (direct.isNotEmpty && !direct.contains('play.google.com')) return direct;
+    return (storeUrl ?? '').trim();
+  }
 }
 
-/// Порівняння версій у форматі "a.b.c" (наприклад 0.1.0).
-/// Повертає: < 0 якщо current < other, 0 якщо рівні, > 0 якщо current > other.
 int _compareVersions(String current, String other) {
   final c = _parseVersion(current);
   final o = _parseVersion(other);
   for (int i = 0; i < 3; i++) {
-    final diff = (c[i] - o[i]);
+    final diff = c[i] - o[i];
     if (diff != 0) return diff;
   }
   return 0;
@@ -37,44 +49,39 @@ int _compareVersions(String current, String other) {
 
 List<int> _parseVersion(String v) {
   final parts = v.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
-  while (parts.length < 3) parts.add(0);
+  while (parts.length < 3) {
+    parts.add(0);
+  }
   return parts.take(3).toList();
 }
 
-/// Сервіс перевірки оновлень: при вході додаток викликає checkForUpdate(),
-/// отримує інфо з бекенду і повертає результат для показу діалогу.
 class AppUpdateService {
   AppUpdateService._();
   static final AppUpdateService instance = AppUpdateService._();
 
-  /// Перевіряє, чи є нова версія. Викликати при старті (наприклад після AuthService.init).
-  /// Повертає [AppUpdateResult] якщо потрібно показати оновлення, інакше null.
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 20),
+    receiveTimeout: const Duration(minutes: 5),
+  ));
+
   Future<AppUpdateResult?> checkForUpdate() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/app-version');
-      final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 5);
-      final request = await client.getUrl(uri);
-      final response = await request.close();
-      if (response.statusCode != 200) return null;
+      final res = await _dio.get('${AppConfig.apiBaseUrl}/api/app-version');
+      if (res.statusCode != 200 || res.data is! Map) return null;
+      final data = Map<String, dynamic>.from(res.data as Map);
 
-      final body = await response.transform(utf8.decoder).join();
-      client.close();
-
-      // Парсимо JSON вручну, щоб не додавати dependency
-      final latestVersion = _jsonString(body, 'latest_version') ?? currentVersion;
-      final minVersion = _jsonString(body, 'min_version') ?? currentVersion;
-      final forceUpdate = _jsonBool(body, 'force_update');
-      String? storeUrl;
-      if (Platform.isAndroid) {
-        storeUrl = _jsonString(body, 'android_store_url');
-      } else if (Platform.isIOS) {
-        storeUrl = _jsonString(body, 'ios_store_url');
-      }
-      storeUrl ??= _jsonString(body, 'android_store_url');
+      final latestVersion = data['latest_version']?.toString() ?? currentVersion;
+      final minVersion = data['min_version']?.toString() ?? currentVersion;
+      final forceUpdate = data['force_update'] == true || data['force_update'] == 'true';
+      final storeUrl = Platform.isIOS
+          ? data['ios_store_url']?.toString()
+          : (data['android_store_url']?.toString() ?? '');
+      final downloadUrl = data['download_url']?.toString() ?? storeUrl;
+      final changelog = data['changelog']?.toString() ?? '';
+      final fileSize = int.tryParse('${data['file_size'] ?? 0}') ?? 0;
 
       final needsUpdate = _compareVersions(currentVersion, latestVersion) < 0;
       final mustUpdate = forceUpdate && _compareVersions(currentVersion, minVersion) < 0;
@@ -84,30 +91,55 @@ class AppUpdateService {
           needsUpdate: true,
           forceUpdate: mustUpdate,
           storeUrl: storeUrl,
+          downloadUrl: downloadUrl,
           latestVersion: latestVersion,
           currentVersion: currentVersion,
+          changelog: changelog,
+          fileSize: fileSize,
         );
       }
     } catch (_) {
-      // Мережа/парсинг — ігноруємо, не блокуємо вхід
+      // Мережа — не блокуємо вхід
     }
     return null;
   }
 
-  static String? _jsonString(String json, String key) {
-    final pattern = RegExp('"$key"\\s*:\\s*"([^"]*)"');
-    final match = pattern.firstMatch(json);
-    return match?.group(1);
+  Future<void> downloadAndInstall(
+    AppUpdateResult result, {
+    void Function(double progress)? onProgress,
+  }) async {
+    final url = result.apkUrl;
+    if (url.isEmpty) {
+      throw Exception('Немає посилання на APK');
+    }
+    if (!Platform.isAndroid) {
+      await openStore(url);
+      return;
+    }
+
+    if (await Permission.requestInstallPackages.isDenied) {
+      await Permission.requestInstallPackages.request();
+    }
+
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/dts-mobile-${result.latestVersion}.apk');
+    await _dio.download(
+      url,
+      file.path,
+      onReceiveProgress: (received, total) {
+        if (total > 0) onProgress?.call(received / total);
+      },
+    );
+
+    final opened = await OpenFilex.open(
+      file.path,
+      type: 'application/vnd.android.package-archive',
+    );
+    if (opened.type != ResultType.done) {
+      await openStore(url);
+    }
   }
 
-  static bool _jsonBool(String json, String key) {
-    final quoted = RegExp('"$key"\\s*:\\s*"true"').firstMatch(json);
-    if (quoted != null) return true;
-    final unquoted = RegExp('"$key"\\s*:\\s*true').firstMatch(json);
-    return unquoted != null;
-  }
-
-  /// Відкриває посилання на магазин (Play / App Store).
   Future<bool> openStore(String? storeUrl) async {
     if (storeUrl == null || storeUrl.isEmpty) return false;
     final uri = Uri.parse(storeUrl);

@@ -1,7 +1,7 @@
 name: dts_mobile
 description: DTS mobile app (Flutter) for service, warehouse, testing, and manager panels.
 publish_to: "none"
-version: 0.3.2+5
+version: 0.3.3+6
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -21,6 +21,8 @@ dependencies:
   package_info_plus: ^8.1.2
   shared_preferences: ^2.2.2
   flutter_local_notifications: ^21.0.0
+  path_provider: ^2.1.5
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:

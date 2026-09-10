@@ -5,6 +5,7 @@ import '../../core/services/access_rules_service.dart';
 import '../../core/services/app_update_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/theme_service.dart';
+import '../../core/widgets/update_dialog.dart';
 import '../auth/login_screen.dart';
 import '../settings/about_screen.dart';
 
@@ -44,32 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showUpdateDialog(BuildContext context, AppUpdateResult result) {
-    showDialog(
-      context: context,
-      barrierDismissible: !result.forceUpdate,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Є оновлення'),
-        content: Text(
-          result.forceUpdate
-              ? 'Для роботи потрібна нова версія (${result.latestVersion}). У вас ${result.currentVersion}.'
-              : 'Доступна версія ${result.latestVersion} (у вас ${result.currentVersion}).',
-        ),
-        actions: [
-          if (!result.forceUpdate)
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Пізніше'),
-            ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await AppUpdateService.instance.openStore(result.storeUrl);
-            },
-            child: const Text('Оновити'),
-          ),
-        ],
-      ),
-    );
+    showAppUpdateDialog(context, result);
   }
 
   @override
