@@ -57,6 +57,8 @@ function stockKey(name) {
 export default function TaskMaterialsHintBoard({
   equipment,
   currentTaskId,
+  requestNumber,
+  requestAuthor,
   region,
   warehouses = [],
   authHeaders = {},
@@ -69,6 +71,7 @@ export default function TaskMaterialsHintBoard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [appliedKey, setAppliedKey] = useState('');
+  const [activeCategory, setActiveCategory] = useState('');
 
   useEffect(() => {
     if (equipmentValue.length < 2) {
@@ -90,7 +93,11 @@ export default function TaskMaterialsHintBoard({
         });
         if (!res.ok) throw new Error('hint fetch failed');
         const json = await res.json();
-        if (!cancelled) setData(json);
+        if (!cancelled) {
+          setData(json);
+          const firstLabel = json?.slots?.[0]?.label || '';
+          setActiveCategory(firstLabel);
+        }
       } catch (e) {
         console.error('[materials-hint]', e);
         if (!cancelled) {
@@ -158,9 +165,27 @@ export default function TaskMaterialsHintBoard({
     markApplied(`${slot.id}:${analogue?.name || slot.primaryName}`);
   };
 
+  const categories = useMemo(() => {
+    const labels = [];
+    const seen = new Set();
+    for (const slot of data?.slots || []) {
+      const label = String(slot.label || '').trim();
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      labels.push(label);
+    }
+    return labels;
+  }, [data]);
+
+  const visibleSlots = useMemo(
+    () => (data?.slots || []).filter((slot) => slot.label === activeCategory),
+    [data, activeCategory],
+  );
+
   const applyAll = () => {
-    if (disabled || !onApplyAll || !data?.slots?.length) return;
-    onApplyAll(data.slots);
+    const slots = visibleSlots.length ? visibleSlots : data?.slots;
+    if (disabled || !onApplyAll || !slots?.length) return;
+    onApplyAll(slots);
     markApplied('all');
   };
 
@@ -214,6 +239,16 @@ export default function TaskMaterialsHintBoard({
   return (
     <aside className="task-materials-hint-board" onClick={(e) => e.stopPropagation()}>
       <strong className="task-materials-hint-title">Підказка по матеріалах</strong>
+      <div className="task-materials-hint-meta">
+        <span>
+          <small>Номер заявки/наряду</small>
+          <b>{requestNumber || '—'}</b>
+        </span>
+        <span>
+          <small>Автор заявки</small>
+          <b>{requestAuthor || '—'}</b>
+        </span>
+      </div>
       <p className="task-materials-hint-lead">
         Аналіз за полем «Тип обладнання». Підстановка записує назву і кількість у заявку —
         для рідин із діапазоном береться максимум.
@@ -255,22 +290,35 @@ export default function TaskMaterialsHintBoard({
             <p className="task-materials-hint-status">
               {data.matchedTasks} заявок · {data.slots.length} позицій
             </p>
-            {!disabled ? (
+            {!disabled && visibleSlots.length ? (
               <button
                 type="button"
                 className="task-materials-hint-apply is-all"
                 onClick={applyAll}
               >
-                {appliedKey === 'all' ? 'Підставлено' : 'Підставити все'}
+                {appliedKey === 'all' ? 'Підставлено' : 'Підставити категорію'}
               </button>
             ) : null}
           </div>
+          <div className="task-materials-hint-cats" role="tablist" aria-label="Категорії матеріалів">
+            {categories.map((label) => (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={activeCategory === label}
+                className={`task-materials-hint-cat${activeCategory === label ? ' is-active' : ''}`}
+                onClick={() => setActiveCategory(label)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="task-materials-hint-slots">
-            {data.slots.map((slot) => {
+            {visibleSlots.map((slot) => {
               const [primary, ...rest] = slot.analogues || [];
               return (
                 <section key={slot.id} className="task-materials-hint-slot">
-                  <strong>{slot.label}</strong>
                   {primary ? renderHintRow(slot, primary) : null}
                   {rest.length ? (
                     <div className="task-materials-hint-analogues">

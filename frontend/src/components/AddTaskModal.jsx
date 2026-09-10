@@ -2274,6 +2274,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         <TaskMaterialsHintBoard
           equipment={formData.equipment}
           currentTaskId={initialData._id || initialData.id}
+          requestNumber={formData.requestNumber}
+          requestAuthor={formData.requestAuthor}
           region={formData.serviceRegion || user?.region}
           warehouses={serviceWarehouses}
           authHeaders={serviceAuthHeaders}
