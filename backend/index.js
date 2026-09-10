@@ -10058,8 +10058,12 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
     }
     
-    // Фільтрація по регіону
-    if (region && region !== 'Україна' && !region.includes('Загальний')) {
+    const isServiceAssignedToMe =
+      (assignedToMe === '1' || assignedToMe === 'true') &&
+      String(req.user?.role || '').toLowerCase() === 'service';
+
+    // Фільтрація по регіону. Для ролі service у APP видимість — лише передані заявки, без регіону.
+    if (region && region !== 'Україна' && !region.includes('Загальний') && !isServiceAssignedToMe) {
       if (region.includes(',')) {
         matchStage.serviceRegion = { $in: region.split(',').map(r => r.trim()) };
       } else {
@@ -10072,8 +10076,10 @@ app.get('/api/tasks/filter', async (req, res) => {
       if (!login) {
         return res.status(401).json({ error: 'Не авторизовано' });
       }
-      matchStage.assignedExecutorLogin = login;
-      matchStage.executorWorkStatus = 'Передано в роботу';
+      if (isServiceAssignedToMe) {
+        matchStage.assignedExecutorLogin = login;
+        matchStage.executorWorkStatus = 'Передано в роботу';
+      }
     }
     
     // $lookup InvoiceRequest — для панелей, де в таблиці показується статус рахунку
