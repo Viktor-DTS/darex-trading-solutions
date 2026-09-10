@@ -114,11 +114,18 @@ async function findWarehouseByNameOrId(Warehouse, fromWarehouseId, fromWarehouse
   }).lean();
 }
 
+const TRANSFER_KIND_SETTING_FIELD = {
+  warehouse_transfer_requested: 'warehouseTransferRequested',
+  warehouse_transfer_approved: 'warehouseTransferApproved',
+  warehouse_transfer_received: 'warehouseTransferReceived',
+  warehouse_transfer_rejected: 'warehouseTransferRejected',
+};
+
 async function findWarehouseStaffLogins(User, warehouseRegion) {
   const region = String(warehouseRegion || '').trim();
   const filter = {
     dismissed: { $ne: true },
-    role: { $in: ['warehouse', 'zavsklad', 'golovzvsk', 'admin', 'administrator'] },
+    role: { $in: ['warehouse', 'zavsklad', 'golovzvsk'] },
   };
   if (!isNationalRegion(region)) {
     filter.region = { $regex: new RegExp(`^${escapeRegExp(region)}$`, 'i') };
@@ -127,8 +134,33 @@ async function findWarehouseStaffLogins(User, warehouseRegion) {
   return rows.map((r) => String(r.login || '').trim()).filter(Boolean);
 }
 
+async function findOptedInTransferLogins(User, settingField) {
+  if (!settingField) return [];
+  const rows = await User.find({
+    dismissed: { $ne: true },
+    [`notificationSettings.${settingField}`]: true,
+  })
+    .select('login')
+    .lean();
+  return rows.map((r) => String(r.login || '').trim()).filter(Boolean);
+}
+
+function mergeTransferRecipientLogins(...groups) {
+  const seen = new Set();
+  const out = [];
+  for (const group of groups) {
+    for (const login of group || []) {
+      const key = String(login || '').trim();
+      if (!key || seen.has(key.toLowerCase())) continue;
+      seen.add(key.toLowerCase());
+      out.push(key);
+    }
+  }
+  return out;
+}
+
 async function notifyTransferEvent(deps, tr, kind, recipientLogins) {
-  const { createManagerNotificationDeduped } = deps;
+  const { createManagerNotificationDeduped, User } = deps;
   const titles = {
     warehouse_transfer_requested: 'Новий запит на переміщення між складами',
     warehouse_transfer_approved: 'Запит на переміщення підтверджено',
@@ -147,7 +179,10 @@ async function notifyTransferEvent(deps, tr, kind, recipientLogins) {
       : '',
   ].filter(Boolean);
 
-  for (const login of recipientLogins) {
+  const optedIn = await findOptedInTransferLogins(User, TRANSFER_KIND_SETTING_FIELD[kind]);
+  const allLogins = mergeTransferRecipientLogins(recipientLogins, optedIn);
+
+  for (const login of allLogins) {
     if (!login) continue;
     await createManagerNotificationDeduped({
       recipientLogin: login,
@@ -173,7 +208,7 @@ async function notifyTransferEvent(deps, tr, kind, recipientLogins) {
             ? 'rejected'
             : null;
   if (tgEvent) {
-    await sendWarehouseTransferTelegram(deps, tr, tgEvent, recipientLogins);
+    await sendWarehouseTransferTelegram(deps, tr, tgEvent, allLogins);
   }
 }
 

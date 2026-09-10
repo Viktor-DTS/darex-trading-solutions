@@ -569,7 +569,11 @@ const userSchema = new mongoose.Schema({
     procurementWarehouseConfirmed: { type: Boolean, default: false }, // VZ підтверджено завскладом
     procurementRequestCompleted: { type: Boolean, default: false }, // VZ повністю виконано, матеріал на складі
     procurementRequestRejected: { type: Boolean, default: false }, // VZ відхилено / заблоковано
-    newMarketingLeads: { type: Boolean, default: false } // Нові ліди з реклами (маркетинг)
+    newMarketingLeads: { type: Boolean, default: false }, // Нові ліди з реклами (маркетинг)
+    warehouseTransferRequested: { type: Boolean, default: false }, // Новий запит на переміщення
+    warehouseTransferApproved: { type: Boolean, default: false }, // Підтверджено відправку
+    warehouseTransferReceived: { type: Boolean, default: false }, // Прийнято на складі-отримувачі
+    warehouseTransferRejected: { type: Boolean, default: false } // Відхилено запит на переміщення
   }
 }, { strict: false });
 
@@ -11067,7 +11071,11 @@ app.post('/api/users', authenticateToken, async (req, res) => {
         procurementWarehouseConfirmed: false,
         procurementRequestCompleted: false,
         procurementRequestRejected: false,
-        newMarketingLeads: false
+        newMarketingLeads: false,
+        warehouseTransferRequested: false,
+        warehouseTransferApproved: false,
+        warehouseTransferReceived: false,
+        warehouseTransferRejected: false
       },
       lastActivity: new Date()
     });
@@ -17092,6 +17100,8 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
     const kindQ = managerNotificationKindMongoFilter(parseManagerNotificationFeedQuery(req));
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
+      const selfLogin = String(req.user.login || '').trim();
+      if (selfLogin && !logins.includes(selfLogin)) logins.push(selfLogin);
       if (logins.length === 0) {
         return res.json([]);
       }
@@ -17115,6 +17125,8 @@ app.get('/api/manager-notifications/unread-count', authenticateToken, async (req
     const kindFilter = managerNotificationKindMongoFilter(parseManagerNotificationFeedQuery(req));
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
+      const selfLogin = String(req.user.login || '').trim();
+      if (selfLogin && !logins.includes(selfLogin)) logins.push(selfLogin);
       const count =
         logins.length === 0
           ? 0
@@ -21535,16 +21547,18 @@ ${fieldLines}`;
       const settingField = typeToSettingField[type];
       
       if (settingField) {
-        // Шукаємо користувачів з увімкненим сповіщенням цього типу
+        // Шукаємо користувачів з увімкненим сповіщенням цього типу (включно з адміном — лише якщо чекбокс увімкнено)
         const query = {
+          dismissed: { $ne: true },
           telegramChatId: { $exists: true, $ne: '' },
           [`notificationSettings.${settingField}`]: true
         };
         
-        const users = await User.find(query).lean();
+        const users = await User.find(query).select('login role region telegramChatId').lean();
         
-        // Фільтруємо по регіону
         const filteredUsers = users.filter(u => {
+          const role = String(u.role || '').toLowerCase();
+          if (role === 'admin' || role === 'administrator') return true;
           if (u.region === 'Україна') return true;
           return task.serviceRegion === u.region;
         });
@@ -21552,12 +21566,7 @@ ${fieldLines}`;
         chatIds.push(...filteredUsers.map(u => u.telegramChatId).filter(Boolean));
       }
       
-      // Додаємо адмін канал якщо налаштовано
-      if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
-        chatIds.push(process.env.TELEGRAM_ADMIN_CHAT_ID);
-      }
-      
-      return [...new Set(chatIds)]; // Унікальні
+      return [...new Set(chatIds)];
     } catch (error) {
       console.error('[TELEGRAM] Помилка getChatIdsForNotification:', error);
       return [];
@@ -21582,11 +21591,14 @@ ${fieldLines}`;
       if (!settingField) return [];
 
       const query = {
+        dismissed: { $ne: true },
         fcmToken: { $exists: true, $ne: null, $ne: '' },
         [`notificationSettings.${settingField}`]: true
       };
-      const users = await User.find(query).lean();
+      const users = await User.find(query).select('login role region fcmToken').lean();
       const filtered = users.filter(u => {
+        const role = String(u.role || '').toLowerCase();
+        if (role === 'admin' || role === 'administrator') return true;
         if (u.region === 'Україна') return true;
         return task.serviceRegion === u.region;
       });

@@ -3,7 +3,7 @@
  */
 
 const { decodeMultipartFilename } = require('./multipartFilename');
-const { isValidTelegramChatId, getAdminTelegramChatIds } = require('./telegramLink');
+const { isValidTelegramChatId } = require('./telegramLink');
 
 const PRIORITY_LABELS = {
   '1_workday': 'На протязі 1 робочого дня',
@@ -291,10 +291,7 @@ function shouldReceiveProcurementEvent(user, event, settingField, pr) {
   // Нова заявка — усі з чекбоксом (закупівлі бачать заявки від усіх).
   if (event === 'created') return enabled;
 
-  // Відхилення: адміни завжди.
-  if (event === 'rejected' && admin) return true;
-
-  // Статус заявки: заявник завжди; адмін і інші — лише з чекбоксом і лише якщо це їхня заявка або адмін.
+  // Статус заявки: заявник завжди; адмін — лише з увімкненим чекбоксом.
   if (REQUESTER_SCOPED_EVENTS.has(event)) {
     if (isRequester) return true;
     if (admin && enabled) return true;
@@ -325,7 +322,6 @@ async function collectProcurementEventChatIds(deps, event, pr) {
     chatIds.add(cid);
   });
 
-  getAdminTelegramChatIds().forEach((id) => chatIds.add(id));
   return [...chatIds];
 }
 

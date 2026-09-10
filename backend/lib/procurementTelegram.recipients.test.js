@@ -70,21 +70,21 @@ async function run() {
   const created = await collectProcurementEventChatIds(deps, 'created', prZaporozhets);
   assert.deepStrictEqual(
     created.sort(),
-    ['-1001234567890', '111'].sort(),
-    'created: усі з чекбоксом, без фільтра заявника'
+    ['111'].sort(),
+    'created: усі з чекбоксом, без фільтра заявника і без env-каналу адміна'
   );
 
   const execOther = await collectProcurementEventChatIds(deps, 'executor_completed', prZaporozhets);
   assert.deepStrictEqual(
     execOther.sort(),
-    ['-1001234567890', '222', '333'].sort(),
-    'executor_completed: заявник цієї заявки + адмін; buyer/other-manager з чекбоксом чужі не отримують'
+    ['222', '333'].sort(),
+    'executor_completed: заявник цієї заявки + адмін з чекбоксом; buyer/other-manager з чекбоксом чужі не отримують'
   );
 
   const wh = await collectProcurementEventChatIds(deps, 'warehouse_confirmed', prZaporozhets);
   assert.deepStrictEqual(
     wh.sort(),
-    ['-1001234567890', '222', '333'].sort(),
+    ['222', '333'].sort(),
     'warehouse_confirmed: заявник + адмін з чекбоксом; інший менеджер з чекбоксом — ні'
   );
 
@@ -93,29 +93,29 @@ async function run() {
   });
   assert.deepStrictEqual(
     whOtherManager.sort(),
-    ['-1001234567890', '222', '444'].sort(),
+    ['222', '444'].sort(),
     'warehouse_confirmed: лише заявник цієї заявки, не всі менеджери з чекбоксом'
   );
 
   const whNoBox = await collectProcurementEventChatIds(deps, 'warehouse_confirmed', prRequesterNoBox);
   assert.deepStrictEqual(
     whNoBox.sort(),
-    ['-1001234567890', '222', '555'].sort(),
+    ['222', '555'].sort(),
     'warehouse_confirmed: заявник отримує завжди, навіть без чекбокса'
   );
 
   const done = await collectProcurementEventChatIds(deps, 'request_completed', prZaporozhets);
   assert.deepStrictEqual(
     done.sort(),
-    ['-1001234567890', '222', '333'].sort(),
+    ['222', '333'].sort(),
     'request_completed: заявник + адмін з чекбоксом'
   );
 
   const rej = await collectProcurementEventChatIds(deps, 'rejected', prZaporozhets);
   assert.deepStrictEqual(
     rej.sort(),
-    ['-1001234567890', '222', '333'].sort(),
-    'rejected: заявник + адмін завжди'
+    ['333'].sort(),
+    'rejected: заявник завжди; адмін лише з чекбоксом VZ: відхилено'
   );
 
   assert.strictEqual(EVENT_SETTING_FIELD.executor_completed, 'procurementExecutorCompleted');
