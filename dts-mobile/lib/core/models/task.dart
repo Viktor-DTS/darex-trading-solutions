@@ -13,6 +13,9 @@ class Task {
     this.workPrice,
     this.transportKm,
     this.transportSum,
+    this.assignedExecutorLogin,
+    this.assignedExecutorName,
+    this.executorWorkStatus,
   });
 
   final String id;
@@ -28,6 +31,12 @@ class Task {
   final String? workPrice;
   final String? transportKm;
   final String? transportSum;
+  final String? assignedExecutorLogin;
+  final String? assignedExecutorName;
+  final String? executorWorkStatus;
+
+  bool get isExecutorCompleted =>
+      executorWorkStatus == 'Виконавець виконав роботу';
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
@@ -44,6 +53,31 @@ class Task {
       workPrice: json['workPrice']?.toString(),
       transportKm: json['transportKm']?.toString(),
       transportSum: json['transportSum']?.toString(),
+      assignedExecutorLogin: json['assignedExecutorLogin']?.toString(),
+      assignedExecutorName: json['assignedExecutorName']?.toString(),
+      executorWorkStatus: json['executorWorkStatus']?.toString(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'id': id,
+      'status': status,
+      'requestNumber': requestNumber,
+      'client': client,
+      'requestDesc': requestDesc,
+      'requestDate': requestDate,
+      'serviceRegion': serviceRegion,
+      'work': work,
+      'materials': materials,
+      'comments': comments,
+      'workPrice': workPrice,
+      'transportKm': transportKm,
+      'transportSum': transportSum,
+      'assignedExecutorLogin': assignedExecutorLogin,
+      'assignedExecutorName': assignedExecutorName,
+      'executorWorkStatus': executorWorkStatus,
+    };
   }
 }

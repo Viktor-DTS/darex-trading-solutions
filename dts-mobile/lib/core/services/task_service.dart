@@ -1,5 +1,11 @@
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/task.dart';
 import 'api_client.dart';
+import 'connectivity_service.dart';
+import 'offline_sync_service.dart';
 
 /// Запис кешу списку заявок (in-memory, TTL).
 class _TasksCacheEntry {
@@ -73,6 +79,7 @@ class TaskService {
     int page = 1,
     int limit = defaultPageLimit,
     bool forceRefresh = false,
+    bool assignedToMe = false,
   }) async {
     final cacheKey = _filterCacheKey(
       region: region,
@@ -85,7 +92,8 @@ class TaskService {
     if (!forceRefresh && page == 1) {
       final cached = _filteredTasksCache[cacheKey];
       if (cached != null && !cached.isExpired(_cacheTtlSeconds)) {
-        return (tasks: cached.tasks, total: cached.total);
+        final visible = await _withoutHidden(cached.tasks);
+        return (tasks: visible, total: cached.total);
       }
     }
 
@@ -101,7 +109,11 @@ class TaskService {
     } else if (statuses != null && statuses.isNotEmpty) {
       params['statuses'] = statuses;
     }
+    if (assignedToMe) {
+      params['assignedToMe'] = '1';
+    }
 
+    try {
     final response = await ApiClient.instance.dio.get(
       '/api/tasks/filter',
       queryParameters: params,
@@ -120,10 +132,54 @@ class TaskService {
       if (page == 1) {
         _filteredTasksCache[cacheKey] =
             _TasksCacheEntry(tasks, DateTime.now(), total);
+        await _persistAssignedCache(tasks, assignedToMe);
       }
-      return (tasks: tasks, total: total);
+      return (tasks: await _withoutHidden(tasks), total: total);
     }
     return (tasks: <Task>[], total: 0);
+    } catch (_) {
+      if (ConnectivityService.instance.isOffline || assignedToMe) {
+        final cached = await _loadAssignedCache();
+        final hidden = await OfflineSyncService.instance.hiddenTaskIds();
+        final visible = cached.where((t) => !hidden.contains(t.id)).toList();
+        return (tasks: visible, total: visible.length);
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<Task>> _withoutHidden(List<Task> tasks) async {
+    final hidden = await OfflineSyncService.instance.hiddenTaskIds();
+    if (hidden.isEmpty) return tasks;
+    return tasks.where((t) => !hidden.contains(t.id)).toList();
+  }
+
+  Future<void> _persistAssignedCache(List<Task> tasks, bool assignedToMe) async {
+    if (!assignedToMe) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'assigned_tasks_cache_v1',
+      jsonEncode(tasks.map((t) => t.toJson()).toList()),
+    );
+  }
+
+  Future<List<Task>> _loadAssignedCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('assigned_tasks_cache_v1');
+    if (raw == null || raw.isEmpty) return [];
+    final decoded = jsonDecode(raw);
+    if (decoded is List) {
+      return decoded
+          .whereType<Map>()
+          .map((e) => Task.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<void> completeAssignedTask(String taskId) async {
+    await ApiClient.instance.dio.post('/api/tasks/$taskId/executor-complete');
+    invalidateTasksCache();
   }
 
   Future<Task> createTask(Map<String, dynamic> payload) async {
@@ -150,8 +206,15 @@ class TaskService {
   }
 
   Future<Map<String, dynamic>> fetchTask(String taskId) async {
-    final response = await ApiClient.instance.dio.get('/api/tasks/$taskId');
-    final data = response.data as Map<String, dynamic>;
-    return data;
+    try {
+      final response = await ApiClient.instance.dio.get('/api/tasks/$taskId');
+      return response.data as Map<String, dynamic>;
+    } catch (_) {
+      final cached = await _loadAssignedCache();
+      for (final task in cached) {
+        if (task.id == taskId) return task.toJson();
+      }
+      rethrow;
+    }
   }
 }

@@ -3,7 +3,9 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/task.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/connectivity_service.dart';
 import '../../core/services/file_service.dart';
+import '../../core/services/offline_sync_service.dart';
 import '../../core/services/task_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,6 +24,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   Map<String, dynamic>? _fullTask;
   bool _loadingDetails = true;
   bool _uploading = false;
+  bool _completing = false;
   String? _error;
   List<Map<String, dynamic>> _files = [];
 
@@ -30,6 +33,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     'requestNumber': '№ заявки',
     'requestDate': 'Дата заявки',
     'status': 'Статус заявки',
+    'executorWorkStatus': 'Статус виконавця',
     'company': 'Компанія виконавець',
     'serviceRegion': 'Регіон сервісного відділу',
     'edrpou': 'ЄДРПОУ',
@@ -116,7 +120,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   };
 
   static const List<String> _fieldOrder = [
-    'requestNumber', 'requestDate', 'status', 'company', 'serviceRegion',
+    'requestNumber', 'requestDate', 'status', 'executorWorkStatus', 'company', 'serviceRegion',
     'requestAuthor', 'edrpou', 'client', 'address', 'requestDesc',
     'plannedDate', 'contactPerson', 'contactPhone', 'urgent', 'internalWork',
     'equipment', 'equipmentSerial', 'engineModel', 'engineSerial',
@@ -191,6 +195,67 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     }
   }
 
+  bool get _isAlreadyCompleted {
+    final fromFull = _fullTask?['executorWorkStatus']?.toString();
+    return fromFull == 'Виконавець виконав роботу' || widget.task.isExecutorCompleted;
+  }
+
+  Future<void> _confirmAndComplete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Заявка виконана'),
+        content: const Text(
+          'Коли ви закриєте заявку, вона зникне з вашого списку видимості. Ви впевнені, що все виконали?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Скасувати'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Так, закрити'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() {
+      _completing = true;
+      _error = null;
+    });
+    try {
+      if (ConnectivityService.instance.isOffline) {
+        await OfflineSyncService.instance.enqueueComplete(widget.task.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Заявку буде закрито після появи інтернету')),
+        );
+        Navigator.of(context).pop(true);
+        return;
+      }
+      await TaskService.instance.completeAssignedTask(widget.task.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Заявку закрито. Вона зникла з вашого списку')),
+      );
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = AuthService.parseError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _completing = false;
+        });
+      }
+    }
+  }
+
   Future<void> _pickAndUpload(ImageSource source) async {
     setState(() {
       _uploading = true;
@@ -208,15 +273,26 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
         });
         return;
       }
-      await FileService.instance.uploadTaskFiles(
-        taskId: widget.task.id,
-        files: [file],
-      );
-      await _loadFiles();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Фото завантажено')),
-      );
+      if (ConnectivityService.instance.isOffline) {
+        await OfflineSyncService.instance.enqueuePhoto(
+          taskId: widget.task.id,
+          file: file,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Фото збережено. Завантажиться, коли з’явиться інтернет')),
+        );
+      } else {
+        await FileService.instance.uploadTaskFiles(
+          taskId: widget.task.id,
+          files: [file],
+        );
+        await _loadFiles();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Фото завантажено')),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -377,6 +453,8 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
         return task.requestDate?.trim().isEmpty == true ? null : task.requestDate;
       case 'status':
         return task.status.trim().isEmpty ? null : task.status;
+      case 'executorWorkStatus':
+        return task.executorWorkStatus?.trim().isEmpty == true ? null : task.executorWorkStatus;
       case 'client':
         return task.client?.trim().isEmpty == true ? null : task.client;
       case 'requestDesc':
@@ -544,6 +622,22 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                     if (_files.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       _buildFilesSection(),
+                    ],
+                    if (!_isAlreadyCompleted) ...[
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: (_uploading || _completing) ? null : _confirmAndComplete,
+                          child: _completing
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Заявка виконана'),
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 24),
                   ],

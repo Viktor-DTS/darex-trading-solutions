@@ -6,6 +6,7 @@ import '../models/user.dart';
 import '../session.dart';
 import 'access_rules_service.dart';
 import 'api_client.dart';
+import 'offline_sync_service.dart';
 import 'push_notification_service.dart';
 import 'secure_storage.dart';
 import 'task_service.dart';
@@ -19,9 +20,13 @@ class AuthService {
     final token = await SecureStorage.readToken();
     final userJson = await SecureStorage.readUserJson();
     Session.loadFromJson(token, userJson);
-    if (token != null && token.isNotEmpty) {
-      await AccessRulesService.instance.loadAccessRules();
+    if (token == null || token.isEmpty) return;
+
+    if (!await validateSession()) {
+      await expireSession();
+      return;
     }
+    await AccessRulesService.instance.loadAccessRules();
   }
 
   Future<User> login({
@@ -45,25 +50,70 @@ class AuthService {
 
     await SecureStorage.saveToken(token);
     await SecureStorage.saveUserJson(jsonEncode(user.toJson()));
+    await SecureStorage.saveCredentials(login: login, password: password);
 
     await PushNotificationService.instance.refreshToken();
     await AccessRulesService.instance.loadAccessRules();
+    await OfflineSyncService.instance.flush();
 
     return user;
+  }
+
+  Future<({String login, String password})?> readSavedCredentials() {
+    return SecureStorage.readCredentials();
+  }
+
+  /// Перевіряє JWT локально і запитом до API. Офлайн не вважаємо виходом.
+  Future<bool> validateSession() async {
+    final token = Session.token;
+    if (token == null || token.isEmpty) return false;
+    if (_isJwtExpired(token)) return false;
+    try {
+      await ApiClient.instance.dio.get('/api/accessRules');
+      return true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) return false;
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Прострочена сесія: вихід без стирання збереженого логіна/пароля.
+  Future<void> expireSession() async {
+    AccessRulesService.instance.clear();
+    Session.clear();
+    await SecureStorage.clearSession();
+    TaskService.instance.invalidateTasksCache();
   }
 
   Future<void> logout() async {
     await PushNotificationService.instance.clearToken();
     AccessRulesService.instance.clear();
     Session.clear();
-    await SecureStorage.clear();
+    await SecureStorage.clearSession();
     TaskService.instance.invalidateTasksCache();
   }
 
   String? get role => Session.user?.role;
   String? get region => Session.user?.region;
   String? get userName => Session.user?.name ?? Session.user?.login;
-  bool get isAuthenticated => (Session.token?.isNotEmpty ?? false);
+  bool get isAuthenticated => Session.token?.isNotEmpty ?? false;
+
+  static bool _isJwtExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      final exp = payload is Map ? payload['exp'] : null;
+      if (exp is num) {
+        return DateTime.now().millisecondsSinceEpoch >= (exp * 1000).round();
+      }
+    } catch (_) {}
+    return false;
+  }
 
   static String parseError(Object error) {
     if (error is DioException) {

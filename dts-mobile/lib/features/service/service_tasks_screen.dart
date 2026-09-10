@@ -21,8 +21,6 @@ class ServiceTasksScreen extends StatefulWidget {
 class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-  final _statuses = const ['Всі', 'Заявка', 'В роботі', 'Виконано'];
-  String _selectedStatus = 'Заявка';
   bool _loading = false;
   bool _loadingMore = false;
   String? _error;
@@ -84,12 +82,12 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
       final result = await TaskService.instance.fetchTasksFiltered(
         region: region,
         sort: '-requestDate',
-        status: _selectedStatus == 'Всі' ? null : _selectedStatus,
-        statuses: _selectedStatus == 'Всі' ? 'Заявка,В роботі,Виконано' : null,
+        statuses: 'Заявка,В роботі',
         filter: filter.isEmpty ? null : filter,
         page: 1,
         limit: TaskService.defaultPageLimit,
         forceRefresh: forceRefresh,
+        assignedToMe: true,
       );
       if (mounted) {
         setState(() {
@@ -116,8 +114,8 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
       final result = await TaskService.instance.fetchTasksFiltered(
         region: region,
         sort: '-requestDate',
-        status: _selectedStatus == 'Всі' ? null : _selectedStatus,
-        statuses: _selectedStatus == 'Всі' ? 'Заявка,В роботі,Виконано' : null,
+        statuses: 'Заявка,В роботі',
+        assignedToMe: true,
         filter: filter.isEmpty ? null : filter,
         page: nextPage,
         limit: TaskService.defaultPageLimit,
@@ -161,27 +159,10 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 36,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _statuses.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        final status = _statuses[index];
-                        final isSelected = status == _selectedStatus;
-                        return ChoiceChip(
-                          label: Text(status),
-                          selected: isSelected,
-                          onSelected: (_) {
-                            if (isSelected) return;
-                            setState(() => _selectedStatus = status);
-                            _loadTasks(resetPage: true);
-                          },
-                        );
-                      },
-                    ),
+                  const SizedBox(height: 8),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Тільки заявки, передані вам як виконавцю'),
                   ),
                 ],
               ),
@@ -252,15 +233,18 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                                         ),
                                     ],
                                   ),
-                                  onTap: () {
-                                    Navigator.of(context).push(
+                                  onTap: () async {
+                                    final closed = await Navigator.of(context).push<bool>(
                                       MaterialPageRoute(
                                         builder: (_) => TaskDetailsScreen(
                                           task: task,
                                         ),
                                       ),
                                     );
-                                    },
+                                    if (closed == true && mounted) {
+                                      await _loadTasks(forceRefresh: true, resetPage: true);
+                                    }
+                                  },
                                   );
                                 },
                               ),

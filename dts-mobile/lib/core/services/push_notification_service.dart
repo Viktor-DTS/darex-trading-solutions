@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'api_client.dart';
+import 'secure_storage.dart';
 import '../session.dart';
 
 /// Сервіс push-сповіщень через Firebase Cloud Messaging.
@@ -33,7 +35,7 @@ class PushNotificationService {
 
   /// Callback при кліку на сповіщення (коли додаток відкрито з background/terminated).
   /// data може містити taskId, type тощо для deep link.
-  void Function(Map<String, dynamic> data)? onNotificationTapped;
+  Future<void> Function(Map<String, dynamic> data)? onNotificationTapped;
 
   Map<String, dynamic>? _pendingInitialData;
 
@@ -83,7 +85,8 @@ class PushNotificationService {
     // Клік по сповіщенню, коли додаток був terminated (callback встановлять пізніше)
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null && initial.data.isNotEmpty) {
-      _pendingInitialData = Map<String, String>.from(initial.data);
+      _pendingInitialData = _asStringMap(initial.data);
+      unawaited(rememberPending(_pendingInitialData!));
     }
 
     // Відстеження оновлення токену
@@ -92,6 +95,10 @@ class PushNotificationService {
     // Якщо вже залогінений — одразу надсилаємо токен
     if (Session.token != null && Session.token!.isNotEmpty) {
       await _sendCurrentToken();
+    }
+
+    if (_pendingInitialData == null) {
+      await peekPending();
     }
 
     _initialized = true;
@@ -109,12 +116,22 @@ class PushNotificationService {
     await _local.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (details) {
-        final payload = details.payload;
-        if (payload == null || payload.isEmpty) return;
-        // Мінімальна передача data через payload — для FCM data краще зберігати окремо;
-        // тестове сповіщення без deep link.
+        final data = _mapFromPayload(details.payload);
+        if (data != null && data.isNotEmpty) {
+          _handleMessageData(data);
+        }
       },
     );
+
+    final launch = await _local.getNotificationAppLaunchDetails();
+    final launchPayload = launch?.notificationResponse?.payload;
+    if (launch?.didNotificationLaunchApp == true) {
+      final data = _mapFromPayload(launchPayload);
+      if (data != null && data.isNotEmpty) {
+        _pendingInitialData = data;
+        unawaited(rememberPending(data));
+      }
+    }
 
     if (Platform.isAndroid) {
       final android = _local.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -146,6 +163,7 @@ class PushNotificationService {
       title: title,
       summary: summary.isNotEmpty ? summary : title,
       expandedBody: expanded,
+      payload: jsonEncode(_asStringMap(data)),
     );
   }
 
@@ -248,6 +266,7 @@ class PushNotificationService {
     required String title,
     required String summary,
     required String expandedBody,
+    String? payload,
   }) async {
     final id = _localNotificationId = (_localNotificationId + 1) % 0x7fffffff;
 
@@ -283,6 +302,7 @@ class PushNotificationService {
         iOS: darwinDetails,
         macOS: darwinDetails,
       ),
+      payload: payload,
     );
   }
 
@@ -291,20 +311,59 @@ class PushNotificationService {
   }
 
   void _handleMessageData(Map<String, dynamic> data) {
-    final map = Map<String, String>.from(data);
+    final map = _asStringMap(data);
+    unawaited(rememberPending(map));
     if (onNotificationTapped != null) {
-      onNotificationTapped!(map);
-    } else {
-      _pendingInitialData = map;
+      unawaited(onNotificationTapped!(map));
     }
   }
 
-  /// Викликати після першого build — обробить pending message з getInitialMessage.
-  void handlePendingTap() {
-    if (_pendingInitialData != null && onNotificationTapped != null) {
-      onNotificationTapped!(_pendingInitialData!);
-      _pendingInitialData = null;
+  Future<void> rememberPending(Map<String, dynamic> data) async {
+    _pendingInitialData = _asStringMap(data);
+    await SecureStorage.savePendingPush(jsonEncode(_pendingInitialData));
+  }
+
+  Future<Map<String, dynamic>?> peekPending() async {
+    if (_pendingInitialData != null && _pendingInitialData!.isNotEmpty) {
+      return _pendingInitialData;
     }
+    final raw = await SecureStorage.readPendingPush();
+    if (raw == null || raw.isEmpty) return null;
+    final data = _mapFromPayload(raw);
+    if (data != null && data.isNotEmpty) {
+      _pendingInitialData = data;
+    }
+    return _pendingInitialData;
+  }
+
+  Future<void> clearPending() async {
+    _pendingInitialData = null;
+    await SecureStorage.clearPendingPush();
+  }
+
+  /// Викликати після першого build або після логіну.
+  /// Якщо сесії немає — pending лишається, щоб відкрити заявку після входу.
+  Future<void> handlePendingTap() async {
+    if (onNotificationTapped == null) return;
+    if (Session.token == null || Session.token!.isEmpty) return;
+    final data = await peekPending();
+    if (data == null || data.isEmpty) return;
+    await onNotificationTapped!(data);
+  }
+
+  static Map<String, String> _asStringMap(Map<String, dynamic> data) {
+    return data.map((key, value) => MapEntry(key.toString(), value?.toString() ?? ''));
+  }
+
+  static Map<String, String>? _mapFromPayload(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) {
+        return decoded.map((key, value) => MapEntry(key.toString(), value?.toString() ?? ''));
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _sendCurrentToken() async {
