@@ -625,6 +625,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   // Визначаємо чи це нова заявка (немає id)
   const isNewTask = !initialData.id && !initialData._id;
+  // Не можна ставити в deps увесь initialData/user: батько часто передає новий {}
+  // і новий об'єкт user на кожному рендері (лічильники, сповіщення) — форма тоді затирає введене.
+  const formSessionKey = !open
+    ? 'closed'
+    : `${isNewTask ? 'new' : 'edit'}:${initialData?._id || initialData?.id || ''}`;
 
   // Відстежуємо попередній регіон для виявлення змін
   const prevServiceRegionRef = useRef('');
@@ -772,7 +777,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       }
       setError(null);
     }
-  }, [open, user, isNewTask, initialData]);
+  }, [formSessionKey, open]);
 
   useEffect(() => {
     lastContractPdfBackfillKeyRef.current = '';
