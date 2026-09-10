@@ -62,7 +62,7 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
     setError('');
     try {
       const token = localStorage.getItem('token');
-      const res = await authFetch(`${API_BASE_URL}/tasks/${task._id || task.id}/assign-executor`, {
+      const res = await authFetch(`${API_BASE_URL}/tasks/${task.id || task._id}/assign-executor`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -90,7 +90,7 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
     setError('');
     try {
       const token = localStorage.getItem('token');
-      const res = await authFetch(`${API_BASE_URL}/tasks/${task._id || task.id}/unassign-executor`, {
+      const res = await authFetch(`${API_BASE_URL}/tasks/${task.id || task._id}/unassign-executor`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -10760,6 +10760,7 @@ app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) =
 
     res.json({
       ...saved,
+      _id: String(saved._id),
       id: String(saved._id),
       previousEngineer,
     });
@@ -10808,6 +10809,7 @@ app.post('/api/tasks/:id/unassign-executor', authenticateToken, async (req, res)
 
     res.json({
       ...saved,
+      _id: String(saved._id),
       id: String(saved._id),
       unassigned: true,
       previousExecutor: previousName,

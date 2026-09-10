@@ -332,6 +332,24 @@ function statusSlug(status) {
   return String(status || 'none').toLowerCase().replace(/\s+/g, '-');
 }
 
+function taskRecordId(task) {
+  if (task == null) return '';
+  if (typeof task === 'string' || typeof task === 'number') return String(task);
+  const raw = task.id ?? task._id;
+  if (raw == null) return '';
+  return String(raw);
+}
+
+function executorAssignmentLabel(task) {
+  const login = String(task?.assignedExecutorLogin || '').trim();
+  const statusText = String(task?.executorWorkStatus || '').trim();
+  if (!login && !statusText) return null;
+  const done = statusText === 'Виконавець виконав роботу';
+  const name = String(task?.assignedExecutorName || login).trim();
+  if (done) return name ? `Виконано · ${name}` : 'Виконавець виконав роботу';
+  return name ? `Передано · ${name}` : 'Передано в роботу';
+}
+
 function loadFilterPresets(area, login) {
   try {
     const scoped = login ? localStorage.getItem(`taskTable_filterPresets_${login}_${area}`) : null;
@@ -694,22 +712,31 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   );
 
   const executorWorkBadge = (task) => {
-    const statusText = String(task?.executorWorkStatus || '').trim();
-    if (!statusText) return null;
-    const done = statusText === 'Виконавець виконав роботу';
+    const label = executorAssignmentLabel(task);
+    if (!label) return null;
+    const done = String(task?.executorWorkStatus || '').trim() === 'Виконавець виконав роботу';
     return (
       <div
         className={`executor-work-badge ${done ? 'is-done' : 'is-assigned'}`}
-        title={task.assignedExecutorName ? `${statusText}: ${task.assignedExecutorName}` : statusText}
+        title={label}
       >
-        {statusText}
-        {task.assignedExecutorName ? ` · ${task.assignedExecutorName}` : ''}
+        {label}
       </div>
     );
   };
 
+  const renderStatusCell = (task) => (
+    <div className="task-status-cell">
+      <span>{task.status || ''}</span>
+      {isTaskMarkedForDeletion(task) ? (
+        <span className="deletion-status-hint"> · під видалення</span>
+      ) : null}
+      {columnsArea === 'service' ? executorWorkBadge(task) : null}
+    </div>
+  );
+
   const handleAssignedExecutor = (updated) => {
-    const taskId = updated?._id || updated?.id || assignTask?._id || assignTask?.id;
+    const taskId = taskRecordId(updated) || taskRecordId(assignTask);
     const taskNumber = updated?.requestNumber || assignTask?.requestNumber || taskId;
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     const token = localStorage.getItem('token');
@@ -724,22 +751,36 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         entityId: taskId,
         description: unassigned
           ? `Призначення виконавця скасовано для заявки ${taskNumber}${updated?.previousExecutor ? ` (${updated.previousExecutor})` : ''}`
-          : `Заявку ${taskNumber} передано виконавцю ${updated?.engineer1 || ''}`,
+          : `Заявку ${taskNumber} передано виконавцю ${updated?.assignedExecutorName || updated?.engineer1 || ''}`,
         details: {
           requestNumber: taskNumber,
-          engineer: updated?.engineer1 || '',
+          engineer: updated?.assignedExecutorName || updated?.engineer1 || '',
           previousEngineer: updated?.previousEngineer || updated?.previousExecutor || '',
           status: updated?.status,
+          executorWorkStatus: updated?.executorWorkStatus || '',
           unassigned,
         },
       });
     }
     setAssignTask(null);
     if (!taskId) return;
-    if (status === 'newRequests' && updated?.status === 'В роботі') {
-      setTasks((prev) => prev.filter((t) => (t._id || t.id) !== taskId));
+    const mergeAssigned = (t) => {
+      if (taskRecordId(t) !== taskId) return t;
+      if (updated?.unassigned) {
+        return {
+          ...t,
+          ...updated,
+          assignedExecutorLogin: '',
+          assignedExecutorName: '',
+          executorWorkStatus: '',
+        };
+      }
+      return { ...t, ...updated, id: t.id || taskId };
+    };
+    if (status === 'newRequests' && updated?.status === 'В роботі' && !updated?.unassigned) {
+      setTasks((prev) => prev.filter((t) => taskRecordId(t) !== taskId));
     } else {
-      setTasks((prev) => prev.map((t) => ((t._id || t.id) === taskId ? { ...t, ...updated } : t)));
+      setTasks((prev) => prev.map(mergeAssigned));
     }
     clearTasksCache();
   };
@@ -1758,6 +1799,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           <span className={`task-passport-chip is-status-${statusSlug(task.status)}`}>
             {task.status || 'Без статусу'}
           </span>
+          {columnsArea === 'service' && executorAssignmentLabel(task) ? (
+            <span className={`task-passport-chip ${String(task.executorWorkStatus || '') === 'Виконавець виконав роботу' ? 'is-executor-done' : 'is-executor'}`}>
+              {executorAssignmentLabel(task)}
+            </span>
+          ) : null}
           {task.urgentRequest && <span className="task-passport-chip is-urgent">Термінова</span>}
           {task.internalWork && <span className="task-passport-chip">Внутрішня</span>}
           {isTaskMarkedForDeletion(task) && <span className="task-passport-chip is-urgent">Під видалення</span>}
@@ -2437,21 +2483,15 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                     {displayedColumns.map(col => {
                       const colWidth = columnSettings.widths?.[col.key] || col.width;
                       const widthValue = typeof colWidth === 'number' ? `${colWidth}px` : colWidth;
-                      const isDeletionStatus = col.key === 'status' && isTaskMarkedForDeletion(task);
                       
                       return (
                         <td key={col.key} style={{ width: widthValue, maxWidth: widthValue }}>
-                          {isDeletionStatus ? (
-                            <span title={task.blockDetail || 'Помітка видалення'}>
-                              {formatValue(getTaskColumnValue(task, col.key), getTaskColumnFormatKey(task, col.key))}
-                              <span className="deletion-status-hint"> · під видалення</span>
-                            </span>
-                          ) : (
-                            formatValue(
+                          {col.key === 'status'
+                            ? renderStatusCell(task)
+                            : formatValue(
                               getTaskColumnValue(task, col.key),
                               getTaskColumnFormatKey(task, col.key)
-                            )
-                          )}
+                            )}
                         </td>
                       );
                     })}

@@ -575,10 +575,17 @@ body.task-modal-open .task-kanban-grid {
 .task-table-container--modern .task-board-card-actions .btn-work-order,
 .task-table-container--modern .task-board-card-actions .btn-view-task,
 .task-table-container--modern .task-board-card-actions .btn-delete-task,
-.task-table-container--modern .task-board-card-actions .btn-restore-task {
+.task-table-container--modern .task-board-card-actions .btn-restore-task,
+.task-table-container--modern .task-board-card-actions .btn-assign-executor {
   border-radius: 8px;
   font-size: 11.5px;
   padding: 5px 8px;
+}
+
+.task-table-container--modern .task-board-card-actions .executor-work-badge {
+  flex: 1 1 100%;
+  max-width: none;
+  text-align: left;
 }
 
 .task-table-container--modern .task-board-card .btn-take-into-work {
@@ -746,6 +753,16 @@ body.task-modal-open .task-kanban-grid {
 .task-passport-chip.is-status-заблоковано {
   background: rgba(248, 113, 113, 0.18);
   color: #f87171;
+}
+
+.task-passport-chip.is-executor {
+  background: rgba(139, 92, 246, 0.22);
+  color: #c4b5fd;
+}
+
+.task-passport-chip.is-executor-done {
+  background: rgba(52, 211, 153, 0.2);
+  color: #86efac;
 }
 
 .task-passport-chip.is-debt {
