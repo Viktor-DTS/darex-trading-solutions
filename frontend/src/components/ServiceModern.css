@@ -759,7 +759,7 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .task-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
+  gap: 8px;
   align-items: start;
   padding: 4px 8px 12px;
 }
@@ -773,9 +773,15 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .task-form > .section-basic,
 .modal-content--modern .task-form > .section-client,
 .modal-content--modern .task-form > .section-equipment,
+.modal-content--modern .task-form > .section-engineers,
+.modal-content--modern .task-form > .section-expenses,
 .modal-content--modern .task-form > .section-approval,
 .modal-content--modern .task-form > .modal-footer {
   grid-column: 1 / -1;
+}
+
+.modal-content--modern .form-section:not(:has(.section-content)) {
+  display: none;
 }
 
 .modal-content--modern .task-form-cats {
@@ -830,7 +836,7 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .section-equipment .section-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
+  gap: 8px;
   align-items: start;
 }
 
@@ -866,13 +872,20 @@ body.task-modal-open .task-kanban-grid {
   background: #16202f;
   border: 1px solid #2a3a52;
   border-radius: 14px;
-  padding: 10px 12px 12px;
+  padding: 8px 10px 10px;
   box-shadow: inset 3px 0 0 var(--board-accent, #5b9cf8);
+}
+
+.modal-content--modern .task-board {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
 }
 
 .task-board-title {
   display: block;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -922,8 +935,9 @@ body.task-modal-open .task-kanban-grid {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 8px 10px;
+  gap: 6px 8px;
   width: 100%;
+  margin: 0;
 }
 
 .modal-content--modern .task-form .form-row > .form-group {
@@ -1039,12 +1053,23 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .materials-sheet {
   margin-top: 0;
   overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.modal-content--modern .materials-sheet .form-row,
+.modal-content--modern .materials-sheet .form-row.four-cols {
+  margin: 0 !important;
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
 }
 
 .modal-content--modern .materials-sheet .form-row.four-cols {
   display: grid !important;
   grid-template-columns: minmax(220px, 1fr) 72px 96px 96px;
-  gap: 6px 8px;
+  gap: 2px 8px;
   align-items: end;
   min-width: 0;
   flex-wrap: nowrap;
@@ -1055,6 +1080,8 @@ body.task-modal-open .task-kanban-grid {
   flex: unset;
   width: auto;
   min-width: 0;
+  margin: 0;
+  gap: 2px;
 }
 
 .modal-content--modern .materials-sheet .form-row.four-cols > .form-group:first-child,
@@ -1459,12 +1486,16 @@ body.task-modal-open .task-kanban-grid {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+}
+
+.modal-content--modern .other-material-lines {
+  gap: 4px !important;
 }
 
 .modal-content--modern .task-board--pay .invoice-request-block {
-  margin-top: 10px;
-  padding: 10px;
+  margin-top: 6px;
+  padding: 8px 10px;
   background: #121a28;
   border-color: #2a3a52;
 }
@@ -1476,7 +1507,7 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .section-engineers .section-content {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .modal-content--modern .section-engineers .form-row {
@@ -1495,7 +1526,7 @@ body.task-modal-open .task-kanban-grid {
 .modal-content--modern .section-expenses .section-content {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 168px));
-  gap: 8px;
+  gap: 6px;
 }
 
 .modal-content--modern .section-expenses .form-row {
@@ -1534,17 +1565,17 @@ body.task-modal-open .task-kanban-grid {
 }
 
 .modal-content--modern .section-approval .section-files {
-  margin-top: 10px;
+  margin-top: 0;
   background: #121a28;
 }
 
 .modal-content--modern .contract-file-block {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .modal-content--modern .invoice-request-block {
-  margin-top: 10px;
-  padding: 10px 12px;
+  margin-top: 6px;
+  padding: 8px 10px;
 }
 
 .modal-content--modern .modal-footer {
