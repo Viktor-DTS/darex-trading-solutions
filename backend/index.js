@@ -11262,7 +11262,6 @@ function parseUserRegions(region) {
 function userMatchesAllowedRegions(userRegion, allowedRegions) {
   if (!allowedRegions?.length) return true;
   const regions = parseUserRegions(userRegion);
-  if (regions.includes('Україна')) return true;
   return regions.some((r) => allowedRegions.includes(r));
 }
 
