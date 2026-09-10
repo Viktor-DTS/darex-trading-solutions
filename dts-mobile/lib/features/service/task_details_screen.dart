@@ -32,9 +32,10 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   bool _completing = false;
   String? _error;
   List<Map<String, dynamic>> _files = [];
-  List<File> _localPhotos = [];
-  int _pendingUploads = 0;
+  List<Map<String, dynamic>> _pendingPhotos = [];
   bool _pendingComplete = false;
+
+  List<Map<String, dynamic>> get _displayFiles => [..._files, ..._pendingPhotos];
 
   /// Порядок і підписи полів (як у веб-версії). Порожні не показуємо.
   static const Map<String, String> _fieldLabels = {
@@ -158,7 +159,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     _loadPendingComplete();
     _loadFullTask();
     _loadFiles();
-    _loadLocalPhotos();
+    _loadPendingPhotos();
   }
 
   Future<void> _loadPendingComplete() async {
@@ -204,14 +205,11 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     }
   }
 
-  Future<void> _loadLocalPhotos() async {
-    final files = await OfflineSyncService.instance.backupsForTask(widget.task.id);
-    final pending = await OfflineSyncService.instance.pendingPhotoCount(widget.task.id);
+  Future<void> _loadPendingPhotos() async {
+    final pending =
+        await OfflineSyncService.instance.pendingPhotosForTask(widget.task.id);
     if (!mounted) return;
-    setState(() {
-      _localPhotos = files;
-      _pendingUploads = pending;
-    });
+    setState(() => _pendingPhotos = pending);
   }
 
   Future<void> _loadFiles() async {
@@ -315,7 +313,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
       ),
     );
     if (!mounted) return;
-    await _loadLocalPhotos();
+    await _loadPendingPhotos();
     await _loadFiles();
     if (!mounted) return;
     if (uploaded == true) {
@@ -323,8 +321,8 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
         SnackBar(
           content: Text(
             ConnectivityService.instance.isOffline
-                ? 'Фото збережено на телефоні. Відправляться, коли з’явиться інтернет'
-                : 'Фото додано до заявки. Копії збережено в галереї DTS Mobile',
+                ? 'Фото додано до заявки. Відправляться, коли з’явиться інтернет'
+                : 'Фото додано до заявки',
           ),
         ),
       );
@@ -380,18 +378,18 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
               ),
             );
           }
-          await _loadLocalPhotos();
+          await _loadPendingPhotos();
           return;
         }
       }
-      await _loadLocalPhotos();
+      await _loadPendingPhotos();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             offline
-                ? 'Фото збережено на телефоні. Відправиться, коли з’явиться інтернет'
-                : 'Фото завантажено. Копію збережено в галереї DTS Mobile',
+                ? 'Фото додано до заявки. Відправиться, коли з’явиться інтернет'
+                : 'Фото додано до заявки',
           ),
         ),
       );
@@ -417,21 +415,41 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     return ext.any((e) => name.endsWith(e));
   }
 
+  List<_ImageItem> _allImageItems() {
+    final items = <_ImageItem>[];
+    for (final file in _displayFiles) {
+      if (!_isImageFile(file)) continue;
+      final localPath = file['localPath']?.toString() ?? '';
+      final url = file['cloudinaryUrl']?.toString() ?? '';
+      if (localPath.isNotEmpty) {
+        items.add(_ImageItem(
+          localPath: localPath,
+          name: file['originalName']?.toString() ?? 'Фото',
+        ));
+      } else if (url.isNotEmpty) {
+        items.add(_ImageItem(
+          url: url,
+          name: file['originalName']?.toString() ?? 'Фото',
+        ));
+      }
+    }
+    return items;
+  }
+
   void _openFileOrImage({
     required String url,
     required bool isImage,
     String? name,
+    String? localPath,
   }) {
     if (isImage) {
-      final imageItems = _files
-          .where((f) => (f['cloudinaryUrl']?.toString() ?? '').isNotEmpty)
-          .where(_isImageFile)
-          .map((f) => _ImageItem(
-                url: f['cloudinaryUrl']?.toString() ?? '',
-                name: f['originalName']?.toString() ?? 'Фото',
-              ))
-          .toList();
-      final initialIndex = imageItems.indexWhere((e) => e.url == url);
+      final imageItems = _allImageItems();
+      var initialIndex = 0;
+      if (localPath != null && localPath.isNotEmpty) {
+        initialIndex = imageItems.indexWhere((e) => e.localPath == localPath);
+      } else {
+        initialIndex = imageItems.indexWhere((e) => e.url == url);
+      }
       final startIndex = initialIndex >= 0 ? initialIndex : 0;
       if (imageItems.isEmpty) return;
       Navigator.of(context).push(
@@ -450,12 +468,13 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   }
 
   Widget _buildFilesSection() {
-    if (_files.isEmpty) return const SizedBox.shrink();
+    final files = _displayFiles;
+    if (files.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Файли (${_files.length})',
+          'Фото заявки (${files.length})',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -470,17 +489,21 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
             crossAxisSpacing: 12,
             childAspectRatio: 0.85,
           ),
-          itemCount: _files.length,
+          itemCount: files.length,
           itemBuilder: (context, index) {
-            final file = _files[index];
+            final file = files[index];
             final url = file['cloudinaryUrl']?.toString() ?? '';
+            final localPath = file['localPath']?.toString() ?? '';
             final name = file['originalName']?.toString() ?? 'Файл';
             final isImage = _isImageFile(file);
+            final pending = file['pending'] == true;
+            final localFile = localPath.isNotEmpty ? File(localPath) : null;
             return InkWell(
               onTap: () => _openFileOrImage(
                 url: url,
                 isImage: isImage,
                 name: name,
+                localPath: localPath.isNotEmpty ? localPath : null,
               ),
               borderRadius: BorderRadius.circular(8),
               child: Container(
@@ -495,21 +518,54 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                       child: ClipRRect(
                         borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(7)),
-                        child: isImage && url.isNotEmpty
-                            ? Image.network(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (isImage && localFile != null)
+                              Image.file(
+                                localFile,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Icon(Icons.broken_image, size: 48),
+                                ),
+                              )
+                            else if (isImage && url.isNotEmpty)
+                              Image.network(
                                 url,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Center(
                                   child: Icon(Icons.broken_image, size: 48),
                                 ),
                               )
-                            : Center(
+                            else
+                              Center(
                                 child: Icon(
                                   Icons.insert_drive_file,
                                   size: 48,
                                   color: Colors.grey.shade600,
                                 ),
                               ),
+                            if (pending)
+                              Align(
+                                alignment: Alignment.bottomLeft,
+                                child: Container(
+                                  margin: const EdgeInsets.all(6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  color: Colors.orange.shade700,
+                                  child: const Text(
+                                    'очікує відправки',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                     Padding(
@@ -735,37 +791,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                         padding: EdgeInsets.only(top: 16),
                         child: LinearProgressIndicator(),
                       ),
-                    if (_pendingUploads > 0 || _localPhotos.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        _pendingUploads > 0
-                            ? 'На телефоні збережено ${_localPhotos.length} фото. Очікують відправки: $_pendingUploads'
-                            : 'Копії фото збережено на телефоні (${_localPhotos.length})',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 72,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _localPhotos.length.clamp(0, 20),
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (context, index) {
-                            final file = _localPhotos[index];
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                file,
-                                width: 72,
-                                height: 72,
-                                fit: BoxFit.cover,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                    if (_files.isNotEmpty) ...[
+                    if (_displayFiles.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       _buildFilesSection(),
                     ],
@@ -794,10 +820,11 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   }
 }
 
-/// Елемент каруселі (url + назва).
+/// Елемент каруселі (url або локальний файл + назва).
 class _ImageItem {
-  const _ImageItem({required this.url, required this.name});
+  const _ImageItem({this.url = '', this.localPath, required this.name});
   final String url;
+  final String? localPath;
   final String name;
 }
 
@@ -920,7 +947,25 @@ class _FullScreenImageCarouselState extends State<_FullScreenImageCarousel> {
                 child: SizedBox(
                   width: constraints.maxWidth,
                   height: constraints.maxHeight,
-                  child: Image.network(
+                  child: item.localPath != null && item.localPath!.isNotEmpty
+                      ? Image.file(
+                          File(item.localPath!),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.broken_image, size: 64, color: Colors.white54),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Не вдалося відкрити зображення',
+                                  style: TextStyle(color: Colors.white54),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Image.network(
                     item.url,
                     fit: BoxFit.contain,
                 loadingBuilder: (context, child, loadingProgress) {

@@ -118,6 +118,25 @@ class OfflineSyncService {
     }).length;
   }
 
+  /// Фото заявки, які ще в черзі відправки (показуємо як додані до заявки).
+  Future<List<Map<String, dynamic>>> pendingPhotosForTask(String taskId) async {
+    final queue = await _readQueue();
+    final result = <Map<String, dynamic>>[];
+    for (final item in queue) {
+      if (item['type'] != 'photo') continue;
+      if (item['taskId']?.toString() != taskId) continue;
+      final path = item['path']?.toString() ?? '';
+      if (path.isEmpty || !File(path).existsSync()) continue;
+      result.add({
+        'originalName': item['name']?.toString() ?? 'Фото',
+        'localPath': path,
+        'pending': true,
+        'mimetype': 'image/jpeg',
+      });
+    }
+    return result;
+  }
+
   Future<void> enqueuePhoto({
     required String taskId,
     required XFile file,

@@ -1,15 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/services/connectivity_service.dart';
 import '../../core/services/file_service.dart';
 import '../../core/services/offline_sync_service.dart';
 
-/// Зйомка кількох фото підряд: кожне підтверджується, без повернення на заявку.
-/// У кінці всі підтверджені файли завантажуються разом.
+/// Зйомка кількох фото підряд власною камерою: одне підтвердження якості в додатку.
 class PhotoCaptureSessionScreen extends StatefulWidget {
   const PhotoCaptureSessionScreen({super.key, required this.taskId});
 
@@ -20,64 +21,136 @@ class PhotoCaptureSessionScreen extends StatefulWidget {
       _PhotoCaptureSessionScreenState();
 }
 
-class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
-  final _picker = ImagePicker();
+enum _CaptureView { camera, preview, review }
+
+class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen>
+    with WidgetsBindingObserver {
   final _accepted = <File>[];
   File? _pending;
+  CameraController? _controller;
+  bool _cameraReady = false;
   bool _shooting = false;
   bool _uploading = false;
   String? _error;
+  _CaptureView _view = _CaptureView.camera;
   late final Directory _sessionDir;
 
   @override
   void initState() {
     super.initState();
-    _prepareAndShoot();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_prepare());
   }
 
-  Future<void> _prepareAndShoot() async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    final controller = _controller;
+    _controller = null;
+    controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      final controller = _controller;
+      _controller = null;
+      _cameraReady = false;
+      controller?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_controller == null) {
+        unawaited(_initCamera());
+      }
+    }
+  }
+
+  Future<void> _prepare() async {
     final root = await getTemporaryDirectory();
     _sessionDir = Directory(
       '${root.path}/photo_session/${widget.taskId}/${DateTime.now().millisecondsSinceEpoch}',
     );
     await _sessionDir.create(recursive: true);
     if (!mounted) return;
-    await _shoot();
+    await _initCamera();
   }
 
-  Future<void> _shoot() async {
-    if (_shooting || _uploading) return;
+  Future<void> _initCamera() async {
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+    if (!status.isGranted) {
+      setState(() {
+        _error = 'Немає доступу до камери';
+        _cameraReady = false;
+      });
+      return;
+    }
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        if (!mounted) return;
+        setState(() => _error = 'Камеру не знайдено');
+        return;
+      }
+      final back = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      final controller = CameraController(
+        back,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      await _controller?.dispose();
+      setState(() {
+        _controller = controller;
+        _cameraReady = true;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _cameraReady = false;
+      });
+    }
+  }
+
+  Future<void> _capture() async {
+    final controller = _controller;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        controller.value.isTakingPicture ||
+        _shooting ||
+        _uploading) {
+      return;
+    }
     setState(() {
       _shooting = true;
-      _pending = null;
       _error = null;
     });
     try {
-      final file = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
-        preferredCameraDevice: CameraDevice.rear,
-      );
-      if (!mounted) return;
-      if (file == null) {
-        setState(() => _shooting = false);
-        if (_accepted.isEmpty) {
-          Navigator.of(context).pop(false);
-        }
-        return;
-      }
+      final shot = await controller.takePicture();
       final dest = File(
         '${_sessionDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
       try {
-        await File(file.path).copy(dest.path);
+        await File(shot.path).copy(dest.path);
       } catch (_) {
-        await dest.writeAsBytes(await file.readAsBytes(), flush: true);
+        await dest.writeAsBytes(await shot.readAsBytes(), flush: true);
       }
       if (!mounted) return;
       setState(() {
         _pending = dest;
         _shooting = false;
+        _view = _CaptureView.preview;
       });
     } catch (error) {
       if (!mounted) return;
@@ -94,19 +167,21 @@ class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
     setState(() {
       _accepted.add(file);
       _pending = null;
+      _view = _CaptureView.camera;
     });
-    _shoot();
   }
 
   void _retakePending() {
     final file = _pending;
-    setState(() => _pending = null);
+    setState(() {
+      _pending = null;
+      _view = _CaptureView.camera;
+    });
     if (file != null) {
       try {
         file.deleteSync();
       } catch (_) {}
     }
-    _shoot();
   }
 
   void _removeAccepted(int index) {
@@ -198,6 +273,11 @@ class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
     return action == 'leave';
   }
 
+  String get _title {
+    if (_view == _CaptureView.preview) return 'Перевірте якість';
+    return 'Фото (${_accepted.length})';
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -212,11 +292,7 @@ class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
         appBar: AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
-          title: Text(
-            _pending != null
-                ? 'Перевірте якість'
-                : 'Фото (${_accepted.length})',
-          ),
+          title: Text(_title),
         ),
         body: _buildBody(),
       ),
@@ -239,7 +315,40 @@ class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
         ),
       );
     }
-    if (_shooting && _pending == null) {
+    if (_view == _CaptureView.preview && _pending != null) {
+      return _buildPreview(_pending!);
+    }
+    if (_view == _CaptureView.review) {
+      return _buildReview();
+    }
+    return _buildCamera();
+  }
+
+  Widget _buildCamera() {
+    final controller = _controller;
+    if (_error != null && !_cameraReady) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _initCamera,
+                child: const Text('Спробувати знову'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (controller == null || !controller.value.isInitialized) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -254,10 +363,70 @@ class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
         ),
       );
     }
-    if (_pending != null) {
-      return _buildPreview(_pending!);
-    }
-    return _buildReview();
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: controller.value.previewSize?.height ?? 1,
+            height: controller.value.previewSize?.width ?? 1,
+            child: CameraPreview(controller),
+          ),
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Підтверджено: ${_accepted.length}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: _shooting ? null : _capture,
+                    child: Container(
+                      width: 76,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 4),
+                        color: _shooting ? Colors.white38 : Colors.white24,
+                      ),
+                      child: _shooting
+                          ? const Padding(
+                              padding: EdgeInsets.all(22),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  if (_accepted.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () =>
+                          setState(() => _view = _CaptureView.review),
+                      child: Text(
+                        'До списку (${_accepted.length}) і завантажити',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildPreview(File file) {
@@ -275,58 +444,61 @@ class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
         SafeArea(
           top: false,
           child: Container(
-          width: double.infinity,
-          color: Colors.black,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Column(
-            children: [
-              Text(
-                'Підтверджено: ${_accepted.length}',
-                style: const TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Перевірте різкість і світло. Якщо погано — перезняти.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _retakePending,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white54),
+            width: double.infinity,
+            color: Colors.black,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              children: [
+                Text(
+                  'Підтверджено: ${_accepted.length}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Перевірте різкість і світло. Якщо погано — перезняти.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _retakePending,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white54),
+                        ),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Перезняти'),
                       ),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Перезняти'),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _confirmPending,
-                      icon: const Icon(Icons.check),
-                      label: const Text('Добре, ще фото'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _confirmPending,
+                        icon: const Icon(Icons.check),
+                        label: const Text('Добре, ще фото'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_accepted.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _pending = null;
+                      _view = _CaptureView.review;
+                    }),
+                    child: Text(
+                      'До списку (${_accepted.length}) і завантажити',
+                      style: const TextStyle(color: Colors.white70),
                     ),
                   ),
                 ],
-              ),
-              if (_accepted.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => setState(() => _pending = null),
-                  child: Text(
-                    'До списку (${_accepted.length}) і завантажити',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ),
               ],
-            ],
+            ),
           ),
-        ),
         ),
       ],
     );
@@ -389,7 +561,7 @@ class _PhotoCaptureSessionScreenState extends State<PhotoCaptureSessionScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _shoot,
+                    onPressed: () => setState(() => _view = _CaptureView.camera),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white54),
