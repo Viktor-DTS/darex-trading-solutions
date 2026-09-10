@@ -4,12 +4,14 @@ import { authFetch } from '../utils/authFetch';
 import './AssignExecutorModal.css';
 
 export default function AssignExecutorModal({ task, onClose, onAssigned }) {
+  const currentLogin = String(task?.assignedExecutorLogin || '').trim();
+  const alreadyAssigned = Boolean(currentLogin);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
-  const [selectedLogin, setSelectedLogin] = useState('');
+  const [selectedLogin, setSelectedLogin] = useState(currentLogin);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +54,10 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
       setError('Оберіть виконавця зі списку');
       return;
     }
+    if (alreadyAssigned && selectedLogin === currentLogin) {
+      setError('Оберіть іншого виконавця або відмініть призначення');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -74,14 +80,38 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
     }
   };
 
+  const unassign = async () => {
+    const name = task?.assignedExecutorName || currentLogin;
+    const ok = window.confirm(
+      `Відмінити призначення${name ? ` (${name})` : ''}?\nЗаявка зникне зі списку виконавця в APP.`
+    );
+    if (!ok) return;
+    setSaving(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await authFetch(`${API_BASE_URL}/tasks/${task._id || task.id}/unassign-executor`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Не вдалося відмінити призначення');
+      onAssigned(data);
+    } catch (e) {
+      setError(e.message || 'Не вдалося відмінити призначення');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="assign-exec-overlay" onClick={onClose} role="presentation">
       <div className="assign-exec-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="assign-exec-title">
-        <h3 id="assign-exec-title">Передати виконавцю</h3>
+        <h3 id="assign-exec-title">{alreadyAssigned ? 'Змінити виконавця' : 'Передати виконавцю'}</h3>
         <p className="assign-exec-meta">
           Заявка <b>{task?.requestNumber || 'без номера'}</b>
           {task?.serviceRegion ? ` · ${task.serviceRegion}` : ''}
-          {task?.engineer1 ? ` · зараз: ${task.engineer1}` : ''}
+          {alreadyAssigned ? ` · зараз: ${task.assignedExecutorName || currentLogin}` : (task?.engineer1 ? ` · зараз: ${task.engineer1}` : '')}
         </p>
         <input
           className="assign-exec-search"
@@ -109,6 +139,7 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
                   <span>
                     <b>{u.name}</b>
                     {u.region ? <small>{u.region}</small> : null}
+                    {u.login === currentLogin ? <small>поточний виконавець</small> : null}
                   </span>
                 </label>
               </li>
@@ -117,12 +148,21 @@ export default function AssignExecutorModal({ task, onClose, onAssigned }) {
         )}
         {error ? <p className="assign-exec-error">{error}</p> : null}
         <div className="assign-exec-actions">
-          <button type="button" className="assign-exec-cancel" onClick={onClose} disabled={saving}>
-            Скасувати
-          </button>
-          <button type="button" className="assign-exec-ok" onClick={submit} disabled={saving || !selectedLogin}>
-            {saving ? 'Передаю…' : 'Передати'}
-          </button>
+          {alreadyAssigned ? (
+            <button type="button" className="assign-exec-unassign" onClick={unassign} disabled={saving}>
+              Відмінити призначення
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="assign-exec-actions-right">
+            <button type="button" className="assign-exec-cancel" onClick={onClose} disabled={saving}>
+              Закрити
+            </button>
+            <button type="button" className="assign-exec-ok" onClick={submit} disabled={saving || !selectedLogin}>
+              {saving ? 'Зберігаю…' : (alreadyAssigned ? 'Змінити' : 'Передати')}
+            </button>
+          </div>
         </div>
       </div>
     </div>

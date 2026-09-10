@@ -714,19 +714,23 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     const token = localStorage.getItem('token');
     if (token && taskId) {
+      const unassigned = Boolean(updated?.unassigned);
       postTaskEventLog(token, {
         userId: currentUser._id || currentUser.id,
         userName: currentUser.name || currentUser.login,
         userRole: currentUser.role,
-        action: 'assign_executor',
+        action: unassigned ? 'unassign_executor' : 'assign_executor',
         entityType: 'task',
         entityId: taskId,
-        description: `Заявку ${taskNumber} передано виконавцю ${updated?.engineer1 || ''}`,
+        description: unassigned
+          ? `Призначення виконавця скасовано для заявки ${taskNumber}${updated?.previousExecutor ? ` (${updated.previousExecutor})` : ''}`
+          : `Заявку ${taskNumber} передано виконавцю ${updated?.engineer1 || ''}`,
         details: {
           requestNumber: taskNumber,
           engineer: updated?.engineer1 || '',
-          previousEngineer: updated?.previousEngineer || '',
+          previousEngineer: updated?.previousEngineer || updated?.previousExecutor || '',
           status: updated?.status,
+          unassigned,
         },
       });
     }
@@ -1831,9 +1835,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
             <button
               className="btn-assign-executor"
               onClick={() => setAssignTask(task)}
-              title="Передати заявку сервісному інженеру свого регіону"
+              title={task.assignedExecutorLogin
+                ? 'Змінити або відмінити виконавця'
+                : 'Передати заявку сервісному інженеру свого регіону'}
             >
-              👤 Передати виконавцю
+              {task.assignedExecutorLogin ? '👤 Змінити виконавця' : '👤 Передати виконавцю'}
             </button>
           )}
           {columnsArea === 'service' ? executorWorkBadge(task) : null}
@@ -2293,9 +2299,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                             e.stopPropagation();
                             setAssignTask(task);
                           }}
-                          title="Передати заявку сервісному інженеру свого регіону"
+                          title={task.assignedExecutorLogin
+                            ? 'Змінити або відмінити виконавця'
+                            : 'Передати заявку сервісному інженеру свого регіону'}
                         >
-                          👤 Передати виконавцю
+                          {task.assignedExecutorLogin ? '👤 Змінити виконавця' : '👤 Передати виконавцю'}
                         </button>
                       )}
                       {columnsArea === 'service' ? executorWorkBadge(task) : null}

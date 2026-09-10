@@ -10726,6 +10726,7 @@ app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) =
       return res.status(403).json({ error: 'Можна передати лише інженеру свого регіону' });
     }
 
+    const previousLogin = String(task.assignedExecutorLogin || '').trim();
     const engineerName = (executor.name && String(executor.name).trim()) || executor.login;
     const previousEngineer = task.engineer1 || '';
     task.engineer1 = engineerName;
@@ -10741,35 +10742,21 @@ app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) =
     const saved = task.toObject();
 
     const actorUser = req.user || actor || { login: 'system', name: 'Система' };
-    try {
-      if (executor.telegramChatId) {
-        await telegramService.sendMessage(
-          executor.telegramChatId,
-          telegramService.formatTaskMessage('task_assigned', saved, actorUser)
-        );
-      }
-      if (executor.fcmToken) {
-        const reqNum = saved.requestNumber != null ? String(saved.requestNumber) : '';
-        const desc = saved.requestDesc != null ? String(saved.requestDesc).trim() : '';
-        const body = desc || (saved.client ? String(saved.client) : 'Відкрийте заявку в DTS Mobile');
-        await sendPushToUsers([executor], {
-          title: 'Вам додана нова заявка',
-          body: reqNum ? `${reqNum}. ${body}` : body,
-          data: {
-            type: 'task_assigned',
-            taskId: String(saved._id),
-            taskNumber: reqNum,
-            expandedBody: desc || body,
-            region: saved.serviceRegion != null ? String(saved.serviceRegion) : '',
-            customer: saved.client != null ? String(saved.client) : '',
-            address: saved.address != null ? String(saved.address) : '',
-            status: saved.status != null ? String(saved.status) : '',
-          },
-        });
-      }
-    } catch (notifyErr) {
-      console.warn('[assign-executor] notify failed:', notifyErr.message);
+    if (previousLogin && previousLogin !== executor.login) {
+      const previous = await User.findOne({ login: previousLogin })
+        .select('login name fcmToken telegramChatId')
+        .lean();
+      await notifyExecutorAboutTask(previous, saved, actorUser, {
+        telegramType: 'task_unassigned',
+        pushTitle: 'Призначення скасовано',
+        pushType: 'task_unassigned',
+      });
     }
+    await notifyExecutorAboutTask(executor, saved, actorUser, {
+      telegramType: 'task_assigned',
+      pushTitle: 'Вам додана нова заявка',
+      pushType: 'task_assigned',
+    });
 
     res.json({
       ...saved,
@@ -10778,6 +10765,55 @@ app.post('/api/tasks/:id/assign-executor', authenticateToken, async (req, res) =
     });
   } catch (error) {
     console.error('[ERROR] POST /api/tasks/:id/assign-executor:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/tasks/:id/unassign-executor', authenticateToken, async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    if (task.status === 'Виконано' || task.status === 'Заблоковано') {
+      return res.status(400).json({ error: 'Цю заявку не можна відвʼязати від виконавця' });
+    }
+    const previousLogin = String(task.assignedExecutorLogin || '').trim();
+    if (!previousLogin) {
+      return res.status(400).json({ error: 'Виконавця не призначено' });
+    }
+
+    const previousName = task.assignedExecutorName || previousLogin;
+    const previous = await User.findOne({ login: previousLogin })
+      .select('login name fcmToken telegramChatId')
+      .lean();
+
+    if (String(task.engineer1 || '').trim() === String(previousName).trim()) {
+      task.engineer1 = '';
+    }
+    task.assignedExecutorLogin = '';
+    task.assignedExecutorName = '';
+    task.executorWorkStatus = '';
+    task.executorAssignedAt = null;
+    task.executorCompletedAt = null;
+    await task.save();
+    const saved = task.toObject();
+
+    const actorUser = req.user || { login: 'system', name: 'Система' };
+    await notifyExecutorAboutTask(previous, saved, actorUser, {
+      telegramType: 'task_unassigned',
+      pushTitle: 'Призначення скасовано',
+      pushType: 'task_unassigned',
+    });
+
+    res.json({
+      ...saved,
+      id: String(saved._id),
+      unassigned: true,
+      previousExecutor: previousName,
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/tasks/:id/unassign-executor:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -11269,6 +11305,42 @@ function userMatchesAllowedRegions(userRegion, allowedRegions) {
   if (!allowedRegions?.length) return true;
   const regions = parseUserRegions(userRegion);
   return regions.some((r) => allowedRegions.includes(r));
+}
+
+async function notifyExecutorAboutTask(executor, task, actorUser, { telegramType, pushTitle, pushType }) {
+  if (!executor) return;
+  try {
+    if (executor.telegramChatId) {
+      await telegramService.sendMessage(
+        executor.telegramChatId,
+        telegramService.formatTaskMessage(telegramType, task, actorUser)
+      );
+    }
+    if (executor.fcmToken) {
+      const reqNum = task.requestNumber != null ? String(task.requestNumber) : '';
+      const desc = task.requestDesc != null ? String(task.requestDesc).trim() : '';
+      const fallback = pushType === 'task_unassigned'
+        ? 'Заявку відкликано, виконувати не потрібно'
+        : 'Відкрийте заявку в DTS Mobile';
+      const body = desc || (task.client ? String(task.client) : fallback);
+      await sendPushToUsers([executor], {
+        title: pushTitle,
+        body: reqNum ? `${reqNum}. ${body}` : body,
+        data: {
+          type: pushType,
+          taskId: String(task._id),
+          taskNumber: reqNum,
+          expandedBody: desc || body,
+          region: task.serviceRegion != null ? String(task.serviceRegion) : '',
+          customer: task.client != null ? String(task.client) : '',
+          address: task.address != null ? String(task.address) : '',
+          status: task.status != null ? String(task.status) : '',
+        },
+      });
+    }
+  } catch (notifyErr) {
+    console.warn('[executor-notify] failed:', notifyErr.message);
+  }
 }
 
 function assignExecutorAllowedRegions(actor, taskRegion) {
@@ -21361,6 +21433,7 @@ function resolveTaskNotificationDateTime(type, task) {
 const TASK_NOTIFICATION_TITLES = {
   task_created: '🆕 Нова заявка',
   task_assigned: '🆕 Вам додана нова заявка',
+  task_unassigned: '↩️ Призначення скасовано',
   task_edited: '⚠️ Увага заявка була змінена',
   task_completed: '✅ Заявка виконана',
   task_approval: '⏳ Потребує підтвердження Завсклада',
@@ -21864,6 +21937,7 @@ ${fieldLines}`;
     const actions = {
       'task_created': '\n\n💡 <b>Дія:</b> Розглянути та призначити виконавця',
       'task_assigned': '\n\n💡 <b>Дія:</b> Відкрити заявку та виконати роботи',
+      'task_unassigned': '\n\n💡 <b>Дія:</b> Заявку відкликано, виконувати не потрібно',
       'task_edited': '\n\n💡 <b>Дія:</b> Перевірити актуальні дані заявки',
       'task_completed': '\n\n⏳ <b>Очікує підтвердження від:</b>\n• Зав. склад\n• Бухгалтер',
       'task_approval': '\n\n📋 <b>Необхідно перевірити</b>',
@@ -21891,6 +21965,7 @@ ${fieldLines}`;
     const actions = {
       task_created: '\n\n💡 Дія: Розглянути та призначити виконавця',
       task_assigned: '\n\n💡 Дія: Відкрити заявку та виконати роботи',
+      task_unassigned: '\n\n💡 Дія: Заявку відкликано, виконувати не потрібно',
       task_edited: '\n\n💡 Дія: Перевірити актуальні дані заявки',
       task_completed: '\n\n⏳ Очікує підтвердження від:\n• Зав. склад\n• Бухгалтер',
       task_approval: '\n\n📋 Необхідно перевірити',
